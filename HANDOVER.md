@@ -259,7 +259,7 @@ Ordered as agreed. The full plan also lives in `~/Desktop/Cindy-Master-Plan.md` 
 
 | # | Task |
 |---|---|
-| 2.1 | App-wide "Sign in to Cindy" sweep outside Settings (onboarding, home, dialogs, provider-share, bots, deep links). Settings tabs are clean. |
+| **2.1** | **App-wide "Sign in to Cindy" sweep outside Settings.** *(Done)* In `HomeZeroModelAction.tsx`, `ConnectProviderBanner.tsx`, and `ConnectProviderCard.tsx`, replaced cloud-service login prompts with direct navigation to local/BYOK provider wizards when in local mode; suppressed Cindy AI managed service row in local mode. 20 tests passing. |
 | 2.2 | Decide on the remaining cloud-only Bots surfaces (group chat endpoints are unavailable locally): hide or leave. |
 | 2.3 | Harness update checks: either vendor-direct checks (npm registry / GitHub releases) with real installers, or keep the honest "unavailable" copy. |
 | 2.4 | ElevenLabs key fallback to the saved provider key. |

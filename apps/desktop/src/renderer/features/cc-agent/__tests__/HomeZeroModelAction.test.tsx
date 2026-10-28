@@ -69,6 +69,17 @@ describe('HomeZeroModelAction', () => {
     expect(screen.getByTestId('loc').textContent).toBe('/settings?tab=providers&connect=xd');
   });
 
+  it('local: directs to provider wizard without sign-in and omits redundant own-api link', () => {
+    renderCard('local');
+    expect(screen.getByText('onboarding.connectProvider.title')).toBeTruthy();
+    expect(screen.getByText('onboarding.connectProvider.desc')).toBeTruthy();
+    expect(screen.getByText('onboarding.connectProvider.banner.connectCta')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('home-zero-model-cta'));
+    expect(signInMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId('loc').textContent).toBe('/settings?tab=providers&wizard=1');
+    expect(screen.queryByTestId('home-zero-model-own-api')).toBeNull();
+  });
+
   it('own API link opens the provider wizard', () => {
     renderCard('signed-out');
     fireEvent.click(screen.getByTestId('home-zero-model-own-api'));

@@ -31,7 +31,7 @@ export function ConnectProviderBanner({
 
   if (!onboarding.visible) return null;
 
-  const cloudMode = onboarding.authMode === 'cloud';
+  const isSignedOut = onboarding.authMode === 'signed-out';
 
   return (
     <div
@@ -49,12 +49,12 @@ export function ConnectProviderBanner({
       </span>
       <button
         type="button"
-        onClick={() => (cloudMode ? navigate('/settings?tab=providers') : void signInToCindy())}
+        onClick={() => (isSignedOut ? void signInToCindy() : navigate('/settings?tab=providers'))}
         className="shrink-0 text-xs font-medium text-[var(--text-primary)] transition-opacity hover:opacity-70"
       >
-        {cloudMode
-          ? t('onboarding.connectProvider.banner.connectCta')
-          : t('onboarding.connectProvider.banner.loginCta')}
+        {isSignedOut
+          ? t('onboarding.connectProvider.banner.loginCta')
+          : t('onboarding.connectProvider.banner.connectCta')}
       </button>
       <button
         type="button"

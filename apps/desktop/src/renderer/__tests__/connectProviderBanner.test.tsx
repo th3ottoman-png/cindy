@@ -111,13 +111,21 @@ describe('ConnectProviderBanner', () => {
     expect(screen.getByTestId('location').textContent).toBe('/settings?tab=providers');
   });
 
-  it('local 模式 CTA 变登录,落 /login', async () => {
+  it('local 模式 CTA 为连接供应商,落 /settings?tab=providers', () => {
     authState.mode = 'local';
+    renderBanner();
+
+    fireEvent.click(screen.getByText('onboarding.connectProvider.banner.connectCta'));
+    expect(screen.getByTestId('location').textContent).toBe('/settings?tab=providers');
+  });
+
+  it('signed-out 模式 CTA 变登录,落 /login', async () => {
+    authState.mode = 'signed-out';
     renderBanner();
 
     fireEvent.click(screen.getByText('onboarding.connectProvider.banner.loginCta'));
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/login'));
-    expect(exitLocalModeMock).toHaveBeenCalledTimes(1);
+    expect(exitLocalModeMock).not.toHaveBeenCalled();
   });
 
   it('有已连接来源 → 渲染 null', () => {

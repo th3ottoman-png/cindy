@@ -239,15 +239,25 @@ describe('ConnectProviderCard', () => {
     expect(screen.getByTestId('location').textContent).toBe('/settings?tab=providers&wizard=1');
   });
 
-  it('local(跳过登录)模式 → 推荐行为「登录 Cindy」,点击落 /login', async () => {
+  it('local(跳过登录)模式 → 不展示 Cindy AI 或登录推荐行，直接展示普通/检测供应商', async () => {
     authState.mode = 'local';
+    await renderCardSettled();
+
+    expect(screen.queryByText('onboarding.connectProvider.cindy.loginTitle')).toBeNull();
+    expect(screen.queryByText('Cindy AI')).toBeNull();
+    expect(screen.queryByText('onboarding.connectProvider.recommendedLabel')).toBeNull();
+    expect(screen.getByText('Anthropic')).not.toBeNull();
+    expect(screen.getByText('OpenAI')).not.toBeNull();
+  });
+
+  it('signed-out 模式 → 推荐行为「登录 Cindy」,点击落 /login', async () => {
+    authState.mode = 'signed-out';
     await renderCardSettled();
 
     const loginRow = screen.getByText('onboarding.connectProvider.cindy.loginTitle');
     fireEvent.click(loginRow.closest('button')!);
-    // local 模式登录必须先 exitLocalMode(GuestRoute 对 local 一律弹回首页)再进 /login。
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/login'));
-    expect(exitLocalModeMock).toHaveBeenCalledTimes(1);
+    expect(exitLocalModeMock).not.toHaveBeenCalled();
   });
 
   it('「其他供应商」懒加载预设,展开后点预设行落 connect=<presetId>', async () => {

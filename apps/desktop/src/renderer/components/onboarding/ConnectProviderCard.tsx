@@ -108,22 +108,25 @@ export function ConnectProviderCard({ className, dismissible = true }: {
             />
           );
         })}
-        {/* 推荐行:Cindy AI(cloud)/ 登录 Cindy(signed-out・local) */}
-        <ProviderRow
-          icon={rowIcon('xd', xdProvider?.name ?? 'Cindy AI')}
-          label={
-            cloudMode
-              ? (xdProvider?.name ?? t('onboarding.connectProvider.cindy.title'))
-              : t('onboarding.connectProvider.cindy.loginTitle')
-          }
-          sub={
-            cloudMode
-              ? t('onboarding.connectProvider.cindy.desc')
-              : t('onboarding.connectProvider.cindy.loginDesc')
-          }
-          badge={t('onboarding.connectProvider.recommendedLabel')}
-          onClick={() => (cloudMode ? goConnect('xd') : void signInToCindy())}
-        />
+        {/* 推荐行: Cindy AI(cloud)/ 登录 Cindy(signed-out)。local 模式下不推荐云服务 */}
+        {cloudMode && (
+          <ProviderRow
+            icon={rowIcon('xd', xdProvider?.name ?? 'Cindy AI')}
+            label={xdProvider?.name ?? t('onboarding.connectProvider.cindy.title')}
+            sub={t('onboarding.connectProvider.cindy.desc')}
+            badge={t('onboarding.connectProvider.recommendedLabel')}
+            onClick={() => goConnect('xd')}
+          />
+        )}
+        {authMode === 'signed-out' && (
+          <ProviderRow
+            icon={rowIcon('xd', 'Cindy AI')}
+            label={t('onboarding.connectProvider.cindy.loginTitle')}
+            sub={t('onboarding.connectProvider.cindy.loginDesc')}
+            badge={t('onboarding.connectProvider.recommendedLabel')}
+            onClick={() => void signInToCindy()}
+          />
+        )}
         {primaryRows.map(renderRow)}
 
         {moreRows.length > 0 && (

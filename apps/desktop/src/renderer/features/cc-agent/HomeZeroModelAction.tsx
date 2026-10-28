@@ -18,6 +18,7 @@ export function HomeZeroModelAction({
   const navigate = useNavigate();
   const signInToCindy = useSignInToCindy();
   const cloud = authMode === 'cloud';
+  const isLocal = authMode === 'local';
 
   return (
     <div data-testid="home-zero-model" className="mt-4 w-full">
@@ -29,10 +30,22 @@ export function HomeZeroModelAction({
       >
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <p className="text-15 font-medium leading-snug text-[var(--text-primary)]">
-            {t(cloud ? 'onboarding.homeZeroModel.cloudTitle' : 'onboarding.homeZeroModel.title')}
+            {t(
+              cloud
+                ? 'onboarding.homeZeroModel.cloudTitle'
+                : isLocal
+                  ? 'onboarding.connectProvider.title'
+                  : 'onboarding.homeZeroModel.title',
+            )}
           </p>
           <p className="text-13 leading-relaxed text-[var(--text-secondary)]">
-            {t(cloud ? 'onboarding.homeZeroModel.cloudDesc' : 'onboarding.homeZeroModel.desc')}
+            {t(
+              cloud
+                ? 'onboarding.homeZeroModel.cloudDesc'
+                : isLocal
+                  ? 'onboarding.connectProvider.desc'
+                  : 'onboarding.homeZeroModel.desc',
+            )}
           </p>
         </div>
         <Button
@@ -46,22 +59,34 @@ export function HomeZeroModelAction({
               navigate('/settings?tab=providers&connect=xd');
               return;
             }
+            if (isLocal) {
+              navigate('/settings?tab=providers&wizard=1');
+              return;
+            }
             void signInToCindy();
           }}
           className={cn(narrow && 'self-end')}
         >
-          {t(cloud ? 'onboarding.homeZeroModel.cloudCta' : 'onboarding.homeZeroModel.cta')}
+          {t(
+            cloud
+              ? 'onboarding.homeZeroModel.cloudCta'
+              : isLocal
+                ? 'onboarding.connectProvider.banner.connectCta'
+                : 'onboarding.homeZeroModel.cta',
+          )}
         </Button>
       </div>
-      <button
-        type="button"
-        data-testid="home-zero-model-own-api"
-        onClick={() => navigate('/settings?tab=providers&wizard=1')}
-        className="mt-2 ml-2 inline-flex items-center gap-0.5 rounded-lg px-2 py-1 text-12 font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-      >
-        {t('onboarding.homeZeroModel.ownApi')}
-        <ChevronRight size={13} strokeWidth={2} />
-      </button>
+      {!isLocal && (
+        <button
+          type="button"
+          data-testid="home-zero-model-own-api"
+          onClick={() => navigate('/settings?tab=providers&wizard=1')}
+          className="mt-2 ml-2 inline-flex items-center gap-0.5 rounded-lg px-2 py-1 text-12 font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+        >
+          {t('onboarding.homeZeroModel.ownApi')}
+          <ChevronRight size={13} strokeWidth={2} />
+        </button>
+      )}
     </div>
   );
 }
