@@ -11,7 +11,9 @@
 
 import { encodeMessage } from './codec.js';
 import { readHermesDefaultRoute, writeHermesDefaultRoute } from './hermes-config.js';
-import { fetchProviderModels } from './hermes-models.js';
+import { fetchProviderModels, hermesHomeApiKey, parseHermesDotEnv } from './hermes-models.js';
+import { readFile } from 'node:fs/promises';
+import * as nodePath from 'node:path';
 import { startHermesRun, type HermesRunHandle } from './hermes-run.js';
 import {
   HERMES_MGR_BUNDLE_VERSION,
@@ -226,10 +228,24 @@ export class HermesManager {
     s.setHandler(METHODS.CONFIG_LIST_MODELS, async (raw) => {
       const p = raw as { key?: string };
       const route = await readHermesDefaultRoute(this.hermesHome);
-      if (!route.provider || !route.baseUrl || typeof p.key !== 'string' || !p.key) {
+      if (!route.provider || !route.baseUrl) {
         return { route, models: [] };
       }
-      const list = await fetchProviderModels(route.baseUrl, p.key);
+      // Key precedence: explicit request param (desktop env), then the home's
+      // own .env — the same file the Hermes CLI loads for its turns.
+      let apiKey = typeof p.key === 'string' ? p.key.trim() : '';
+      if (!apiKey) {
+        try {
+          const dotenv = parseHermesDotEnv(
+            await readFile(nodePath.join(this.hermesHome, '.env'), 'utf8'),
+          );
+          apiKey = hermesHomeApiKey(dotenv, route.provider);
+        } catch {
+          /* no .env — provider without a local key */
+        }
+      }
+      if (!apiKey) return { route, models: [] };
+      const list = await fetchProviderModels(route.baseUrl, apiKey);
       return { route, models: list.models, ...(list.error ? { error: list.error } : {}) };
     });
 

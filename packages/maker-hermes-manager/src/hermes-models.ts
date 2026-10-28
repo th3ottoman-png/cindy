@@ -26,6 +26,33 @@ export function parseProviderModelsResponse(body: unknown): string[] {
   return [...ids].sort((a, b) => a.localeCompare(b));
 }
 
+/** Read `KEY=value` pairs from a Hermes home `.env` body (no shell semantics). */
+export function parseHermesDotEnv(body: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const rawLine of body.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (key && value) out[key] = value;
+  }
+  return out;
+}
+
+/** The provider's API key from the Hermes home `.env`, if present. */
+export function hermesHomeApiKey(
+  dotenv: Record<string, string>,
+  provider: string,
+): string {
+  const envName = `${provider.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_API_KEY`;
+  return dotenv[envName] ?? '';
+}
+
 export async function fetchProviderModels(
   baseUrl: string,
   apiKey: string,

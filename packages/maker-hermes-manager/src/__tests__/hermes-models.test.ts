@@ -23,3 +23,15 @@ describe('parseProviderModelsResponse', () => {
     expect(parseProviderModelsResponse({ data: [{ nope: 1 }, null] })).toEqual([]);
   });
 });
+
+describe('hermes home .env keys', () => {
+  it('derives the provider env name and reads the key from .env body', async () => {
+    const { hermesHomeApiKey, parseHermesDotEnv } = await import('../hermes-models.js');
+    const dotenv = parseHermesDotEnv(
+      '# comment\nDEEPSEEK_API_KEY="sk-secret"\nOTHER=plain\n\nBROKEN\n',
+    );
+    expect(dotenv.OTHER).toBe('plain');
+    expect(hermesHomeApiKey(dotenv, 'deepseek')).toBe('sk-secret');
+    expect(hermesHomeApiKey(dotenv, 'z.ai')).toBe('');
+  });
+});
