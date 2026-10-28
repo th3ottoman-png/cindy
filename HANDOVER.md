@@ -275,6 +275,26 @@ Ordered as agreed. The full plan also lives in `~/Desktop/Cindy-Master-Plan.md` 
 | 3.2 | **Generic webhook bot channel** (e.g. WhatsApp-style). Mario asked to save it as an idea and not build it yet. |
 | 3.3 | Optional upstream PR for the Hermes adapter or the de-clouding work. |
 
+### Phase 4 — Proposed Feature Roadmap (Local-First Supercharging)
+
+#### 4.1 Hermes & Harness Supercharging
+- **Cindy Native Tool Bridge into Hermes via Local MCP Server**: Expose Cindy's built-in tools (headless browser automation, mouse/keyboard computer use, document parsing, workspace execution) over an internal stdio/Unix socket MCP server so Hermes can use Cindy's full native capability set.
+- **Session Forking & Turn Checkpointing ("Time Travel")**: Add a "Branch from here" / "Roll back to turn X" action on turn cards. Rolls back the session SQLite state and git worktree to an earlier turn snapshot when an agent makes wrong assumptions or hallucinates.
+- **Smart Model Cascade & Cost Routing**: Route low-complexity utility operations (auto-titling, routine cron jobs, prompt prediction, draft edits) to fast/cheap models (DeepSeek-V3, Qwen 2.5 Coder, Gemini 2.5 Flash), reserving frontier models (Claude 3.7 Sonnet, DeepSeek-V4 Pro) for multi-step coding execution.
+
+#### 4.2 Developer Workflow & Workspace Polish
+- **Local Git Worktree Manager UI**: A dedicated sidebar dock exposing Cindy's worktree lifecycle (`apps/desktop/src/main/worktree/`), showing active worktrees per task, live uncommitted diff previews, and one-click "Open in VS Code" / "Clean up worktree".
+- **Persistent Artifacts & Scratchpad Side-Drawer**: A persistent side-panel (similar to Claude Artifacts) that renders live Markdown docs, Mermaid.js diagrams, and HTML widgets beside the chat as the agent edits files.
+- **Embedded Local Shell Dock**: Collapsible xterm.js terminal docked at the bottom of the active task, scoped directly to the session's workspace directory for running git, tests, or inspection commands.
+
+#### 4.3 Voice & Multimodal Enhancements
+- **Local Whisper / On-Device STT (Offline Push-to-Talk)**: Integrate whisper.cpp / MLX for fully offline, zero-network, zero-cost speech-to-text voice input.
+- **Screen & Window Context Snapshot**: A quick shortcut (`Cmd+Shift+V` / camera button) that captures active window/region screenshots, extracts OCR/vision context, and attaches it directly to the prompt turn for visual UI debugging.
+
+#### 4.4 Privacy, Backup & Productivity
+- **One-Click Local Vault Backup & Restore**: An export/import button in Settings generating a timestamped `.tar.gz` archive containing SQLite databases, local companion profiles, prompt templates, and `~/.hermes-cindy` configs.
+- **Prompt Template Library & Custom Slash Commands**: User-defined shortcuts (e.g., `/refactor`, `/review-pr`, `/write-tests`, `/debug-error`) that insert pre-crafted system guidelines or turn prefixes directly into any session.
+
 ## 10. Deliberately kept (do not "clean up" without thinking)
 
 - `tools/` — vendored agent binaries. Untracked but required at runtime.
