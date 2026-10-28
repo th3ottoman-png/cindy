@@ -64,6 +64,8 @@ const state = vi.hoisted(() => ({
   importedTranscripts: [] as Array<{ path: string; content: string }>,
   recentProjects: [] as string[],
   archiveDownloadFails: false,
+  /** Device-link identity absent, as when the app runs without signing in. */
+  noSelfDeviceId: false,
 }));
 vi.mock('../../logger', async (original) => {
   const actual = await original<typeof import('../../logger')>();
@@ -127,7 +129,7 @@ vi.mock('../../device-link/settings-store', () => ({
   readDeviceLinkSettings: () => ({ remoteControlEnabled: true, revokedControllers: [] }),
 }));
 vi.mock('../../device-link', () => ({
-  getSelfDeviceId: device,
+  getSelfDeviceId: () => (state.noSelfDeviceId ? null : device()),
   remoteInvoke: async (
     target: string,
     _channel: string,
@@ -372,6 +374,7 @@ describe('resumable cross-computer copy', () => {
     state.importedTranscripts = [];
     state.recentProjects = [];
     state.archiveDownloadFails = false;
+    state.noSelfDeviceId = false;
     state.migrationWarn.mockClear();
     const cwd = path.join(state.root, 'shared');
     await fs.mkdir(cwd);
@@ -431,6 +434,17 @@ describe('resumable cross-computer copy', () => {
       });
     return separate;
   }
+
+  it('answers the status poll with the idle view when no device-link identity exists', async () => {
+    state.noSelfDeviceId = true;
+    // TaskMigrationStatus polls every 10 s; the idle view keeps it quiet instead of erroring.
+    await expect(requestTaskMigration({ action: 'status', sessionId: 'fork' })).resolves.toEqual({
+      supported: true,
+      deviceId: '',
+    });
+    // Actions that change state still fail loudly without an identity.
+    await expect(start()).rejects.toThrow();
+  });
 
   it('flushes journal files using writable handles without truncation', async () => {
     const open = vi.spyOn(syncFs, 'openSync');

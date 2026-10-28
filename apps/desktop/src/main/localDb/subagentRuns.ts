@@ -606,6 +606,7 @@ export async function persistSubagentTaskUpdate(
     incomingProviderRunIds,
     MAX_INDEXED_ALIAS_COUNT,
   );
+  if (update.provider === 'hermes') return null; // hermes v1 无 subagent runner,不落 subagent run 行
   const existing = await matchingRow(sessionId, update.provider, lookupAliases, session.clearedAt);
   // An observation older than the clear boundary belongs to history the user
   // just dismissed: it must not rebuild a cleared row, and must not reopen one

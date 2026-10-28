@@ -128,6 +128,7 @@ import { getLearnController } from '../learn-host/index.js';
 import { consumeLearnInvocationGrant } from '../learn-host/invocationGrant.js';
 import { createSkillhubAgentTools } from '../skillhub/agentTools.js';
 import { startGrokDeviceLogin, grokDeviceLoginStatus, cancelGrokDeviceLogin } from '../maker-host/grok-device-login-service.js';
+import type { SendToSessionCallback } from '../../../../../packages/lizi-mcps/src/xdt-helper/send_to_session.js';
 
 export interface DesktopMcpProvidersDeps {
   askUserQuestionAsync?: XdtHelperMcpDeps['askUserQuestionAsync'];
@@ -873,7 +874,7 @@ export function createDesktopMcpProviders(deps: DesktopMcpProvidersDeps): LiziMc
         model,
         effort,
         fast,
-      }) => {
+      }: Parameters<SendToSessionCallback>[0]) => {
         // deviceId::sessionId → 目标在另一台电脑:交给那台电脑按它本机的同一条通路投递。
         const svc = tryGetOrcaCollabService();
         if (!svc) {
@@ -905,9 +906,22 @@ export function createDesktopMcpProviders(deps: DesktopMcpProvidersDeps): LiziMc
                 }
               : {}),
           });
+          if (result.ok && result.agentKind === 'hermes') {
+            // lizi MCP 面向模型的 agentKind 值域只有三家;hermes 目标 v1 未接,显式失败。
+            return { ok: false, errorCode: 'INTERNAL', message: 'hermes task targets are not supported yet' };
+          }
           if (result.ok && result.wakeKind === 'created' && recordCreation) {
             try { await recordCreation(result.targetSessionId); }
-            catch { return { ...result, responsibilityRecorded: false }; }
+            catch {
+              // spread 按声明类型回宽,这里显式收窄回三家族(上方 hermes 分支已排除)。
+              const { agentKind: okAgentKind, ...rest } = result;
+              return { ...rest, agentKind: okAgentKind as 'claude-code' | 'codex' | 'pi', responsibilityRecorded: false };
+            }
+          }
+          if (result.ok) {
+            // 上面的分支排除 hermes 后,回传值收窄回三家族。
+            const { agentKind, ...rest } = result;
+            return { ...rest, agentKind: agentKind as 'claude-code' | 'codex' | 'pi' };
           }
           return result;
         } catch (err) {

@@ -268,8 +268,13 @@ export async function startCindyMakeTask(raw: unknown, sender: number): Promise<
     ? getSessionRuntimeControlSnapshot(origin.id).effectiveOverride
     : undefined;
   const preferences = origin ?? input.createOptions ?? {};
+  const taskAgentKind = normalizeDbAgentKind(effective?.agentKind ?? preferences.agentKind);
+  if (taskAgentKind === 'hermes') {
+    // cindy-make 派发 v1 只认三家;hermes 任务在派发边界显式失败。
+    throw new Error('cindy-make tasks do not support the hermes harness yet');
+  }
   const taskOptions: CindyMakeTaskOptions = {
-    agentKind: normalizeDbAgentKind(effective?.agentKind ?? preferences.agentKind),
+    agentKind: taskAgentKind,
     model: effective?.model ?? preferences.model ?? undefined,
     effort: effective ? (effective.effort ?? '') : preferences.effort,
     providerId: effective ? effective.providerId : preferences.providerId,

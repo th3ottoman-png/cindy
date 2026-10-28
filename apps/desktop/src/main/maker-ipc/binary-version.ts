@@ -32,7 +32,7 @@ import {
   parseBinaryVersionOutput,
 } from '../agent-binaries/binary-version-probe.js';
 import { getVendorAsset, vendorAssetMatchesPlatform } from '../agent-binaries/manifest.js';
-import { fetchManifest, getPlatformKey, type Manifest } from '../manifestService.js';
+import { fetchManifest, getBaseUrl, getPlatformKey, isDev, type Manifest } from '../manifestService.js';
 
 import { MAKER_INVOKE } from './channels.js';
 
@@ -48,6 +48,8 @@ export interface AgentBinaryVersionResult {
   updateAvailable: boolean;
   /** `checkLatest` could not read the channel manifest, so "no update" is unknown. */
   latestCheckFailed: boolean;
+  /** The build has no update channel at all (dev, or endpoint blank) — not a transient failure. */
+  latestCheckUnavailable: boolean;
   error?: string;
 }
 
@@ -123,7 +125,7 @@ function parseOptions(value: unknown): AgentBinaryVersionOptions {
 async function probeLocalVersion(
   agentKind: AgentBinaryKind,
   options?: { bypassCache?: boolean },
-): Promise<Omit<AgentBinaryVersionResult, 'latestVersion' | 'updateAvailable' | 'latestCheckFailed'>> {
+): Promise<Omit<AgentBinaryVersionResult, 'latestVersion' | 'updateAvailable' | 'latestCheckFailed' | 'latestCheckUnavailable'>> {
   const binaryPath = resolveBinaryPath(agentKind);
   // 执行前复核路径确为受管二进制(CodeQL js/command-line-injection 防御纵深)
   if (!binaryPath || !isVettedAgentBinaryPath(agentKind, binaryPath)) {
@@ -207,6 +209,20 @@ export function registerMakerBinaryVersionIpc(): void {
           latestVersion: null,
           updateAvailable: false,
           latestCheckFailed: false,
+          latestCheckUnavailable: false,
+        };
+      }
+      // Dev builds and endpoint-blank builds have no update channel by design
+      // (fetchManifest returns null in dev; the URL needs cdnBaseUrl). Report
+      // that distinctly so About can say "unavailable" instead of "failed".
+      if (isDev() || !getBaseUrl()) {
+        const local = await probeLocalVersion(agentKind, { bypassCache: true });
+        return {
+          ...local,
+          latestVersion: null,
+          updateAvailable: false,
+          latestCheckFailed: true,
+          latestCheckUnavailable: true,
         };
       }
       // Start before probing so concurrent About rows join one in-flight lookup.
@@ -219,6 +235,7 @@ export function registerMakerBinaryVersionIpc(): void {
         latestVersion,
         updateAvailable: isUpdateAvailable(agentKind, local.version, latestVersion),
         latestCheckFailed: manifest === null,
+        latestCheckUnavailable: false,
       };
     },
   );

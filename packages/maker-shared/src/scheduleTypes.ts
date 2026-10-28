@@ -1,5 +1,6 @@
 export type RemoteScheduleStatus = 'active' | 'paused' | 'expired';
-export type RemoteScheduleAgentKind = 'claude-code' | 'codex' | 'pi';
+// 'hermes' 类型层放行(M2b);调度 runner / pre-run hook 运行时仍显式拒绝 hermes 派发。
+export type RemoteScheduleAgentKind = 'claude-code' | 'codex' | 'pi' | 'hermes';
 export type RemoteScheduleWorkspaceKind = 'project' | 'dialogue';
 export type RemoteScheduleRunStatus = 'running' | 'success' | 'failed' | 'aborted' | 'interrupted' | 'skipped';
 export type RemoteScheduleExecutionMode = 'agent' | 'script';

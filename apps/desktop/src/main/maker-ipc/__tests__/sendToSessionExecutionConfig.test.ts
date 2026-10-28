@@ -51,6 +51,7 @@ const providerRouting = (
   defaults: Partial<Record<AgentKind, string>> = {},
 ): OrcaWorkerProviderRoutingContext => ({
   availability: {
+    hermes: [],
     'claude-code': [{
       id: 'anthropic',
       name: 'Anthropic',
@@ -281,7 +282,7 @@ describe('resolveSendToSessionExecutionConfig', () => {
     const undeclared = { id: 'custom/step-5-preview', efforts: [], defaultEffort: null, effortsUnknown: true };
     const routing: OrcaWorkerProviderRoutingContext = {
       availability: {
-        codex: [], pi: [],
+        hermes: [], codex: [], pi: [],
         'claude-code': [{
           id: 'custom-anthropic',
           name: 'Custom Anthropic Messages',
@@ -356,6 +357,7 @@ describe('resolveSendToSessionExecutionConfig', () => {
       }],
       providerRouting: {
         availability: {
+          hermes: [],
           'claude-code': [],
           codex: [{
             id: 'xd',

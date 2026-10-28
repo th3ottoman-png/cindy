@@ -169,10 +169,10 @@ export function mergePiPackageCommands(
 }
 
 export function shouldListPiPackageCommands(
-  requestedAgentKind: 'claude-code' | 'codex' | 'pi',
+  requestedAgentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
   sessionIdProvided: boolean,
   session: {
-    agentKind: 'claude-code' | 'codex' | 'pi';
+    agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
     reviewMode?: true;
     remoteHostId?: string;
   } | null,

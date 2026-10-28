@@ -93,8 +93,9 @@ export interface MakeDependencyProgress {
   activity?: 'packages' | 'scripts';
 }
 
+// agentKind 值域与 DbAgentKind 对齐(hermes 由 cindy-make 派发边界显式拒绝)。
 export interface CindyMakeTaskOptions {
-  agentKind?: 'cc' | 'codex' | 'pi';
+  agentKind?: 'cc' | 'codex' | 'pi' | 'hermes';
   model?: string;
   effort?: string;
   providerId?: string | null;

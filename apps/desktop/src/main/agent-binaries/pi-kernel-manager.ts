@@ -123,8 +123,13 @@ export class PiKernelManager {
   }
   check(): Promise<PiKernelState> {
     if (this.checking) return this.checking;
+    // 无 CDN 端点(本地私有构建)时 official 通道不存在:留空而非标错,让
+    // upstream(GitHub)的真实结果单独决定「检查失败」。
+    const sources = (['official', 'upstream'] as const).filter(
+      source => source !== 'official' || !!getBaseUrl(),
+    );
     const task = (async () => {
-      await Promise.all((['official', 'upstream'] as const).map(async source => {
+      await Promise.all(sources.map(async source => {
         try {
           const release = await this.deps.lookup(source, AbortSignal.timeout(15_000));
           this.checks[source] = { release: project(release), checkedAt: Date.now(), error: false };

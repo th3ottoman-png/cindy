@@ -104,7 +104,7 @@ function normalizePositiveInt(value: unknown): number {
 
 const messageRowid = sql<number>`rowid`;
 
-type DbAgentKind = 'cc' | 'codex' | 'pi';
+type DbAgentKind = 'cc' | 'codex' | 'pi' | 'hermes';
 
 interface MessagePosition {
   createdAt: number;
@@ -219,7 +219,7 @@ async function seedForkHandoffAfterSameEngineRebuild(opts: {
     }));
   const lastUser = [...opts.rows].reverse().find((row) => row.role === 'user');
   const label =
-    opts.agentKind === 'codex' ? 'Codex' : opts.agentKind === 'pi' ? 'Pi' : 'Claude Code';
+    opts.agentKind === 'codex' ? 'Codex' : opts.agentKind === 'pi' ? 'Pi' : opts.agentKind === 'hermes' ? 'Hermes' : 'Claude Code';
   const handoff = buildHandoffText(handoffMessages, {
     fromLabel: label,
     toLabel: label,
@@ -999,6 +999,10 @@ export async function forkSessionAtMessage(
     (usesTailTurnFork || assistantUuid)
   ) {
     const agentKind = dbToMakerAgentKind(forkSource.agentKind);
+    if (agentKind === 'hermes') {
+      // hermes 原生会话 fork v1 未接(需 hermes-manager resume 通道);显式失败。
+      throw new Error('forking a hermes session is not supported yet');
+    }
     const forkOptions = {
       sourceSdkSessionId: forkSource.sdkSessionId,
       ...(isCodex ? { model: forkSource.model, providerId: forkSource.providerId } : {}),

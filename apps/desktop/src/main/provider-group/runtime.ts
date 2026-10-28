@@ -237,7 +237,8 @@ export function getProviderGroupRemoteGroups(): ProviderGroupRemoteGroups {
     },
     pick: (ownerDeviceId, input) => client.pick(ownerDeviceId, input),
     cool: (ownerDeviceId, input) => client.cool(ownerDeviceId, input),
-    view: (ownerDeviceId, providerId, model, agentKind) => client.view(ownerDeviceId, providerId, agentKind ? { model, agentKind } : model),
+    // hermes v1 不进供应商组,降级为未限定 agent 的视图查询。
+    view: (ownerDeviceId, providerId, model, agentKind) => client.view(ownerDeviceId, providerId, agentKind && agentKind !== 'hermes' ? { model, agentKind } : model),
     invalidate: (ownerDeviceId) => directoryFacade.invalidate(ownerDeviceId),
   };
 }

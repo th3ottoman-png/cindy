@@ -1377,7 +1377,13 @@ export async function requestTaskMigration(raw: unknown): Promise<TaskMigrationV
     }
     throw new Error('MIGRATION_INVALID_REQUEST');
   }
-  if (request.action === 'status') return view(scope, scope.read(request.sessionId));
+  if (request.action === 'status') {
+    // A status read only observes, and TaskMigrationStatus re-reads it every 10 s.
+    // Without a device-link identity there is nothing to report, so answer the idle
+    // view instead of erroring every poll; actions that change state still fail loudly.
+    if (!getSelfDeviceId()) return { supported: true, deviceId: '' };
+    return view(scope, scope.read(request.sessionId));
+  }
   if (request.action === 'cancel') {
     // A running copy holds the source lock; signal it instead of waiting for the lock.
     const live = running.get(`${scope.root}:${request.sessionId}`);

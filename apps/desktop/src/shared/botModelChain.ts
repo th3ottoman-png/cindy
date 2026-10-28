@@ -2,7 +2,8 @@ import { normalizeModelRoute, modelRouteLocationKey, type ModelRoute } from '@ci
 
 export const BOT_MODEL_CHAIN_MAX = 5;
 
-export type BotHarness = 'claude' | 'codex' | 'pi';
+// 'hermes' 仅类型层放行(M2b);normalize 运行时白名单仍只收三家,v2 再放行。
+export type BotHarness = 'claude' | 'codex' | 'pi' | 'hermes';
 
 export type BotModelRoute = ModelRoute;
 
@@ -25,6 +26,7 @@ export function readBotTaskModelOverride(value: unknown): BotModelRoute | null {
   if (value === null || value === undefined) return null;
   const record = value as Partial<BotModelRoute>;
   const route = normalizeBotModelRoute(value);
+  // harness 类型层面允许 'hermes'(M2b),运行时白名单仍只收三家;v2 再放行。
   if (!route || !['claude', 'codex', 'pi'].includes(String(record.harness))
     || (record.providerId !== null && typeof record.providerId !== 'string')
     || typeof record.effort !== 'string' || (typeof record.fastMode !== 'boolean' && record.fastMode !== 'ultrafast')) {

@@ -60,6 +60,9 @@ export function availableModelInterfaces(
   baseUrl: string, agent: AgentKind, capabilities: readonly string[] = MODEL_INTERFACE_CAPABILITIES,
 ): ModelInterfaceSnapshot[] {
   if (!registry || registry.schemaVersion < 6) return [];
+  // hermes 不消费 Cindy 的 interface-profile 路由(它走 Hermes home 自己的 provider
+  // 配置);早退同时把 agent 收窄回三家,便于后续 preferredInterfaces / defaultFor 查表。
+  if (agent === 'hermes') return [];
   const matches = registry.models.flatMap(entry => entry.routes
     .filter(route => route.providerId === presetId && route.modelId === modelId)
     .map(route => ({ entry, route })));
@@ -95,6 +98,7 @@ export function availableModelInterfaces(
 }
 
 export function providerInterfaceDefaultRoute(presetId: string, agent: AgentKind, baseUrl: string, registry: ModelRegistry = bundledRegistry) {
+  if (agent === 'hermes') return undefined; // 同上:hermes 无 Cindy interface-profile 路由
   const profile = (registry.interfaceProfiles ?? []).find(p => p.providerId === presetId &&
     !p.retired && !p.modelIds && p.defaultFor?.includes(agent) &&
     [...p.inputBaseUrls, p.baseUrl].some(input => clean(input) === clean(baseUrl)));

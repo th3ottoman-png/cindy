@@ -709,7 +709,7 @@ function modelRegistryMetaFields(
 ): RegistryMetaFields | undefined {
   // 模型 registry 的路由与 perAgent 覆盖只按 claude-code / codex 建键;Pi 是动态 BYOM,
   // 无 registry per-agent 覆盖,按 agent 无关处理(取条目基线元数据)。
-  const registryAgent = agent === 'pi' ? undefined : agent;
+  const registryAgent = agent === 'pi' || agent === 'hermes' ? undefined : agent;
   const catalog = base ?? BUNDLED_CATALOG;
   const matched = findModelRegistryRoute(catalog.modelRegistry, providerId, modelId, registryAgent);
   if (!matched) return undefined;
@@ -977,8 +977,8 @@ function materializeXaiAccountModels(
     // The server catalog may predate a client-known variant. Its bundled visibility
     // remains a sparse fallback; explicit server and later user choices still win.
     const bundledEntry = findModelRegistryRoute(BUNDLED_CATALOG.modelRegistry, 'xai', entry.id,
-      agent === 'pi' ? undefined : agent)?.entry;
-    const bundledDefaultEnabled = (agent === 'pi' ? undefined : bundledEntry?.perAgent?.[agent]?.defaultEnabled)
+      (agent === 'pi' || agent === 'hermes') ? undefined : agent)?.entry;
+    const bundledDefaultEnabled = ((agent === 'pi' || agent === 'hermes') ? undefined : bundledEntry?.perAgent?.[agent]?.defaultEnabled)
       ?? bundledEntry?.defaultEnabled;
     const { efforts, defaultEffort } = resolveXaiAccountCapabilities(
       entry,

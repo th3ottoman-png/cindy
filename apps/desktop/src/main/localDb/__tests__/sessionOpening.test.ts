@@ -40,7 +40,7 @@ beforeEach(() => {
   setSessionOpeningModelAdmission(async request => {
     const route = resolveSessionExecutionSelection({ selection: request,
       availableAgents: ['codex'], availableModels: [{ id: 'model', efforts: [] }], hasCindyAiApiKey: false,
-      providerRouting: { availability: { 'claude-code': [], pi: [], codex: [{ id: 'connected', name: 'Connected', models: ['model'] }] },
+      providerRouting: { availability: { 'claude-code': [], hermes: [], pi: [], codex: [{ id: 'connected', name: 'Connected', models: ['model'] }] },
         resolveDefaultProviderIdForModel: () => 'connected' } });
     return { ...request, model: route.model, providerId: route.providerId, effort: route.effort ?? '' };
   });
@@ -50,6 +50,27 @@ it.each(['desktop', 'plugin'] as const)('opens the same normal Session for %s wi
   expect(opened.row).toMatchObject({ id: 'session', model: 'model', providerId: 'connected', agentKind: 'codex',
     effort: '', permissionMode: 'ask', source, workingDir: '/dialogue/session' });
   expect(h.run).toHaveBeenCalledOnce();
+});
+it('admits the single hermes model without catalog routing and leaves other kinds to admission', async () => {
+  // 目录准入一旦被调用就失败 —— 证明 hermes 在 openSession 边界被单独归一化。
+  setSessionOpeningModelAdmission(async () => {
+    throw new Error('catalog admission must not run for hermes');
+  });
+  const opened = await openSession({
+    id: 'hermes-session',
+    body: { ...body, agentKind: 'hermes', model: '', providerId: null, permissionMode: 'default' },
+  });
+  expect(opened.row).toMatchObject({
+    agentKind: 'hermes',
+    model: 'hermes-default',
+    providerId: null,
+    effort: '',
+    fastMode: false,
+  });
+  // 其它引擎仍走目录准入(此处准入被上面的 spy 替换成必然失败)。
+  await expect(
+    openSession({ id: 'codex-still-admitted', body: { ...body, model: '' } }),
+  ).rejects.toThrow('catalog admission must not run for hermes');
 });
 it('rejects an unavailable route before directory preparation and persistence', async () => {
   await expect(openSession({ body: { ...body, providerId: 'disconnected' } })).rejects.toThrow('供应商');
@@ -134,7 +155,7 @@ it.each(['medium', 'low', ''] as const)('returns the execution provider admitted
       availableAgents: ['codex'], availableModels: [{ id: 'model', efforts: ['high'], defaultEffort: 'high' }],
       hasCindyAiApiKey: false,
       providerRouting: {
-        availability: { 'claude-code': [], pi: [], codex: [{ id: 'connected', name: 'Connected', models: ['model'],
+        availability: { 'claude-code': [], hermes: [], pi: [], codex: [{ id: 'connected', name: 'Connected', models: ['model'],
           effortMetaByModel: { model: { efforts: effort ? [effort] : [], defaultEffort: effort || null } } }] },
         resolveDefaultProviderIdForModel: () => 'connected',
       },
@@ -157,7 +178,7 @@ it.each([
       availableAgents: ['codex'], availableModels: [{ id: 'model', efforts: [], supportsFastMode: true }],
       hasCindyAiApiKey: false,
       providerRouting: {
-        availability: { 'claude-code': [], pi: [], codex: [{ id: 'connected', name: 'Connected', models: ['model'],
+        availability: { 'claude-code': [], hermes: [], pi: [], codex: [{ id: 'connected', name: 'Connected', models: ['model'],
           fastModels: supportsFast ? ['model'] : [] }] },
         resolveDefaultProviderIdForModel: () => 'connected',
       },
@@ -177,7 +198,7 @@ it('keeps the current unsupported explicit Fast rejection before remote persiste
       availableAgents: ['codex'], availableModels: [{ id: 'model', efforts: [], supportsFastMode: true }],
       hasCindyAiApiKey: false,
       providerRouting: {
-        availability: { 'claude-code': [], pi: [], codex: [{ id: 'connected', name: 'Connected', models: ['model'], fastModels: [] }] },
+        availability: { 'claude-code': [], hermes: [], pi: [], codex: [{ id: 'connected', name: 'Connected', models: ['model'], fastModels: [] }] },
         resolveDefaultProviderIdForModel: () => 'connected',
       },
     });

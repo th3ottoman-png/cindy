@@ -114,6 +114,10 @@ export function registerScheduleSetPreRunHookTool(
             ? await hookScript.isSessionAgentOnOtherDevice(schedule.targetSessionId)
             : !!schedule.agentDeviceId;
           if (!remoteAgent) {
+            if (schedule.agentKind === 'hermes') {
+              // 调度 v1 未接 hermes 派发;pre-run hook 阶段显式失败,不能静默按默认引擎跑。
+              throw new Error('hermes schedules are not supported yet');
+            }
             providerId = schedule.providerId;
             agentKind = schedule.agentKind;
             model = schedule.model;

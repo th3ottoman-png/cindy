@@ -57,6 +57,12 @@ function knownProviderNames(): KnownProviderName[] {
   return Object.keys(PROVIDER_NAME_TO_PLUGIN_ID) as KnownProviderName[];
 }
 
+/**
+ * 本地私有构建退役的出站通道(2026-10-27):provider 仍由 @cindy/mcps 创建
+ * (覆盖校验保持全量),但桌面接线 BUILTIN_LIZI_MCP_IDS 不再包含、工具页不再列出。
+ */
+const RETIRED_PROVIDER_NAMES: ReadonlySet<string> = new Set(['cindy_feishu_bot', 'cindy_wechat']);
+
 function realBuiltinProviderNames(): KnownProviderName[] {
   const providers = createLiziMcpProviders({
     android: {} as never,
@@ -220,10 +226,10 @@ describe('PluginRegistry — scoped priority', () => {
   it('freezes only disabled ordinary plugins into a new runtime policy', async () => {
     await registry.setEnabled('ssh', false);
     await registry.setEnabled('computer', true);
-    writeProjectSettings(workingDir, { collab: false, feishu_bot: false, ssh: true });
+    writeProjectSettings(workingDir, { collab: false, slack: false, ssh: true });
 
     const disabled = registry.getDisabledRuntimePluginIds(workingDir);
-    expect(disabled).toContain('feishu_bot');
+    expect(disabled).toContain('slack');
     expect(disabled).not.toContain('collab');
     expect(disabled).not.toContain('ssh');
     expect(disabled).not.toContain('computer');
@@ -476,6 +482,8 @@ describe('PluginRegistry — scoped priority', () => {
 
     expect(new Set(pluginIds).size).toBe(pluginIds.length);
     for (const mappedId of mappedPluginIds) {
+      // 退役通道(feilu_bot/wechat)的映射保留,但其插件不再注册。
+      if (['feishu_bot', 'wechat'].includes(mappedId)) continue;
       expect(pluginIds).toContain(mappedId);
     }
     expect(plugins.every((p) => p.source === 'builtin')).toBe(true);
@@ -519,11 +527,11 @@ describe('isEnabled wrap integration (provider → registry gate)', () => {
     expect(pluginIdForKnownProviderName('cindy_ssh')).toBe('ssh');
   });
 
-  it('provider cindy_feishu_bot → feishu_bot mapping works', () => {
-    writeProjectSettings(workingDir, { feishu_bot: false });
+  it('provider cindy_slack → slack mapping works', () => {
+    writeProjectSettings(workingDir, { slack: false });
     registry = createRegistry();
 
-    expect(wrapIsEnabled('cindy_feishu_bot', workingDir)).toBe(false);
+    expect(wrapIsEnabled('cindy_slack', workingDir)).toBe(false);
   });
 
   it('essential providers stay enabled even when project says false', () => {
@@ -539,6 +547,7 @@ describe('isEnabled wrap integration (provider → registry gate)', () => {
     // 通过项目设置禁用所有非 essential plugin，用来验证 provider 映射不会走 fail-open。
     const tools: Record<string, boolean> = {};
     for (const pn of realBuiltinProviderNames()) {
+      if (RETIRED_PROVIDER_NAMES.has(pn)) continue;
       const pid = pluginIdForProviderName(pn);
       if (!ESSENTIAL_PLUGIN_IDS.has(pid)) {
         tools[pid] = false;
@@ -548,6 +557,7 @@ describe('isEnabled wrap integration (provider → registry gate)', () => {
     registry = createRegistry();
 
     for (const pn of realBuiltinProviderNames()) {
+      if (RETIRED_PROVIDER_NAMES.has(pn)) continue;
       const pid = pluginIdForProviderName(pn);
       const expected = ESSENTIAL_PLUGIN_IDS.has(pid);
       expect(wrapIsEnabled(pn, workingDir)).toBe(expected);
@@ -558,10 +568,12 @@ describe('isEnabled wrap integration (provider → registry gate)', () => {
     const realProviderNames = realBuiltinProviderNames();
 
     expect(new Set(knownProviderNames())).toEqual(new Set(realProviderNames));
-    expect(realProviderNames).toHaveLength(BUILTIN_LIZI_MCP_IDS.length);
+    // 桌面接线 = 真实 provider 列表减去退役通道。
+    expect(realProviderNames).toHaveLength(BUILTIN_LIZI_MCP_IDS.length + RETIRED_PROVIDER_NAMES.size);
 
     for (const name of realProviderNames) {
       expect(PROVIDER_NAME_TO_PLUGIN_ID[name]).toBeDefined();
+      if (RETIRED_PROVIDER_NAMES.has(name)) continue;
       const mappedId = PROVIDER_NAME_TO_PLUGIN_ID[name];
       expect(registry.getPlugins().map((p) => p.id)).toContain(mappedId);
     }

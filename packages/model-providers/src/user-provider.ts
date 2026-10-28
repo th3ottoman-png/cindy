@@ -215,7 +215,9 @@ function registryEffortMetadata(
   modelId: string,
   agent: AgentKind,
 ): RegistryEffortMetadata | undefined {
-  if (agent === "pi" || !registry) return undefined;
+  // pi 有自己的逐模型 effort 配置;hermes 的 effort 来自 Hermes home 配置而非
+  // Cindy registry,接入路径确定后再放开。
+  if (agent === "pi" || agent === "hermes" || !registry) return undefined;
 
   // Stage 1 — exact lookup: only the original modelId.
   const exactMatches = expandedRegistryEntries(registry).filter((entry) =>

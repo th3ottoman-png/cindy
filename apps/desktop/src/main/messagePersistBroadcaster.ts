@@ -420,13 +420,13 @@ type OwnerScope = ReturnType<typeof broadcastTap.captureDataOwnerBroadcastScope>
  * session.agent_kind 只代表"当前引擎",历史行的 agent_meta 必须按写入时引擎解析。
  * clearSessionPersistState 时清理。
  */
-const dbAgentKindBySession = new Map<string, 'cc' | 'codex' | 'pi'>();
+const dbAgentKindBySession = new Map<string, 'cc' | 'codex' | 'pi' | 'hermes'>();
 
-export function noteSessionAgentKind(sessionId: string, dbAgentKind: 'cc' | 'codex' | 'pi'): void {
+export function noteSessionAgentKind(sessionId: string, dbAgentKind: 'cc' | 'codex' | 'pi' | 'hermes'): void {
   dbAgentKindBySession.set(sessionId, dbAgentKind);
 }
 
-export function getSessionDbAgentKind(sessionId: string): 'cc' | 'codex' | 'pi' | null {
+export function getSessionDbAgentKind(sessionId: string): 'cc' | 'codex' | 'pi' | 'hermes' | null {
   return dbAgentKindBySession.get(sessionId) ?? null;
 }
 
@@ -1070,7 +1070,8 @@ export function onAgentTaskUpdateEvent(sessionId: string, data: unknown): boolea
         // Claude task_updated events may carry only the runtime taskId. After
         // restart, recover its durable parent tool-use alias from the existing
         // Subagent projection before looking up the originating message row.
-        if (!persisted) {
+        if (!persisted && update.provider !== 'hermes') {
+          // hermes v1 无 subagent runner,无持久化 run 可恢复。
           const run = await getSubagentRunDetail(sessionId, update.provider, update.taskId);
           if (!isRecoveryCurrent()) return;
           if (run?.parentToolUseId && !resolvedAliases.includes(run.parentToolUseId)) {
@@ -2883,7 +2884,7 @@ function enqueueTurnErrorRow(
   row: {
     content: Record<string, unknown>;
     agentMeta: AgentMeta | null;
-    agentKind: 'cc' | 'codex' | 'pi' | undefined;
+    agentKind: 'cc' | 'codex' | 'pi' | 'hermes' | undefined;
     /** 行的排序时间上界(通常是错误到达的时刻)。 */
     orderedAt: number;
     turnStartedAt: number;
@@ -2966,7 +2967,7 @@ function enqueueTurnErrorRow(
 export interface DeferredTurnErrorRow {
   content: Record<string, unknown>;
   agentMeta: AgentMeta | null;
-  agentKind: 'cc' | 'codex' | 'pi' | undefined;
+  agentKind: 'cc' | 'codex' | 'pi' | 'hermes' | undefined;
   turnStartedAt: number;
   occurredAt: number;
 }

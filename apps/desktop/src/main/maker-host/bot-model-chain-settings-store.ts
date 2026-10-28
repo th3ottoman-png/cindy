@@ -103,7 +103,10 @@ export async function readBotModelChainSettingsState(
   const latest = store.readState();
   if (latest.isCustomized) return latest;
   const availableAgents = options?.availableAgents ?? new Set(
-    (getMakerIfReady()?.listAvailableAgents() ?? []).map((agent) => agent === 'claude-code' ? 'cc' : agent),
+    (getMakerIfReady()?.listAvailableAgents() ?? [])
+      .map((agent) => agent === 'claude-code' ? 'cc' : agent)
+      // hermes v1 不是伙伴默认链候选(产品默认策略只有三家)。
+      .filter((agent): agent is 'cc' | 'codex' | 'pi' => agent !== 'hermes'),
   );
   const value = { modelChain: defaultBotModelChain({ providers, providersLoading: false,
     availableAgents, availableAgentsLoaded: true,

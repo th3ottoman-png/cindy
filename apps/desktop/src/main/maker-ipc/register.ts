@@ -705,7 +705,9 @@ import {
   setBotCapabilityAgentKindResolver,
   setModelContextRuntimeRefreshListener,
   setAutoReviewContextResolver,
+  registerHermesAgentIfAvailable,
 } from '../maker-host/index.js';
+import { ensureHermesManagerDaemon } from '../maker-host/hermes-manager-client.js';
 import {
   readMemorySettingsState,
   resetMemorySettings,
@@ -3182,7 +3184,9 @@ export function stopPiIdleReleaseWatcher(): void {
 }
 
 function requireAgentKind(value: unknown): AgentKind {
-  if (value === 'claude-code' || value === 'codex' || value === 'pi') return value;
+  if (value === 'claude-code' || value === 'codex' || value === 'pi' || value === 'hermes') {
+    return value;
+  }
   throwIpcError('INVALID_PARAMS', 'agentKind required');
 }
 
@@ -6368,6 +6372,7 @@ export async function beginTurnChangeSetAtDispatch(
   session: SendToSessionDispatchSession,
   anchorClientId: string,
 ): Promise<void> {
+  if (session.agentKind === 'hermes') return; // hermes v1 无 turn-change 工作区捕获
   await waitForTurnChangeSetSeal(session.id);
   await finalizeTurnChangeSet(session.id, null, 'partial');
   await waitForTurnChangeSetSeal(session.id);
@@ -7257,7 +7262,9 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   // (model/effort/fast/permission/source/是否显式选过模型)。控制端经隧道调用 → seed 远程项目草稿。
   // 缓存未就绪 / 该 vendor 无草稿 model → 返回 {},控制端按 capabilities 默认兜底。
   ipcMain.handle(MAKER_INVOKE.GET_NEW_MAKER_DEFAULTS, (_e, agentKind: unknown) => {
-    return getRemoteNewMakerDefaults(requireAgentKind(agentKind));
+    const kind = requireAgentKind(agentKind);
+    if (kind === 'hermes') return {}; // hermes v1 无新建任务草稿镜像
+    return getRemoteNewMakerDefaults(kind);
   });
 
   // device-link 草稿「模型 effort/fast」写穿:控制端经隧道调用 → 跑在**被控端**。被控端不直接改
@@ -7969,10 +7976,12 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
             : undefined;
         const sessionMeta = sessionId ? await maker.getSessionMeta(sessionId) : null;
         const builtins = maker.listAgentCommands(kind);
-        const mayListPackageCommands = shouldListPiPackageCommands(
+        const piCommandSessionMeta =
+          sessionMeta && sessionMeta.agentKind !== 'hermes' ? sessionMeta : null;
+        const mayListPackageCommands = kind !== 'hermes' && shouldListPiPackageCommands(
           kind,
           sessionId !== undefined,
-          sessionMeta,
+          piCommandSessionMeta,
           params.allowManagedPiPackagePreview !== false,
         );
         let packageCommands: Array<{ name: string; description: string }> = [];
@@ -8004,7 +8013,9 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
           // Extension commands appear after that exact Pi runtime confirms them.
           packageCommands = await listManagedPiPromptCommands();
         }
-        const commands = mergePiPackageCommands(kind, builtins, packageCommands);
+        const commands = kind === 'hermes'
+          ? builtins // hermes v1 无 Pi package 命令合并
+          : mergePiPackageCommands(kind, builtins, packageCommands);
         return { success: true, commands, ...(runtimeStatus ? { runtimeStatus } : {}) };
       } catch (err) {
         return toAgentCommandListFailure(err, {
@@ -8683,6 +8694,19 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
    * 导致 Orca MCP 工具 rehydrate 失败），抽 helper 让"漏调"在编译期不可能发生。
    */
   /**
+   * Hermes sessions talk to the app-owned hermes-mgr daemon; the socket must exist
+   * before Agent startup. Register lazily (bundle may have appeared after bootstrap)
+   * and fail closed with the daemon's own message — nothing half-created.
+   */
+  async function ensureHermesRuntimeReady(): Promise<void> {
+    registerHermesAgentIfAvailable();
+    const ensured = await ensureHermesManagerDaemon();
+    if (!ensured.ok) {
+      throwIpcError('PRECONDITION_FAILED', ensured.message);
+    }
+  }
+
+  /**
    * 停用轴的边界裁决(判定纯逻辑在 model-route-guard.ts,可单测)。
    * 返回值 = 需要改路由到的启用来源 id(隐式默认落点被停用而有替代拷贝时),
    * undefined = 照常;停用语义下不可路由则抛 INVALID_PARAMS。目录读取失败按
@@ -8857,6 +8881,18 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     didInjectProjectContext: boolean;
   }> {
     assertAccess?.();
+    // Local hermes startup needs its daemon socket before any create side effects.
+    // v1 is local-only: an SSH-host hermes task must fail closed instead of silently
+    // running against the local daemon under a remote-host label.
+    if (o.agentKind === 'hermes') {
+      if (o.remoteHostId) {
+        throwIpcError('INVALID_PARAMS', 'hermes does not support remote hosts yet');
+      }
+      if (!o.agentDeviceId) {
+        await ensureHermesRuntimeReady();
+        assertAccess?.();
+      }
+    }
     await applyPersistedCindyMakeMarker(o, readSessionSource);
     assertAccess?.();
     // 协同远端 Worker 的代理任务行只承接计槽与回报，真实任务在运行设备上，绝不在本机起 Agent。
@@ -8942,7 +8978,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       // 隐式来源的原生默认落点被停用而有启用替代拷贝时,把会话显式改路由过去(下方
       // persistAndHydrateSessionProvider 会把它落库):实际路由层对隐式来源走原生
       // 默认、不查停用标志,仅放行等于继续用停用拷贝付费。
-      if (typeof o.model === 'string' && o.model) {
+      // hermes 的唯一模型来自 Hermes home,不进供应商目录 —— 不做目录停用轴裁决。
+      if (typeof o.model === 'string' && o.model && o.agentKind !== 'hermes') {
         let verifiedResume = false;
         if (o.resumeSessionId && typeof o.id === 'string' && o.id) {
           try {
@@ -11029,6 +11066,10 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         patch.providerId ?? null,
         dbToMakerAgentKind(patch.agentKind),
       );
+      if (patch.agentKind === 'hermes') {
+        // v1 不支持把已有会话切换到 hermes(注册/持久化边界未接);创建侧已拦,这里兜底。
+        throw new Error('switching a session to hermes is not supported yet');
+      }
       await applyAgentSwitchToSessionRow(sessionId, {
         ...patch,
         ...(verifiedWindow ? { contextWindow: verifiedWindow } : {}),
@@ -11046,7 +11087,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       agentHandoffPending.set(sessionId, handoff, expectedGeneration),
     readPendingHandoffGeneration: (sessionId) => agentHandoffPending.readGeneration(sessionId),
     rememberThinkingIntent: ({ agentKind, providerId, model, thinking }) => {
-      setThinkingEnabledInMemory(agentKind, providerId, model, thinking);
+      if (agentKind !== 'hermes') setThinkingEnabledInMemory(agentKind, providerId, model, thinking);
       // 同步本机 renderer 的记忆：主进程写的只是镜像，renderer 才是 providerModelMemory
       // 的真相源。不写回这一笔，renderer 的全量快照会一直「尚未包含该选择」，提交时写入
       // 的钉子也就撤不掉，反而会长期压住用户在被控端后来的显式改动（Greptile P1）。
@@ -17626,7 +17667,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         if (executionDeviceId) {
           if (!orcaRemoteWorkersForHost) throw new Error('[HOST_NOT_READY] Worker service is not ready');
           const result = await orcaRemoteWorkersForHost.readModels(executionDeviceId, {
-            ...(agent ? { agent } : {}), agentDeviceId: requestedAgentDeviceId ?? null,
+            // hermes v1 不是 Orca worker 候选;不携带 agent 让远端按全量返回。
+            ...((agent && agent !== 'hermes') ? { agent } : {}), agentDeviceId: requestedAgentDeviceId ?? null,
           });
           return { ok: true, ...result };
         }
@@ -20756,7 +20798,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     if (
       msg.createOpts.agentKind !== 'claude-code' &&
       msg.createOpts.agentKind !== 'codex' &&
-      msg.createOpts.agentKind !== 'pi'
+      msg.createOpts.agentKind !== 'pi' &&
+      msg.createOpts.agentKind !== 'hermes'
     ) {
       throwIpcError('INVALID_PARAMS', 'queued.createOpts.agentKind invalid');
     }

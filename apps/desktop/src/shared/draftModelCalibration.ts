@@ -38,7 +38,8 @@ function factoryModelForAgent(
 ): PickedConnectedModel | null {
   const tuple = resolveNewMakerDefaultTuple({
     providers, providersLoading: false, availableAgentsLoaded: true, isModelEnabled,
-    availableAgents: new Set([agent === 'claude-code' ? 'cc' : agent]),
+    // hermes v1 无产品默认策略 → 空集合让 tuple 解析显式落空。
+    availableAgents: new Set(agent !== 'hermes' ? [agent === 'claude-code' ? 'cc' : agent] : []),
   });
   return tuple ? { model: tuple.model, providerId: tuple.providerId } : null;
 }

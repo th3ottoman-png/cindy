@@ -320,7 +320,7 @@ export async function loadAgentInputQueueSnapshotCounts(
                       AND json_type(snapshot_item.value, '$.chatMessage') = 'object'
                       AND json_type(snapshot_item.value, '$.createOpts') = 'object'
                       AND json_extract(snapshot_item.value, '$.createOpts.agentKind')
-                          IN ('claude-code', 'codex', 'pi')
+                          IN ('claude-code', 'codex', 'pi', 'hermes')
                       AND COALESCE(
                         json_extract(snapshot_item.value, '$.origin.kind'),
                         ''
@@ -378,7 +378,8 @@ export function isRestorableQueuedMessage(value: unknown): value is AgentInputQu
     !!msg.createOpts && typeof msg.createOpts === 'object' &&
     (msg.createOpts.agentKind === 'claude-code' ||
       msg.createOpts.agentKind === 'codex' ||
-      msg.createOpts.agentKind === 'pi')
+      msg.createOpts.agentKind === 'pi' ||
+      msg.createOpts.agentKind === 'hermes')
   );
 }
 

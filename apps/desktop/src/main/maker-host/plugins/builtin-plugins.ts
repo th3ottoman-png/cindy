@@ -32,8 +32,6 @@ const BUILTIN_META: BuiltinPluginMeta[] = [
   { id: 'android',     name: 'Android Automation', description: 'Android adb automation — screenshots, UI dump, taps, swipes, text input, and app launch on connected devices' },
   { id: 'browser',     name: 'Browser',      description: 'Browser automation — isolated browsing, snapshots, screenshots, and page actions' },
   { id: 'computer',    name: 'Computer Use', description: 'Local desktop automation — apps, windows, UI inspection, clicks, and typing via an installed driver' },
-  { id: 'feishu_bot',   name: 'Feishu Bot',   description: 'Send files and notifications to Feishu users via bot messages' },
-  { id: 'wechat',       name: 'Personal WeChat', description: 'Send proactive messages to known personal WeChat contacts' },
   { id: 'slack',        name: 'Slack',        description: 'Slack tools via the bound Slack connection — search, read history, and post through Slack\'s hosted MCP as the bound user' },
   { id: 'scheduler',    name: 'Scheduler',    description: 'Task scheduling — cron-based recurring jobs and one-shot reminders' },
   { id: 'ssh',          name: 'SSH Remote',   description: 'Run commands on configured SSH hosts via the built-in connection pool (aliases, ssh-agent/keys) — nothing installed remotely' },
@@ -59,6 +57,11 @@ const BUILTIN_META: BuiltinPluginMeta[] = [
   // OAuth broker(tokenBroker:'feishu'),主机 token 刷新链与 scheduler
   // registry 直调一并退役(scheduler 飞书方法改走 ghost pipe)。
   // 注意 feishu_bot(bot 出站通道)是另一套东西,不受影响、继续留任。
+  // feishu_bot / wechat 已于 2026-10-27 随本地私有构建退役:两条出站通道都依赖
+  // 云端账号服务(飞书 OAuth broker / 平台连接),无账号构建里只是常驻的死开关。
+  // 从 META 移除即同时退出工具页列表与 BUILTIN_LIZI_MCP_IDS(agents 不再拿到
+  // 这两组工具);名字映射(PROVIDER_NAME_TO_PLUGIN_ID)保留,供 lizi-mcps 的
+  // provider 覆盖校验与未来回归。
   // slack_bot(lizi_slack_bot 出站通道)已于 2026-07-17 随老 SlackIM relay
   // 渠道退役(apiBaseUrl 清理):Slack 能力统一走 hook-control ↔ slack-hook-server,
   // hook 会话的文件回传走 xdt-file 附件链路,不再需要 bot 推送工具。
@@ -159,8 +162,6 @@ const PLUGIN_ID_TO_MCP_ID: Record<PluginId, LiziMcpId | undefined> = {
   android: 'android',
   browser: 'browser',
   computer: 'computer',
-  feishu_bot: 'cindy_feishu_bot',
-  wechat: 'cindy_wechat',
   slack: 'cindy_slack',
   scheduler: 'cindy_scheduler',
   ssh: 'cindy_ssh',

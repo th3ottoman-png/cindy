@@ -193,6 +193,10 @@ export function createDeviceAgentStarter(deps: DeviceAgentServiceDeps) {
     const shared = deps.isSharedProviderDevice?.(input.deviceId) === true;
     const webFetch = deps.webFetch && shared ? deps.webFetch : undefined;
     const collect = { skipCredentials: shared };
+    if (input.agentKind === 'hermes') {
+      // hermes v1 仅限本机(远端引导/SSH 封装未接);显式失败而不是落到别家分支。
+      throw new Error('remote agent sessions do not support the hermes harness yet');
+    }
     return startRemoteAgentSession(input.agentKind, opts, {
       readImageDeliveryEpoch: deps.readImageDeliveryEpoch,
       invoke: poller.invoke,

@@ -1267,7 +1267,7 @@ it.each([
     hasCindyAiApiKey: () => true,
     readProviderRouting: async () => {
       await wait('provider');
-      return { availability: { 'claude-code': [], pi: [],
+      return { availability: { 'claude-code': [], hermes: [], pi: [],
         codex: [{ id: f.route.providerId, name: 'provider', models: ['model', 'next', 'latest'] }] },
         resolveDefaultProviderIdForModel: () => f.route.providerId };
     },

@@ -805,6 +805,8 @@ function extraResourcesForTarget(targetPlatform: string): string[] {
     'resources/ghost-trust.json',
     // 远端 pi manager bundle(Node 单例 daemon,SSH remote 会话的进程持有器)。
     'resources/pi-manager',
+    // 本机 hermes manager bundle(desktop spawn 的 Hermes harness daemon)。
+    'resources/hermes-manager',
     // 第三方开源声明,由 scripts/generate-third-party-notices.mjs 生成
     // (pnpm licenses:generate),随安装包分发以满足各开源协议的署名义务。
     'resources/THIRD-PARTY-NOTICES.txt',

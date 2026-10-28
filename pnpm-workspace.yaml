@@ -1,3 +1,9 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# pnpm 10.33 no longer reads these from .npmrc; the workspace file is the only
+# source that `pnpm config get` (and Electron Forge's system check) sees.
+nodeLinker: hoisted
+frozenLockfile: true
+engineStrict: true

@@ -116,6 +116,7 @@ function isChatModel(model: CatalogModel, provider: Provider): boolean {
 const AGENT_LABEL: Record<AgentKind, string> = {
   codex: 'Codex',
   'claude-code': 'Claude Code',
+  hermes: 'Hermes',
   pi: 'Pi',
 };
 
@@ -227,7 +228,10 @@ export function buildTextOneshotPinOptions(
       }
     }
   }
-  return entries.map((e) => {
+  // hermes v1 无可 pin 的 one-shot 路由(条目本身也不会产生,这里兜底过滤)。
+  return entries.filter(
+    (e): e is typeof e & { agentKind: 'claude-code' | 'codex' | 'pi' } => e.agentKind !== 'hermes',
+  ).map((e) => {
     const providerName = displayProviderName(e.provider);
     const base = `${e.model.name} · ${providerName}`;
     return {

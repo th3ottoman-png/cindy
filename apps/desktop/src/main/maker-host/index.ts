@@ -48,8 +48,10 @@ import {
   isBotMcpServerAllowed,
   ClaudeCodeAgent,
   CodexAgent,
+  HermesAgent,
   configureDefaultImageResizer,
   type AgentKind,
+  type AuthAdapter,
   type InteractionRequest,
   type AutoReviewDelegate,
   type McpProvider,
@@ -212,6 +214,10 @@ import {
   readNativeCodexCatalog, findCodexCatalogModel, nativeCodexFallbackModel, patchCodexModelMaxContextWindow,
 } from './codex-custom-context-catalog.js';
 import { buildPiAgent } from './pi-host.js';
+import {
+  hermesManagerSocketPath,
+  resolveHermesManagerBundlePath,
+} from './hermes-manager-client.js';
 import {
   captureLocalPiPackageRuntimeInvalidationSnapshot,
   settleLocalPiPackageRuntimeSnapshot,
@@ -433,6 +439,26 @@ let botRuntimeResourcePreflight:
   | ((opts: MakerSessionCreateOpts) => Promise<BotProfileRuntimeSnapshot | null>)
   | null = null;
 let _registerPiAgent: (() => boolean) | null = null;
+let _registerHermesAgent: (() => boolean) | null = null;
+/** Launch-scoped: the bundle's absence is a build/packaging fact, not a per-Maker fact. */
+let hermesBundleMissingLogged = false;
+/**
+ * Hermes home owns the daemon's credentials; Cindy can neither read nor refresh them,
+ * and AuthState has no third credential family. Report the optimistic "configured"
+ * state and let a missing model/key surface as a turn error from Hermes itself.
+ */
+const HERMES_HOST_AUTH: AuthAdapter = {
+  async getState() {
+    return { authenticated: true, identity: 'Hermes home' };
+  },
+  async triggerLogin() {
+    return { authenticated: true, identity: 'Hermes home' };
+  },
+  async logout() {},
+  async getAuthEnv() {
+    return {};
+  },
+};
 /** 视觉桥实例（层 A/B/C 共用），在 resetMaker 时释放缓存。 */
 let _visionBridgeInstance: ReturnType<typeof createVisionBridge> | null = null;
 
@@ -2786,6 +2812,31 @@ export function getMaker(): Maker {
         return getRemoteAgentProxyEnv(remoteHost);
       },
     });
+    // hermes(M2b):bundle 在位才注册;daemon 由 host 按需拉起(设 session 前 ensure),
+    // 缺失/失败时 agent map 不含 hermes,创建入口按 runtime roster 隐藏。
+    // binaryPath 只是 BaseAgent 契约占位 —— socket transport 从不 spawn 它。
+    const buildHermesAgentForDesktop = (): HermesAgent | null => {
+      const bundlePath = resolveHermesManagerBundlePath();
+      if (!bundlePath) {
+        if (!hermesBundleMissingLogged) {
+          hermesBundleMissingLogged = true;
+          desktopMakerLogger.warn(
+            'hermes-manager bundle unavailable; hermes agent disabled for this launch',
+          );
+        }
+        return null;
+      }
+      return new HermesAgent({
+        binaryPath: bundlePath,
+        resolveHermesManagerSocketPath: () => hermesManagerSocketPath(),
+        auth: HERMES_HOST_AUTH,
+        runtimeConfig: { userDataPath: app.getPath('userData') },
+        logger: desktopMakerLogger,
+      });
+    };
+    const hermesAgent = buildHermesAgentForDesktop();
+    if (hermesAgent) makerAgents.hermes = hermesAgent;
+
     const piAgent = buildPiAgentForDesktop();
     if (piAgent) makerAgents.pi = piAgent;
 
@@ -3192,6 +3243,21 @@ export function getMaker(): Maker {
       }
       return true;
     };
+    _registerHermesAgent = () => {
+      if (!_maker || _maker.listAvailableAgents().includes('hermes')) return false;
+      const next = buildHermesAgentForDesktop();
+      if (!next) return false;
+      const registered = _maker.registerAgent('hermes', next);
+      if (!registered) {
+        void next.dispose().catch((error) => {
+          desktopMakerLogger.warn('discarding Hermes agent after registration race failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+        return false;
+      }
+      return true;
+    };
     setVisionBridgeController({
       shouldBridge: _visionBridgeInstance.isTargetModel,
       describeImage: _visionBridgeInstance.describeImage,
@@ -3317,6 +3383,36 @@ export async function disposeRemoteCodexHostAfterRestart(hostId: string, ownerGe
   await _codexAgent?.disposeRemoteHostAfterRestart(hostId);
 }
 
+/**
+ * Register Hermes lazily (e.g. when a session is created after the bundle became
+ * available) and notify local renderers. Idempotent; a lost registration race
+ * disposes the freshly built agent.
+ */
+export function registerHermesAgentIfAvailable(): boolean {
+  const register = _registerHermesAgent;
+  if (!register) return false;
+  try {
+    if (_maker?.listAvailableAgents().includes('hermes')) return true;
+    const registered = register();
+    if (!registered) return false;
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (win.isDestroyed()) continue;
+      try {
+        win.webContents.send(MAKER_PUSH.AGENTS_CHANGED);
+      } catch {
+        // Window teardown may race the broadcast; other windows still receive it.
+      }
+    }
+    tapWindowBroadcast(MAKER_PUSH.AGENTS_CHANGED, {});
+    return true;
+  } catch (error) {
+    desktopMakerLogger.warn('Hermes agent registration failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
+
 /** Register Pi after a managed runtime retry and notify local renderers. */
 export function registerPiAgentIfAvailable(): boolean {
   const register = _registerPiAgent;
@@ -3376,6 +3472,7 @@ export function resetMaker(): void {
   _maker = null;
   botRuntimeResourcePreflight = null;
   _registerPiAgent = null;
+  _registerHermesAgent = null;
   _codexAgent = null;
   _mcpProviders = {};
   // coordinator 闭包捕获了刚作废的那个 maker —— 不清掉的话,换账号窗口期内到达的 auth

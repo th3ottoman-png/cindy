@@ -62,7 +62,7 @@ export interface GhostErrandRunnerDeps {
     ghostId: string;
     shouldContinue?: () => boolean;
     title: string | null;
-    agentKind?: 'cc' | 'codex' | 'pi';
+    agentKind?: 'cc' | 'codex' | 'pi' | 'hermes';
     model?: string;
     effort?: string;
     fastMode?: boolean | 'ultrafast';
@@ -198,6 +198,10 @@ export function createGhostErrandRunner(deps: GhostErrandRunnerDeps): GhostErran
     if (!sessionId) {
       const ghostName = deps.getGhostName(request.ghostId);
       try {
+        if (execution.agentKind === 'hermes') {
+          // ghost errand v1 不支持 hermes harness;走统一 catch 报错而不是映射成别家。
+          throw new Error('ghost errand does not support the hermes harness yet');
+        }
         sessionId = await deps.createSession({
           ghostId: request.ghostId,
           title: request.title ?? ghostName,

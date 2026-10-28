@@ -100,15 +100,21 @@ export async function ensureUpstreamMergeSession(
       .where(eq(sessions.id, state.feature.taskSessionId))
       .limit(1);
     check();
-    if (origin?.source === 'cindy-make' && !origin.remoteHostId)
+    if (origin?.source === 'cindy-make' && !origin.remoteHostId) {
+      const originKind = normalizeDbAgentKind(origin.agentKind);
+      if (originKind === 'hermes') {
+        // cindy-make 派发 v1 只认三家;hermes 在合并会话边界显式失败,不能静默落别家。
+        throw new Error('cindy-make merge sessions do not support the hermes harness yet');
+      }
       options = {
-        agentKind: normalizeDbAgentKind(origin.agentKind),
+        agentKind: originKind,
         model: origin.model ?? undefined,
         providerId: origin.providerId,
         effort: origin.effort ?? undefined,
         permissionMode: origin.permissionMode ?? undefined,
         fastMode: origin.fastMode ?? undefined,
       };
+    }
   }
   let id = state.sessionId ?? createBusinessSessionId();
   const workingDir = mergeWorktree(userData, state.id);

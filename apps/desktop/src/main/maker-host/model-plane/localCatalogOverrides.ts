@@ -596,6 +596,7 @@ export function hasLocalContextWindowOverride(
   agent: AgentKind,
   policyProviderId = providerId,
 ): boolean {
+  if (agent === 'hermes') return false; // hermes v1 无本地目录 override
   return (['additions', 'patches'] as const).some((section) => {
     const entry = overrides[section][`${encodeURIComponent(providerId)}:${modelId}`];
     return (

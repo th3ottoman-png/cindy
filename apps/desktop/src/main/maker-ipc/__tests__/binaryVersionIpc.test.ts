@@ -9,6 +9,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   fetchManifest: vi.fn(),
+  getBaseUrl: vi.fn(() => 'https://cdn.test'),
+  isDev: vi.fn(() => false),
   execFile: vi.fn(),
   versions: new Map<string, string>(),
   trust: vi.fn(),
@@ -36,6 +38,8 @@ vi.mock('../../device-link/invoke-context.js', () => ({
 vi.mock('../../manifestService.js', () => ({
   fetchManifest: h.fetchManifest,
   getPlatformKey: () => 'darwin-arm64',
+  getBaseUrl: h.getBaseUrl,
+  isDev: h.isDev,
 }));
 vi.mock('../../agent-binaries/index.js', () => ({
   getReadyBinaryPath: (kind: string) => `/managed/${kind}`,
@@ -65,6 +69,8 @@ describe('maker:agent:binary-version', () => {
   beforeEach(() => {
     h.handlers.clear();
     h.fetchManifest.mockReset();
+    h.getBaseUrl.mockReset().mockReturnValue('https://cdn.test');
+    h.isDev.mockReset().mockReturnValue(false);
     h.versions.clear();
     h.trust.mockReset().mockImplementation(() => {});
     h.isDeviceLink.mockReset().mockReturnValue(false);
@@ -101,6 +107,26 @@ describe('maker:agent:binary-version', () => {
 
     await expect(invoke('codex')).resolves.toMatchObject({ version: 'codex-cli 0.145.0' });
     expect(h.trust).not.toHaveBeenCalled();
+  });
+
+  it('endpoint-blank builds report the check as unavailable without touching the network', async () => {
+    h.getBaseUrl.mockReturnValue('');
+    await expect(invoke('codex', { checkLatest: true })).resolves.toMatchObject({
+      latestCheckFailed: true,
+      latestCheckUnavailable: true,
+      updateAvailable: false,
+    });
+    expect(h.fetchManifest).not.toHaveBeenCalled();
+  });
+
+  it('dev builds report the check as unavailable without touching the network', async () => {
+    h.isDev.mockReturnValue(true);
+    await expect(invoke('claude-code', { checkLatest: true })).resolves.toMatchObject({
+      latestCheckFailed: true,
+      latestCheckUnavailable: true,
+      updateAvailable: false,
+    });
+    expect(h.fetchManifest).not.toHaveBeenCalled();
   });
 
   it('returns the local version without touching the network', async () => {

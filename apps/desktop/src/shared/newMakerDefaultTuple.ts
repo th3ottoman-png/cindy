@@ -75,7 +75,10 @@ const DEFAULT_POLICIES: readonly ProviderDefaultPolicy[] = [
   },
 ];
 
-function vendorForAgent(agent: AgentKind): NewMakerDefaultTuple['vendor'] {
+function vendorForAgent(agent: AgentKind): NewMakerDefaultTuple['vendor'] | undefined {
+  // hermes v1 无产品默认策略(策略表均为静态三家清单);返回 undefined 让调用方
+  // 显式跳过,而不是映射成别家 vendor。
+  if (agent === 'hermes') return undefined;
   return agent === 'claude-code' ? 'cc' : agent;
 }
 
@@ -210,7 +213,7 @@ export function resolveNewMakerDefaultTuples(args: {
       for (const provider of matchingProviders) {
         for (const agent of policy.agents) {
           const vendor = vendorForAgent(agent);
-          if (!availableAgents.has(vendor)) continue;
+          if (vendor === undefined || !availableAgents.has(vendor)) continue;
           const model = matchingModel(provider, agent, policy.modelIds, pass, args.isModelEnabled);
           if (!model) continue;
           tuples.push({

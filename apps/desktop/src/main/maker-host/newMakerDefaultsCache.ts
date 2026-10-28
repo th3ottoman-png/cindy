@@ -250,8 +250,9 @@ export function getWorkerDefaultsFromNewMaker(
  */
 export function getNewTaskDraftSelection(
   ownerScope: string,
-  agent: 'claude-code' | 'codex' | 'pi',
+  agent: import('@cindy/maker-core').AgentKind,
 ): { model?: string; providerId?: string | null; chosenByUser: boolean } | null {
+  if (agent === 'hermes') return null; // hermes v1 无新建任务草稿
   if (!cache || selectedRouteOwner !== ownerScope) return null;
   const vendor: VendorKey = agent === 'claude-code' ? 'cc' : agent;
   const prefs = cache.lastByVendor[vendor];

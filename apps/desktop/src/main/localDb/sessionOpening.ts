@@ -21,6 +21,22 @@ function agentRunsOnOtherDevice(body: SessionOpenBody): boolean {
   return typeof body.agentDeviceId === 'string' && body.agentDeviceId.trim().length > 0;
 }
 
+/**
+ * Hermes has exactly one model and no provider catalog route: normalize at the
+ * durable-open boundary instead of asking the catalog admission. Returns null for
+ * every other agent, so their admission is untouched.
+ */
+export function admitHermesSessionOpenBody(body: SessionOpenBody): SessionOpenBody | null {
+  if (body.agentKind !== 'hermes') return null;
+  return {
+    ...body,
+    model: body.model?.trim() || 'hermes-default',
+    providerId: null,
+    effort: '',
+    fastMode: false,
+  };
+}
+
 /** Project git bootstrap of a newly opened task (deferred to the first send for unsent tasks). */
 export async function ensureOpenedProjectGit(row: {
   id: string;
@@ -66,9 +82,10 @@ export async function openSession<T = void>(input: {
   if (!admitModel) throw new Error('任务模型服务尚未就绪，请稍后重试');
   // Remote model admission belongs to the execution host. Preserve the existing remote path.
   // Agent 在另一台电脑运行的任务同理：模型与来源来自那台，由那台启动时按它的目录校验。
-  const selected = input.body.remoteHostId || agentRunsOnOtherDevice(input.body)
+  const remoteOwned = Boolean(input.body.remoteHostId) || agentRunsOnOtherDevice(input.body);
+  const selected = remoteOwned
     ? input.body
-    : await admitModel({ ...input.body });
+    : admitHermesSessionOpenBody(input.body) ?? await admitModel({ ...input.body });
   assertCurrent();
   const workspaceKind = selected.workspaceKind ?? 'project';
   const explicitDir = normalizeWorkingDirForStorage(selected.workingDir) ?? undefined;

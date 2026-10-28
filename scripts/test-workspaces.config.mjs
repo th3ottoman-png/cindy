@@ -521,6 +521,8 @@ export default {
     requiredUnitWorkspace('@cindy/im', 'packages/lizi-im'),
     requiredUnitWorkspace('@cindy/mcps', 'packages/lizi-mcps'),
     requiredUnitWorkspace('@cindy/maker-cc-manager', 'packages/maker-cc-manager'),
+    // 轮 M2a:hermes-mgr 单例 daemon 包;漏登记会让 manifest 覆盖校验失败(全量门禁拒跑)。
+    requiredUnitWorkspace('@cindy/maker-hermes-manager', 'packages/maker-hermes-manager'),
     requiredUnitWorkspace('@cindy/maker-remote-ssh', 'packages/maker-remote-ssh'),
     // 轮 42:新包 maker-pi-manager(TS 单例 pi daemon)已随 SSH remote 交付;
     // 漏登记会让 test-workspaces 的 manifest 覆盖校验失败(全量门禁拒跑)。

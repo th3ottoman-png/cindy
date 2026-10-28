@@ -742,6 +742,12 @@ export interface AgentDeps {
   resolvePiGlobalContextHome?: (remoteHostId?: string | null) => string | undefined;
 
   /**
+   * Hermes-only: absolute path to the hermes-mgr daemon's unix socket. Host owns
+   * daemon lifecycle; absent → hermes sessions cannot start.
+   */
+  resolveHermesManagerSocketPath?: (sessionId?: string) => string | undefined;
+
+  /**
    * Pi-only: advisory metadata for Cindy UI/command projection. This resolver
    * may inspect or snapshot known resources, but its result is never the launch
    * allowlist; resolvePiNativePackagePaths preserves Pi-native discovery.

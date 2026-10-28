@@ -2114,6 +2114,10 @@ function utilityRequestPlan(input: {
   /** Some coding-specialized models reject their wire's reasoning field. */
   supportsReasoning?: boolean;
 }): Pick<Parameters<typeof requestProviderHttpText>[0], 'steps' | 'memoryKey' | 'compat'> {
+  if (input.agentKind === 'hermes') {
+    // 辅助模型链 v1 不经 hermes 路由(其 compat profile 未接入)。
+    throw new Error('utility one-shot does not support the hermes harness yet');
+  }
   const harness: CompatibilityHarness = input.agentKind;
   let mode: UtilityReasoningMode;
   if (input.disableReasoning) {

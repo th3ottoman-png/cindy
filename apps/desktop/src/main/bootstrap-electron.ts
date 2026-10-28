@@ -705,6 +705,7 @@ import {
   registerPiAgentIfAvailable,
   setBotConversationConnectionsReader,
 } from './maker-host/index.js';
+import { stopHermesManagerDaemon } from './maker-host/hermes-manager-client.js';
 import { createPiRuntimeRecovery } from './agent-binaries/pi-runtime-recovery.js';
 import { createDynamicMaker } from './maker-host/dynamic-maker.js';
 import { ensureBundledRipgrepReady } from './maker-host/runtime-configs.js';
@@ -3060,10 +3061,6 @@ function installApplicationMenu(
       submenu: [
         createOpenLogsMenuItem(),
         { type: 'separator' },
-        {
-          label: labels.help,
-          click: () => dispatchApplicationMenuCommand(mainWindow, 'open-help'),
-        },
         {
           label: labels.releaseNotes,
           click: () => dispatchApplicationMenuCommand(mainWindow, 'open-release-notes'),
@@ -10262,6 +10259,10 @@ onQuit(
   },
   'async',
 );
+// App-owned hermes-mgr utilityProcess. Async quit disposers run concurrently, so
+// "after sessions detach" is NOT guaranteed; the daemon's SIGTERM path kills its
+// Hermes children, so a racing session teardown leaves only log noise. v1 accepted.
+onQuit('hermes-manager-daemon', () => stopHermesManagerDaemon(), 'async');
 onQuit('review-artifact-snapshots', cleanupActiveReviewArtifactSnapshots, 'async');
 // LSP 不占用 Agent 正常保存和退出的时间窗口。
 onQuit('lsp-pool', shutdownLspServerPool, 'async');

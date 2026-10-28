@@ -3,7 +3,8 @@
  * No credentials or provider metadata belong in this record.
  */
 export interface ModelRoute {
-  harness: 'claude' | 'codex' | 'pi';
+  // 'hermes' 仅类型层放行(M2b);normalize 运行时白名单仍只收三家,v2 再放行。
+  harness: 'claude' | 'codex' | 'pi' | 'hermes';
   model: string;
   providerId: string | null;
   effort: string;

@@ -24,6 +24,7 @@ function resolveAvailableLocalRoute(
   // Remote routes are validated against their own authorized catalog below.
   if (!preferred || preferred.agentDeviceId || args.providersLoading || !args.availableAgentsLoaded) return null;
   const agent = preferred.harness === 'claude' ? 'claude-code' : preferred.harness;
+  if (agent === 'hermes') return null; // hermes v1 无产品默认路由
   if (!args.availableAgents.has(agent === 'claude-code' ? 'cc' : agent)) return null;
   const providers = args.providers.filter(p => p.connected && !p.suspended && !p.modelDiscoveryFailure)
     .map(p => ({ ...p, models: { ...p.models, [agent]: (p.models[agent] ?? []).filter(m =>
@@ -80,7 +81,10 @@ async function readSelection() {
   const current = getSelectedNewMakerRoute(owner) ?? null;
   const inputs = { providers, currentRoute: current,
     tuning: (agent, providerId, model) => getNewMakerModelTuning(owner, agent, providerId, model),
-    availableAgents: new Set((getMakerIfReady()?.listAvailableAgents() ?? []).map(agent => agent === 'claude-code' ? 'cc' : agent)),
+    availableAgents: new Set((getMakerIfReady()?.listAvailableAgents() ?? [])
+      .map(agent => agent === 'claude-code' ? 'cc' : agent)
+      // hermes v1 不进 App 默认模型面(产品默认策略只有三家)。
+      .filter((agent): agent is 'cc' | 'codex' | 'pi' => agent !== 'hermes')),
     enabled: (agent, providerId, model) => isModelVisible(getModelVisibilityOverride(agent, providerId, model.id), model.defaultEnabled),
   } satisfies Parameters<typeof availableAppDefaultModels>[0];
   const available = availableAppDefaultModels(inputs);

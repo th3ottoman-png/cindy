@@ -751,13 +751,14 @@ const WORKER_SESSION_ID = '123e4567-e89b-42d3-a456-426614174000';
 describe('buildNoProviderMessage (pi first-class)', () => {
   const snap = (name: string): OrcaWorkerProviderSnapshot => ({ name }) as OrcaWorkerProviderSnapshot;
   it('names Pi (not Claude Code) when pi has no connected provider', () => {
-    const msg = buildNoProviderMessage('pi', { 'claude-code': [], codex: [], pi: [] });
+    const msg = buildNoProviderMessage('pi', { 'claude-code': [], hermes: [], codex: [], pi: [] });
     expect(msg).toContain('Pi 当前没有可用的模型供应商');
     expect(msg).not.toContain('Claude Code 当前没有');
   });
   it('suggests pi as a fallback agent when pi alone has a connected provider', () => {
     const msg = buildNoProviderMessage('codex', {
       'claude-code': [],
+      hermes: [],
       codex: [],
       pi: [snap('Cindy AI')],
     });
@@ -786,6 +787,7 @@ function providerRoutingContext(
 ): OrcaWorkerProviderRoutingContext {
   const availability: Record<AgentKind, OrcaWorkerProviderSnapshot[]> = {
     'claude-code': partial['claude-code'] ?? [],
+    hermes: [],
     codex: partial.codex ?? [],
     pi: partial.pi ?? [],
   };
@@ -2637,6 +2639,7 @@ describe('OrcaWorkerCreationService', () => {
   it('pins the sole runtime provider when only the worker model is explicit', async () => {
     const availability = {
       'claude-code': [],
+      hermes: [],
       codex: [
         { id: 'custom-codex', name: 'Custom Codex', models: ['gpt-5.5'] },
         { id: 'xd', name: 'XD Gateway', models: ['gpt-5.4'] },
@@ -2948,6 +2951,7 @@ describe('buildNoProviderMessage', () => {
   it('suggests the other agent when it has a connected provider', () => {
     const msg = buildNoProviderMessage('codex', {
       'claude-code': [{ id: 'xd', name: 'XD Gateway', models: ['claude-sonnet-4-6'] }],
+      hermes: [],
       pi: [],
       codex: [],
     });
@@ -2957,7 +2961,7 @@ describe('buildNoProviderMessage', () => {
   });
 
   it('omits the agent suggestion when no agent has a connected provider', () => {
-    const msg = buildNoProviderMessage('claude-code', { 'claude-code': [], codex: [], pi: [] });
+    const msg = buildNoProviderMessage('claude-code', { 'claude-code': [], hermes: [], codex: [], pi: [] });
     expect(msg).toContain('Claude Code 当前没有可用的模型供应商');
     expect(msg).toContain('设置 → 模型供应商');
     expect(msg).not.toContain('改用');

@@ -56,6 +56,13 @@ const TARGETS = [
     destDir: resolve(DESKTOP_ROOT, 'resources', 'pi-manager'),
     destFile: 'pi-manager.mjs',
   },
+  {
+    pkgName: '@cindy/maker-hermes-manager',
+    pkgDir: resolve(MONOREPO_ROOT, 'packages', 'maker-hermes-manager'),
+    bundleFile: 'dist/hermes-mgr.mjs',
+    destDir: resolve(DESKTOP_ROOT, 'resources', 'hermes-manager'),
+    destFile: 'hermes-mgr.mjs',
+  },
 ];
 
 function bundleIfStale(target) {

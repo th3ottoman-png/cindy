@@ -63,6 +63,7 @@
     "@cindy/im": "workspace:*",
     "@cindy/maker-cc-manager": "workspace:*",
     "@cindy/maker-core": "workspace:*",
+    "@cindy/maker-hermes-manager": "workspace:*",
     "@cindy/maker-pi-manager": "workspace:*",
     "@cindy/maker-remote-ssh": "workspace:*",
     "@cindy/maker-scheduler": "workspace:*",

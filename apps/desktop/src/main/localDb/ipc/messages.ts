@@ -1193,7 +1193,7 @@ export async function commitContextRebuild(
       | 'native-session-recovery'
       | 'idle-gap';
     sourceUserClientId: string | null;
-    sourceAgentKind?: 'cc' | 'codex' | 'pi';
+    sourceAgentKind?: 'cc' | 'codex' | 'pi' | 'hermes';
     sourceModel?: string | null;
     sourceProviderId?: string | null;
     expectedClearedAt?: number | null;
@@ -1228,7 +1228,7 @@ export async function commitContextRebuild(
 export async function findLatestContextRebuildMeta(sessionId: string): Promise<{
   reason?: string;
   sourceUserClientId?: string | null;
-  sourceAgentKind?: 'cc' | 'codex' | 'pi';
+  sourceAgentKind?: 'cc' | 'codex' | 'pi' | 'hermes';
   sourceModel?: string | null;
   sourceProviderId?: string | null;
 } | null> {
@@ -1728,7 +1728,7 @@ export async function createMessage(
      * agentMeta 需要它;main 侧 SDK 事件落库路径必传,renderer pending echo 等
      * 无 SDK 元信息的行留空(null 回落 session.agentKind)。
      */
-    agentKind?: 'cc' | 'codex' | 'pi' | null;
+    agentKind?: 'cc' | 'codex' | 'pi' | 'hermes' | null;
     createdAt?: number;
   },
   opts?: {
@@ -2921,8 +2921,10 @@ export interface ParkedEngineSession {
  */
 export async function findParkedEngineSession(
   sessionId: string,
-  targetDbKind: 'cc' | 'codex' | 'pi',
+  targetDbKind: 'cc' | 'codex' | 'pi' | 'hermes',
 ): Promise<ParkedEngineSession | null> {
+  // hermes v1 没有可停泊的原生会话;目标为 hermes 时恒为「无停泊」。
+  if (targetDbKind === 'hermes') return null;
   const db = getDbClient().drizzle;
   const [sessRow] = await db
     .select({ clearedAt: sessions.clearedAt })

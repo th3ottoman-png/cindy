@@ -285,7 +285,7 @@ function parseSessionId(raw: unknown, optional = false): string | undefined {
 }
 
 function parseAgentKind(raw: unknown): AgentKind {
-  if (!TITLE_AGENT_KINDS.includes(raw as AgentKind)) {
+  if (!TITLE_AGENT_KINDS.includes(raw as (typeof TITLE_AGENT_KINDS)[number])) {
     throwIpcError('INVALID_PARAMS', 'invalid agentKind');
   }
   return raw as AgentKind;
@@ -394,7 +394,7 @@ function parsePredictPromptRequest(raw: unknown): PredictPromptRequest | CancelP
     }
     return { sessionId, completionRevision, cancel: true };
   }
-  if (!TITLE_AGENT_KINDS.includes(agentKind as AgentKind)) {
+  if (!TITLE_AGENT_KINDS.includes(agentKind as (typeof TITLE_AGENT_KINDS)[number])) {
     throwIpcError('INVALID_PARAMS', `invalid agentKind for predict-prompt: ${String(agentKind)}`);
   }
   if (typeof turnGen !== 'number' || !Number.isFinite(turnGen) || turnGen < 0) {
