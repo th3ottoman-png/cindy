@@ -291,4 +291,4 @@ Ordered as agreed. The full plan also lives in `~/Desktop/Cindy-Master-Plan.md` 
 4. Start the app: `node scripts/desktop-dev-runner.mjs local`.
 5. Open a Hermes task, send one short message. Confirm the reply streams and `~/.hermes-cindy/hermes-mgr/sessions.json` gains a `hermesSessionId`.
 6. Send a second message that depends on the first (e.g. "what did I just say?"). If it answers correctly, resume works.
-7. Pick the next task from §9 (currently **1.5 MCP tool bridge**).
+7. Phase 1 (Hermes daily-driver gaps) is complete! Pick the next task from §9 (Phase 0 packaged-build / upstream strategy, or Phase 2 local-only polish).
