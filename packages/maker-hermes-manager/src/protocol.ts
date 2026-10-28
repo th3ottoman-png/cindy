@@ -106,6 +106,7 @@ export const METHODS = {
   // Config (daemon-level: the home's default model route in config.yaml)
   CONFIG_GET_DEFAULT_ROUTE: 'config/getDefaultRoute',
   CONFIG_SET_DEFAULT_ROUTE: 'config/setDefaultRoute',
+  CONFIG_LIST_MODELS: 'config/listModels',
 } as const;
 
 export type MethodName = (typeof METHODS)[keyof typeof METHODS];

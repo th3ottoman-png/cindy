@@ -6267,6 +6267,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         input: { model: string; provider: string; baseUrl?: string },
       ): Promise<{ route: { model?: string; provider?: string; baseUrl?: string } }> =>
         ipcRenderer.invoke('maker:hermes-config:set-default-route', input),
+      listModels: (): Promise<{
+        route: { model?: string; provider?: string; baseUrl?: string };
+        models: string[];
+        error?: string;
+      }> => ipcRenderer.invoke('maker:hermes-config:list-models'),
     },
     listAvailableAgents: (): Promise<Array<'claude-code' | 'codex' | 'pi'>> =>
       ipcRenderer.invoke('maker:list-available-agents'),

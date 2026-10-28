@@ -83,6 +83,7 @@ import {
   useAgentCapabilities,
   type AgentKind,
 } from '@/hooks/useAgentCapabilities';
+import { useHermesModelCatalog } from '@/hooks/useHermesModelCatalog';
 import { useApiKey } from '@/hooks/useApiKey';
 import { useConnectedSource } from '@/hooks/useConnectedSource';
 import { useGatewayModelPricing, useReferenceModelPricing } from '@/hooks/useModelPricing';
@@ -1380,6 +1381,11 @@ function ModelSelectorContentView({
   const codex = useAgentCapabilities('codex', deviceId);
   const pi = useAgentCapabilities('pi', deviceId);
   const hermes = useAgentCapabilities('hermes', deviceId);
+  // Hermes 的可切换模型 = home 默认哨兵 + 当前 provider 的真实 /models 列表。
+  const hermesCatalog = useHermesModelCatalog(agentKind === 'hermes');
+  const hermesDescriptors = agentKind === 'hermes'
+    ? hermesCatalog.descriptors
+    : (hermes.capabilities?.availableModels ?? []);
   // 本机折扣 GPT 仍按本机 API key gate；device-link 必须只看被控端 provider 状态。
   // 旧被控端不支持 provider:list 时按远端 capabilities 退化，不得误用控制端 key。
   const { hasSavedKey } = useApiKey();
@@ -1929,7 +1935,7 @@ function ModelSelectorContentView({
         deviceCcModels: cc.capabilities?.availableModels ?? [],
         deviceCodexModels: codex.capabilities?.availableModels ?? [],
         devicePiModels: pi.capabilities?.availableModels ?? [],
-        hermesModels: hermes.capabilities?.availableModels ?? [],
+        hermesModels: hermesDescriptors,
         excludeSubscriptionDirect,
         excludeChatBridgedCodex,
       }),
@@ -1940,7 +1946,7 @@ function ModelSelectorContentView({
       cc.capabilities,
       codex.capabilities,
       pi.capabilities,
-      hermes.capabilities,
+      hermesDescriptors,
       excludeSubscriptionDirect,
       excludeChatBridgedCodex,
     ],
@@ -4207,6 +4213,10 @@ export function ModelSelector({
   const codex = useAgentCapabilities('codex', deviceId);
   const pi = useAgentCapabilities('pi', deviceId);
   const hermes = useAgentCapabilities('hermes', deviceId);
+  const hermesCatalog = useHermesModelCatalog(agentKind === 'hermes');
+  const hermesDescriptors = agentKind === 'hermes'
+    ? hermesCatalog.descriptors
+    : (hermes.capabilities?.availableModels ?? []);
   const gatewayPricing = useGatewayModelPricing();
   const referencePricing = useReferenceModelPricing();
   const { accountTier: modelAccessAccountTier } = useModelAccessStatus();
@@ -4249,7 +4259,7 @@ export function ModelSelector({
         deviceCcModels: cc.capabilities?.availableModels ?? [],
         deviceCodexModels: codex.capabilities?.availableModels ?? [],
         devicePiModels: pi.capabilities?.availableModels ?? [],
-        hermesModels: hermes.capabilities?.availableModels ?? [],
+        hermesModels: hermesDescriptors,
         excludeSubscriptionDirect,
         excludeChatBridgedCodex,
       }),
@@ -4260,7 +4270,7 @@ export function ModelSelector({
       cc.capabilities,
       codex.capabilities,
       pi.capabilities,
-      hermes.capabilities,
+      hermesDescriptors,
       excludeSubscriptionDirect,
       excludeChatBridgedCodex,
     ],

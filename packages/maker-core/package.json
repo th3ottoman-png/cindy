@@ -12,7 +12,8 @@
     "./contacts-sync-worker": "./src/contacts/sync/worker-api.ts",
     "./pi-extension-ui": "./src/agents/pi/extension-ui-capabilities.ts",
     "./pi-subagent-runs": "./src/agents/pi/pi-subagent-runs.ts",
-    "./skill-scan-limits": "./src/agents/shared/skill-scan-limits.ts"
+    "./skill-scan-limits": "./src/agents/shared/skill-scan-limits.ts",
+    "./hermes-provider-env": "./src/agents/hermes/hermes-provider-env.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

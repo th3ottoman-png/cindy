@@ -36,6 +36,7 @@ import {
 } from './protocol.js';
 import { normalizeHermesEvent, type NormalizedHermesTokens } from './translator.js';
 import { createHermesTransport, type HermesTransport } from './transport.js';
+import { collectHermesProviderEnv } from './hermes-provider-env.js';
 
 const HERMES_DEFAULT_MODEL_ID = 'hermes-default';
 /** Advertised window; the daemon does not report a runtime value. */
@@ -223,6 +224,10 @@ export class HermesAgent extends BaseAgent {
 
     const sessionId = randomUUID();
     const requestedPermissionMode: PermissionMode = opts.permissionMode ?? 'default';
+    // Provider credentials from this process' env (desktop main inherits the
+    // user shell). Keys travel the local socket per session and are never
+    // persisted by the daemon.
+    const providerEnv = collectHermesProviderEnv();
     // Only a non-empty native id is resumable; an empty string is the documented
     // "start fresh" recovery path (Maker persists handle.id as sdk_session_id).
     const requestedResumeId = opts.resumeSessionId?.trim();
@@ -242,6 +247,10 @@ export class HermesAgent extends BaseAgent {
           ...(requestedResumeId ? { resumeHermesSessionId: requestedResumeId } : {}),
           ...(opts.model && opts.model !== HERMES_DEFAULT_MODEL_ID ? { model: opts.model } : {}),
           ...(permissionMode ? { permissionMode } : {}),
+          // Provider keys ride per-session env (the daemon's own env is
+          // deliberately secret-free). Hermes reads provider credentials from
+          // env; without this a DeepSeek-direct home cannot authenticate.
+          ...(Object.keys(providerEnv).length ? { env: providerEnv } : {}),
         },
       );
       const resumableSessionId = typeof startResult?.hermesSessionId === 'string'

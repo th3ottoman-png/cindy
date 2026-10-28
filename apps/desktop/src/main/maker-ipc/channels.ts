@@ -17,6 +17,7 @@ export const MAKER_INVOKE = {
   CREATE_SESSION: 'maker:create-session',
   HERMES_CONFIG_GET_DEFAULT_ROUTE: 'maker:hermes-config:get-default-route',
   HERMES_CONFIG_SET_DEFAULT_ROUTE: 'maker:hermes-config:set-default-route',
+  HERMES_CONFIG_LIST_MODELS: 'maker:hermes-config:list-models',
   START_REVIEW: 'maker:review:start',
   TURN_CHANGE_SETS_LIST: 'maker:turn-change-sets:list',
   TURN_CHANGE_SETS_GET: 'maker:turn-change-sets:get',

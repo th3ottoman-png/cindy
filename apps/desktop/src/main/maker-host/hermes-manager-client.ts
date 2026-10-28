@@ -31,6 +31,7 @@ import path from 'node:path';
 import { app, utilityProcess } from 'electron';
 
 import {
+  METHODS as HERMES_MGR_METHODS,
   PROTOCOL_VERSION,
   RpcClient,
   RpcClientError,
@@ -288,6 +289,37 @@ export async function withHermesManagerDaemon<T>(
         .catch((err: unknown) => finish(err instanceof Error ? err : new Error(String(err))));
     });
   });
+}
+
+export interface HermesModelCatalog {
+  route: { model?: string; provider?: string; baseUrl?: string };
+  models: string[];
+  error?: string;
+}
+
+/**
+ * The active provider's real model ids, for the Hermes picker. Route comes
+ * from the home config; the Bearer key comes from THIS process' env (the
+ * daemon runs secret-free) and rides the request only — never stored.
+ */
+export async function getHermesModelCatalog(
+  requestTimeoutMs = 15_000,
+): Promise<HermesModelCatalog> {
+  return withHermesManagerDaemon(async (client) => {
+    const { route } = await client.request<{
+      route: { model?: string; provider?: string; baseUrl?: string };
+    }>(HERMES_MGR_METHODS.CONFIG_GET_DEFAULT_ROUTE, {}, { timeoutMs: requestTimeoutMs });
+    const provider = route.provider ?? '';
+    const envName = `${provider.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_API_KEY`;
+    const key = provider ? process.env[envName]?.trim() ?? '' : '';
+    if (!route.baseUrl || !key) return { route, models: [] };
+    const result = await client.request<{ route: HermesModelCatalog['route']; models: string[]; error?: string }>(
+      HERMES_MGR_METHODS.CONFIG_LIST_MODELS,
+      { key },
+      { timeoutMs: requestTimeoutMs },
+    );
+    return { route: result.route, models: result.models, ...(result.error ? { error: result.error } : {}) };
+  }, { timeoutMs: requestTimeoutMs + 5_000 });
 }
 
 /** @internal test helper: 清空模块级缓存/持有状态(不杀真实进程)。 */

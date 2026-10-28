@@ -5527,6 +5527,11 @@ interface ElectronAPI {
         provider: string;
         baseUrl?: string;
       }) => Promise<{ route: { model?: string; provider?: string; baseUrl?: string } }>;
+      listModels: () => Promise<{
+        route: { model?: string; provider?: string; baseUrl?: string };
+        models: string[];
+        error?: string;
+      }>;
     },
     listAvailableAgents: () => Promise<Array<'claude-code' | 'codex' | 'pi'>>;
     onAgentsChanged: (cb: () => void) => () => void;

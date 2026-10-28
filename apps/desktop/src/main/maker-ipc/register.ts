@@ -709,6 +709,7 @@ import {
 } from '../maker-host/index.js';
 import {
   ensureHermesManagerDaemon,
+  getHermesModelCatalog,
   withHermesManagerDaemon,
 } from '../maker-host/hermes-manager-client.js';
 import { METHODS as HERMES_MGR_METHODS } from '@cindy/maker-hermes-manager';
@@ -13514,6 +13515,10 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     return withHermesManagerDaemon((client) =>
       client.request<{ route: unknown }>(HERMES_MGR_METHODS.CONFIG_GET_DEFAULT_ROUTE, {}, { timeoutMs: 10_000 }),
     );
+  });
+  ipcMain.handle(MAKER_INVOKE.HERMES_CONFIG_LIST_MODELS, async (event) => {
+    assertTrustedAppRendererEvent(event);
+    return getHermesModelCatalog();
   });
   ipcMain.handle(MAKER_INVOKE.HERMES_CONFIG_SET_DEFAULT_ROUTE, async (event, input: unknown) => {
     assertTrustedAppRendererEvent(event);

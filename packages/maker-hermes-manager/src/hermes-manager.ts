@@ -11,6 +11,7 @@
 
 import { encodeMessage } from './codec.js';
 import { readHermesDefaultRoute, writeHermesDefaultRoute } from './hermes-config.js';
+import { fetchProviderModels } from './hermes-models.js';
 import { startHermesRun, type HermesRunHandle } from './hermes-run.js';
 import {
   HERMES_MGR_BUNDLE_VERSION,
@@ -52,6 +53,8 @@ export class HermesManager {
   readonly server: ManagerServer;
   private readonly registry: SessionRegistry;
   private readonly running = new Map<string, RunningTurn>();
+  /** Per-session provider credentials (query/start env). In-memory only — never persisted. */
+  private readonly sessionEnv = new Map<string, Record<string, string>>();
   private readonly attached = new Map<string, ClientCtx>();
   readonly hermesHome: string;
   private readonly hermesBin: string;
@@ -116,6 +119,17 @@ export class HermesManager {
       if (!created) {
         throw rpcError('SESSION_ALREADY_EXISTS', `session ${p.sessionId} already exists`);
       }
+      // Provider credentials ride query/start env and stay in memory only
+      // (the registry file on disk must never contain secrets). A daemon
+      // restart drops them; the desktop re-sends start (with env) on demand.
+      if (p.env && typeof p.env === 'object' && !Array.isArray(p.env)) {
+        const entries = Object.entries(p.env).filter(
+          ([key, value]) => typeof key === 'string' && key.length > 0 && typeof value === 'string',
+        );
+        if (entries.length > 0 && entries.length <= 32) {
+          this.sessionEnv.set(p.sessionId, Object.fromEntries(entries));
+        }
+      }
       const rec = this.registry.get(p.sessionId)!;
       return {
         sessionId: p.sessionId,
@@ -177,6 +191,7 @@ export class HermesManager {
           ...(routeProvider ? { provider: routeProvider } : {}),
           ...(rec.permissionMode ? { permissionMode: rec.permissionMode } : {}),
           ...(this.hermesExtraArgs ? { extraArgs: this.hermesExtraArgs } : {}),
+          env: this.sessionEnv.get(rec.sessionId),
         },
         (event) => this.onHermesEvent(rec.sessionId, event),
       );
@@ -206,6 +221,16 @@ export class HermesManager {
 
     s.setHandler(METHODS.CONFIG_GET_DEFAULT_ROUTE, async () => {
       return { route: await readHermesDefaultRoute(this.hermesHome) };
+    });
+
+    s.setHandler(METHODS.CONFIG_LIST_MODELS, async (raw) => {
+      const p = raw as { key?: string };
+      const route = await readHermesDefaultRoute(this.hermesHome);
+      if (!route.provider || !route.baseUrl || typeof p.key !== 'string' || !p.key) {
+        return { route, models: [] };
+      }
+      const list = await fetchProviderModels(route.baseUrl, p.key);
+      return { route, models: list.models, ...(list.error ? { error: list.error } : {}) };
     });
 
     s.setHandler(METHODS.CONFIG_SET_DEFAULT_ROUTE, async (raw) => {

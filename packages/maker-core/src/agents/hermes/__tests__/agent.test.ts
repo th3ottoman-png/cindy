@@ -478,6 +478,21 @@ describe('HermesAgent', () => {
     }
   });
 
+  it('rides provider-key env on query/start', async () => {
+    process.env.DEEPSEEK_API_KEY = 'test-key';
+    const daemon = await startDaemon();
+    const handle = await start(buildAgent());
+    try {
+      // The daemon runs secret-free; provider credentials ride query/start env.
+      expect((daemon.startParams[0] as { env?: Record<string, string> }).env?.DEEPSEEK_API_KEY).toBe(
+        'test-key',
+      );
+    } finally {
+      delete process.env.DEEPSEEK_API_KEY;
+      await handle.close();
+    }
+  });
+
   it('per-session setModel forwards the model and maps the home-default sentinel to an empty override', async () => {
     const daemon = await startDaemon();
     const handle = await start(buildAgent());
