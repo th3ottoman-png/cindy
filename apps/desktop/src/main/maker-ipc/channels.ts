@@ -19,6 +19,8 @@ export const MAKER_INVOKE = {
   HERMES_CONFIG_SET_DEFAULT_ROUTE: 'maker:hermes-config:set-default-route',
   HERMES_CONFIG_LIST_MODELS: 'maker:hermes-config:list-models',
   HERMES_CONFIG_GET_STATUS: 'maker:hermes-config:get-status',
+  HERMES_CONFIG_SET_MCP_SERVER: 'maker:hermes-config:set-mcp-server',
+  HERMES_CONFIG_REMOVE_MCP_SERVER: 'maker:hermes-config:remove-mcp-server',
   START_REVIEW: 'maker:review:start',
   TURN_CHANGE_SETS_LIST: 'maker:turn-change-sets:list',
   TURN_CHANGE_SETS_GET: 'maker:turn-change-sets:get',

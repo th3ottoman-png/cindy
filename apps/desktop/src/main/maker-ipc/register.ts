@@ -711,6 +711,8 @@ import {
   ensureHermesManagerDaemon,
   getHermesHomeStatus,
   getHermesModelCatalog,
+  setHermesMcpServer,
+  removeHermesMcpServer,
   withHermesManagerDaemon,
 } from '../maker-host/hermes-manager-client.js';
 import { METHODS as HERMES_MGR_METHODS } from '@cindy/maker-hermes-manager';
@@ -13542,6 +13544,33 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       ),
     );
   });
+  ipcMain.handle(
+    MAKER_INVOKE.HERMES_CONFIG_SET_MCP_SERVER,
+    async (event, input: unknown) => {
+      assertTrustedAppRendererEvent(event);
+      const p = (input ?? {}) as { name?: unknown; server?: unknown };
+      const name = typeof p.name === 'string' ? p.name.trim() : '';
+      if (!name) {
+        throwIpcError('INVALID_PARAMS', 'server name is required');
+      }
+      if (!p.server || typeof p.server !== 'object') {
+        throwIpcError('INVALID_PARAMS', 'server configuration is required');
+      }
+      return setHermesMcpServer(name, p.server as import('@cindy/maker-hermes-manager').HermesMcpServerConfig);
+    },
+  );
+  ipcMain.handle(
+    MAKER_INVOKE.HERMES_CONFIG_REMOVE_MCP_SERVER,
+    async (event, input: unknown) => {
+      assertTrustedAppRendererEvent(event);
+      const p = (input ?? {}) as { name?: unknown };
+      const name = typeof p.name === 'string' ? p.name.trim() : '';
+      if (!name) {
+        throwIpcError('INVALID_PARAMS', 'server name is required');
+      }
+      return removeHermesMcpServer(name);
+    },
+  );
   ipcMain.handle(MAKER_INVOKE.BOT_GROUP_GET, async (event, groupId: unknown, options: unknown) => {
     assertTrustedAppRendererEvent(event);
     return botGroupChatServiceHolder ? botGroupChatServiceHolder.getGroup(groupId, options) : botGroupNotReady;

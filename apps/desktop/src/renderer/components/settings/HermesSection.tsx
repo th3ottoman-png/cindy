@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, Check, ExternalLink, FolderOpen, RefreshCw, Sparkles, Terminal, Wrench } from 'lucide-react';
+import {
+  Check,
+  ExternalLink,
+  FolderOpen,
+  Network,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+  Wrench,
+  X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/lib/toast';
@@ -15,10 +26,22 @@ import {
   SETTINGS_SECTION_TITLE_CLASS,
 } from './settingsRowClasses';
 
+interface HermesMcpServerItem {
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+  url?: string;
+  headers?: Record<string, string>;
+  auth?: string;
+  disabled?: boolean;
+}
+
 interface HermesStatusData {
   homePath: string;
   route: { model?: string; provider?: string; baseUrl?: string };
   models: string[];
+  mcpServers: Record<string, HermesMcpServerItem>;
   plugins: Array<{
     id: string;
     source?: string;
@@ -36,6 +59,13 @@ export function HermesSection() {
   const [saving, setSaving] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('');
 
+  // MCP server form state
+  const [showAddServer, setShowAddServer] = useState(false);
+  const [newServerName, setNewServerName] = useState('');
+  const [newServerType, setNewServerType] = useState<'http' | 'stdio'>('http');
+  const [newServerTarget, setNewServerTarget] = useState('');
+  const [addingServer, setAddingServer] = useState(false);
+
   const loadStatus = useCallback(async () => {
     try {
       setLoading(true);
@@ -44,7 +74,7 @@ export function HermesSection() {
       if (data.route?.model) {
         setSelectedModel(data.route.model);
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to load Hermes status');
     } finally {
       setLoading(false);
@@ -67,7 +97,7 @@ export function HermesSection() {
       invalidateHermesModelCatalog();
       toast.success(t('chat.composer.hermesDefaultSuccess', { model: selectedModel }));
       await loadStatus();
-    } catch (err) {
+    } catch {
       toast.error('Failed to update Hermes default model');
     } finally {
       setSaving(false);
@@ -79,13 +109,47 @@ export function HermesSection() {
     try {
       window.electronAPI.showItemInFolder({ filePath: status.homePath });
     } catch {
-      // Fallback
       void window.electronAPI.openPath(status.homePath);
+    }
+  };
+
+  const handleAddServer = async () => {
+    const name = newServerName.trim();
+    const target = newServerTarget.trim();
+    if (!name || !target) return;
+    try {
+      setAddingServer(true);
+      const parts = target.split(/\s+/).filter(Boolean);
+      const serverConfig: HermesMcpServerItem =
+        newServerType === 'http'
+          ? { url: target }
+          : { command: parts[0] ?? '', ...(parts.length > 1 ? { args: parts.slice(1) } : {}) };
+      await window.electronAPI.maker.hermesConfig.setMcpServer(name, serverConfig);
+      toast.success(`MCP server "${name}" configured`);
+      setShowAddServer(false);
+      setNewServerName('');
+      setNewServerTarget('');
+      await loadStatus();
+    } catch {
+      toast.error('Failed to configure MCP server');
+    } finally {
+      setAddingServer(false);
+    }
+  };
+
+  const handleRemoveServer = async (name: string) => {
+    try {
+      await window.electronAPI.maker.hermesConfig.removeMcpServer(name);
+      toast.success(`MCP server "${name}" removed`);
+      await loadStatus();
+    } catch {
+      toast.error('Failed to remove MCP server');
     }
   };
 
   const currentModel = status?.route?.model ?? '';
   const hasModelChanged = selectedModel.trim() !== currentModel && selectedModel.trim().length > 0;
+  const configuredServers = Object.entries(status?.mcpServers ?? {});
 
   return (
     <div className="flex flex-col gap-[14px]">
@@ -180,7 +244,124 @@ export function HermesSection() {
 
         <div className={SETTINGS_ROW_DIVIDER_CLASS} />
 
-        {/* Row 3: Installed Plugins */}
+        {/* Row 3: MCP Servers Bridge */}
+        <div className={cn(SETTINGS_ROW_CLASS, 'items-start flex-col gap-3')}>
+          <div className="flex w-full items-center justify-between">
+            <div className="flex min-w-0 flex-col gap-1">
+              <div className="flex items-center gap-1.5">
+                <Network size={14} className="text-violet-500" />
+                <span className={SETTINGS_ROW_LABEL_CLASS}>MCP Servers</span>
+                <span className="text-11 text-[var(--text-tertiary)]">
+                  ({configuredServers.length})
+                </span>
+              </div>
+              <span className={SETTINGS_ROW_HINT_CLASS}>
+                Model Context Protocol servers loaded on every Hermes turn via <code className="font-mono">config.yaml</code>
+              </span>
+            </div>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowAddServer(!showAddServer)}
+              className="h-8 gap-1.5 text-12 shrink-0"
+            >
+              {showAddServer ? <X size={13} /> : <Plus size={13} />}
+              {showAddServer ? 'Cancel' : 'Add Server'}
+            </Button>
+          </div>
+
+          {/* Add Server Inline Form */}
+          {showAddServer && (
+            <div className="flex w-full flex-col gap-2.5 rounded-lg border border-[var(--settings-theme-card-border)] bg-[var(--settings-menu-bg)] p-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Server name (e.g. cindy_bridge)"
+                  value={newServerName}
+                  onChange={(e) => setNewServerName(e.target.value)}
+                  className="h-8 flex-1 rounded-lg border border-[var(--settings-theme-card-border)] bg-[var(--bg-card)] px-2.5 text-12 font-mono text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
+                />
+                <select
+                  value={newServerType}
+                  onChange={(e) => setNewServerType(e.target.value as 'http' | 'stdio')}
+                  className="h-8 rounded-lg border border-[var(--settings-theme-card-border)] bg-[var(--bg-card)] px-2.5 text-12 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
+                >
+                  <option value="http">Streamable HTTP / SSE</option>
+                  <option value="stdio">Stdio Command</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder={
+                    newServerType === 'http'
+                      ? 'http://127.0.0.1:port/mcp/endpoint'
+                      : 'command args (e.g. npx -y @modelcontextprotocol/server-sqlite)'
+                  }
+                  value={newServerTarget}
+                  onChange={(e) => setNewServerTarget(e.target.value)}
+                  className="h-8 flex-1 rounded-lg border border-[var(--settings-theme-card-border)] bg-[var(--bg-card)] px-2.5 text-12 font-mono text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => void handleAddServer()}
+                  disabled={!newServerName.trim() || !newServerTarget.trim() || addingServer}
+                  className="h-8 text-12 shrink-0"
+                >
+                  {addingServer ? <Spinner size="sm" /> : 'Confirm'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Configured MCP Server List */}
+          <div className="flex w-full flex-col gap-2">
+            {configuredServers.length > 0 ? (
+              configuredServers.map(([name, srv]) => (
+                <div
+                  key={name}
+                  className="flex items-center justify-between rounded-lg border border-[var(--settings-theme-card-border)] bg-[var(--settings-menu-bg)] px-3 py-2 text-12"
+                >
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-[var(--text-primary)]">{name}</span>
+                      <span className="rounded bg-[var(--bg-card)] px-1.5 py-0.5 text-10 font-mono text-[var(--text-secondary)] border border-[var(--settings-theme-card-border)]">
+                        {srv.url ? 'http' : 'stdio'}
+                      </span>
+                      {srv.disabled && (
+                        <span className="text-10 text-[var(--text-tertiary)]">disabled</span>
+                      )}
+                    </div>
+                    <span className="truncate font-mono text-11 text-[var(--text-tertiary)] max-w-[500px]">
+                      {srv.url ? srv.url : `${srv.command ?? ''} ${(srv.args ?? []).join(' ')}`}
+                    </span>
+                  </div>
+
+                  <Button
+                    variant="secondary"
+                    tone="quiet"
+                    size="sm"
+                    onClick={() => void handleRemoveServer(name)}
+                    className="h-7 w-7 p-0 text-[var(--text-tertiary)] hover:text-red-500"
+                    title={`Remove ${name}`}
+                  >
+                    <Trash2 size={13} />
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <div className="flex items-center justify-between rounded-lg border border-dashed border-[var(--settings-theme-card-border)] px-3 py-2.5 text-12 text-[var(--text-tertiary)]">
+                <span>No MCP servers configured in Hermes. Connect tools via HTTP or stdio.</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className={SETTINGS_ROW_DIVIDER_CLASS} />
+
+        {/* Row 4: Installed Plugins */}
         <div className={cn(SETTINGS_ROW_CLASS, 'items-start')}>
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex items-center gap-1.5">
@@ -228,7 +409,7 @@ export function HermesSection() {
 
         <div className={SETTINGS_ROW_DIVIDER_CLASS} />
 
-        {/* Row 4: Built-in Skills */}
+        {/* Row 5: Built-in Skills */}
         <div className={cn(SETTINGS_ROW_CLASS, 'items-start')}>
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex items-center gap-1.5">

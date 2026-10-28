@@ -103,10 +103,13 @@ export const METHODS = {
   SESSION_LIST: 'session/list',
   SESSION_KILL: 'session/kill',
 
-  // Config (daemon-level: the home's default model route in config.yaml)
+  // Config (daemon-level: the home's default model route and MCP servers in config.yaml)
   CONFIG_GET_DEFAULT_ROUTE: 'config/getDefaultRoute',
   CONFIG_SET_DEFAULT_ROUTE: 'config/setDefaultRoute',
   CONFIG_LIST_MODELS: 'config/listModels',
+  CONFIG_LIST_MCP_SERVERS: 'config/listMcpServers',
+  CONFIG_SET_MCP_SERVER: 'config/setMcpServer',
+  CONFIG_REMOVE_MCP_SERVER: 'config/removeMcpServer',
 } as const;
 
 export type MethodName = (typeof METHODS)[keyof typeof METHODS];
@@ -258,6 +261,40 @@ export interface SessionListResult {
 
 export interface SessionKillParams {
   sessionId: string;
+}
+
+/* ============================== Config / MCP shapes ============================== */
+
+export interface HermesMcpServerConfig {
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+  url?: string;
+  headers?: Record<string, string>;
+  auth?: string;
+  disabled?: boolean;
+}
+
+export interface ConfigListMcpServersResult {
+  servers: Record<string, HermesMcpServerConfig>;
+}
+
+export interface ConfigSetMcpServerParams {
+  name: string;
+  server: HermesMcpServerConfig;
+}
+
+export interface ConfigSetMcpServerResult {
+  servers: Record<string, HermesMcpServerConfig>;
+}
+
+export interface ConfigRemoveMcpServerParams {
+  name: string;
+}
+
+export interface ConfigRemoveMcpServerResult {
+  servers: Record<string, HermesMcpServerConfig>;
 }
 
 /* ============================== Server → Client request shapes ============================== */

@@ -26,6 +26,7 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
+import type { HermesMcpServerConfig } from './protocol.js';
 
 export interface HermesDefaultRoute {
   model?: string;
@@ -180,4 +181,339 @@ export async function writeHermesDefaultRoute(
   const next = lines.join('\n');
   await writeFile(configPath, next, 'utf8');
   return parseHermesDefaultRoute(next);
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Parse only the top-level `mcp_servers:` block of a Hermes config.yaml body.
+ * Tolerates comments, blank lines, and nested structures (args, headers, env).
+ */
+export function parseHermesMcpServers(
+  configYaml: string,
+): Record<string, HermesMcpServerConfig> {
+  const lines = configYaml.split(/\r?\n/);
+  const servers: Record<string, HermesMcpServerConfig> = {};
+  let inMcpBlock = false;
+  let currentServer: HermesMcpServerConfig | null = null;
+  let serverIndent: number | null = null;
+  let currentSubKey: 'args' | 'headers' | 'env' | null = null;
+  let subKeyIndent: number | null = null;
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const indent = rawLine.length - rawLine.trimStart().length;
+
+    if (!inMcpBlock) {
+      if (/^mcp_servers\s*:(\s|#|$)/.test(rawLine)) {
+        inMcpBlock = true;
+      }
+      continue;
+    }
+
+    // Dedented to column 0: top-level section ended
+    if (indent === 0) {
+      break;
+    }
+
+    if (serverIndent === null) {
+      serverIndent = indent;
+    }
+
+    // A new server header at serverIndent
+    if (indent === serverIndent) {
+      const match = /^([A-Za-z0-9_.-]+)\s*:\s*(.*)$/.exec(trimmed);
+      if (match) {
+        const currentServerName = match[1]!;
+        currentServer = {};
+        servers[currentServerName] = currentServer;
+        currentSubKey = null;
+        subKeyIndent = null;
+        continue;
+      }
+    }
+
+    // Server properties (nested under currentServer)
+    if (currentServer && indent > serverIndent) {
+      // Sub-block handling (headers, env, or args list items)
+      if (subKeyIndent !== null && indent > subKeyIndent) {
+        if (currentSubKey === 'args') {
+          if (trimmed.startsWith('- ') || trimmed === '-') {
+            const item = unquote(trimmed.replace(/^-\s*/, ''));
+            if (item) {
+              currentServer.args = currentServer.args ?? [];
+              currentServer.args.push(item);
+            }
+          }
+          continue;
+        }
+
+        const match = /^([A-Za-z0-9_.-]+)\s*:\s*(.*)$/.exec(trimmed);
+        if (match) {
+          const [, subK, subV] = match;
+          const parsed = unquote(subV);
+          if (currentSubKey === 'headers') {
+            currentServer.headers = currentServer.headers ?? {};
+            currentServer.headers[subK!] = parsed;
+          } else if (currentSubKey === 'env') {
+            currentServer.env = currentServer.env ?? {};
+            currentServer.env[subK!] = parsed;
+          }
+          continue;
+        }
+      }
+
+      // If we got here, we're not inside a deeper sub-block
+      subKeyIndent = null;
+      currentSubKey = null;
+
+      const match = /^([A-Za-z0-9_.-]+)\s*:\s*(.*)$/.exec(trimmed);
+      if (!match) continue;
+      const [, key, rest] = match;
+      const val = unquote(rest);
+
+      if (key === 'command') {
+        currentServer.command = val;
+      } else if (key === 'url') {
+        currentServer.url = val;
+      } else if (key === 'cwd') {
+        currentServer.cwd = val;
+      } else if (key === 'auth') {
+        currentServer.auth = val;
+      } else if (key === 'disabled') {
+        currentServer.disabled = val.toLowerCase() === 'true';
+      } else if (key === 'args') {
+        currentSubKey = 'args';
+        subKeyIndent = indent;
+        if (val.startsWith('[') && val.endsWith(']')) {
+          try {
+            const parsed = JSON.parse(val);
+            if (Array.isArray(parsed)) {
+              currentServer.args = parsed.map(String);
+            }
+          } catch {
+            currentServer.args = val
+              .slice(1, -1)
+              .split(',')
+              .map((s) => unquote(s))
+              .filter(Boolean);
+          }
+        }
+      } else if (key === 'headers') {
+        currentSubKey = 'headers';
+        subKeyIndent = indent;
+        currentServer.headers = currentServer.headers ?? {};
+      } else if (key === 'env') {
+        currentSubKey = 'env';
+        subKeyIndent = indent;
+        currentServer.env = currentServer.env ?? {};
+      }
+    }
+  }
+
+  return servers;
+}
+
+/** Read configured MCP servers from $HERMES_HOME/config.yaml; never throws. */
+export async function readHermesMcpServers(
+  hermesHome: string,
+): Promise<Record<string, HermesMcpServerConfig>> {
+  try {
+    const yaml = await readFile(path.join(hermesHome, 'config.yaml'), 'utf8');
+    return parseHermesMcpServers(yaml);
+  } catch {
+    return {};
+  }
+}
+
+function serializeServerLines(
+  name: string,
+  server: HermesMcpServerConfig,
+  indent = '  ',
+): string[] {
+  const lines: string[] = [`${indent}${name}:`];
+  const pIndent = `${indent}  `;
+  if (server.command) {
+    lines.push(`${pIndent}command: ${yamlScalar(server.command)}`);
+  }
+  if (server.args && server.args.length > 0) {
+    lines.push(`${pIndent}args:`);
+    for (const a of server.args) {
+      lines.push(`${pIndent}  - ${yamlScalar(a)}`);
+    }
+  }
+  if (server.url) {
+    lines.push(`${pIndent}url: ${yamlScalar(server.url)}`);
+  }
+  if (server.headers && Object.keys(server.headers).length > 0) {
+    lines.push(`${pIndent}headers:`);
+    for (const [k, v] of Object.entries(server.headers)) {
+      lines.push(`${pIndent}  ${k}: ${yamlScalar(v)}`);
+    }
+  }
+  if (server.env && Object.keys(server.env).length > 0) {
+    lines.push(`${pIndent}env:`);
+    for (const [k, v] of Object.entries(server.env)) {
+      lines.push(`${pIndent}  ${k}: ${yamlScalar(v)}`);
+    }
+  }
+  if (server.cwd) {
+    lines.push(`${pIndent}cwd: ${yamlScalar(server.cwd)}`);
+  }
+  if (server.auth) {
+    lines.push(`${pIndent}auth: ${yamlScalar(server.auth)}`);
+  }
+  if (server.disabled !== undefined) {
+    lines.push(`${pIndent}disabled: ${server.disabled ? 'true' : 'false'}`);
+  }
+  return lines;
+}
+
+/**
+ * Write or update an MCP server under top-level `mcp_servers:` in config.yaml.
+ * Preserves other blocks and comments. Returns the re-parsed servers.
+ */
+export async function writeHermesMcpServer(
+  hermesHome: string,
+  name: string,
+  server: HermesMcpServerConfig,
+): Promise<Record<string, HermesMcpServerConfig>> {
+  const configPath = path.join(hermesHome, 'config.yaml');
+  let yaml = '';
+  try {
+    yaml = await readFile(configPath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+  }
+
+  const lines = yaml.split(/\r?\n/);
+  const blockStart = lines.findIndex((line) => /^mcp_servers\s*:(\s|#|$)/.test(line));
+
+  if (blockStart === -1) {
+    while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+    const newBlock = ['', 'mcp_servers:', ...serializeServerLines(name, server, '  ')];
+    const next = lines.concat(newBlock).join('\n') + '\n';
+    await writeFile(configPath, next, 'utf8');
+    return parseHermesMcpServers(next);
+  }
+
+  let blockEnd = lines.length;
+  for (let i = blockStart + 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (!line.trim() || line.trimStart().startsWith('#')) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) {
+      blockEnd = i;
+      break;
+    }
+  }
+
+  const serverHeaderRegex = new RegExp(`^(\\s+)${escapeRegex(name)}\\s*:`);
+  let serverIndex = -1;
+  let serverIndentStr = '  ';
+
+  for (let i = blockStart + 1; i < blockEnd; i++) {
+    const line = lines[i]!;
+    const match = serverHeaderRegex.exec(line);
+    if (match) {
+      serverIndex = i;
+      serverIndentStr = match[1]!;
+      break;
+    }
+  }
+
+  const newServerLines = serializeServerLines(name, server, serverIndentStr);
+
+  if (serverIndex !== -1) {
+    const serverIndent = serverIndentStr.length;
+    let serverEnd = blockEnd;
+    for (let i = serverIndex + 1; i < blockEnd; i++) {
+      const line = lines[i]!;
+      if (!line.trim() || line.trimStart().startsWith('#')) continue;
+      const indent = line.length - line.trimStart().length;
+      if (indent <= serverIndent) {
+        serverEnd = i;
+        break;
+      }
+    }
+    lines.splice(serverIndex, serverEnd - serverIndex, ...newServerLines);
+  } else {
+    lines.splice(blockStart + 1, 0, ...newServerLines);
+  }
+
+  const next = lines.join('\n');
+  await writeFile(configPath, next, 'utf8');
+  return parseHermesMcpServers(next);
+}
+
+/**
+ * Remove an MCP server from `mcp_servers:` in config.yaml.
+ * Preserves other servers, blocks and comments. Returns the re-parsed servers.
+ */
+export async function removeHermesMcpServer(
+  hermesHome: string,
+  name: string,
+): Promise<Record<string, HermesMcpServerConfig>> {
+  const configPath = path.join(hermesHome, 'config.yaml');
+  let yaml = '';
+  try {
+    yaml = await readFile(configPath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+    return {};
+  }
+
+  const lines = yaml.split(/\r?\n/);
+  const blockStart = lines.findIndex((line) => /^mcp_servers\s*:(\s|#|$)/.test(line));
+  if (blockStart === -1) {
+    return parseHermesMcpServers(yaml);
+  }
+
+  let blockEnd = lines.length;
+  for (let i = blockStart + 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (!line.trim() || line.trimStart().startsWith('#')) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) {
+      blockEnd = i;
+      break;
+    }
+  }
+
+  const serverHeaderRegex = new RegExp(`^(\\s+)${escapeRegex(name)}\\s*:`);
+  let serverIndex = -1;
+  let serverIndent = 2;
+
+  for (let i = blockStart + 1; i < blockEnd; i++) {
+    const line = lines[i]!;
+    const match = serverHeaderRegex.exec(line);
+    if (match) {
+      serverIndex = i;
+      serverIndent = match[1]!.length;
+      break;
+    }
+  }
+
+  if (serverIndex === -1) {
+    return parseHermesMcpServers(yaml);
+  }
+
+  let serverEnd = blockEnd;
+  for (let i = serverIndex + 1; i < blockEnd; i++) {
+    const line = lines[i]!;
+    if (!line.trim() || line.trimStart().startsWith('#')) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent <= serverIndent) {
+      serverEnd = i;
+      break;
+    }
+  }
+
+  lines.splice(serverIndex, serverEnd - serverIndex);
+  const next = lines.join('\n');
+  await writeFile(configPath, next, 'utf8');
+  return parseHermesMcpServers(next);
 }

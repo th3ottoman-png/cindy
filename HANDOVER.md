@@ -164,7 +164,16 @@ Live evidence: two turns on one daemon session returned the codeword stored in t
 - `apps/desktop/src/renderer/components/settings/HermesSection.tsx`: card in General settings showing Hermes home path, runtime status, "Reveal Folder", default model selection with save action, installed plugins (status and repository source), and active skills categories.
 - Passed full `apps/desktop` TypeScript compile (`tsc --noEmit`).
 
-### 6.7 De-clouding
+### 6.7 Hermes MCP Server Bridge & Management (task 1.5) — done
+
+- `packages/maker-hermes-manager/src/hermes-config.ts`: added line-based parsing (`parseHermesMcpServers`), reading, writing (`writeHermesMcpServer`), and deletion (`removeHermesMcpServer`) for `mcp_servers:` in `$HERMES_HOME/config.yaml`, supporting both Streamable HTTP/SSE and Stdio server configurations while preserving file formatting and comments.
+- `packages/maker-hermes-manager/src/protocol.ts` & `hermes-manager.ts`: added `config/listMcpServers`, `config/setMcpServer`, and `config/removeMcpServer` RPC methods to the daemon.
+- `packages/maker-hermes-manager/src/__tests__/hermes-config.test.ts`: added 14 unit test cases for parsing, inserting, updating, and removing MCP server configurations; all passing.
+- `apps/desktop/src/main/maker-host/hermes-manager-client.ts`: extended `HermesHomeStatus` to include `mcpServers: Record<string, HermesMcpServerConfig>`, and implemented `setHermesMcpServer` and `removeHermesMcpServer` host helpers.
+- `apps/desktop/src/main/maker-ipc/`: added IPC channels (`HERMES_CONFIG_SET_MCP_SERVER`, `HERMES_CONFIG_REMOVE_MCP_SERVER`), registered handlers, and exposed them via `preload.ts` and `vite-env.d.ts`.
+- `apps/desktop/src/renderer/components/settings/HermesSection.tsx`: added interactive MCP Servers management UI displaying configured servers with transport badges (`http` / `stdio`), server targets, inline server addition form, and server removal actions.
+
+### 6.8 De-clouding
 
 - Settings: removed Shared Tasks, Help, the "Not signed in" banner ("Data stays on this device"), manual update/log-upload rows, and the auto-update/analytics/crash-upload toggles.
 - About: app version always shown; harness checks honestly report "unavailable" when no vendor endpoint is configured; official CDN update checks skipped when unconfigured.
@@ -237,7 +246,7 @@ Ordered as agreed. The full plan also lives in `~/Desktop/Cindy-Master-Plan.md` 
 | **1.2** | **Auto-title for Hermes sessions.** *(Done)* Added `hermes` to `TITLE_AGENT_KINDS` in `title.ts`; tested via `autoTitleIpcBoundary.test.ts` & `predictPromptIpcBoundary.test.ts`. | `apps/desktop/src/main/maker-ipc/title.ts` |
 | **1.4** | **Image attachments for Hermes.** *(Done)* Inlined local image references in `flattenUserMessage` and enabled `multimodal.image`; tested via `agent.test.ts`. | `packages/maker-core/src/agents/hermes/agent.ts` |
 | **1.6** | **Hermes settings surface in Cindy.** *(Done)* Added `HermesSection` to General settings, backed by `getHermesHomeStatus` IPC. | `apps/desktop/src/renderer/components/settings/HermesSection.tsx` |
-| **1.5** | **Bridge Cindy's toolset into Hermes via MCP.** Give Hermes Cindy's builtin/MCP tools so "Cindy plugins vs Hermes plugins" stops mattering. Hermes supports `hermes mcp add` / `mcp_servers` in `config.yaml`. | `packages/maker-hermes-manager` + `apps/desktop/src/main/maker-host` |
+| **1.5** | **Bridge Cindy's toolset into Hermes via MCP.** *(Done)* Added MCP server config RPCs in `maker-hermes-manager`, host API, and management UI in `HermesSection`. | `packages/maker-hermes-manager` + `apps/desktop/src/main/maker-host` |
 
 ### Phase 0 — housekeeping decisions
 

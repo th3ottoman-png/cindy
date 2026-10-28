@@ -5536,6 +5536,19 @@ interface ElectronAPI {
         homePath: string;
         route: { model?: string; provider?: string; baseUrl?: string };
         models: string[];
+        mcpServers: Record<
+          string,
+          {
+            command?: string;
+            args?: string[];
+            env?: Record<string, string>;
+            cwd?: string;
+            url?: string;
+            headers?: Record<string, string>;
+            auth?: string;
+            disabled?: boolean;
+          }
+        >;
         plugins: Array<{
           id: string;
           source?: string;
@@ -5545,6 +5558,20 @@ interface ElectronAPI {
         skills: string[];
         error?: string;
       }>;
+      setMcpServer: (
+        name: string,
+        server: {
+          command?: string;
+          args?: string[];
+          env?: Record<string, string>;
+          cwd?: string;
+          url?: string;
+          headers?: Record<string, string>;
+          auth?: string;
+          disabled?: boolean;
+        },
+      ) => Promise<Record<string, unknown>>;
+      removeMcpServer: (name: string) => Promise<Record<string, unknown>>;
     },
     listAvailableAgents: () => Promise<Array<'claude-code' | 'codex' | 'pi'>>;
     onAgentsChanged: (cb: () => void) => () => void;

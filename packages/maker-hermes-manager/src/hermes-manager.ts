@@ -10,7 +10,13 @@
  */
 
 import { encodeMessage } from './codec.js';
-import { readHermesDefaultRoute, writeHermesDefaultRoute } from './hermes-config.js';
+import {
+  readHermesDefaultRoute,
+  writeHermesDefaultRoute,
+  readHermesMcpServers,
+  writeHermesMcpServer,
+  removeHermesMcpServer,
+} from './hermes-config.js';
 import { fetchProviderModels, hermesHomeApiKey, parseHermesDotEnv } from './hermes-models.js';
 import { readFile } from 'node:fs/promises';
 import * as nodePath from 'node:path';
@@ -323,6 +329,35 @@ export class HermesManager {
           provider,
           ...(baseUrl ? { baseUrl } : {}),
         }),
+      };
+    });
+
+    s.setHandler(METHODS.CONFIG_LIST_MCP_SERVERS, async () => {
+      return { servers: await readHermesMcpServers(this.hermesHome) };
+    });
+
+    s.setHandler(METHODS.CONFIG_SET_MCP_SERVER, async (raw) => {
+      const p = raw as { name?: string; server?: import('./protocol.js').HermesMcpServerConfig };
+      const name = typeof p?.name === 'string' ? p.name.trim() : '';
+      if (!name) {
+        throw rpcError('INVALID_PARAMS', 'server name is required');
+      }
+      if (!p.server || typeof p.server !== 'object') {
+        throw rpcError('INVALID_PARAMS', 'server configuration is required');
+      }
+      return {
+        servers: await writeHermesMcpServer(this.hermesHome, name, p.server),
+      };
+    });
+
+    s.setHandler(METHODS.CONFIG_REMOVE_MCP_SERVER, async (raw) => {
+      const p = raw as { name?: string };
+      const name = typeof p?.name === 'string' ? p.name.trim() : '';
+      if (!name) {
+        throw rpcError('INVALID_PARAMS', 'server name is required');
+      }
+      return {
+        servers: await removeHermesMcpServer(this.hermesHome, name),
       };
     });
 

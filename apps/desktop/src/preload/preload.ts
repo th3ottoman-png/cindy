@@ -6274,6 +6274,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }> => ipcRenderer.invoke('maker:hermes-config:list-models'),
       getStatus: (): Promise<import('../main/maker-host/hermes-manager-client').HermesHomeStatus> =>
         ipcRenderer.invoke('maker:hermes-config:get-status'),
+      setMcpServer: (
+        name: string,
+        server: import('../main/maker-host/hermes-manager-client').HermesMcpServerConfig,
+      ): Promise<Record<string, import('../main/maker-host/hermes-manager-client').HermesMcpServerConfig>> =>
+        ipcRenderer.invoke('maker:hermes-config:set-mcp-server', { name, server }),
+      removeMcpServer: (
+        name: string,
+      ): Promise<Record<string, import('../main/maker-host/hermes-manager-client').HermesMcpServerConfig>> =>
+        ipcRenderer.invoke('maker:hermes-config:remove-mcp-server', { name }),
     },
     listAvailableAgents: (): Promise<Array<'claude-code' | 'codex' | 'pi'>> =>
       ipcRenderer.invoke('maker:list-available-agents'),

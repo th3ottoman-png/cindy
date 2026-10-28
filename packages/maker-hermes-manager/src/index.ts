@@ -12,3 +12,13 @@ export {
   type HermesSpawnSpec,
 } from './hermes-run.js';
 export { SessionRegistry, type HermesSessionRecord } from './session-registry.js';
+export {
+  parseHermesDefaultRoute,
+  readHermesDefaultRoute,
+  writeHermesDefaultRoute,
+  parseHermesMcpServers,
+  readHermesMcpServers,
+  writeHermesMcpServer,
+  removeHermesMcpServer,
+  type HermesDefaultRoute,
+} from './hermes-config.js';

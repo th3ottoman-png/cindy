@@ -35,6 +35,10 @@ import {
   PROTOCOL_VERSION,
   RpcClient,
   RpcClientError,
+  readHermesMcpServers,
+  writeHermesMcpServer as writeConfigMcpServer,
+  removeHermesMcpServer as removeConfigMcpServer,
+  type HermesMcpServerConfig,
 } from '@cindy/maker-hermes-manager';
 
 import { desktopMakerLogger } from './logger-adapter.js';
@@ -335,10 +339,13 @@ export interface HermesHomeStatus {
   homePath: string;
   route: { model?: string; provider?: string; baseUrl?: string };
   models: string[];
+  mcpServers: Record<string, HermesMcpServerConfig>;
   plugins: HermesHomePluginInfo[];
   skills: string[];
   error?: string;
 }
+
+export type { HermesMcpServerConfig };
 
 /**
  * Overview of the Hermes environment for the Settings UI:
@@ -416,14 +423,32 @@ export async function getHermesHomeStatus(
     }
   } catch {}
 
+  const mcpServers = await readHermesMcpServers(homePath).catch(() => ({}));
+
   return {
     homePath,
     route: catalog.route,
     models: catalog.models,
+    mcpServers,
     plugins,
     skills,
     ...(catalog.error ? { error: catalog.error } : {}),
   };
+}
+
+export async function setHermesMcpServer(
+  name: string,
+  server: HermesMcpServerConfig,
+): Promise<Record<string, HermesMcpServerConfig>> {
+  const homePath = resolveHermesHome();
+  return writeConfigMcpServer(homePath, name, server);
+}
+
+export async function removeHermesMcpServer(
+  name: string,
+): Promise<Record<string, HermesMcpServerConfig>> {
+  const homePath = resolveHermesHome();
+  return removeConfigMcpServer(homePath, name);
 }
 
 /** @internal test helper: 清空模块级缓存/持有状态(不杀真实进程)。 */

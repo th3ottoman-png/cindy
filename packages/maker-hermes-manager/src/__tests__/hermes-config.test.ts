@@ -8,6 +8,10 @@ import {
   parseHermesDefaultRoute,
   readHermesDefaultRoute,
   writeHermesDefaultRoute,
+  parseHermesMcpServers,
+  readHermesMcpServers,
+  writeHermesMcpServer,
+  removeHermesMcpServer,
 } from '../hermes-config.js';
 
 describe('parseHermesDefaultRoute', () => {
@@ -94,6 +98,147 @@ describe('writeHermesDefaultRoute', () => {
     const home = await withHome('model:\n  provider: nous\n');
     await writeHermesDefaultRoute(home, { model: 'glm-5.3', provider: 'zai' });
     expect(await readHermesDefaultRoute(home)).toEqual({ model: 'glm-5.3', provider: 'zai' });
+    await rm(home, { recursive: true, force: true });
+  });
+});
+
+describe('parseHermesMcpServers', () => {
+  it('parses stdio servers with multiline args and env', () => {
+    const yaml = `
+mcp_servers:
+  weather:
+    command: python3
+    args:
+      - "-m"
+      - "weather_server"
+    env:
+      API_KEY: "secret-key"
+      DEBUG: "1"
+agent:
+  max_turns: 150
+`;
+    const servers = parseHermesMcpServers(yaml);
+    expect(servers).toEqual({
+      weather: {
+        command: 'python3',
+        args: ['-m', 'weather_server'],
+        env: {
+          API_KEY: 'secret-key',
+          DEBUG: '1',
+        },
+      },
+    });
+  });
+
+  it('parses http/sse servers with headers and inline args', () => {
+    const yaml = `
+mcp_servers:
+  cindy_bridge:
+    url: "http://127.0.0.1:4567/mcp/cindy_memory"
+    headers:
+      Authorization: "Bearer test-token"
+  cli_tool:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem"]
+    disabled: true
+`;
+    const servers = parseHermesMcpServers(yaml);
+    expect(servers.cindy_bridge).toEqual({
+      url: 'http://127.0.0.1:4567/mcp/cindy_memory',
+      headers: {
+        Authorization: 'Bearer test-token',
+      },
+    });
+    expect(servers.cli_tool).toEqual({
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem'],
+      disabled: true,
+    });
+  });
+
+  it('returns empty object when mcp_servers block is absent', () => {
+    expect(parseHermesMcpServers('model:\n  default: deepseek-flash\n')).toEqual({});
+  });
+});
+
+describe('writeHermesMcpServer and removeHermesMcpServer', () => {
+  async function withHome(initial: string | null): Promise<string> {
+    const home = await mkdtemp(path.join(tmpdir(), 'hermes-mcp-'));
+    if (initial !== null) await writeFile(path.join(home, 'config.yaml'), initial, 'utf8');
+    return home;
+  }
+
+  it('adds an MCP server when mcp_servers block does not exist', async () => {
+    const home = await withHome('model:\n  default: deepseek-flash\n');
+    const result = await writeHermesMcpServer(home, 'my_bridge', {
+      url: 'http://127.0.0.1:1234/mcp/cindy_memory',
+      headers: { Authorization: 'Bearer token123' },
+    });
+    expect(result.my_bridge).toEqual({
+      url: 'http://127.0.0.1:1234/mcp/cindy_memory',
+      headers: { Authorization: 'Bearer token123' },
+    });
+    const content = await readFile(path.join(home, 'config.yaml'), 'utf8');
+    expect(content).toContain('mcp_servers:');
+    expect(content).toContain('  my_bridge:');
+    expect(content).toContain('    url: http://127.0.0.1:1234/mcp/cindy_memory');
+    await rm(home, { recursive: true, force: true });
+  });
+
+  it('updates an existing server in place while preserving others', async () => {
+    const initial = `
+model:
+  default: deepseek-flash
+
+mcp_servers:
+  first:
+    command: node
+    args:
+      - "./server.js"
+  second:
+    url: "https://example.com/sse"
+`;
+    const home = await withHome(initial);
+    await writeHermesMcpServer(home, 'first', {
+      command: 'node',
+      args: ['./updated.js'],
+      env: { PORT: '3000' },
+    });
+    const parsed = await readHermesMcpServers(home);
+    expect(parsed.first).toEqual({
+      command: 'node',
+      args: ['./updated.js'],
+      env: { PORT: '3000' },
+    });
+    expect(parsed.second).toEqual({
+      url: 'https://example.com/sse',
+    });
+    await rm(home, { recursive: true, force: true });
+  });
+
+  it('removes a server and keeps remaining servers and other blocks', async () => {
+    const initial = `
+model:
+  default: deepseek-flash
+
+mcp_servers:
+  delete_me:
+    command: /bin/false
+  keep_me:
+    url: "https://example.com/mcp"
+
+agent:
+  max_turns: 100
+`;
+    const home = await withHome(initial);
+    const result = await removeHermesMcpServer(home, 'delete_me');
+    expect(result.delete_me).toBeUndefined();
+    expect(result.keep_me).toBeDefined();
+
+    const content = await readFile(path.join(home, 'config.yaml'), 'utf8');
+    expect(content).not.toContain('delete_me');
+    expect(content).toContain('keep_me:');
+    expect(content).toContain('max_turns: 100');
     await rm(home, { recursive: true, force: true });
   });
 });
