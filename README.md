@@ -1,3 +1,7 @@
+> **Private local-only fork.** This repository is Mario's personal build of Cindy: no cloud account, no sharing, no telemetry, with Hermes wired in as a local harness.
+> Read **[HANDOVER.md](HANDOVER.md)** first — it covers the goal, the current state, known problems, and what is left to do.
+> The upstream README below is kept for build and reference details.
+
 <p align="center">
   <a href="https://cindy.app"><img src=".github/assets/hero-en.webp" width="100%" alt="CINDY — Consider it done. The open-source AI agent that works out of the box, doing real work on your own computer."></a>
 </p>

@@ -563,6 +563,10 @@ Help Assistant 的语料，改术语时最容易忘，而且它大量**引用界
 没改，用户就被指向一个不存在的菜单项。改完必须 `pnpm --filter desktop gen:help-kb` 重新生成，
 再跑 `gen:help-kb:check` 确认同步。
 
+> 本地精简版（2026-10-28）：Help Assistant 已从界面与主进程移除，
+> `help-knowledge/`、`helpKnowledge.generated.ts` 与 `gen:help-kb*` 脚本随之一并删除。
+> 本段保留为历史流程记录，不再适用于当前仓库。
+
 ```bash
 # 找出帮助里引用了旧标签的地方(逐条对照当前 en locale 的真实标签)
 grep -rniE 'conversation|dialogue' apps/desktop/help-knowledge/*.md

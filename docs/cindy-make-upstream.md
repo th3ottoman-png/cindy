@@ -492,8 +492,8 @@ Settings 的「同步」继续可用。创建制作任务前的同步仍为固�
 
 ## 个人版 GitHub 同步与提交给官方（2026-09-30 用户裁决，设计已定，部分实现）
 
-本节替代 2026-09-22 的「个人 fork 同步」设计稿。交互设计稿见
-[cindy-make-personal-version.html](../prototypes/cindy-make-personal-version.html)（单文件，含各场景与 Light/Dark）。
+本节替代 2026-09-22 的「个人 fork 同步」设计稿。原交互设计稿
+`prototypes/cindy-make-personal-version.html`（单文件，含各场景与 Light/Dark）已随本仓库的本地精简清理移除。
 
 实现进度（2026-10-01）：
 - 已实现：一个「同步」按钮的统一管线（见「同步：一个按钮」）、GitHub 绑定与存量用户迁移（设置页「保存位置」
