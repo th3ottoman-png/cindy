@@ -83,7 +83,7 @@ import {
   useAgentCapabilities,
   type AgentKind,
 } from '@/hooks/useAgentCapabilities';
-import { useHermesModelCatalog } from '@/hooks/useHermesModelCatalog';
+import { invalidateHermesModelCatalog, useHermesModelCatalog } from '@/hooks/useHermesModelCatalog';
 import { useApiKey } from '@/hooks/useApiKey';
 import { useConnectedSource } from '@/hooks/useConnectedSource';
 import { useGatewayModelPricing, useReferenceModelPricing } from '@/hooks/useModelPricing';
@@ -127,6 +127,7 @@ import {
   isSubscriptionDirectModel,
 } from '../../../shared/subscriptionModels';
 import { extractIpcError } from '@/utils/ipcError';
+import { toast } from '@/lib/toast';
 import { isModelEnabled, useModelVisibilityVersion } from '@/state/modelVisibilityPrefs';
 import { seedDefaultFavorite } from '@/state/modelFavorites';
 import { useProviderModelMemoryVersion } from '@/state/providerModelMemory';
@@ -1330,6 +1331,32 @@ function ModelSelectorContentView({
     agentSwitch?.currentVendor ?? vendorKey ?? 'cc',
   );
   const browseSwitchPendingRef = useRef(false);
+  // Hermes: 把会话当前模型钉成 Hermes home 默认(config.yaml),新会话照常跟随。
+  const [hermesDefaultSetting, setHermesDefaultSetting] = useState(false);
+  const handleSetHermesHomeDefault = async () => {
+    if (hermesDefaultSetting || !hermesCatalog.provider) return;
+    const model = modelId && modelId !== 'hermes-default' ? modelId : hermesCatalog.homeModel;
+    if (!model) return;
+    setHermesDefaultSetting(true);
+    try {
+      const result = await window.electronAPI.maker.hermesConfig.setDefaultRoute({
+        model,
+        provider: hermesCatalog.provider,
+      });
+      invalidateHermesModelCatalog();
+      toast.success(t('newChat.modelSelector.setHermesHomeDefaultDone', {
+        model: result.route.model ?? model,
+      }));
+    } catch (error) {
+      toast.error(
+        `${t('newChat.modelSelector.setHermesHomeDefaultFailed')}: ${
+          extractIpcError(error instanceof Error ? error : new Error(String(error)))?.code ?? ''
+        }`.trim(),
+      );
+    } finally {
+      setHermesDefaultSetting(false);
+    }
+  };
   const handleBrowseVendorChange = async (next: 'cc' | 'codex' | 'pi' | 'hermes') => {
     if (next === 'hermes') return; // hermes v1 不进引擎浏览态(无 tab、无模型)
     if (interactionDisabled || next === browseVendor || browseSwitchPendingRef.current) return;
@@ -3956,6 +3983,42 @@ function ModelSelectorContentView({
           (flatModels ?? []).map((m) => renderModelItem(null, m))
         )}
       </div>
+
+      {agentKind === 'hermes' && (
+        <>
+          <div className="mx-1 h-px bg-[var(--model-dropdown-border)]" />
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              disabled={
+                interactionDisabled ||
+                hermesDefaultSetting ||
+                !hermesCatalog.provider ||
+                !modelId ||
+                modelId === 'hermes-default'
+              }
+              onClick={() => void handleSetHermesHomeDefault()}
+              className={cn(
+                COMPOSER_MENU_ROW,
+                'flex min-w-0 items-center gap-1.5 px-3 py-2',
+                'hover:bg-sidebar-item-hover focus-visible:bg-sidebar-item-hover',
+                'disabled:cursor-not-allowed disabled:opacity-50',
+              )}
+            >
+              <span className="truncate text-13 font-normal text-[var(--text-tertiary)]">
+                {hermesDefaultSetting
+                  ? t('newChat.modelSelector.setHermesHomeDefaultSaving')
+                  : t('newChat.modelSelector.setHermesHomeDefault', {
+                      model:
+                        modelId && modelId !== 'hermes-default'
+                          ? modelId
+                          : hermesCatalog.homeModel ?? '',
+                    })}
+              </span>
+            </button>
+          </div>
+        </>
+      )}
 
       {showRemoteStatusFooter && remoteStatusInList && (
         <RemoteModelLoadNotice
