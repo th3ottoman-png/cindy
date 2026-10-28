@@ -1328,10 +1328,6 @@ export function MainLayout() {
         case 'open-release-notes':
           openNotice();
           break;
-        case 'open-help':
-          applicationMenuLog.info('Help clicked');
-          navigate('/settings?tab=help&openPanel=help');
-          break;
         case 'open-issues':
           navigate('/issues');
           break;

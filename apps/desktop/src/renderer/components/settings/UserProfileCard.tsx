@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Building2, Copy, LogOut, Pencil, UserPlus, UserRound } from 'lucide-react';
+import { Building2, Copy, LogOut, Pencil, UserPlus } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
@@ -33,7 +33,7 @@ function abbreviateUserId(id: string): string {
 }
 
 export function UserProfileCard() {
-  const { user, mode, exitLocalMode } = useAuth();
+  const { user, mode } = useAuth();
   const confirmDialog = useOptionalConfirmDialog();
   const { handleLogout } = useLogout();
   const navigate = useNavigate();
@@ -57,53 +57,6 @@ export function UserProfileCard() {
   useEffect(() => {
     setOrgLogoError(false);
   }, [orgLogoUrl]);
-
-  const handleLocalSignIn = async () => {
-    try {
-      await exitLocalMode();
-    } catch {
-      // Continue to the login recovery surface; main remains fail closed while
-      // the durable owner transition is incomplete.
-    }
-    navigate('/login');
-  };
-
-  if (!user && mode === 'local') {
-    return (
-      <div
-        className={cn(
-          'flex w-full items-center gap-[14px] rounded-xl p-5',
-          'bg-[var(--settings-profile-card-bg)]',
-          'border border-[var(--settings-profile-card-border)]',
-        )}
-      >
-        {/* 未登录态没有身份可展示:用中性人形图标,不取文案首字(会渲染成「未」/「N」
-            这类无意义字符,且四语各不相同)。 */}
-        <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border border-[var(--settings-profile-card-border)] bg-[var(--settings-profile-avatar-bg)] text-[var(--settings-profile-avatar-text)]">
-          <UserRound aria-hidden="true" size={22} strokeWidth={1.75} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-18 font-medium text-[var(--settings-profile-name)]">
-            {t('settings.userProfile.local.name')}
-          </p>
-          <p className="mt-1 text-12 text-[var(--text-tertiary)]">
-            {t('settings.userProfile.local.description')}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center">
-          <Button
-            variant="secondary"
-            size="sm"
-            compact
-            type="button"
-            onClick={() => void handleLocalSignIn()}
-          >
-            {t('settings.userProfile.local.signIn')}
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   if (!user) return null;
 

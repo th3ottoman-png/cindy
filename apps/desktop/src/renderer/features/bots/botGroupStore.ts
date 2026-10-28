@@ -18,6 +18,7 @@ import {
   isDataOwnerPushCurrent,
 } from '@/contexts/dataOwnerGeneration';
 import type {
+  BotGroupErrorCode,
   BotGroupMutationResult,
   BotGroupPlanAction,
   BotGroupPlanActionInput,
@@ -48,6 +49,12 @@ let readFailures = 0;
 let syncUsers = 0;
 /** Pushes within this window collapse into one list read. */
 const PUSH_REFRESH_DELAY_MS = 300;
+/**
+ * These failures only clear when the user signs in or the endpoint configuration
+ * changes, so a scheduled retry would warn forever without a chance to succeed.
+ * Pushes, remounts and refreshBotGroups still re-read immediately.
+ */
+const UNRECOVERABLE_LIST_FAILURES: ReadonlySet<BotGroupErrorCode> = new Set(['CHAT_UNAVAILABLE', 'AUTH_REQUIRED']);
 let unsubscribePush: (() => void) | null = null;
 const listeners = new Set<() => void>();
 
@@ -89,7 +96,8 @@ function cancelRetryRefresh(): void {
 }
 
 /** A failed final push must recover even when the room has no more activity. */
-function scheduleRetryRefresh(): void {
+function scheduleRetryRefresh(failureCode?: BotGroupErrorCode): void {
+  if (failureCode && UNRECOVERABLE_LIST_FAILURES.has(failureCode)) return;
   if (syncUsers === 0 || retryTimer !== null) return;
   const requestOwner = owner;
   const requestGeneration = generation;
@@ -135,7 +143,7 @@ export function refreshBotGroups(): void {
       const result = await api.listBotGroups();
       if (!isCurrent()) return;
       if (result.ok) readFailures = 0;
-      else scheduleRetryRefresh();
+      else scheduleRetryRefresh(result.errorCode);
       if (result.ok) seedBotGroupReadState(visibleGroups(result.groups));
       // An unchanged list keeps its snapshot: subscribers (sidebar, Dock badge) do not re-render.
       if (result.ok && snapshot.loaded && JSON.stringify(visibleGroups(result.groups)) === JSON.stringify(snapshot.groups)) return;

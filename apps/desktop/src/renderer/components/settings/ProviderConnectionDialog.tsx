@@ -510,7 +510,9 @@ export function ProviderConnectionDialog({
   });
   const [activeTab, setActiveTab] = useState<DialogAgentKind>(
     () =>
-      draft?.agent ?? (focusAgent && VISIBLE_AGENTS.includes(focusAgent as DialogAgentKind) ? focusAgent as DialogAgentKind : null) ??
+      // hermes v1 不在供应商连接对话框展示(DIALOG tab 只有三家);hermes 草稿回落默认 tab。
+      (draft?.agent !== 'hermes' ? draft?.agent : undefined) ??
+      (focusAgent && VISIBLE_AGENTS.includes(focusAgent as DialogAgentKind) ? focusAgent as DialogAgentKind : null) ??
       ((initial && VISIBLE_AGENTS.find((a) => initial.runtimes[a])) || (simpleAdding ? 'pi' : 'claude-code')),
   );
   const [hasKey, setHasKey] = useState<Record<DialogAgentKind, boolean>>({
@@ -960,7 +962,7 @@ export function ProviderConnectionDialog({
       // 全部失效——不清空的话陈旧草稿(如 -5)会挂在无关的新行、或挂在被预设清空
       // 的 runtime 上,handleSave 的守卫拦不住"用户已经看不到"的这条草稿,表单
       // 卡死报错却找不到对应输入框(review P1)。
-      const first = configuredPresetAgents(p)[0];
+      const first = configuredPresetAgents(p).find((a) => a !== 'hermes');
       if (first) setActiveTab(first);
       // 预设整体替换名称/鉴权/全部 runtime:任何既有字段错误的指向(字段值、
       // 行结构、tab)都已失效。程序化赋值不触发输入的 change,须在此显式清除
@@ -972,10 +974,10 @@ export function ProviderConnectionDialog({
 
   const [detection, setDetection] = useState<{ signature: string; preset?: ProviderPreset; pending?: boolean; ambiguous?: boolean; code?: string } | null>(null);
   const discoveryCache = useRef(new Map<DialogAgentKind, { signature: string; promise: Promise<DetectionCatalog> }>(
-    draft?.catalog ? [[draft.agent, { signature: `${draft.agent}:${providerModelFetchRequestSignature(rt[draft.agent], authMode)}`,
+    draft?.catalog && draft.agent !== 'hermes' ? [[draft.agent, { signature: `${draft.agent}:${providerModelFetchRequestSignature(rt[draft.agent], authMode)}`,
       promise: Promise.resolve(draft.catalog) }]] : [],
   ));
-  const importedOnce = useRef(new Set<DialogAgentKind>(draft ? [draft.agent] : []));
+  const importedOnce = useRef(new Set<DialogAgentKind>(draft && draft.agent !== 'hermes' ? [draft.agent] : []));
   const detectionSignature = `${activeTab}:${providerModelFetchRequestSignature(rt[activeTab], authMode)}`;
   const detectionContext = useRef({ name, activeTab, onDetected, signature: detectionSignature });
   const previousDetectionSignatures = useRef(new Map<DialogAgentKind, string>());

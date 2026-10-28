@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ImBotSection } from '../ImBotSection';
@@ -26,40 +26,6 @@ vi.mock('react-i18next', () => ({
 vi.mock('../HookConnectionsSection', () => ({
   HookConnectionsSection: () => <div data-testid="official-connections" />,
 }));
-vi.mock('../WechatBotSection', () => ({
-  WechatBotSection: () => <div data-testid="wechat-bot" />,
-}));
-vi.mock('../WecomBotSection', () => ({
-  WecomBotSection: () => <div data-testid="wecom-bot" />,
-}));
-vi.mock('@/hooks/useFeishuBot', async () => {
-  const { useState } = await import('react');
-  return {
-    useFeishuBot: () => {
-      const [service, setService] = useState<'feishu' | 'lark'>('feishu');
-      return {
-        service,
-        setService,
-        appId: '',
-        setAppId: vi.fn(),
-        appSecret: '',
-        setAppSecret: vi.fn(),
-        status: 'idle',
-        errorMessage: null,
-        hasSavedCreds: false,
-        hasLoadedState: true,
-        ownerOpenId: null,
-        validationError: null,
-        isSaving: false,
-        isClearing: false,
-        isReconnecting: false,
-        save: vi.fn(),
-        reconnect: vi.fn(),
-        clear: vi.fn(),
-      };
-    },
-  };
-});
 vi.mock('@/components/ui/confirm-dialog-provider', () => ({
   useConfirmDialog: () => ({ confirm: vi.fn() }),
 }));
@@ -69,12 +35,6 @@ vi.mock('../ImChannelSettingsCard', async (importOriginal) => ({
 }));
 vi.mock('../ImDefaultSettingsSection', () => ({
   ImDefaultSettingsSection: () => null,
-}));
-vi.mock('../DingTalkBotSection', () => ({
-  DingTalkBotSection: () => <div data-testid="dingtalk-bot" />,
-}));
-vi.mock('../DiscordBotSection', () => ({
-  DiscordBotSection: () => <div data-testid="discord-bot" />,
 }));
 vi.mock('../TelegramBotSection', () => ({
   TelegramBotSection: () => <div data-testid="telegram-bot" />,
@@ -108,31 +68,30 @@ describe('ImBotSection', () => {
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
     expect(screen.getByTestId('official-connections')).toBeTruthy();
-    expect(screen.getByTestId('wechat-bot')).toBeTruthy();
-    expect(screen.getByTestId('wecom-bot')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /settings.feishuBot.title/ })).toBeTruthy();
-    expect(screen.getByTestId('dingtalk-bot')).toBeTruthy();
-    expect(screen.getByTestId('discord-bot')).toBeTruthy();
+    // 本地私有构建只保留 Telegram:其余渠道没有入口,也不该在测试里被渲染。
+    expect(screen.queryByTestId('wechat-bot')).toBeNull();
+    expect(screen.queryByTestId('wecom-bot')).toBeNull();
+    expect(screen.queryByTestId('dingtalk-bot')).toBeNull();
+    expect(screen.queryByTestId('discord-bot')).toBeNull();
     expect(screen.getByTestId('telegram-bot')).toBeTruthy();
     expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
-  it('shows official, Discord, and Telegram bots to personal cloud accounts', () => {
+  it('shows official and Telegram bots to personal cloud accounts', () => {
     authState.membershipKind = 'personal';
 
     render(<ImBotSection targetGroup="cindy" />);
 
     expect(screen.getByTestId('official-connections')).toBeTruthy();
-    expect(screen.getByTestId('discord-bot')).toBeTruthy();
     expect(screen.getByTestId('telegram-bot')).toBeTruthy();
     expect(scrollIntoView.mock.instances[0]).toBe(
       screen.getByRole('heading', { name: 'settings.imBot.groups.cindy' }).closest('section'),
     );
   });
 
-  it('shows and selects Lark for a personal cloud account opened from Lark search', () => {
+  it('expands Telegram for a personal account opened from the Telegram search entry', () => {
     authState.membershipKind = 'personal';
-    const entry = imBotSearch.entries.find((item) => item.id === 'imBot.lark')!;
+    const entry = imBotSearch.entries.find((item) => item.id === 'imBot.telegram')!;
 
     render(
       <SettingsSearchNavigationContext.Provider value={{ entry, activation: 1 }}>
@@ -140,17 +99,7 @@ describe('ImBotSection', () => {
       </SettingsSearchNavigationContext.Provider>,
     );
 
-    expect(
-      screen
-        .getByRole('radio', { name: 'settings.feishuBot.services.lark' })
-        .getAttribute('aria-checked'),
-    ).toBe('true');
-    fireEvent.click(screen.getByRole('radio', { name: 'settings.feishuBot.services.feishu' }));
-    expect(
-      screen
-        .getByRole('radio', { name: 'settings.feishuBot.services.feishu' })
-        .getAttribute('aria-checked'),
-    ).toBe('true');
+    expect(screen.getByTestId('telegram-bot')).toBeTruthy();
   });
 
   it('keeps imGroup deep links by scrolling to the requested section', () => {

@@ -29,7 +29,11 @@ import type { ModelFavoriteItem } from '@/state/modelFavorites';
 import type { RecentModelItem } from '@/state/recentModels';
 
 /** 引擎在**选择器 / 草稿链路**里的口径(vendor);catalog / capabilities 侧是 AgentKind。 */
-export type UnifiedEngine = SelectableVendor;
+/**
+ * 联合列表的引擎取值域 = 目录模型可路由的三家。hermes 的唯一模型不是目录行,
+ * 不进联合列表(它的面板走扁平单模型列表)。
+ */
+export type UnifiedEngine = Exclude<SelectableVendor, 'hermes'>;
 
 /** vendor → AgentKind(查目录 / 能力 / 记忆时用)。 */
 export function agentKindOfEngine(engine: UnifiedEngine): AgentKind {

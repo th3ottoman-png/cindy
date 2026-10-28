@@ -17,7 +17,7 @@ export interface ModelDefinition {
   description: string;
   efforts: readonly Effort[];
   defaultEffort: Effort | null;
-  vendorKey: 'cc' | 'codex' | 'pi';
+  vendorKey: 'cc' | 'codex' | 'pi' | 'hermes';
   contextWindow?: number;
   supportsFastMode?: boolean;
   /** 目录展示排序;缺省排末尾(见 getDefaultModelForVendor)。 */
@@ -29,10 +29,10 @@ export interface ModelDefinition {
    * 解耦)。缺省 = 不作为默认。getDefaultModelForVendor / newSessionDefaultModelId 据它选默认;
    * Pi 只接受自己的 v3 标记，不借用其它 Agent 的默认策略。
    */
-  newSessionDefault?: ('claude-code' | 'codex' | 'pi')[];
+  newSessionDefault?: ('claude-code' | 'codex' | 'pi' | 'hermes')[];
 }
 
-function toLegacy(m: ModelDescriptor, vendorKey: 'cc' | 'codex' | 'pi'): ModelDefinition {
+function toLegacy(m: ModelDescriptor, vendorKey: 'cc' | 'codex' | 'pi' | 'hermes'): ModelDefinition {
   return {
     id: m.id,
     label: m.displayName,
@@ -104,12 +104,14 @@ export function getModelById(modelId: string, deviceId?: string): ModelDefinitio
 }
 
 /** vendor → capabilities 缓存的 agent 键(pi 有自己的能力清单)。 */
-function agentKindForVendor(vendorKey: 'cc' | 'codex' | 'pi'): 'claude-code' | 'codex' | 'pi' {
+function agentKindForVendor(vendorKey: 'cc' | 'codex' | 'pi' | 'hermes'): 'claude-code' | 'codex' | 'pi' | 'hermes' {
+  // hermes 保真传回:能力缓存无 hermes 条目 → 模型列表为空,不冒充别家。
+  if (vendorKey === 'hermes') return 'hermes';
   return vendorKey === 'codex' ? 'codex' : vendorKey === 'pi' ? 'pi' : 'claude-code';
 }
 
 export function getModelsForVendor(
-  vendorKey: 'cc' | 'codex' | 'pi',
+  vendorKey: 'cc' | 'codex' | 'pi' | 'hermes',
   deviceId?: string,
 ): readonly ModelDefinition[] {
   // 直接读该 vendor 对应 agent 的能力缓存 —— 不经 allCachedModels(后者只聚合 cc/codex 供
@@ -138,8 +140,8 @@ function firstByCatalogOrder(models: readonly ModelDefinition[]): ModelDefinitio
 
 /** vendor → 新对话默认所依据的目录 Agent 标记。 */
 function defaultMarkerAgentForVendor(
-  vendorKey: 'cc' | 'codex' | 'pi',
-): 'claude-code' | 'codex' | 'pi' {
+  vendorKey: 'cc' | 'codex' | 'pi' | 'hermes',
+): 'claude-code' | 'codex' | 'pi' | 'hermes' {
   if (vendorKey === 'cc') return 'claude-code';
   return vendorKey;
 }
@@ -155,7 +157,7 @@ function defaultMarkerAgentForVendor(
  * 本函数返回 null、默认行为不变。
  */
 export function newSessionDefaultModelId(
-  vendorKey: 'cc' | 'codex' | 'pi',
+  vendorKey: 'cc' | 'codex' | 'pi' | 'hermes',
   deviceId?: string,
 ): string | null {
   const agent = defaultMarkerAgentForVendor(vendorKey);
@@ -177,7 +179,7 @@ export function newSessionDefaultModelId(
  * 入口复用校准后的结果(resolveNewTaskDefaultRoute),不直接读这里的种子。
  */
 export function getDefaultModelForVendor(
-  vendorKey: 'cc' | 'codex' | 'pi',
+  vendorKey: 'cc' | 'codex' | 'pi' | 'hermes',
   deviceId?: string,
 ): ModelDefinition {
   const list = getModelsForVendor(vendorKey, deviceId);
@@ -208,17 +210,27 @@ export function getDefaultModelForVendor(
 const COLD_START_CC_MODEL_ID = 'claude-opus-5';
 const COLD_START_CODEX_MODEL_ID = 'gpt-5.6-sol';
 const COLD_START_PI_MODEL_ID = 'claude-sonnet-5';
+/** Hermes 的唯一模型 id 由 HermesAgent 固定暴露,不是目录影子。 */
+const HERMES_DEFAULT_MODEL_ID = 'hermes-default';
 
 /** 冷启动占位 id 的只读导出（newMakerDraft 的种子默认复用，避免另一处写死）。 */
-export function coldStartModelIdForVendor(vendorKey: 'cc' | 'codex' | 'pi'): string {
+export function coldStartModelIdForVendor(vendorKey: 'cc' | 'codex' | 'pi' | 'hermes'): string {
   return vendorKey === 'codex'
     ? COLD_START_CODEX_MODEL_ID
     : vendorKey === 'pi'
       ? COLD_START_PI_MODEL_ID
-      : COLD_START_CC_MODEL_ID;
+      : vendorKey === 'hermes'
+        ? HERMES_DEFAULT_MODEL_ID
+        : COLD_START_CC_MODEL_ID;
 }
 
 /** 冷启动占位的展示名(与占位 id 同源,仅首帧短暂可见)。 */
-function coldStartLabelForVendor(vendorKey: 'cc' | 'codex' | 'pi'): string {
-  return vendorKey === 'codex' ? 'GPT-5.6-Sol' : vendorKey === 'pi' ? 'Sonnet 5' : 'Opus 5';
+function coldStartLabelForVendor(vendorKey: 'cc' | 'codex' | 'pi' | 'hermes'): string {
+  return vendorKey === 'codex'
+    ? 'GPT-5.6-Sol'
+    : vendorKey === 'pi'
+      ? 'Sonnet 5'
+      : vendorKey === 'hermes'
+        ? 'Hermes'
+        : 'Opus 5';
 }

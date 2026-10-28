@@ -32,6 +32,7 @@ import type { DesktopSavedAccount } from '@/lib/authService';
 import { CURRENT_CINDY_REGION } from '../../../shared/brandRegion';
 import { shouldLabelRegion } from '../../../shared/regionCode';
 import { MobileDownloadDialog } from './MobileDownloadDialog';
+import { SidebarIconButton } from './SidebarIconButton';
 
 interface UserInfoSectionProps {
   isCollapsed: boolean;
@@ -119,7 +120,28 @@ export function UserInfoSection({ isCollapsed, onOpenUpdateNotice }: UserInfoSec
     setSwitchingAccountKey(null);
   }, [accountsOwnerKey]);
 
-  if (!user && !isLocal) return null;
+  // Local-only mode has no account identity to show: the "Not signed in" pill
+  // (plus its mobile-download and update affordances) is pure noise there.
+  // This footer was also the sidebar's only Settings entry, so keep one compact
+  // gear instead. Version/build info stays in Settings → About.
+  if (!user) {
+    return (
+      <div
+        className={cn(
+          'mt-auto flex items-center px-2 pb-2',
+          isCollapsed ? 'justify-center' : 'justify-start',
+        )}
+      >
+        <SidebarIconButton
+          icon={Settings}
+          label={t('sidebar.user.menuSettings')}
+          onClick={() => {
+            if (location.pathname !== '/settings') navigate('/settings');
+          }}
+        />
+      </div>
+    );
+  }
 
   const initial = displayName.charAt(0).toUpperCase();
   // 未登录(跳过登录)态没有身份可展示:头像兜底用中性人形图标,而不是拿状态文案

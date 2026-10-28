@@ -1,4 +1,5 @@
 import { isManagedBotAvatarUrl } from '../../../shared/botAvatarValue';
+import type { MakerVendor } from '@/lib/ccAgent.types';
 import { readCachedBotWelcomeContext } from './botWelcomeContext';
 import { getEffectiveLocale } from '@/lib/localePreference';
 import { isModelEnabled, getModelVisibilityVersion } from '@/state/modelVisibilityPrefs';
@@ -37,7 +38,8 @@ export interface BotCapabilities {
   providerId?: string | null;
   effort: string;
   fastMode: boolean | 'ultrafast';
-  harness: 'claude' | 'codex' | 'pi';
+  // 'hermes' 类型层放行(M2b);bot 运行时仍只装配三家,v2 再放行。
+  harness: 'claude' | 'codex' | 'pi' | 'hermes';
   /** Ordered, complete runtime routes. The first route is the normal choice. */
   modelChain: BotModelRoute[];
   /** null follows the global Bot default; an array is this Bot's explicit chain. */
@@ -77,7 +79,7 @@ export interface BotModelOverride {
 export type { BotHarness, BotModelRoute };
 export { BOT_MODEL_CHAIN_MAX };
 
-function vendorForHarness(harness: BotCapabilities['harness']): 'cc' | 'codex' | 'pi' {
+function vendorForHarness(harness: BotCapabilities['harness']): MakerVendor {
   return harness === 'claude' ? 'cc' : harness;
 }
 
@@ -165,7 +167,7 @@ export interface BotSessionProjection {
   profileVersion?: number;
   runtimeSnapshot?: {
     profileVersion: number;
-    agentKind: 'claude-code' | 'codex' | 'pi';
+    agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
     status: 'prepared' | 'applied' | 'degraded' | 'failed';
     preparedAt: number;
     appliedAt?: number;
@@ -235,6 +237,10 @@ export function canonicalBotSessionId(bot: BotProfile): string | undefined {
 
 /** Manual harness changes use the ordinary client model picker calibration. */
 function defaultBotModelSettings(vendor: ReturnType<typeof vendorForHarness>): BotModelOverride {
+  if (vendor === 'hermes' || vendor === 'orca') {
+    // 这两个 vendor 无产品默认模型校准;返回空覆盖,由调用方按缺省处理。
+    return { model: '', providerId: null, effort: '', fastMode: false };
+  }
   const providers = getCachedProvidersSnapshot()?.providers ?? [];
   const agent = vendor === 'cc' ? 'claude-code' : vendor;
   const picked = pickConnectedModelForAgent(providers, agent, getDefaultModelForVendor(vendor).id);
@@ -376,7 +382,11 @@ export function getEffectiveBotModelChain(
   const availableAgents = getCachedAvailableVendors();
   return defaultBotModelChain({ providers: providers?.providers ?? [],
     isModelEnabled,
-    providersLoading: !providers, availableAgents: availableAgents ?? new Set(),
+    providersLoading: !providers,
+    // 产品推荐位只服务三家有目录模型的引擎;hermes 不走 bot 链。
+    availableAgents: new Set(
+      [...(availableAgents ?? [])].filter((vendor) => vendor !== 'hermes'),
+    ),
     availableAgentsLoaded: availableAgents !== null });
 }
 

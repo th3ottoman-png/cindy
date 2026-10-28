@@ -75,7 +75,8 @@ export function normalizeModelConfigCopy(raw: {
   const modelId = typeof raw.modelId === 'string' ? raw.modelId.trim() : '';
   if (!isUsableModelProviderId(providerId) || !modelId) return null;
   // agent 非法 → **丢整条**:副本的必要组成部分,缺了它这条记录无法表达任何配置。
-  if (!isSelectableVendor(raw.agent)) return null;
+  // hermes 没有目录模型身份,不能出现在模型配置副本(收藏 / 最近)里。
+  if (!isSelectableVendor(raw.agent) || raw.agent === 'hermes') return null;
   const config: ModelConfigCopy = { providerId, modelId, agent: raw.agent };
   if (isCanonicalModelEffort(raw.effort)) config.effort = raw.effort;
   if (raw.fast === true) config.fast = true;

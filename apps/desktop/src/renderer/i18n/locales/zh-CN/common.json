@@ -2209,6 +2209,7 @@
       "harnessManage": "管理 {{name}} 版本",
       "harnessChecking": "检查中…",
       "harnessCheckFailed": "无法检查更新，打开菜单再试",
+      "harnessCheckUnavailable": "此构建未配置更新通道，无法检查更新。",
       "harnessUpdateAvailable": "有更新",
       "harnessCheck": "检查更新",
       "harnessCheckedAt": "上次检查：{{time}}",

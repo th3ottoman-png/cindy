@@ -239,6 +239,11 @@ export function selectVisibleModels(params: {
   deviceCodexModels: ModelDescriptor[];
   devicePiModels?: ModelDescriptor[];
   /**
+   * Hermes is not projected into the provider catalog: its single model comes
+   * straight from the runtime capabilities (local and device-link alike).
+   */
+  hermesModels?: ModelDescriptor[];
+  /**
    * SSH 远程会话(remoteHostId)传 true:订阅直连模型(chatgpt/ / xai/)不再被过滤,
    * 而是保留在清单中由调用方按 isSubscriptionDirectModel 标记禁用(置灰 + 原因提示)。
    * 远端 cc 不经本地 compat-proxy 的 responses-bridge,选了必失败;静默消失会让用户
@@ -263,9 +268,12 @@ export function selectVisibleModels(params: {
     deviceCcModels,
     deviceCodexModels,
     devicePiModels = [],
+    hermesModels = [],
     excludeSubscriptionDirect,
     excludeChatBridgedCodex,
   } = params;
+  // Hermes 的能力清单不是目录投影:无论本机 / 被控端都只列 runtime 暴露的那一条。
+  if (agentKind === 'hermes') return hermesModels;
   // 普通 subscription-direct 行继续保留,准入由调用方按 isSubscriptionDirectModel
   // 打 disabled。Pi 的 `[1m]` profile 是仅本地可改写的 catalog identity,SSH 侧必须隐藏。
   const pass = (list: ModelDescriptor[]): ModelDescriptor[] => list;

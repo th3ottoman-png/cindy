@@ -1,7 +1,7 @@
 /**
  * Shared Settings tab definitions — single source of truth for tab IDs and their i18n keys.
  *
- * Used by SettingsView (sidebar labels) and HelpThreadView ("Open X tab" button label).
+ * Used by SettingsView (sidebar labels).
  *
  * `ghosts` is a real Settings tab that embeds the same plugin catalog as `/plugins`.
  * Legacy `api-keys` / `connections` ids stay on the type for old deep links.
@@ -57,12 +57,15 @@ export const TAB_IDS = [
   // 意识化收尾(Google/Jira/GitHub/GitLab 此前已迁意识)。id 仍留在 SettingsTab
   // 类型与 TAB_LABEL_KEY 保留,供旧深链重定向到插件分区。
   'remote-control',
-  'shared-tasks',
+  // 「共享任务」(shared-tasks)已在本地私有构建下架:整个分区只服务云端账号共享,
+  // 无账号时只剩"Sign in to Cindy to join a task"一句空提示。id 仍留在
+  // SettingsTab 类型与 TAB_LABEL_KEY 中,供旧深链安全回落到 general。
   'ghosts',
   'builtin-tools',
   'computer-use',
   'storage',
-  'help',
+  // 「帮助」(help)已在本地私有构建下架:帮助中心与工单上传依赖云端服务。id 仍留在
+  // SettingsTab 类型与 TAB_LABEL_KEY 中,供旧深链安全回落到 general。
   'about',
 ] as const satisfies ReadonlyArray<SettingsTab>;
 

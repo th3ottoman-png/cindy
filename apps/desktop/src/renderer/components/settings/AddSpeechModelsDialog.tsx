@@ -83,7 +83,9 @@ export function AddSpeechModelsDialog({
       try {
         const apiKey = await readCustomProviderKey(config.id, target.agent);
         if (cancelled) return;
-        const result = await window.electronAPI.maker.fetchProviderModels({
+        const result = target.agent === 'hermes'
+          ? { ok: true as const, models: [] } // hermes v1 无 BYOM 目录探测
+          : await window.electronAPI.maker.fetchProviderModels({
           savedProviderId: config.id,
           agent: target.agent,
           authMethod: 'apiKey',

@@ -76,7 +76,8 @@ export interface DraftFavoriteAnchor {
 
 /** 会话槽:在草稿槽三维之上多带引擎维(草稿槽的引擎由槽键承担)。 */
 export interface SessionFavoriteAnchor extends DraftFavoriteAnchor {
-  engine: ModelEngine;
+  // 面板侧引擎值域含 hermes(与 ModelSelector 回传一致);写入侧锚点永不落 hermes(见 ChatInput G4)。
+  engine: ModelEngine | 'hermes';
 }
 
 interface SessionSlot extends SessionFavoriteAnchor {
@@ -84,8 +85,8 @@ interface SessionSlot extends SessionFavoriteAnchor {
 }
 
 interface AnchorState {
-  /** 引擎 → 草稿锚点。 */
-  drafts: Partial<Record<ModelEngine, DraftFavoriteAnchor>>;
+  /** 引擎 → 草稿锚点。hermes 槽位 M2b 起可存在但不可选中(step 4 前无模型)。 */
+  drafts: Partial<Record<ModelEngine | 'hermes', DraftFavoriteAnchor>>;
   /** 会话锚点,**队首 = 最近一次写**(LRU 次序即数组次序,见文件头)。 */
   sessions: SessionSlot[];
 }
@@ -127,7 +128,8 @@ function sanitize(raw: unknown): AnchorState {
     for (const [engine, value] of Object.entries(r.drafts as Record<string, unknown>)) {
       // 引擎校验复用 agentVendors 的单一真源(与 modelEnginePrefs 同理由:将来新增引擎
       // 这里零改动,逐个写死三元的写法每上线一个引擎都得手工补一次)。
-      if (!isSelectableVendor(engine)) continue;
+      // hermes 槽位随 setter 放宽可写;v1 无可选模型,正常使用不会产生该槽。
+      if (!isSelectableVendor(engine) && engine !== 'hermes') continue;
       const anchor = normalizeAnchor(value);
       if (anchor) state.drafts[engine] = anchor;
     }
@@ -205,13 +207,13 @@ function subscribe(cb: () => void): () => void {
 // ── 草稿槽 ────────────────────────────────────────────────────────────────────
 
 /** 读某个引擎的草稿锚点;没有 = 该引擎当前选中的是模型行。 */
-export function getDraftFavoriteAnchor(engine: ModelEngine): DraftFavoriteAnchor | null {
+export function getDraftFavoriteAnchor(engine: ModelEngine | 'hermes'): DraftFavoriteAnchor | null {
   return load().drafts[engine] ?? null;
 }
 
 /** 写 / 清某个引擎的草稿锚点(`null` = 清)。无实际变化时短路,不落盘不通知。 */
 export function setDraftFavoriteAnchor(
-  engine: ModelEngine,
+  engine: ModelEngine | 'hermes',
   anchor: DraftFavoriteAnchor | null,
 ): void {
   const state = load();
@@ -302,7 +304,7 @@ export function useSessionFavoriteAnchor(sessionId: string | null): SessionFavor
 }
 
 /** React hook —— 某个引擎的草稿锚点快照(引用稳定性同上)。 */
-export function useDraftFavoriteAnchor(engine: ModelEngine): DraftFavoriteAnchor | null {
+export function useDraftFavoriteAnchor(engine: ModelEngine | 'hermes'): DraftFavoriteAnchor | null {
   return useSyncExternalStore(
     subscribe,
     () => getDraftFavoriteAnchor(engine),

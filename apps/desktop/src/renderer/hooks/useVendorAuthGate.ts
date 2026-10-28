@@ -109,9 +109,16 @@ function buildCopy(t: (key: string) => string): Record<CopyKey, DialogCopy> {
 
 export function pickVoiceInputDialogCopy(
   copy: Record<CopyKey, DialogCopy>,
-  readiness: { auth: 'api-key' | 'codex'; settingsTab: SettingsTab },
+  readiness: {
+    auth: 'api-key' | 'codex';
+    settingsTab: SettingsTab;
+    serviceMode?: string;
+  },
 ): DialogCopy {
   if (readiness.auth === 'codex') return copy['codex-voice-unauth'];
+  // A BYOK ASR provider never touches Cindy AI; the "Cindy AI required" copy
+  // would send the user to connect a service their provider does not use.
+  if (readiness.serviceMode === 'byok') return copy['voice-direct-api-key-unauth'];
   if (readiness.settingsTab === 'providers') return copy['voice-api-key-unauth'];
   return copy['voice-direct-api-key-unauth'];
 }
@@ -244,15 +251,22 @@ export function useVendorAuthGate(): UseVendorAuthGateReturn {
       vendor: AgentKind,
       options?: { purpose?: GatePurpose; deviceId?: string; existingSessionRoute?: boolean },
     ): Promise<GateResult> => {
+      // Hermes home owns its own credentials; Cindy has no source/key to check. A
+      // missing model/config surfaces as a Hermes turn error, not a connect prompt.
+      if (vendor === 'hermes') return { proceed: true };
       if (options?.purpose === 'voice-input') {
         const cached = window.electronAPI.voiceInput.getReadinessCached();
         const readiness = cached?.ok ? cached : await window.electronAPI.voiceInput.getReadiness();
         if (readiness.ok) return { proceed: true };
 
         const dialogCopy = pickVoiceInputDialogCopy(copy, readiness);
+        // Surface the provider's own reason (e.g. which ASR key is missing)
+        // instead of the generic copy, whose "API Keys" wording predates the
+        // merged Provider settings page.
+        const description = readiness.error || dialogCopy.description;
         const ok = await confirm({
           title: dialogCopy.title,
-          description: dialogCopy.description,
+          description,
           confirmText: dialogCopy.confirmText,
           cancelText: dialogCopy.cancelText,
           // 主操作("前往设置")是非破坏性的,默认焦点交给它,

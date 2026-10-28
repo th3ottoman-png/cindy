@@ -79,7 +79,7 @@ const LOCAL_WORKER_MODEL_MEMORY = {
 
 export interface CreateWorkerForm {
   role: string;
-  agent: 'claude-code' | 'codex' | 'pi';
+  agent: 'claude-code' | 'codex' | 'pi' | 'hermes';
   model: string;
   effort?: Effort;
   fast?: boolean | 'ultrafast';
@@ -189,6 +189,7 @@ export function CreateWorkerPopover({
   const navigate = useNavigate();
   const [role, setRole] = useState('developer');
   const [customRole, setCustomRole] = useState('');
+  // Worker(Orca) roster v1 只有三家;hermes 不能成为 worker。
   const [agent, setAgent] = useState<'claude-code' | 'codex' | 'pi'>('codex');
   const [model, setModel] = useState(DEFAULT_WORKER_CREATION_PREFS.codex.model);
   const [effort, setEffort] = useState<Effort>(DEFAULT_WORKER_CREATION_PREFS.codex.effort);
@@ -553,7 +554,7 @@ export function CreateWorkerPopover({
 
   const vendorKey = agentKindToVendor(agent);
   const updateAgent = useCallback(
-    (nextAgent: 'claude-code' | 'codex' | 'pi') => {
+    (nextAgent: 'claude-code' | 'codex' | 'pi' | 'hermes') => {
       if (nextAgent === agent) return;
       modelSelectionChosenRef.current = true;
       restoredModelSelectionRef.current = false;
@@ -574,6 +575,7 @@ export function CreateWorkerPopover({
             },
       };
       setPrefs(snapshot);
+      if (nextAgent === 'hermes') return; // hermes v1 不进 worker roster
       setAgent(nextAgent);
       const remembered = snapshot[nextAgent];
       setModel(remembered.model);
@@ -1036,6 +1038,8 @@ export function CreateWorkerPopover({
               value={vendorKey}
               width={220}
               ariaLabel={t('orca.createWorker.agentLabel')}
+              // Orca worker roster is the classic three; hermes is Lead-only in v1.
+              vendors={['cc', 'codex', 'pi']}
               onChange={(next) => updateAgent(next === 'codex' ? 'codex' : next === 'pi' ? 'pi' : 'claude-code')}
             />
           )}

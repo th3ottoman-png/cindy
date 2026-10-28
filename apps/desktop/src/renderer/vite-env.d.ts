@@ -534,7 +534,7 @@ interface WechatChannelSettingsState {
 type DiscordBotSessionAuthCheckResult = {
   ok: boolean;
   missing: 'gateway-key' | 'agent-oauth' | 'provider-key' | 'provider-disconnected' | null;
-  agentKind: 'claude-code' | 'codex' | 'pi';
+  agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
   model: string;
   providerId: string | null;
   providerLabel: string | null;
@@ -635,7 +635,7 @@ interface OrcaWorkerRecord {
   session: {
     id: string;
     title: string;
-    agentKind: 'claude-code' | 'codex' | 'pi';
+    agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
     workingDir: string;
     model: string;
     effort: string;
@@ -725,7 +725,7 @@ interface CCAgentStreamEvent {
     | 'thinking'
     | 'compact_boundary';
   data: unknown;
-  source?: 'claude-code' | 'codex' | 'pi' | 'vision-bridge';
+  source?: 'claude-code' | 'codex' | 'pi' | 'hermes' | 'vision-bridge';
   /**
    * agent-meta: SDK 元信息（按 session.agentKind 解析）。当事件来自一条 SDK
    * message（assistant / tool_use / thinking final / done 等）时由 main 透传过来。
@@ -3416,7 +3416,7 @@ interface ElectronAPI {
     workingDir: string;
     cap?: number;
     query?: string;
-    agentKind?: 'claude-code' | 'codex' | 'pi';
+    agentKind?: 'claude-code' | 'codex' | 'pi' | 'hermes';
   }) => Promise<{
     success: boolean;
     error?: string;
@@ -4873,7 +4873,7 @@ interface ElectronAPI {
         permissionMode?: string;
         fastMode?: boolean | 'ultrafast';
         planModeEnabled?: boolean;
-        agentKind?: 'cc' | 'codex' | 'pi';
+        agentKind?: 'cc' | 'codex' | 'pi' | 'hermes';
         orcaRole?: import('@/lib/ccAgent.types').OrcaRole | null;
         /** 附加只读引用目录列表 (绝对路径); main 端 mapper 会 JSON.stringify 后写库。 */
         extraDirs?: string[];
@@ -6010,7 +6010,7 @@ interface ElectronAPI {
       attachments?: import('./lib/fileTypes').SerializedAttachedFile[];
     }) => Promise<{ ok: true; runId: string; reviewerSessionId: string }>;
     listAgentCommands: (
-      agentKind: 'claude-code' | 'codex' | 'pi',
+      agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
       params?: { sessionId?: string; allowManagedPiPackagePreview?: boolean },
     ) => Promise<{
       success: boolean;
@@ -6020,7 +6020,7 @@ interface ElectronAPI {
     }>;
 
     listAgentSkills: (
-      agentKind: 'claude-code' | 'codex' | 'pi',
+      agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
       params: {
         workingDir?: string;
         remoteHostId?: string;
@@ -6104,7 +6104,7 @@ interface ElectronAPI {
     ) => () => void;
 
     scanAtResources: (
-      agentKind: 'claude-code' | 'codex' | 'pi',
+      agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
       params: { workingDir: string; cap?: number; query?: string },
     ) => Promise<{
       success: boolean;
@@ -6136,7 +6136,7 @@ interface ElectronAPI {
     createSession: (opts: {
       /** 可选: 复用外部 sessionId(本端 chat 用 local-db:sessions:create 拿到的 id) */
       id?: string;
-      agentKind: 'claude-code' | 'codex' | 'pi';
+      agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
       workingDir: string;
       model: string;
       title?: string;
@@ -6237,7 +6237,7 @@ interface ElectronAPI {
       message:
         string | { type: 'user'; content: string | Array<{ type: string; [k: string]: unknown }> },
       createOpts?: {
-        agentKind: 'claude-code' | 'codex' | 'pi';
+        agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
         workingDir: string;
         model: string;
         orcaRole?: import('@/lib/ccAgent.types').OrcaRole | null;
@@ -6284,7 +6284,7 @@ interface ElectronAPI {
     getContextUsage: (
       sessionId: string,
       createOpts?: {
-        agentKind: 'claude-code' | 'codex' | 'pi';
+        agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
         workingDir: string;
         model: string;
         orcaRole?: import('@/lib/ccAgent.types').OrcaRole | null;
@@ -6317,7 +6317,7 @@ interface ElectronAPI {
     listActive: () => Promise<
       Array<{
         sessionId: string;
-        agentKind: 'claude-code' | 'codex' | 'pi';
+        agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
         workDir: string;
         capabilities: unknown;
         isTurnRunning: boolean;
@@ -6501,7 +6501,7 @@ interface ElectronAPI {
      */
     switchSessionAgent: (
       sessionId: string,
-      targetAgentKind: 'claude-code' | 'codex' | 'pi',
+      targetAgentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
       model: string,
       providerId?: string | null,
       effort?: string,
@@ -6511,7 +6511,7 @@ interface ElectronAPI {
       thinking?: boolean,
     ) => Promise<{
       switched: boolean;
-      agentKind: 'claude-code' | 'codex' | 'pi';
+      agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
       model: string;
       engineReady: boolean;
       deferred?: boolean;
@@ -6576,7 +6576,7 @@ interface ElectronAPI {
       stats?: { entryCount?: number; sizeBytes?: number; storagePath?: string };
     }>;
     memorySet: (
-      agentKind: 'claude-code' | 'codex' | 'pi',
+      agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
       enabled: boolean,
     ) => Promise<{
       effective: 'immediate' | 'next-session';
@@ -6905,7 +6905,7 @@ interface ElectronAPI {
     // Stage 2 C1: chat utility (前身 cc-agent:generate-title / cc-agent:plan-file-write)
     generateTitle: (
       message: string,
-      agentKind: 'claude-code' | 'codex' | 'pi',
+      agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
       sessionId?: string,
     ) => Promise<{ title: string | null }>;
     /** Optional status copy from public execution facts only. */
@@ -6922,13 +6922,13 @@ interface ElectronAPI {
     autoTitle: (request: {
       sessionId: string;
       text: string;
-      agentKind: 'claude-code' | 'codex' | 'pi';
+      agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
       isUserText?: boolean;
     }) => Promise<{ applied: boolean; done: boolean }>;
     /** 输入框推荐提示词:turn 结束后预测用户下一步输入。 */
     predictNextPrompt: (request: {
       sessionId: string;
-      agentKind: 'claude-code' | 'codex' | 'pi';
+      agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
       messages: Array<{ role: string; content: string }>;
       workingDir?: string;
       turnGen: number;
@@ -7008,15 +7008,15 @@ interface ElectronAPI {
     auth: {
       getState: (agentKind: 'claude-code' | 'codex' | 'pi') => Promise<CodexAuthState>;
       triggerLogin: (
-        agentKind: 'claude-code' | 'codex' | 'pi',
+        agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
         options?: { mode?: 'browser' | 'device-code' | 'local'; ownerId?: string },
       ) => Promise<CodexAuthState>;
       cancelLogin: (
-        agentKind: 'claude-code' | 'codex' | 'pi',
+        agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
         options?: { releaseOwner?: boolean; ownerId?: string },
       ) => Promise<void>;
       logout: (
-        agentKind: 'claude-code' | 'codex' | 'pi',
+        agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
         ownerScope?: { dataOwnerId: string | null; ownerGeneration: number },
       ) => Promise<void>;
       onStateChanged: (
@@ -7024,7 +7024,7 @@ interface ElectronAPI {
       ) => () => void;
       onLoginProgress: (
         cb: (p: {
-          agentKind: 'claude-code' | 'codex' | 'pi';
+          agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
           phase: string;
           mode?: 'browser' | 'device-code' | 'local';
           detail?: string;
@@ -7052,7 +7052,7 @@ interface ElectronAPI {
       /** spawn 当前应用使用的 binary `--version`, 进程内缓存。About 面板用。 */
       /** checkLatest 额外比较当前通道的线上版本；不传只读本地版本，离线也不等待。 */
       getBinaryVersion: (
-        agentKind: 'claude-code' | 'codex' | 'pi',
+        agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
         options?: { checkLatest?: boolean },
       ) => Promise<{
         kind: 'claude-code' | 'codex' | 'pi';
@@ -7063,6 +7063,7 @@ interface ElectronAPI {
         updateAvailable: boolean;
         /** checkLatest 没读到线上清单：“无更新”无法确认，界面显示检查失败。 */
         latestCheckFailed: boolean;
+        latestCheckUnavailable: boolean;
         error?: string;
       }>;
     };
@@ -7081,7 +7082,7 @@ interface ElectronAPI {
         cacheCreationTokens?: number;
       }>;
       getAccount: (
-        agentKind: 'claude-code' | 'codex' | 'pi',
+        agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
         providerId?: string,
       ) => Promise<unknown | null>;
       /** Codex app-server authoritative windows and banked reset-credit metadata. */
@@ -7197,7 +7198,7 @@ interface ElectronAPI {
     crossAgent: {
       detect: (
         workingDir: string,
-        agentKind: 'claude-code' | 'codex' | 'pi',
+        agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
       ) => Promise<{ items: CrossAgentMigrationItem[] }>;
       convert: (items: CrossAgentMigrationItem[]) => Promise<{
         total: number;
@@ -7264,7 +7265,7 @@ interface ElectronAPI {
         scheduleName?: string;
         workingDir?: string;
         providerId?: string;
-        agentKind?: 'claude-code' | 'codex' | 'pi';
+        agentKind?: 'claude-code' | 'codex' | 'pi' | 'hermes';
         model?: string;
         /** 绑定会话任务:workingDir 空时 main 按会话 meta.workDir 解析落盘/自测目录。 */
         targetSessionId?: string;
@@ -7570,7 +7571,7 @@ interface SkillUsageEvidenceIndex {
   rawLineNo: number;
   sessionId: string;
   sdkSessionId: string;
-  agentKind: 'claude-code' | 'codex' | 'pi';
+  agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
   skillName: string;
   skillPath: string | null;
   skillDocumentHash: string | null;

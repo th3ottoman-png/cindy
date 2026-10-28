@@ -100,7 +100,7 @@ async function submit(options: {
   const routing = {
     availability: {
       pi: availableProviders('pi'), codex: availableProviders('codex'),
-      'claude-code': availableProviders('claude-code'),
+      'claude-code': availableProviders('claude-code'), hermes: [],
     },
     resolveDefaultProviderIdForModel: () => selectedProviderId,
   };

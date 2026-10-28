@@ -31,7 +31,6 @@ import { ProvidersSection } from './ProvidersSection';
 import { McpServersSection } from './McpServersSection';
 import { RemoteControlSection } from './RemoteControlSection';
 import { LocalAgentSection } from './LocalAgentSection';
-import { SharedTaskDialog } from '@/features/device-link/SharedTaskDialog';
 import { NotificationSection } from './NotificationSection';
 import { WindowBehaviorSection } from './WindowBehaviorSection';
 import { ComposerSendShortcutSection } from './ComposerSendShortcutSection';
@@ -53,8 +52,6 @@ import { TipsSection } from './TipsSection';
 import { ExperimentalSection } from './ExperimentalSection';
 import { GitSafetySection } from './GitSafetySection';
 import { SessionImportSection } from './SessionImportSection';
-import { HelpSection } from './HelpSection';
-import { HelpAssistantPanel } from './HelpAssistantPanel';
 import { AgentResourceSection } from './AgentResourceSection';
 import { PiPackagesSection } from './PiPackagesSection';
 import { CollaborationSection } from './CollaborationSection';
@@ -86,7 +83,6 @@ export function SettingsView() {
   const { mode, dataOwnerId, user } = useAuth();
   const menuWidth = outletContext?.sidebarWidth ?? DEFAULT_SETTINGS_MENU_WIDTH;
   const isMac = window.electronAPI?.platform === 'darwin';
-  const [helpAssistantOpen, setHelpAssistantOpen] = useState(false);
   const workingDir = useSyncExternalStore(
     subscribeToLastWorkingDir,
     getLastWorkingDir,
@@ -213,24 +209,12 @@ export function SettingsView() {
   const exitSettings = useCallback(() => navigate('/'), [navigate]);
   const settingsRootRef = useRef<HTMLDivElement | null>(null);
 
-  // Esc 逐层返回：PI 扩展子页先回到「通用」，其余退出设置；帮助面板开着时归它。
+  // Esc 逐层返回：PI 扩展子页先回到「通用」，其余退出设置。
   const handleSettingsEscape = useCallback(() => {
     if (piExtensionsPanelOpen) handleClosePiExtensions();
     else exitSettings();
   }, [exitSettings, handleClosePiExtensions, piExtensionsPanelOpen]);
-  useSettingsEscape(settingsRootRef, !helpAssistantOpen, handleSettingsEscape);
-
-  useEffect(() => {
-    if (activeTab !== 'help') {
-      setHelpAssistantOpen(false);
-      return;
-    }
-    if (searchParams.get('openPanel') !== 'help') return;
-    setHelpAssistantOpen(true);
-    const next = new URLSearchParams(searchParams);
-    next.delete('openPanel');
-    setSearchParams(next, { replace: true });
-  }, [activeTab, searchParams, setSearchParams]);
+  useSettingsEscape(settingsRootRef, true, handleSettingsEscape);
 
   const visibleTabIds = useMemo(
     () =>
@@ -612,12 +596,6 @@ export function SettingsView() {
                 </section>
               </div>
             )}
-            {activeTab === 'shared-tasks' && (
-              <div role="tabpanel" id="settings-panel-shared-tasks" aria-labelledby="settings-tab-shared-tasks">
-                <SharedTaskDialog open presentation="settings" onOpenChange={() => undefined} />
-              </div>
-            )}
-
             {activeTab === 'ghosts' && (
               <div
                 role="tabpanel"
@@ -691,14 +669,6 @@ export function SettingsView() {
               </div>
             )}
 
-            {activeTab === 'help' && (
-              <div role="tabpanel" id="settings-panel-help" aria-labelledby="settings-tab-help">
-                <section aria-label={t('settings.sections.help')}>
-                  <HelpSection onAskHelp={() => setHelpAssistantOpen(true)} />
-                </section>
-              </div>
-            )}
-
             {activeTab === 'about' && (
               <div role="tabpanel" id="settings-panel-about" aria-labelledby="settings-tab-about">
                 <section aria-label={t('settings.sections.about')}>
@@ -722,7 +692,6 @@ export function SettingsView() {
           </div>
         </div>
       </div>
-      <HelpAssistantPanel open={helpAssistantOpen} onClose={() => setHelpAssistantOpen(false)} />
     </div>
     </SettingsSearchNavigationContext.Provider>
   );

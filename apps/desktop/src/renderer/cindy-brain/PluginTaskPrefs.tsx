@@ -188,7 +188,8 @@ export function PluginTaskPrefs({
               onUnifiedSelect={({ engine, providerId, modelId, effort, fast }) =>
                 save({
                   ...config,
-                  agentKind: engine,
+                  // hermes 引擎 v1 不出现在插件任务偏好(无可选模型);保持原值不变。
+                  agentKind: engine === 'hermes' ? config.agentKind : engine,
                   providerId,
                   model: modelId,
                   effort: TASK_EFFORTS.has(effort ?? '') ? effort : undefined,

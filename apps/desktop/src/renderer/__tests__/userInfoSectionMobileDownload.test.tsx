@@ -8,6 +8,7 @@ const {
   authState,
   betaChannelState,
   confirm,
+  locationState,
   runningSnapshot,
   listAccounts,
   navigate,
@@ -22,6 +23,7 @@ const {
   },
   betaChannelState: { enableBeta: false, isCustomized: false, loading: false },
   confirm: vi.fn(),
+  locationState: { pathname: '/', search: '' },
   runningSnapshot: new Map<string, { isRunning: boolean }>(),
   listAccounts: vi.fn(),
   navigate: vi.fn(),
@@ -36,7 +38,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('react-router-dom', () => ({
-  useLocation: () => ({ pathname: '/', search: '' }),
+  useLocation: () => locationState,
   useNavigate: () => navigate,
 }));
 
@@ -112,6 +114,7 @@ beforeEach(() => {
   confirm.mockReset().mockResolvedValue(true);
   runningSnapshot.clear();
   navigate.mockReset();
+  locationState.pathname = '/';
   authState.user = { name: 'Cindy user', avatar: null };
   authState.mode = 'cloud';
   authState.dataOwnerId = 'owner-a';
@@ -453,50 +456,29 @@ describe('UserInfoSection mobile download entry', () => {
     expect(screen.queryByRole('menuitem', { name: /Cindy user/ })).toBeNull();
   });
 
-  it('keeps the sign-in entry before Settings when the user is not signed in', async () => {
+  it.each([false, true])(
+    'renders only the Settings gear when not signed in (collapsed=%s)',
+    (isCollapsed) => {
+      authState.user = null;
+      authState.mode = 'local';
+
+      render(<UserInfoSection isCollapsed={isCollapsed} />);
+
+      // The account pill (and its sign-in entry) is gone: the footer is one gear.
+      expect(screen.queryByRole('button', { name: 'sidebar.user.moreLabel' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'login.signIn' })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'sidebar.user.menuSettings' }));
+      expect(navigate).toHaveBeenCalledWith('/settings');
+    },
+  );
+
+  it('stays put when the signed-out gear is clicked on Settings', () => {
     authState.user = null;
     authState.mode = 'local';
+    locationState.pathname = '/settings';
 
     render(<UserInfoSection isCollapsed={false} />);
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'sidebar.user.moreLabel' }), {
-      button: 0,
-      ctrlKey: false,
-    });
-
-    const signIn = await screen.findByRole('menuitem', {
-      name: 'login.signIn',
-    });
-    const settings = screen.getByRole('menuitem', { name: 'sidebar.user.menuSettings' });
-    expect(signIn.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
-    expect(listAccounts).not.toHaveBeenCalled();
-
-    fireEvent.click(signIn);
-    await waitFor(() =>
-      expect(navigate).toHaveBeenCalledWith('/add-account', { state: { returnTo: '/' } }),
-    );
-    expect(toast.loading).not.toHaveBeenCalled();
-  });
-
-  it('reports navigation failure and re-enables the sign-in entry', async () => {
-    authState.user = null;
-    authState.mode = 'local';
-    navigate.mockRejectedValueOnce(new Error('navigation failed'));
-    render(<UserInfoSection isCollapsed={false} />);
-    fireEvent.keyDown(screen.getByRole('button', { name: 'sidebar.user.moreLabel' }), {
-      key: 'Enter',
-    });
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'login.signIn' }));
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith('sidebar.accountSwitcher.startFailed'),
-    );
-    expect(toast.loading).not.toHaveBeenCalled();
-    fireEvent.keyDown(screen.getByRole('button', { name: 'sidebar.user.moreLabel' }), {
-      key: 'Enter',
-    });
-    expect(
-      (await screen.findByRole('menuitem', { name: 'login.signIn' })).getAttribute('aria-disabled'),
-    ).not.toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'sidebar.user.menuSettings' }));
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

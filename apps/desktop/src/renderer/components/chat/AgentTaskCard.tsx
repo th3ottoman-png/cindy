@@ -80,7 +80,7 @@ interface AgentTaskCardProps {
   sessionId?: string;
   /** Current owning harness. Pi's durable-detail sidebar must never surface
    * after the session has switched to Claude Code or Codex. */
-  sessionAgentKind?: 'cc' | 'codex' | 'pi';
+  sessionAgentKind?: 'cc' | 'codex' | 'pi' | 'hermes';
 }
 
 function readInputString(input: unknown, keys: string[]): string | undefined {
@@ -405,7 +405,8 @@ export function AgentTaskCard({
     if (!sessionId || !subagentFocusId) return;
     void openSubagentsTab(sessionId, {
       focusRunId: subagentFocusId,
-      focusProvider: provider,
+      // hermes 无 subagent runner(v1);不可能出现的 provider 值不作为聚焦目标。
+      focusProvider: provider === 'hermes' ? undefined : provider,
     });
   }, [provider, sessionId, subagentFocusId]);
 

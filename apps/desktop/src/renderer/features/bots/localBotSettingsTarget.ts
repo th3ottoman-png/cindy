@@ -55,6 +55,8 @@ async function loadCatalog(
   if (!isCurrent()) return {};
   const agentKind = mcpResult.agentKind;
   if (!agentKind) throw new Error('Missing next-turn route');
+  // hermes bot 的 harness Skill 面走原调用:preload 已放宽 agentKind,宿主未注册
+  // hermes agent 时该调用被 allSettled 吸收为 rejected,与 pi 缺失同路径。
   const results = await Promise.allSettled([
     api().listSkills(bot.id),
     maker.listAgentSkills(agentKind, {

@@ -26,7 +26,7 @@ vi.mock('@/features/cc-agent/CCAgentSessionView', () => ({
       effort: session.effort, fastMode: session.fastMode,
     }, effective: session.runtimeEffective, pending: session.runtimePending });
     return <button onClick={() => void makerApiFor(session.id).send(session.id, 'next turn', {
-      ...selection.display, effort: selection.display.effort ?? undefined,
+      ...selection.display, agentKind: 'codex' as const, effort: selection.display.effort ?? undefined,
       workingDir: '/remote/workspace',
     })}>{selection.display.model}</button>;
   },

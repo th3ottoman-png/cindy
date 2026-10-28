@@ -21,7 +21,7 @@ import { ClaudeMark } from '@/components/icons/ClaudeMark';
 import { CodexMark } from '@/components/icons/CodexMark';
 import { RemoteSignalOverlay } from '@/components/icons/RemoteSourceMark';
 
-export type VendorIconKind = 'cc' | 'codex' | 'pi';
+export type VendorIconKind = 'cc' | 'codex' | 'pi' | 'hermes';
 
 /**
  * 各 glyph 笔画右上角在自身方框里的位置(0–1，已留出与波纹点的间隙)。
@@ -32,6 +32,7 @@ const REMOTE_SIGNAL_ANCHOR: Record<VendorIconKind, { x: number; y: number }> = {
   cc: { x: 0.95, y: 0.13 },
   codex: { x: 0.9, y: 0.1 },
   pi: { x: 0.83, y: 0.36 },
+  hermes: { x: 0.83, y: 0.36 },
 };
 
 /**
@@ -40,7 +41,7 @@ const REMOTE_SIGNAL_ANCHOR: Record<VendorIconKind, { x: number; y: number }> = {
  * 吞成 Claude 脸,2026-07-30 实测 bug)。兼容 'claude-code' 别名与 null。
  */
 export function agentKindToVendor(kind: string | null | undefined): VendorIconKind {
-  return kind === 'codex' ? 'codex' : kind === 'pi' ? 'pi' : 'cc';
+  return kind === 'codex' ? 'codex' : kind === 'pi' ? 'pi' : kind === 'hermes' ? 'hermes' : 'cc';
 }
 
 interface VendorIconProps {
@@ -82,6 +83,14 @@ export function VendorIcon({
     <span className={wrapperClassName} title={title}>
       {vendor === 'codex' ? (
         <CodexMark size={size} />
+      ) : vendor === 'hermes' ? (
+        <span
+          aria-hidden
+          style={{ fontSize: size * 0.82, lineHeight: `${size}px`, width: size, height: size }}
+          className="inline-flex items-center justify-center font-semibold"
+        >
+          H
+        </span>
       ) : vendor === 'pi' ? (
         <span
           aria-hidden

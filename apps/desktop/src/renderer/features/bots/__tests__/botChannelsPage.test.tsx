@@ -459,7 +459,8 @@ describe('BotChannelsPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  it('switches to the Feishu form and explains a connect failure in place', async () => {
+  it('explains a connect failure in place on the Telegram form', async () => {
+    // 本地私有构建只保留 Telegram:失败说明走同一套映射,用 Telegram 表单覆盖。
     const api = installApi({ connections: [] });
     api.add.mockRejectedValueOnce(
       new Error(
@@ -470,22 +471,21 @@ describe('BotChannelsPage', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'bots.channels.add.button' }));
     const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('radio', { name: /bots\.channels\.platform\.feishu/ }));
-    fireEvent.change(within(dialog).getByLabelText('bots.channels.add.feishu.appIdLabel'), {
-      target: { value: 'cli_abc' },
+    // 本 fixture 没有可沿用的个人 bot:直接走手动凭证表单(格式须过 BOT_TOKEN_PATTERN)。
+    fireEvent.change(within(dialog).getByLabelText('bots.channels.add.telegram.tokenLabel'), {
+      target: { value: '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ' },
     });
-    fireEvent.change(within(dialog).getByLabelText('bots.channels.add.feishu.appSecretLabel'), {
-      target: { value: 'secret' },
+    fireEvent.change(within(dialog).getByLabelText('bots.channels.add.telegram.ownerLabel'), {
+      target: { value: '4242' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: 'bots.channels.add.confirm' }));
 
     await waitFor(() =>
       expect(api.add).toHaveBeenCalledWith({
         botId: 'bot-1',
-        channel: 'feishu',
-        appId: 'cli_abc',
-        appSecret: 'secret',
-        service: 'feishu',
+        channel: 'telegram',
+        token: '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        ownerUserId: '4242',
       }),
     );
     expect(await within(dialog).findByRole('alert')).toHaveProperty(

@@ -35,7 +35,7 @@ interface PermissionSelectorProps {
   footer?: ReactNode;
   permissionMode: PermissionMode;
   onPermissionModeChange: (mode: PermissionMode) => void;
-  vendorKey?: 'cc' | 'codex' | 'pi';
+  vendorKey?: 'cc' | 'codex' | 'pi' | 'hermes';
   /** device-link 远程会话所属被控端 id;非空 = 权限档从被控端读(本地会话 undefined,行为不变)。 */
   deviceId?: string;
   /** 禁用 trigger。用于断线远程会话等只读 composer 状态。 */
@@ -79,9 +79,10 @@ const PERMISSION_ICONS: Record<string, typeof Hand> = {
   bypassPermissions: TriangleAlert,
 };
 
-function vendorKeyToAgentKind(v: 'cc' | 'codex' | 'pi'): AgentKind {
+function vendorKeyToAgentKind(v: 'cc' | 'codex' | 'pi' | 'hermes'): AgentKind | null {
   if (v === 'codex') return 'codex';
   if (v === 'pi') return 'pi';
+  if (v === 'hermes') return 'hermes';
   return 'claude-code';
 }
 
@@ -138,7 +139,7 @@ export function PermissionSelector({
   });
   const agentKind = vendorKeyToAgentKind(vendorKey);
   // device-link:deviceId 非空 → 权限档从被控端读(本地会话 undefined,行为不变)。
-  const { capabilities } = useAgentCapabilities(agentKind, deviceId);
+  const { capabilities } = useAgentCapabilities(agentKind ?? 'claude-code', agentKind ? deviceId : undefined);
 
   const options: PermissionModeDescriptor[] = (capabilities?.permissionModes ?? []).filter(
     (option) => allowedModes === undefined || allowedModes.includes(option.id),
@@ -150,13 +151,13 @@ export function PermissionSelector({
   const triggerTone = getModeTone(effectiveMode);
   const labelOf = (option: PermissionModeDescriptor | undefined, fallbackId: string) => {
     const id = option?.id ?? fallbackId;
-    return t(`newChat.permissionSelector.modes.${agentKind}.${id}.label`, {
+    return t(`newChat.permissionSelector.modes.${agentKind ?? 'claude-code'}.${id}.label`, {
       defaultValue: option?.displayName ?? fallbackId,
     });
   };
   const descriptionOf = (option: PermissionModeDescriptor | undefined, fallbackId: string) => {
     const id = option?.id ?? fallbackId;
-    return t(`newChat.permissionSelector.modes.${agentKind}.${id}.description`, {
+    return t(`newChat.permissionSelector.modes.${agentKind ?? 'claude-code'}.${id}.description`, {
       defaultValue: option?.description ?? '',
     });
   };

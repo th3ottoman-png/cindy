@@ -3208,8 +3208,12 @@ function CCAgentSessionContent({
             })
         : Promise.resolve();
       try {
-        const workerAgent = form.agent;
-        const normalizedWorker = normalizeDbAgentKind(workerAgent);
+        const normalizedWorker = normalizeDbAgentKind(form.agent);
+        if (normalizedWorker === 'hermes') {
+          // Orca 协同 v1 只支持三家;hermes 会话的协同入口不应到达这里。
+          throw new Error('collaboration is not available for the hermes harness yet');
+        }
+        const workerAgent = normalizedWorker === 'cc' ? 'claude-code' as const : normalizedWorker;
         setCollabWorker(normalizedWorker === 'cc' ? 'cc' : 'codex');
         setCreateWorkerOpen(false);
         // 粘滞归属(codex review P2):入口与协同策略查询都按粘滞 remoteDeviceId 指向被控端,
@@ -6947,7 +6951,7 @@ function formatTokenCount(n: number): string {
  */
 function getModelContextWindow(
   model: string,
-  vendorKey: 'cc' | 'codex' | 'pi',
+  vendorKey: 'cc' | 'codex' | 'pi' | 'hermes',
   deviceId?: string,
 ): number | undefined {
   const found = getModelsForVendor(vendorKey, deviceId).find((m) => m.id === model);
@@ -6971,7 +6975,7 @@ function ContextCapacityRing({
   providerId?: string | null;
   contextTokens: number;
   model: string;
-  vendorKey: 'cc' | 'codex' | 'pi';
+  vendorKey: 'cc' | 'codex' | 'pi' | 'hermes',
   /** SDK-reported context window; 0 = not yet known → use hardcoded fallback. */
   sdkContextWindow: number;
   verifiedContextWindow?: number | null;

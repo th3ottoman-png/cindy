@@ -776,7 +776,7 @@ interface ChatInputProps {
    * M35: Vendor lock — when provided, ModelSelector only shows models
    * belonging to this vendor ('cc' for Claude, 'codex' for OpenAI Codex).
    */
-  vendorKey?: 'cc' | 'codex' | 'pi';
+  vendorKey?: 'cc' | 'codex' | 'pi' | 'hermes';
   /**
    * Optional override for the composerDraftStore key used to persist editor
    * content (and via attachmentState, attachments) across mount/unmount.
@@ -900,7 +900,7 @@ interface ChatInputProps {
    * `lastByVendor.model` 并原样进 createSession,写错就是首条请求路由到一个不存在的模型。
    */
   onUnifiedDraftSelect?: (selection: {
-    vendor: 'cc' | 'codex' | 'pi';
+    vendor: 'cc' | 'codex' | 'pi' | 'hermes';
     providerId: string;
     /** 选中引擎的 **wire model id**。 */
     modelId: string;
@@ -961,14 +961,15 @@ function rememberCatalogModelPrefs(
 const UNIFIED_AGENT_KINDS: readonly AgentKind[] = ['claude-code', 'codex', 'pi'];
 
 /** AgentKind → NewMaker vendor(useAvailableAgents 用 vendor 口径)。 */
-function agentKindToVendor(kind: AgentKind): 'cc' | 'codex' | 'pi' {
-  return kind === 'codex' ? 'codex' : kind === 'pi' ? 'pi' : 'cc';
+function agentKindToVendor(kind: AgentKind): 'cc' | 'codex' | 'pi' | 'hermes' {
+  return kind === 'codex' ? 'codex' : kind === 'pi' ? 'pi' : kind === 'hermes' ? 'hermes' : 'cc';
 }
 
-function vendorKeyToAgentKind(v?: 'cc' | 'codex' | 'pi'): AgentKind | null {
+function vendorKeyToAgentKind(v?: 'cc' | 'codex' | 'pi' | 'hermes'): AgentKind | null {
   if (v === 'cc') return 'claude-code';
   if (v === 'codex') return 'codex';
   if (v === 'pi') return 'pi';
+  if (v === 'hermes') return 'hermes';
   return null;
 }
 
@@ -1818,8 +1819,15 @@ export function ChatInput({
   // 新草稿的缺省模型/档位:读本地草稿 lastByVendor
   // (localStorage,按 agent 分槽、sanitize 恒有种子值)。默认模型/档位偏好已全量本地化,
   // 不再依赖服务端 UserPreferences(登录态失效/离线时模型与档位选择必须照常工作)。
-  const localVendorDefaults =
-    getDraft().lastByVendor[vendorKey === 'pi' ? 'pi' : vendorKey === 'codex' ? 'codex' : 'cc'];
+  const localVendorDefaults = getDraft().lastByVendor[
+    vendorKey === 'pi'
+      ? 'pi'
+      : vendorKey === 'codex'
+        ? 'codex'
+        : vendorKey === 'hermes'
+          ? 'hermes'
+          : 'cc'
+  ];
   // session-agent-switch 意图制:意图期内 chip / 选择器显示用户选择的目标
   // (model/effort/provider/fast),props(镜像 DB)仍是旧引擎值——真切换在下一条
   // 消息发送时刻 apply,patched 回流后意图清除、显示交回 props。意图存放在
@@ -1927,12 +1935,15 @@ export function ChatInput({
   const ccCaps = useAgentCapabilities('claude-code', catalogDeviceId);
   const codexCaps = useAgentCapabilities('codex', catalogDeviceId);
   const piCaps = useAgentCapabilities('pi', catalogDeviceId);
+  const hermesCaps = useAgentCapabilities('hermes', catalogDeviceId);
   const activeAgentCapabilities =
     agentKind === 'codex'
       ? codexCaps.capabilities
       : agentKind === 'pi'
         ? piCaps.capabilities
-        : ccCaps.capabilities;
+        : agentKind === 'hermes'
+          ? hermesCaps.capabilities
+          : ccCaps.capabilities;
 
   // session-agent-switch 入口门控。device-link 远程会话读**被控端**的值；除了基础
   // supportsSessionAgentSwitch，还必须有 v2 CAS 能力。同引擎 no-op 的安全收尾依赖 host
@@ -2112,9 +2123,12 @@ export function ChatInput({
     useAvailableAgents(catalogDeviceId);
   const unifiedAgents = useMemo<readonly AgentKind[] | undefined>(() => {
     if (!runtimeAgentsLoaded) return undefined;
-    const kinds = UNIFIED_AGENT_KINDS.filter(
-      (kind) => kind === agentKind || runtimeAvailableVendors.has(agentKindToVendor(kind)),
-    );
+    const kinds = UNIFIED_AGENT_KINDS.filter((kind) => {
+      if (kind === agentKind) return true;
+      const vendor = agentKindToVendor(kind);
+      // hermes v1 无 runtime roster 条目,可用性按 false 处理。
+      return vendor !== 'hermes' && runtimeAvailableVendors.has(vendor);
+    });
     return kinds.length > 0 ? kinds : undefined;
   }, [runtimeAgentsLoaded, runtimeAvailableVendors, agentKind]);
   // 已有 device-link 任务在断链时仍有 pinned deviceId + renderer outbox 可接住发送，
@@ -2145,6 +2159,8 @@ export function ChatInput({
   const noConnectedSource =
     enforceConnectedSourceGate &&
     !!currentModelAgentKind &&
+    // Hermes 的凭证/来源都在 Hermes home;没有供应商目录可连,不能因此禁发。
+    currentModelAgentKind !== 'hermes' &&
     !providersLoading &&
     !remoteModelListBlocked &&
     // 老被控端明确不支持 provider:list 时只能依据 capabilities 放行；不能把缺少
@@ -5789,6 +5805,9 @@ export function ChatInput({
         if (
           enforceConnectedSourceGate &&
           currentModelAgentKind &&
+          // Hermes 的凭证/来源都在 Hermes home,没有供应商目录可连 —— 同上方
+          // noConnectedSource,不能把「零已连接来源」当成需要去连接的错。
+          currentModelAgentKind !== 'hermes' &&
           // 旧被控端明确不支持 provider:list 时，控制端没有可检查的来源镜像；
           // 与模型列表一致交给 capabilities + 被控端发送链路做兼容回退。
           !(deviceLinkDeviceId && remoteProviders.unsupported)
@@ -6622,7 +6641,9 @@ export function ChatInput({
             ? codexCaps.capabilities
             : currentModelAgentKind === 'pi'
               ? piCaps.capabilities
-              : ccCaps.capabilities,
+              : currentModelAgentKind === 'hermes'
+                ? hermesCaps.capabilities
+                : ccCaps.capabilities,
         providerId,
         modelId: targetModelId,
         agentKind: currentModelAgentKind,
@@ -6636,6 +6657,7 @@ export function ChatInput({
       ccCaps.capabilities,
       codexCaps.capabilities,
       piCaps.capabilities,
+      hermesCaps.capabilities,
     ],
   );
 
@@ -7086,7 +7108,7 @@ export function ChatInput({
     ) => void | boolean | Promise<void | boolean>;
   }>({ byProvider: () => {}, byModel: () => {} });
   const confirmAgentBrowseSwitch = useCallback(
-    (targetAgent: 'claude-code' | 'codex' | 'pi' | null) =>
+    (targetAgent: 'claude-code' | 'codex' | 'pi' | 'hermes' | null) =>
       confirmAgentSwitchRisk({
         // 不必再问的两种:回原引擎(same-engine no-op),或点的就是已经确认过的意图目标
         // Harness(只换模型,不换引擎)。换到第三家仍要问(Chris 2026-08-20:Claude 任务里
@@ -7110,7 +7132,7 @@ export function ChatInput({
   );
   const performAgentSwitch = useCallback(
     async (
-      targetAgentKind: 'claude-code' | 'codex' | 'pi',
+      targetAgentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
       newModelId: string,
       providerId: string | null = null,
       // 意图期内的档位/Fast/思考开关改动经此显式覆盖(用户手选优先于记忆/默认解析)。
@@ -7595,12 +7617,13 @@ export function ChatInput({
         // 不再是会话将要采用的配置),旧锚点因 model / 引擎已变而被派生校验自然判失效,
         // 面板不会勾住任何一条配置对不上的收藏。
         if (applied) {
+          const anchorEngine = agentKindToVendor(targetAgent);
           setSessionFavoriteAnchor(
-            favoriteUid
+            favoriteUid && anchorEngine !== 'hermes'
               ? {
                   uid: favoriteUid,
                   wireModelId: modelId,
-                  engine: agentKindToVendor(targetAgent),
+                  engine: anchorEngine,
                   providerId,
                 }
               : null,
@@ -7741,8 +7764,13 @@ export function ChatInput({
   const lockedSessionAgentKind =
     inSessionEngineLocked && sessionEngineConfirmed ? (runtimeAgentKind ?? agentKind) : null;
   // 新旧用户统一使用 A；仅在远端能力或任务引擎尚未确认时回落兼容列表。
+  // hermes 的单一模型不是目录行 —— 统一面板没有可展示条目,回落扁平单模型列表。
+  const hermesHarnessSelected =
+    (lockedSessionAgentKind ?? agentKind) === 'hermes';
   const unifiedPanelCapable =
-    unifiedModelPanelEnabled && (!inSessionEngineLocked || lockedSessionAgentKind !== null);
+    unifiedModelPanelEnabled &&
+    !hermesHarnessSelected &&
+    (!inSessionEngineLocked || lockedSessionAgentKind !== null);
   const unifiedPanelActive = unifiedPanelCapable;
   const effectiveUnifiedAgents = useMemo<readonly AgentKind[] | undefined>(
     () => (lockedSessionAgentKind ? [lockedSessionAgentKind] : unifiedAgents),
@@ -7771,7 +7799,7 @@ export function ChatInput({
       /** 选中引擎的 **wire model id** —— 唯一可发送、可当记忆键的那个 id。 */
       modelId: string;
       effort?: Effort;
-      engine: 'cc' | 'codex' | 'pi';
+      engine: 'cc' | 'codex' | 'pi' | 'hermes';
       fast: boolean | 'ultrafast';
       favoriteUid: string | null;
       /** 行的归一化 id(面板行身份)。草稿层不消费,更不作为发送 id。 */
@@ -9935,6 +9963,7 @@ export function ChatInput({
                     // 的 prop 说明),两者同时传会得到一个永远不渲染的分段。
                     agentSwitch={
                       !unifiedPanelActive &&
+                      !hermesHarnessSelected &&
                       sessionId &&
                       vendorKey &&
                       !remoteHostId &&
@@ -9943,7 +9972,7 @@ export function ChatInput({
                             currentVendor: vendorKey,
                             // 两步分段的目标是 vendor 口径,确认门按 AgentKind 判(与意图
                             // 记录同形),在边界上转一次 —— 见 confirmAgentBrowseSwitch。
-                            confirmBrowseSwitch: (targetVendor: 'cc' | 'codex' | 'pi') =>
+                            confirmBrowseSwitch: (targetVendor: 'cc' | 'codex' | 'pi' | 'hermes') =>
                               confirmAgentBrowseSwitch(vendorKeyToAgentKind(targetVendor)),
                             onSwitch: performAgentSwitch,
                           }
@@ -10350,6 +10379,29 @@ function VoiceInputButton({
   const stopping = busy && !showProcessing;
   const activeRecording = listening || longPressActive;
   const disabledOrBusy = disabled || busy;
+  // Grey out (with the provider's own reason as tooltip) when the configured ASR
+  // provider cannot start — e.g. a BYO key is missing. The sync IPC read is a
+  // main-side cache; refresh on focus so fixing Settings reactivates the button
+  // without remounting the composer. Cache miss (null) keeps the old behaviour:
+  // the start gate probes and explains on click.
+  const [voiceUnavailableReason, setVoiceUnavailableReason] = useState<string | null>(null);
+  useEffect(() => {
+    const read = (): void => {
+      try {
+        const readiness = window.electronAPI.voiceInput.getReadinessCached();
+        setVoiceUnavailableReason(
+          readiness && readiness.ok === false ? (readiness.error ?? null) : null,
+        );
+      } catch {
+        setVoiceUnavailableReason(null);
+      }
+    };
+    read();
+    window.addEventListener('focus', read);
+    return () => window.removeEventListener('focus', read);
+  }, []);
+  const unavailable = !activeRecording && !busy && !disabled && voiceUnavailableReason !== null;
+  const inactiveOrBusy = disabledOrBusy || unavailable;
 
   // ── 录音态宽度形变 + 计时(DESIGN.md §14.4 窄变体,≤240ms)──
   // 仅录音中展开(2026-07-22 用户定稿:展开必须承载信息,hover 展出「语音」
@@ -10408,7 +10460,11 @@ function VoiceInputButton({
         )
       : label;
   const tooltipText =
-    shortcutLabel && !activeRecording && !busy ? `${hintLabel} · ${shortcutLabel}` : hintLabel;
+    unavailable && voiceUnavailableReason
+      ? voiceUnavailableReason
+      : shortcutLabel && !activeRecording && !busy
+        ? `${hintLabel} · ${shortcutLabel}`
+        : hintLabel;
   const controlledTooltipOpen = busy
     ? showProcessing
     : longPressActive
@@ -10526,14 +10582,15 @@ function VoiceInputButton({
           (activeRecording || stopping) &&
             'bg-[var(--surface-chip)] text-[var(--text-primary)] hover:bg-[var(--surface-chip)]',
           'focus-visible:outline-none',
-          disabledOrBusy && 'cursor-not-allowed',
-          disabledOrBusy && !stopping && 'opacity-40',
+          inactiveOrBusy && 'cursor-not-allowed',
+          inactiveOrBusy && !stopping && 'opacity-40',
           className,
         )}
         style={expandable ? { width: pillWidth ?? 30, transition: pillTransition } : undefined}
         disabled={disabledOrBusy}
         aria-label={label}
         aria-pressed={activeRecording}
+        aria-disabled={unavailable || undefined}
         onPointerDown={(event) => {
           if (event.button !== 0) return;
           // A fresh press is never the synthetic click from the previous hold.
@@ -10541,7 +10598,7 @@ function VoiceInputButton({
           clearSuppressNextClick();
           event.preventDefault();
           event.currentTarget.blur();
-          if (disabledOrBusy || listening) return;
+          if (disabledOrBusy || unavailable || listening) return;
           pointerIdRef.current = event.pointerId;
           lastPointerPointRef.current = { clientX: event.clientX, clientY: event.clientY };
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -10574,6 +10631,7 @@ function VoiceInputButton({
             clearSuppressNextClick();
             return;
           }
+          if (unavailable) return;
           void (listening ? onStop() : onStart());
         }}
       >

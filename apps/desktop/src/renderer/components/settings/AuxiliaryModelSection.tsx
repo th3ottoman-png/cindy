@@ -294,11 +294,6 @@ export function AuxiliaryModelSection() {
             })}
 
             <p className="px-4 pb-4 text-12 leading-[1.5] text-[var(--text-secondary)]">
-              {authMode !== 'cloud' ? (
-                <span className="mb-1 block text-[var(--text-tertiary)]">
-                  {t('settings.auxiliaryModels.signInHint')}
-                </span>
-              ) : null}
               {t('settings.auxiliaryModels.customHint')}
             </p>
           </>
@@ -307,11 +302,6 @@ export function AuxiliaryModelSection() {
             <p className="text-12 leading-[1.5] text-[var(--text-tertiary)]">
               {automaticChain}
             </p>
-            {authMode !== 'cloud' ? (
-              <p className="mt-1 text-12 leading-[1.5] text-[var(--text-tertiary)]">
-                {t('settings.auxiliaryModels.signInHint')}
-              </p>
-            ) : null}
           </div>
         )}
       </div>

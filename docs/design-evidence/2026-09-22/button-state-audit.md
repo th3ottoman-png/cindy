@@ -57,8 +57,8 @@
 | [components/settings/SshKeySetupDialog.tsx:458](../../../apps/desktop/src/renderer/components/settings/SshKeySetupDialog.tsx#L458) | KeyList | variant="secondary" size="sm" compact |
 | [components/settings/SshKeySetupDialog.tsx:900](../../../apps/desktop/src/renderer/components/settings/SshKeySetupDialog.tsx#L900) | CodeBlock | variant="secondary" size="xs" compact |
 | [components/settings/TelegramBotSection.tsx:429](../../../apps/desktop/src/renderer/components/settings/TelegramBotSection.tsx#L429) | ConnectedCard | variant="secondary" size="lg" loading={props.isTogglingOnline} |
-| [components/settings/DingTalkBotSection.tsx:185](../../../apps/desktop/src/renderer/components/settings/DingTalkBotSection.tsx#L185) | DingTalkBotSection | variant="cta" size="lg" loading={bot.isSaving} |
-| [components/settings/DingTalkBotSection.tsx:200](../../../apps/desktop/src/renderer/components/settings/DingTalkBotSection.tsx#L200) | DingTalkBotSection | variant="cta" size="lg" loading={bot.isSaving} |
+| ~~components/settings/DingTalkBotSection.tsx:185~~ (file removed 2026-10-27 with the IM-channel de-clouding) | DingTalkBotSection | variant="cta" size="lg" loading={bot.isSaving} |
+| ~~components/settings/DingTalkBotSection.tsx:200~~ (file removed 2026-10-27 with the IM-channel de-clouding) | DingTalkBotSection | variant="cta" size="lg" loading={bot.isSaving} |
 | [components/settings/TelegramBehaviorSettings.tsx:407](../../../apps/desktop/src/renderer/components/settings/TelegramBehaviorSettings.tsx#L407) | TelegramPersonaSettings | variant="secondary" size="md" compact loading={syncState === "syncing"} |
 | [components/settings/TelegramBehaviorSettings.tsx:463](../../../apps/desktop/src/renderer/components/settings/TelegramBehaviorSettings.tsx#L463) | ContactsAutoRegisterHint | variant="primary" size="sm" compact loading={busy} |
 | [components/chat/RewindPreviewDialog.tsx:250](../../../apps/desktop/src/renderer/components/chat/RewindPreviewDialog.tsx#L250) | RewindPreviewDialog | variant="cta" size="lg" loading={committing} |
@@ -68,7 +68,7 @@
 | [features/bots/BotDirectMessageView.tsx:207](../../../apps/desktop/src/renderer/features/bots/BotDirectMessageView.tsx#L207) | BotDirectMessageView | variant="secondary" size="md" compact |
 | [features/billing/BillingPage.tsx:1884](../../../apps/desktop/src/renderer/features/billing/BillingPage.tsx#L1884) | OrderHistoryCard | variant="secondary" size="sm" compact |
 | [components/new-chat/ModelSelector.tsx:541](../../../apps/desktop/src/renderer/components/new-chat/ModelSelector.tsx#L541) | RemoteModelLoadNotice | variant="secondary" tone="danger" size="xs" compact |
-| [components/settings/HelpThreadView.tsx:251](../../../apps/desktop/src/renderer/components/settings/HelpThreadView.tsx#L251) | FeedbackSection | variant="secondary" size="sm" compact |
+| ~~components/settings/HelpThreadView.tsx:251~~ (file removed 2026-10-27 with the Help feature) | FeedbackSection | variant="secondary" size="sm" compact |
 | [components/settings/VoiceInputSection.tsx:2132](../../../apps/desktop/src/renderer/components/settings/VoiceInputSection.tsx#L2132) | VoiceInputSection | variant="secondary" size="md" compact |
 | [features/scheduler/components/ScheduleFormDialog.tsx:1191](../../../apps/desktop/src/renderer/features/scheduler/components/ScheduleFormDialog.tsx#L1191) | ScheduleFormDialog | variant="secondary" size="sm" compact |
 | [components/settings/HookConnectionsSection.tsx:1440](../../../apps/desktop/src/renderer/components/settings/HookConnectionsSection.tsx#L1440) | HookConnectionsSection | variant="secondary" size="xs" compact |

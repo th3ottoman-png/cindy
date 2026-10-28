@@ -2238,6 +2238,7 @@
       "harnessManage": "Manage {{name}} version",
       "harnessChecking": "Checking…",
       "harnessCheckFailed": "Couldn't check for updates. Open the menu to try again.",
+      "harnessCheckUnavailable": "Update checks are unavailable in this build.",
       "harnessUpdateAvailable": "Update available",
       "harnessCheck": "Check for updates",
       "harnessCheckedAt": "Last checked: {{time}}",

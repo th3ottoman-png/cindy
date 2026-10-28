@@ -1427,7 +1427,9 @@ export function ScheduleFormDialog({
                       agentDeviceId={selectedAgentDeviceId}
                       remoteLocation={isProjectAutomationMode ? 'none' : isBound ? 'locked' : 'any'}
                       onFollowSession={() => selectModelConfiguration(null,
-                        boundSessionReference?.agentKind === 'cc' ? 'claude-code' : boundSessionReference?.agentKind)}
+                        boundSessionReference?.agentKind === 'cc' || boundSessionReference?.agentKind === 'hermes'
+                          ? 'claude-code' // hermes 绑定会话 v1 不可跟随,回落无预选
+                          : boundSessionReference?.agentKind)}
                       agentKind={form.agentKind}
                       modelValue={form.model}
                       onChangeModel={(v) => setField('model', v)}

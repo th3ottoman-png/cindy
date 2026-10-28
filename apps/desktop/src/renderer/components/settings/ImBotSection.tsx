@@ -23,13 +23,8 @@ import { useTranslation } from 'react-i18next';
 import { useSettingsSearchNavigation } from './SettingsSearchNavigation';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { DiscordBotSection } from './DiscordBotSection';
-import { DingTalkBotSection } from './DingTalkBotSection';
-import { FeishuBotSection } from './FeishuBotSection';
 import { HookConnectionsSection } from './HookConnectionsSection';
 import { TelegramBotSection } from './TelegramBotSection';
-import { WechatBotSection } from './WechatBotSection';
-import { WecomBotSection } from './WecomBotSection';
 import { showCindyGroup } from './imBotVisibility';
 
 /** 「IM 机器人」页面分区 id(与 ?imGroup= 参数共用)。 */
@@ -60,46 +55,30 @@ export function isImBotSettingsGroup(value: string | null): value is ImBotSettin
   return value === 'cindy' || value === 'personal';
 }
 
-/** 个人栏内容 —— 用户自配凭证的机器人。 */
+/**
+ * 个人栏内容 —— 用户自配凭证的机器人。本地私有构建只保留 Telegram:其余渠道
+ * (WeChat / WeCom / Feishu / DingTalk / Discord)依赖云端账号服务或用不上的
+ * 平台连接,已随 2026-10-27 的去云化下架;main 侧 runtime 未动,只是不再有入口。
+ */
 function PersonalGroupContent({
   targetChannel,
-  preferredFeishuService,
   activation,
 }: {
-  targetChannel: 'wechat' | 'wecom' | 'feishu' | 'discord' | 'telegram' | 'dingtalk' | null;
-  preferredFeishuService: 'feishu' | 'lark' | null;
+  targetChannel: 'telegram' | null;
   activation: number;
 }) {
-  const [expandedChannel, setExpandedChannel] = useState<
-    'wechat' | 'wecom' | 'feishu' | 'discord' | 'telegram' | 'dingtalk' | null
-  >(targetChannel);
+  const [expandedChannel, setExpandedChannel] = useState<'telegram' | null>(targetChannel);
 
   useLayoutEffect(() => {
     if (targetChannel) setExpandedChannel(targetChannel);
   }, [targetChannel, activation]);
 
-  const toggle = (channel: 'wechat' | 'wecom' | 'feishu' | 'discord' | 'telegram' | 'dingtalk') => {
+  const toggle = (channel: 'telegram') => {
     setExpandedChannel((current) => (current === channel ? null : channel));
   };
 
   return (
     <div className="flex flex-col gap-3">
-      <WechatBotSection expanded={expandedChannel === 'wechat'} onToggle={() => toggle('wechat')} />
-      <WecomBotSection expanded={expandedChannel === 'wecom'} onToggle={() => toggle('wecom')} />
-      <FeishuBotSection
-        expanded={expandedChannel === 'feishu'}
-        onToggle={() => toggle('feishu')}
-        preferredService={preferredFeishuService}
-        searchActivation={activation}
-      />
-      <DingTalkBotSection
-        expanded={expandedChannel === 'dingtalk'}
-        onToggle={() => toggle('dingtalk')}
-      />
-      <DiscordBotSection
-        expanded={expandedChannel === 'discord'}
-        onToggle={() => toggle('discord')}
-      />
       <TelegramBotSection
         expanded={expandedChannel === 'telegram'}
         onToggle={() => toggle('telegram')}
@@ -114,11 +93,7 @@ export function ImBotSection({ targetGroup }: { targetGroup: ImBotSettingsGroup 
   const { entry, activation } = useSettingsSearchNavigation();
   const cindyGroupAvailable = showCindyGroup({ mode });
   const targetChannel =
-    (['wechat', 'wecom', 'feishu', 'discord', 'telegram', 'dingtalk'] as const).find(
-      (channel) => entry?.targetId === 'personal-im-' + channel,
-    ) ?? null;
-  const preferredFeishuService =
-    entry?.id === 'imBot.lark' ? 'lark' : entry?.id === 'imBot.feishu' ? 'feishu' : null;
+    entry?.targetId === 'personal-im-telegram' ? 'telegram' : null;
   const cindySectionRef = useRef<HTMLElement | null>(null);
   const personalSectionRef = useRef<HTMLElement | null>(null);
   const effectiveTargetGroup = targetGroup
@@ -184,11 +159,7 @@ export function ImBotSection({ targetGroup }: { targetGroup: ImBotSettingsGroup 
             {t(IM_BOT_GROUP_LABEL_KEY.personal)}
           </h3>
           <GroupTip message={t(IM_BOT_GROUP_TIP_KEY.personal)} />
-          <PersonalGroupContent
-            targetChannel={targetChannel}
-            preferredFeishuService={preferredFeishuService}
-            activation={activation}
-          />
+          <PersonalGroupContent targetChannel={targetChannel} activation={activation} />
         </section>
       </div>
     </div>

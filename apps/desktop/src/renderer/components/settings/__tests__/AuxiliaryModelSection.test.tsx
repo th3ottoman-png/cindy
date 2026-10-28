@@ -311,7 +311,8 @@ describe('AuxiliaryModelSection', () => {
     expect(screen.getByTestId('settings.auxiliaryModels.preferred.ariaLabel:value').textContent).toBe(
       'empty',
     );
-    expect(screen.getByText('settings.auxiliaryModels.signInHint')).toBeTruthy();
+    // 登录引导文案已随本地私有构建移除:不推荐、也不催登录。
+    expect(screen.queryByText('settings.auxiliaryModels.signInHint')).toBeNull();
     expect(h.set).not.toHaveBeenCalled();
   });
 

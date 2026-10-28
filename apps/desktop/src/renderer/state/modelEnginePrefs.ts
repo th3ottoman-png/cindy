@@ -65,8 +65,12 @@ import { createStorageReconciler } from './storageOpReplay';
 
 const STORAGE_KEY = 'xdt:modelEnginePrefs:v1';
 
-/** 引擎 override 的取值域 = 用户可选引擎表(见文件头对口径的说明)。 */
-export type ModelEngine = SelectableVendor;
+/**
+ * 引擎 override 的取值域 = 用户可选引擎表里**有目录模型/收藏面**的三家。
+ * hermes 的唯一模型不是目录行,也没有收藏/overrides 身份;保持三家可避免
+ * 收藏 payload(device-link RemoteModelFavorite)被迫接受一个远端不认识的引擎。
+ */
+export type ModelEngine = Exclude<SelectableVendor, 'hermes'>;
 
 /**
  * 单条 override。刻意用对象而不是裸字符串:规格预留了「同一 (来源, 模型) 上还要记别的
@@ -118,7 +122,8 @@ function sanitize(raw: unknown): EnginePrefsMap {
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
     if (!k || !v || typeof v !== 'object') continue;
     const agent = (v as { agent?: unknown }).agent;
-    if (!isSelectableVendor(agent)) continue;
+    // hermes 的唯一模型没有目录身份,引擎 override 不适用。
+    if (!isSelectableVendor(agent) || agent === 'hermes') continue;
     out[k] = { agent };
   }
   return out;

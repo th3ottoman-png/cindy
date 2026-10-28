@@ -35,10 +35,19 @@ const caps = (label: string, ctx = 1): Caps => ({
 
 /** stub window.electronAPI.maker (local) + deviceLink (tunnel),返回两个 spy。 */
 function stubElectron() {
-  const getCapabilities = vi.fn(async (k: string) => caps(`local:${k}`));
-  const invoke = vi.fn(async (deviceId: string, _channel: string, args: unknown[]) =>
-    caps(`${deviceId}:${String(args[0])}`),
-  );
+  const getCapabilities = vi.fn(async (k: string) => {
+    if (k === 'hermes') {
+      // hermes M2b 未注册到宿主 registry 前与 pi 同为 optional agent(缺失被静默跳过)。
+      throw new Error("Agent 'hermes' is not registered (available: claude-code, codex, pi)");
+    }
+    return caps(`local:${k}`);
+  });
+  const invoke = vi.fn(async (deviceId: string, _channel: string, args: unknown[]) => {
+    if (String(args[0]) === 'hermes') {
+      throw new Error("Agent 'hermes' is not registered (available: claude-code, codex, pi)");
+    }
+    return caps(`${deviceId}:${String(args[0])}`);
+  });
   vi.stubGlobal('window', { electronAPI: { maker: { getCapabilities }, deviceLink: { invoke } } });
   return { getCapabilities, invoke };
 }
@@ -50,7 +59,9 @@ function stubLocalCatalog() {
   let transientError: { agent: string; message: string } | null = null;
   const getCapabilities = vi.fn(async (agent: string) => {
     if (transientError?.agent === agent) throw new Error(transientError.message);
-    if (agent === unavailableAgent) throw new Error(`Agent '${agent}' is not registered`);
+    if (agent === 'hermes' || agent === unavailableAgent) {
+      throw new Error(`Agent '${agent}' is not registered`);
+    }
     return caps(`${capabilityRevision}:${agent}`);
   });
   const listProviders = vi.fn(async () => ({
@@ -110,9 +121,9 @@ describe('useAgentCapabilities deviceId-aware cache', () => {
   it('本机目录快照在可选 Pi 不可用时仍返回 Claude Code 与 Codex 能力', async () => {
     const { getCapabilities } = stubElectron();
     getCapabilities.mockImplementation(async (agent: string) => {
-      if (agent === 'pi')
+      if (agent === 'hermes' || agent === 'pi')
         throw new Error(
-          "[MAKER_NOT_FOUND] Agent 'pi' is not registered (available: claude-code, codex)",
+          `[MAKER_NOT_FOUND] Agent '${agent}' is not registered (available: claude-code, codex)`,
         );
       return caps(`local:${agent}`);
     });
@@ -545,8 +556,8 @@ describe('useAgentCapabilities deviceId-aware cache', () => {
       mod.prefetchDeviceCapabilities('dev-1'),
       mod.prefetchDeviceCapabilities('dev-1'),
     ]);
-    // cc + codex + pi 各一次 = 3 次,而非 6 次
-    expect(invoke).toHaveBeenCalledTimes(3);
+    // cc + codex + pi + hermes 各一次 = 4 次,而非 8 次
+    expect(invoke).toHaveBeenCalledTimes(4);
   });
 
   it('驱逐:evict 只清该设备,本地与其它设备保留', async () => {
@@ -630,7 +641,10 @@ describe('useAgentCapabilities deviceId-aware cache', () => {
 
   it('revision 后新能力先完成、旧能力后完成时只通知并保留新快照', async () => {
     const resolvers: Array<(v: Caps) => void> = [];
-    const invoke = vi.fn(() => new Promise<Caps>((resolve) => resolvers.push(resolve)));
+    const invoke = vi.fn((_deviceId: string, _channel: string, args: unknown[]) =>
+      String(args[0]) === 'hermes'
+        ? Promise.reject(new Error("Agent 'hermes' is not registered"))
+        : new Promise<Caps>((resolve) => resolvers.push(resolve)));
     const getCapabilities = vi.fn(async (k: string) => caps(`local:${k}`));
     vi.stubGlobal('window', {
       electronAPI: { maker: { getCapabilities }, deviceLink: { invoke } },
@@ -644,8 +658,8 @@ describe('useAgentCapabilities deviceId-aware cache', () => {
     const stale = mod.prefetchDeviceCapabilities('dev-1');
     mod.evictDeviceCapabilities('dev-1');
     const fresh = mod.prefetchDeviceCapabilities('dev-1');
-    // 每轮按 ALL_AGENT_KINDS 顺序 push 三个 resolver(cc/codex/pi):
-    // 第一轮(stale)= [0][1][2],第二轮(fresh)= [3][4][5]。
+    // 每轮按 ALL_AGENT_KINDS 顺序 push 三个 resolver(cc/codex/pi;hermes 远端未注册
+    // 由 invoke 直接 reject 自结):第一轮(stale)= [0][1][2],第二轮(fresh)= [3][4][5]。
     resolvers[3](caps('fresh:claude'));
     resolvers[4](caps('fresh:codex'));
     resolvers[5](caps('fresh:pi'));

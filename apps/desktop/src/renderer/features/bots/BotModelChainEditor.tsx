@@ -22,15 +22,15 @@ import {
 } from '../../../shared/botModelChain';
 import { useBotTranslation } from './botPronounContext';
 
-function vendorFor(harness: BotHarness): 'cc' | 'codex' | 'pi' {
+function vendorFor(harness: BotHarness): 'cc' | 'codex' | 'pi' | 'hermes' {
   return harness === 'claude' ? 'cc' : harness;
 }
 
-function harnessFor(vendor: 'cc' | 'codex' | 'pi'): BotHarness {
+function harnessFor(vendor: 'cc' | 'codex' | 'pi' | 'hermes'): BotHarness {
   return vendor === 'cc' ? 'claude' : vendor;
 }
 
-function agentKindFor(vendor: 'cc' | 'codex' | 'pi'): AgentKind {
+function agentKindFor(vendor: 'cc' | 'codex' | 'pi' | 'hermes'): AgentKind {
   return vendor === 'cc' ? 'claude-code' : vendor;
 }
 
@@ -138,6 +138,7 @@ export function BotModelChainEditor({
         unifiedPanel
         unifiedAgents={unifiedAgents}
         onUnifiedSelect={(selection) => {
+          if (selection.engine === 'hermes') return; // bot 链 v1 只装配三家
           if (!visibleVendors.includes(selection.engine)) return;
           replace(index, {
             harness: harnessFor(selection.engine),

@@ -86,6 +86,7 @@ function defaultScheduleFormPrefs(): ScheduleFormPrefs {
     useWorktree: false,
     lastByAgent: {
       'claude-code': EMPTY_AGENT_PREFS,
+      hermes: EMPTY_AGENT_PREFS,
       codex: EMPTY_AGENT_PREFS,
       pi: EMPTY_AGENT_PREFS,
     },
@@ -108,6 +109,7 @@ function loadScheduleFormPrefs(): ScheduleFormPrefs {
       useWorktree: workspaceKind === 'project' && parsed.useWorktree === true,
       lastByAgent: {
         'claude-code': sanitizeAgentPrefs(parsed.lastByAgent?.['claude-code']),
+        hermes: sanitizeAgentPrefs(parsed.lastByAgent?.hermes),
         codex: sanitizeAgentPrefs(parsed.lastByAgent?.codex),
         pi: sanitizeAgentPrefs(parsed.lastByAgent?.pi),
       },

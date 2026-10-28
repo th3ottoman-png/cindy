@@ -35,8 +35,9 @@ describe('MenuButton — settings menu item (#1881)', () => {
     expect(source).toContain("import { useLocation, useNavigate } from 'react-router-dom';");
   });
 
-  it('keeps the existing help / issues / check-for-updates items', () => {
-    expect(source).toContain("t('titleBar.menuItems.help')");
+  it('keeps the existing issues / check-for-updates items and drops Help', () => {
+    // 本地私有构建下架了设置里的「帮助」分区,标题栏菜单项随之移除。
+    expect(source).not.toContain("t('titleBar.menuItems.help')");
     expect(source).toContain("t('titleBar.menuItems.issues')");
     expect(source).toContain("t('titleBar.menuItems.checkForUpdates')");
   });

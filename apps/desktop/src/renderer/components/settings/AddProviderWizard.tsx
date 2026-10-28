@@ -106,6 +106,7 @@ type PresetBaseUrls = Partial<Record<AgentKind, string>>;
 const AGENT_LABEL: Record<AgentKind, string> = {
   'claude-code': 'Claude Code',
   codex: 'Codex',
+  hermes: 'Hermes',
   pi: 'Pi',
 };
 
@@ -1125,7 +1126,9 @@ export function AddProviderWizard({
             const reuseDetection = detected?.catalog?.ok && agent === detected.agent
               && apiKey === detected.apiKey && source.baseUrl === detected.preset.runtimes[agent]?.baseUrl
               && !source.route && !source.modelsUrl?.includes('client_version=');
-            const r = reuseDetection ? detected!.catalog! : await window.electronAPI.maker.fetchProviderModels({
+            const r = reuseDetection ? detected!.catalog! : agent === 'hermes'
+              ? { ok: true as const, models: [] } // hermes v1 无 BYOM 目录探测
+              : await window.electronAPI.maker.fetchProviderModels({
               ...(detected ? { redirect: 'error' as const } : {}),
               agent,
               baseUrl: source.baseUrl,

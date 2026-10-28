@@ -590,7 +590,7 @@ describe('Shared create project picker', () => {
     // fail-open:注册结果没回来之前不隐藏任何引擎;当前引擎恒在列。
     expect(chatInputSource).toContain('if (!runtimeAgentsLoaded) return undefined;');
     expect(chatInputSource).toContain(
-      'kind === agentKind || runtimeAvailableVendors.has(agentKindToVendor(kind)),',
+      "const vendor = agentKindToVendor(kind);",
     );
   });
 

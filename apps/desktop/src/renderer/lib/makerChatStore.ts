@@ -743,7 +743,7 @@ export interface ChatMessage {
 export type AgentTaskStatus = 'running' | 'completed' | 'failed' | 'stopped';
 
 export interface AgentTaskUpdate {
-  provider: 'claude-code' | 'codex' | 'pi';
+  provider: 'claude-code' | 'codex' | 'pi' | 'hermes';
   taskId: string;
   parentToolUseId?: string;
   status: AgentTaskStatus;
@@ -2533,7 +2533,7 @@ export type MessageDeliveryMode = 'queue' | 'steer';
 
 /** 仅影响 selector/chip 的乐观展示；agentKind 始终保留真实 reducer 路由。 */
 export interface AgentSwitchIntentRecord {
-  target: 'claude-code' | 'codex' | 'pi';
+  target: 'claude-code' | 'codex' | 'pi' | 'hermes';
   model: string;
   providerId: string | null;
   effort?: string;
@@ -2554,7 +2554,7 @@ export interface SessionChatState {
    * Codex reducer。ensureInitialMessages 从 DB sessions.agent_kind 读出来灌进。
    * 默认 'claude-code' 兼容老路径(老 session row 没有此字段时按 Claude 处理)。
    */
-  agentKind: 'claude-code' | 'codex' | 'pi';
+  agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
   /** 下一条消息发送时才由 main 应用的跨引擎切换意图。 */
   agentSwitchIntent: AgentSwitchIntentRecord | null;
   /**
@@ -7495,7 +7495,7 @@ type MakerEventPayload = {
   event?: {
     type: string;
     data: unknown;
-    source?: 'claude-code' | 'codex' | 'pi' | 'vision-bridge';
+    source?: 'claude-code' | 'codex' | 'pi' | 'hermes' | 'vision-bridge';
     agentMeta?: Record<string, unknown>;
     turnContinuationId?: number;
     turnScope?: 'turn' | 'background';
@@ -7547,7 +7547,7 @@ type PendingTextDeltaBatch = {
   text: string;
   dataOwner: DataOwnerGeneration;
   ingress: LiveIngressContext;
-  source?: 'claude-code' | 'codex' | 'pi' | 'vision-bridge';
+  source?: 'claude-code' | 'codex' | 'pi' | 'hermes' | 'vision-bridge';
   persistId?: string;
   agentMeta?: Record<string, unknown>;
 };
@@ -10403,7 +10403,7 @@ setRemoteTerminalErrorProbe(hasSessionTerminalError);
 
 interface ActiveSessionSnapshot {
   sessionId: string;
-  agentKind: 'claude-code' | 'codex' | 'pi';
+  agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
   isTurnRunning: boolean;
 }
 
@@ -11621,8 +11621,8 @@ function retryInvalidatedInitialHistoryFetchIfNeeded(
  */
 function dbAgentKindToMakerKind(
   dbKind: string | null | undefined,
-  fallback: 'claude-code' | 'codex' | 'pi' = 'claude-code',
-): 'claude-code' | 'codex' | 'pi' {
+  fallback: 'claude-code' | 'codex' | 'pi' | 'hermes' = 'claude-code',
+): 'claude-code' | 'codex' | 'pi' | 'hermes' {
   if (dbKind === 'codex') return 'codex';
   if (dbKind === 'cc') return 'claude-code';
   if (dbKind === 'pi') return 'pi';
@@ -14977,7 +14977,7 @@ function autoTitleFallbackLabels(): AutoTitleFallbackLabels {
 function scheduleAutoName(
   sessionId: string,
   text: string,
-  agentKind: 'claude-code' | 'codex' | 'pi',
+  agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
   isUserText = true,
 ): void {
   // 与 main 共用 normalizeAutoTitle,两端算出的占位串逐字一致,回流时不跳变。
@@ -15093,7 +15093,7 @@ function clearAutoTitlePreviewSafely(sessionId: string): void {
 function maybeAutoNameUnnamedSession(
   sessionId: string,
   seed: AutoTitleSeed | null,
-  agentKind: 'claude-code' | 'codex' | 'pi',
+  agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes',
 ): void {
   if (!seed?.isUserText) return;
   if (sessions.get(sessionId)?.autoTitleDisabled === true) return;
@@ -15508,7 +15508,7 @@ async function sendMessageCore(
       // 用会话真实 agentKind 起名 — 之前写死 'claude-code',导致 Codex 会话也
       // 用 Claude haiku 起标题:纯 Codex 用户(无 Claude 鉴权)会 oneShot 失败 →
       // fallback 原话,表现为"Codex 会话标题没有智能总结"。current.agentKind 已是
-      // maker 格式('claude-code' | 'codex' | 'pi'),直接透传。起名走立即占位 + 后台覆盖。
+      // maker 格式('claude-code' | 'codex' | 'pi' | 'hermes'),直接透传。起名走立即占位 + 后台覆盖。
       if (autoTitleSeed) {
         scheduleAutoName(
           sessionId,
@@ -18071,7 +18071,7 @@ function sendUiTrigger(sessionId: string, prompt: string): Promise<void> {
  * sdkSessionId——否则 buildCreateOpts 会把旧引擎的原生会话 id 当 resume 目标
  * (main 侧 reconcileCreateOptsWithDb 是兜底,这里是第一现场收敛)。
  */
-function noteAgentSwitched(sessionId: string, agentKind: 'claude-code' | 'codex' | 'pi'): void {
+function noteAgentSwitched(sessionId: string, agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes'): void {
   if (!sessionId) return;
   setState(sessionId, (s) => {
     const nextProviderId = s.agentSwitchIntent ? s.agentSwitchIntent.providerId : s.sessionProviderId;
@@ -18103,7 +18103,7 @@ function noteAgentSwitched(sessionId: string, agentKind: 'claude-code' | 'codex'
  */
 function noteAgentSwitchIntent(
   sessionId: string,
-  target: 'claude-code' | 'codex' | 'pi',
+  target: 'claude-code' | 'codex' | 'pi' | 'hermes',
   opts: {
     model: string;
     providerId: string | null;
@@ -18227,7 +18227,7 @@ function mirrorAgentSwitchIntent(sessionId: string, value: unknown): void {
 function setSessionRuntime(
   sessionId: string,
   opts: {
-    agentKind?: 'claude-code' | 'codex' | 'pi';
+    agentKind?: 'claude-code' | 'codex' | 'pi' | 'hermes';
     fastMode?: boolean | 'ultrafast';
     planModeEnabled?: boolean;
     /** Seed before SessionView hydrates the DB row; sendMessage reads this for SSH routing. */

@@ -62,7 +62,8 @@ import type { SessionReference } from '../../../../shared/sessionReference';
 import { isReviewSessionSource } from '../../../../shared/sessionSource';
 
 export type Destination = 'local' | 'worktree' | 'thread';
-export type AgentKind = 'claude-code' | 'codex' | 'pi';
+// 与 ScheduleFormState.agentKind 同值域(maker 全集);hermes 无目录时选择器自然降级。
+export type AgentKind = 'claude-code' | 'codex' | 'pi' | 'hermes';
 
 interface ChipButtonProps {
   icon?: React.ReactNode;

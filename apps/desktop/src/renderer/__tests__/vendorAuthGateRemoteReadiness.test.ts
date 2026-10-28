@@ -173,6 +173,14 @@ describe('pickVoiceInputDialogCopy（语音输入缺认证文案）', () => {
       .toBe('gateway');
   });
 
+  it('BYOK ASR 供应商使用直连 key 文案,而不是 Cindy AI', () => {
+    expect(pickVoiceInputDialogCopy(copy, {
+      auth: 'api-key',
+      settingsTab: 'providers',
+      serviceMode: 'byok',
+    }).title).toBe('direct-key');
+  });
+
   it('api-key + api-keys 使用直连 API key 文案', () => {
     expect(pickVoiceInputDialogCopy(copy, { auth: 'api-key', settingsTab: 'api-keys' }).title)
       .toBe('direct-key');

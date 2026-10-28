@@ -83,6 +83,7 @@ import type { UnionModelRow } from './UnifiedModelList';
 const AGENT_LABEL: Record<AgentKind, string> = {
   'claude-code': 'Claude Code',
   codex: 'Codex',
+  hermes: 'Hermes',
   pi: 'Pi',
 };
 
@@ -95,6 +96,8 @@ function editableContextK(tokens: number): string {
 const AGENT_MARK: Record<AgentKind, (size: number) => ReactNode> = {
   'claude-code': (size) => <ClaudeMark size={size} />,
   codex: (size) => <CodexMark size={size} />,
+  // hermes M2b:复用 Claude 徽章位;独立 glyph 留给 step 4。
+  hermes: (size) => <ClaudeMark size={size} />,
   pi: (size) => <PiMark size={size} />,
 };
 

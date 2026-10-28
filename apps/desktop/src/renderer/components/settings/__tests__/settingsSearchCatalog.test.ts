@@ -100,13 +100,14 @@ describe('settings search catalog', () => {
     expect(resolveSettingsSearchTarget('im-bot', 'Slack')).toBe('cindy-im-slack');
   });
 
-  it('indexes always-visible personal IM channels', () => {
+  it('indexes the Telegram-only personal IM channel', () => {
     const documents = buildSettingsSearchDocuments(t, ['im-bot']);
 
-    expect(searchSettings(documents, '个人微信').map(({ entry }) => entry.id)).toContain(
+    // 本地私有构建下架了其余 IM 渠道:搜索里只剩 Telegram。
+    expect(searchSettings(documents, 'Telegram')[0]?.entry.id).toBe('imBot.telegram');
+    expect(searchSettings(documents, '个人微信').map(({ entry }) => entry.id)).not.toContain(
       'imBot.wechat',
     );
-    expect(searchSettings(documents, 'Lark')[0]?.entry.id).toBe('imBot.lark');
   });
 
   it('finds common aliases and multi-word queries', () => {
@@ -220,10 +221,11 @@ describe('settings search catalog', () => {
       expect(visible).toContain('imBot.cindy');
       expect(visible).toContain('imBot.cindy.telegram');
       expect(visible).toContain('imBot.cindy.x');
-      expect(visible).toContain('imBot.discord');
+      // 个人渠道只剩 Telegram:其余渠道条目已随本地私有构建下架。
       expect(visible).toContain('imBot.telegram');
-      expect(visible).toContain('imBot.feishu');
-      expect(visible).toContain('imBot.lark');
+      expect(visible).not.toContain('imBot.discord');
+      expect(visible).not.toContain('imBot.feishu');
+      expect(visible).not.toContain('imBot.lark');
     }
     expect(ids()).not.toContain('imBot.cindy');
   });

@@ -199,6 +199,18 @@ export interface NewMakerDraft {
  * 在目录里都是默认隐藏的模型 —— 种子默认模型压根不在用户看到的清单里。
  */
 function defaultVendorPrefs(vendor: MakerVendor): VendorPrefs {
+  if (vendor === 'hermes') {
+    return {
+      // Hermes home 决定真实模型;这里的唯一描述符只用于 UI / 落库标识。
+      model: 'hermes-default',
+      // Hermes 没有 reasoning effort 档;空串在创建准入层归一化为「未指定」。
+      effort: '',
+      // 只提供 Hermes 真正实现的两档;安全默认 = 首页策略(default)。
+      permissionMode: 'default',
+      planMode: false,
+      providerId: null,
+    };
+  }
   if (vendor === 'pi') {
     return {
       // pi 走 XD 网关(anthropic-messages 可达面),默认给网关中档模型;
@@ -255,6 +267,7 @@ function makeDefault(): NewMakerDraft {
     writableDirs: [],
     lastByVendor: {
       cc: defaultVendorPrefs('cc'),
+      hermes: defaultVendorPrefs('hermes'),
       pi: defaultVendorPrefs('pi'),
       orca: defaultVendorPrefs('orca'),
       codex: defaultVendorPrefs('codex'),
@@ -392,7 +405,7 @@ function sanitize(raw: unknown): NewMakerDraft {
       ? (r.modelChosenByVendor as Record<string, unknown>)
       : {};
   const modelChosenByVendor: Partial<Record<MakerVendor, boolean>> = {};
-  for (const v of ['cc', 'orca', 'codex', 'pi'] as const) {
+  for (const v of ['cc', 'orca', 'codex', 'pi', 'hermes'] as const) {
     if (modelChosenRaw[v] === true) modelChosenByVendor[v] = true;
   }
   // 老版本没有独立的组合标记：显式选过模型/来源/思考深度/Fast 都是足够强的
@@ -404,6 +417,7 @@ function sanitize(raw: unknown): NewMakerDraft {
   // seed 就反过来把系统快照认成自定义；这里只服务一次性迁移，不参与新会话默认决策。
   const legacyCcSeedModels = new Set([def.lastByVendor.cc.model, 'claude-sonnet-4-6']);
   const isKnownProductTuple = (slotVendor: MakerVendor, prefs: Partial<VendorPrefs>): boolean =>
+    slotVendor !== 'hermes' && // hermes v1 无产品默认 tuple 身份
     typeof prefs.providerId === 'string' &&
     prefs.providerId.length > 0 &&
     typeof prefs.model === 'string' &&
@@ -485,6 +499,7 @@ function sanitize(raw: unknown): NewMakerDraft {
     writableDirs,
     lastByVendor: {
       cc: sanitizeVendorPrefs(lastByVendorRaw.cc, 'cc'),
+      hermes: sanitizeVendorPrefs(lastByVendorRaw.hermes, 'hermes'),
       pi: sanitizeVendorPrefs(lastByVendorRaw.pi, 'pi'),
       orca: sanitizeVendorPrefs(lastByVendorRaw.orca, 'orca'),
       codex: sanitizeVendorPrefs(lastByVendorRaw.codex, 'codex'),

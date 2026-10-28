@@ -1,4 +1,5 @@
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { SELECTABLE_VENDORS, type SelectableVendor } from '@/lib/agentVendors';
 import type { MakerVendor } from '@/lib/ccAgent.types';
 
 import { AGENT_OPTIONS } from './agentOptions';
@@ -12,6 +13,7 @@ export function VendorSegmentedSwitcher({
   width = 300,
   dense = false,
   ariaLabel = 'Vendor switcher',
+  vendors = SELECTABLE_VENDORS,
 }: {
   value: MakerVendor;
   onChange: (next: MakerVendor) => void;
@@ -20,6 +22,8 @@ export function VendorSegmentedSwitcher({
   width?: number;
   dense?: boolean;
   ariaLabel?: string;
+  /** Restrict the segment set (e.g. Orca's worker roster has no hermes); default = all. */
+  vendors?: readonly SelectableVendor[];
 }) {
   return (
     <SegmentedControl
@@ -37,7 +41,7 @@ export function VendorSegmentedSwitcher({
       optionHeight={dense ? 24 : 30}
       optionClassName={dense ? 'text-12 px-0' : 'text-14 px-0'}
       preserveMouseFocus
-      options={AGENT_OPTIONS.map((option) => ({
+      options={AGENT_OPTIONS.filter((option) => vendors.includes(option.vendor)).map((option) => ({
         value: option.vendor,
         title: option.label,
         'aria-label': option.label,

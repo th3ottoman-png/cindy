@@ -204,13 +204,16 @@ describe('UserProfileCard copy user ID', () => {
     expect(addAccountButton.parentElement?.className).toContain('flex-col');
   });
 
-  it('does not show cloud account actions in the not-signed-in card', () => {
+  it('renders no card at all when signed out in local mode', () => {
     mocks.authState.user = null;
     mocks.authState.mode = 'local';
     renderCard();
 
-    expect(screen.queryByRole('button', { name: 'settings.logout.aria' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'sidebar.user.menuAddAccount' })).toBeNull();
+    // The "Not signed in" banner (with its sign-in action) was removed: a signed-out
+    // local session shows no profile card, so no cloud action can leak back either.
+    expect(screen.queryByText('settings.userProfile.local.name')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(mocks.authState.exitLocalMode).not.toHaveBeenCalled();
   });
 
   it('shows an error toast when clipboard access fails', async () => {
@@ -222,23 +225,6 @@ describe('UserProfileCard copy user ID', () => {
     await waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith('settings.userProfile.copyUserId.failed'),
     );
-  });
-
-  it('offers sign-in without exposing a logout action in local mode', () => {
-    mocks.authState.user = null;
-    mocks.authState.mode = 'local';
-    renderCard();
-
-    const signInButton = screen.getByRole('button', {
-      name: 'settings.userProfile.local.signIn',
-    });
-    expect(signInButton).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'settings.userProfile.local.exit' })).toBeNull();
-    expect(mocks.authState.exitLocalMode).not.toHaveBeenCalled();
-
-    fireEvent.click(signInButton);
-
-    return waitFor(() => expect(mocks.authState.exitLocalMode).toHaveBeenCalledOnce());
   });
 
   it('shows the organization name and role only for an organization membership', () => {

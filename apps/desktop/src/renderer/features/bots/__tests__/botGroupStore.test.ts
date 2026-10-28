@@ -109,6 +109,21 @@ describe('group list mirror', () => {
     stop();
   });
 
+  it.each(['CHAT_UNAVAILABLE', 'AUTH_REQUIRED'] as const)('does not schedule retries after a %s failure only the user can fix', async errorCode => {
+    listBotGroups.mockResolvedValueOnce({ ok: false, errorCode });
+    const stop = startBotGroupSync();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(listBotGroups).toHaveBeenCalledTimes(1);
+    // A push still re-reads: signing in or fixing the endpoint recovers without a remount.
+    push({ groupId: 'g1', change: 'messages' });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(getBotGroupListSnapshot().groups[0]!.name).toBe('周末出游');
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(listBotGroups).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
   it('lets a new push recover immediately and cancels the pending retry', async () => {
     listBotGroups.mockResolvedValueOnce({ ok: false });
     const stop = startBotGroupSync();

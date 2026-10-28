@@ -161,6 +161,7 @@ import {
   type DraftModelCalibrationResult,
 } from '@/lib/draftModelCalibration';
 import { resolveNewMakerDefaultTuple } from '@/lib/newMakerDefaultTuple';
+import { SELECTABLE_VENDORS } from '@/lib/agentVendors';
 import { showWorktreeError } from '@/lib/worktreeToast';
 import * as sessionService from '@/lib/sessionService';
 import { sessionsStore } from '@/lib/sessionsStore';
@@ -452,7 +453,7 @@ function draftEnableOrcaOptions(
   /** `providers` 是哪一处的目录(Agent 所在位置)；null = 任务所在电脑。 */
   providersAgentDeviceId: string | null = null,
 ) {
-  const preferredAgent: 'claude-code' | 'codex' | 'pi' =
+  const preferredAgent: 'claude-code' | 'codex' | 'pi' | 'hermes' =
     collab.worker === 'codex' ? 'codex' : collab.worker === 'pi' ? 'pi' : 'claude-code';
   // Worker 类型也是**设备作用域**的(codex review P2):在只连了 Codex 的设备 A 选了 Codex
   // Worker,切到只连 Claude 的设备 B 时,workerConfig 虽然被清了,collab.worker 仍是 codex,
@@ -461,7 +462,7 @@ function draftEnableOrcaOptions(
   // 没有已连接供应商、而另一个有,就改用另一个;两个都没有则原样透传,由 main 的精确
   // preflight 报可操作错误(不在这里编一个同样跑不起来的值)。
   // 仅在目录就绪时收窄,理由同下方 providerId:未就绪的空快照会误判成"都没有"。
-  const workerAgent: 'claude-code' | 'codex' | 'pi' = (() => {
+  const workerAgent: 'claude-code' | 'codex' | 'pi' | 'hermes' = (() => {
     if (!providersReady) return preferredAgent;
     if (connectedProvidersForAgent(providers, preferredAgent).length > 0) return preferredAgent;
     const fallback = (['claude-code', 'codex', 'pi'] as const).find(
@@ -846,9 +847,12 @@ export function NewMakerDraftRoute() {
    * 一格。改动前把 vendor 塞进快照再在失效效应里比,切走引擎会把**上一个引擎**的锚点判失效
    * 并清掉 —— 持久化之后那等于一切引擎只能记住最后一次选择。
    */
-  const draftFavoriteAnchor = useDraftFavoriteAnchor(normalizeDbAgentKind(draft.vendor));
-  const persistedAgentKind: 'cc' | 'codex' | 'pi' = normalizeDbAgentKind(draft.vendor);
-  const authVendor: 'cc' | 'codex' | 'pi' = persistedAgentKind;
+  // 'orca' 不是草稿槽(已被协同 toggle 取代),历史残留回落 cc;hermes 自 M2b 起是
+  // 真实草稿槽,保真透传。
+  const draftVendor = draft.vendor === 'orca' ? 'cc' : draft.vendor;
+  const draftFavoriteAnchor = useDraftFavoriteAnchor(draftVendor);
+  const persistedAgentKind = draftVendor;
+  const authVendor = persistedAgentKind;
   const capabilityAgentKind = dbToMakerAgentKind(persistedAgentKind);
 
   // 品牌区跟随当前主题；icon / logo 的固定布局统一由 ThemeBrandLockup 负责。
@@ -1046,7 +1050,7 @@ export function NewMakerDraftRoute() {
   );
   const hiddenSwitcherVendors = useMemo<MakerVendor[]>(() => {
     if (!availableAgentsLoaded) return [];
-    return (['cc', 'codex', 'pi'] as const).filter((vendor) => !availableVendors.has(vendor));
+    return SELECTABLE_VENDORS.filter((vendor) => !availableVendors.has(vendor));
   }, [availableAgentsLoaded, availableVendors]);
   /**
    * 「这份草稿要建到对端设备上」—— 只看 deviceId,**不再要求 workingDir**(#807)。
@@ -1312,7 +1316,10 @@ export function NewMakerDraftRoute() {
         isModelEnabled,
         providers: localProviders,
         providersLoading: localProvidersLoading,
-        availableAgents: availableVendors,
+        // 产品默认 tuple 只服务三家有目录模型的引擎;hermes 不参与推荐位。
+        availableAgents: new Set(
+          [...availableVendors].filter((vendor) => vendor !== 'hermes'),
+        ),
         availableAgentsLoaded,
       }),
     [localProviders, localProvidersLoading, availableVendors, availableAgentsLoaded, defaultVisibilityVersion],
@@ -1352,7 +1359,8 @@ export function NewMakerDraftRoute() {
   // 新旧用户统一使用 A。老被控端只有 capabilities、没有供应商目录时，
   // 保留兼容列表与引擎下拉；否则联合列表会为空，也无法切换引擎。
   const unifiedModelPanelEnabled = !catalogDeviceId || !deviceProvidersUnsupported;
-  const unifiedModelPanelActive = unifiedModelPanelEnabled;
+  // hermes 的单一模型不是目录行 —— 联合列表没有可展示条目,回落到引擎下拉 + 扁平列表。
+  const unifiedModelPanelActive = unifiedModelPanelEnabled && draft.vendor !== 'hermes';
   const remoteModelListStatus = !usesDeviceCatalog
     ? 'idle'
     : capabilitiesError || (deviceProvidersError && !deviceProvidersUnsupported)
@@ -2204,7 +2212,7 @@ export function NewMakerDraftRoute() {
   const carryDraftFavoriteAnchorToSession = useCallback(
     (
       newSessionId: string,
-      engine: 'cc' | 'codex' | 'pi',
+      engine: 'cc' | 'codex' | 'pi' | 'hermes',
       model: string,
       providerId: string | null,
     ): void => {
@@ -2450,7 +2458,9 @@ export function NewMakerDraftRoute() {
   const handleRemoteProjectAdded = useCallback(
     async (target: RemoteProjectTarget) => {
       // vendor 由外层 VendorSegmentedSwitcher (draft.vendor) 单一决策 —— dialog 不再让用户选。
-      const draftVendor: 'cc' | 'codex' | 'pi' = normalizeDbAgentKind(draft.vendor);
+      // 'orca' 是历史残留,回落 cc;hermes 保真(SSH 由 main fail closed,device-link 由
+      // 被控端按它自己的运行时执行)。
+      const draftVendor = draft.vendor === 'orca' ? 'cc' as const : draft.vendor;
 
       if (target.kind === 'device-link') {
         // device-link:**不**像 SSH 立即建会话(会在被控端留空会话)。改为把当前草稿指向该被控
@@ -3536,7 +3546,9 @@ export function NewMakerDraftRoute() {
       },
     ): Promise<boolean | undefined> => {
       if (sendInFlightRef.current) return false;
-      if (effectiveCollab.enabled && collabPolicy.loading) {
+      // hermes Lead v1 不接 Orca Worker:遗留的协同开关不能阻塞/改写 hermes 发送。
+      const collabRequested = effectiveCollab.enabled && persistedAgentKind !== 'hermes';
+      if (collabRequested && collabPolicy.loading) {
         toast.warning(t('newChat.collaboration.loadingHint'));
         return false;
       }
@@ -3544,7 +3556,7 @@ export function NewMakerDraftRoute() {
       let policyUnavailable = collabPolicy.unavailable;
       // 被控端版本过旧 → 确定性不支持,重取毫无意义(下面的 refresh 只对 unavailable 触发)。
       let policyUnsupported = collabPolicy.unsupported;
-      if (effectiveCollab.enabled && policyUnavailable) {
+      if (collabRequested && policyUnavailable) {
         // 这是 handleSend 里**第一个** await,必须先上在途锁(Codex review P1):不上锁的话,协同策略
         // 重取期间设备 pill / 工作区 pill 仍可点,而本次调用的闭包持有的是旧设备与旧工作区 ——
         // 会话建在旧目标上,随后 resetDraftWorkspaceAfterSend 又把用户刚选的新目标清掉。
@@ -3563,7 +3575,7 @@ export function NewMakerDraftRoute() {
           markSendInFlight(false);
         }
       }
-      if (effectiveCollab.enabled && (policyUnavailable || policyUnsupported || !policyEnabled)) {
+      if (collabRequested && (policyUnavailable || policyUnsupported || !policyEnabled)) {
         toast.warning(
           t(
             policyUnsupported
@@ -3575,7 +3587,7 @@ export function NewMakerDraftRoute() {
         );
         return false;
       }
-      const shouldEnableCollab = effectiveCollab.enabled && collabPolicyEligible && policyEnabled;
+      const shouldEnableCollab = collabRequested && collabPolicyEligible && policyEnabled;
       // device-link 切设备后,capabilities/providers hook 可能还没 re-render 到新设备快照;
       // 此时 effectiveFastMode / supportsFastMode / sendProviderId 仍基于旧设备。
       // remoteDraftState 必须一起看:换设备时我们会把它打回 loading(防上一台的默认值串台),
@@ -4180,7 +4192,7 @@ export function NewMakerDraftRoute() {
           // agent 启动时看到的工作区已是迁移后的状态。fail-soft：检测错误只 warn，不阻塞 send。
           try {
             const wd = effectiveWorkingDir;
-            if (wd && !isRemoteProjectDraft && persistedAgentKind !== 'pi') {
+            if (wd && !isRemoteProjectDraft && persistedAgentKind !== 'pi' && persistedAgentKind !== 'hermes') {
               const r = await crossAgentConvertService.detect(
                 wd,
                 persistedAgentKind === 'cc' ? 'claude-code' : persistedAgentKind,
@@ -4897,7 +4909,8 @@ export function NewMakerDraftRoute() {
             throw new Error(t('newChat.collaboration.disabledHint'));
           }
         }
-        const shouldEnableCollab = effectiveCollab.enabled && collabPolicyEligible && policyEnabled;
+        const shouldEnableCollab = effectiveCollab.enabled && collabPolicyEligible && policyEnabled
+          && persistedAgentKind !== 'hermes';
         // 同 handleSend:remoteDraftState 未就绪时不得放行,否则提交 capability 兜底值而非该设备的
         // 草稿值(缓存已热时另两个 loading 会立刻为 false,拦不住)。
         if (usesDeviceCatalog && remoteModelListStatus === 'error') {
@@ -5909,7 +5922,8 @@ export function NewMakerDraftRoute() {
                     // 右侧常驻显示),高级调整收进行配置浮层。仅在老被控端
                     // capabilities-only 降级时恢复独立引擎下拉。
                     middleToolbarSlot={
-                      unifiedModelPanelActive ? undefined : (
+                      unifiedModelPanelActive
+                      && !(availableAgentsLoaded && availableVendors.has('hermes')) ? undefined : (
                         <AgentSelect
                           value={draft.vendor}
                           onChange={handleVendorChange}
@@ -5929,7 +5943,8 @@ export function NewMakerDraftRoute() {
                     // 走它而非简单 worker popover。ON 态点击 onChange(enabled:false) 关闭协同。
                     // createSession 后按本次策略校验结果用 workerConfig 拉起 Worker。
                     collaboration={
-                      collabPolicyEligible
+                      // hermes Lead v1 不接 Orca Worker;不展示注定失败的协同入口。
+                      collabPolicyEligible && persistedAgentKind !== 'hermes'
                         ? {
                             enabled: effectiveCollab.enabled,
                             worker: effectiveCollab.worker,
@@ -5965,7 +5980,8 @@ export function NewMakerDraftRoute() {
                         : undefined
                     }
                     compactMiddleToolbarSlot={
-                      unifiedModelPanelActive ? undefined : (
+                      unifiedModelPanelActive
+                      && !(availableAgentsLoaded && availableVendors.has('hermes')) ? undefined : (
                         <AgentSelect
                           value={draft.vendor}
                           onChange={handleVendorChange}

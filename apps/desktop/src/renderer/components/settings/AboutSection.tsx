@@ -21,14 +21,9 @@ import { Button } from '@/components/ui/button';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog-provider';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useExperimentalFlag } from '@/hooks/useExperimentalFeatures';
-import { useAutoUpdateSettings } from '@/hooks/useAutoUpdateSettings';
-import { useAnalyticsSettings } from '@/hooks/useAnalyticsSettings';
-import { useLogUploadSettings } from '@/hooks/useLogUploadSettings';
-import { OpenLogsRow, UploadLogsRow } from '@/components/log-support/LogSupportActions';
+import { OpenLogsRow } from '@/components/log-support/LogSupportActions';
 import { PiKernelVersionRow } from './PiKernelVersionRow';
 import { HARNESS_MENU_ITEM_CLASS, HarnessMenuFootnote, HarnessVersionMenuItem, HarnessVersionMenuRow } from './HarnessVersionMenuRow';
-import { DefaultOverrideControls } from './DefaultOverrideControls';
-import { CURRENT_CINDY_REGION } from '../../../shared/brandRegion';
 import { LEGAL_LINKS } from '../../../shared/legalLinks';
 
 type UpdatableAgentKind = 'claude-code' | 'codex';
@@ -40,6 +35,8 @@ interface AgentVersionState {
   updateAvailable: boolean;
   checking: boolean;
   checkFailed: boolean;
+  /** This build has no update channel at all (dev / endpoint blank): not an error. */
+  checkUnavailable: boolean;
   /** Last successful online comparison (renderer clock); a failed check keeps the previous one. */
   checkedAt: number | null;
   error?: string;
@@ -52,6 +49,7 @@ const INITIAL: AgentVersionState = {
   updateAvailable: false,
   checking: false,
   checkFailed: false,
+  checkUnavailable: false,
   checkedAt: null,
 };
 
@@ -104,13 +102,14 @@ function useAgentBinaryVersion(kind: UpdatableAgentKind): { state: AgentVersionS
             latestVersion: failed ? prev.latestVersion : latest.latestVersion,
             updateAvailable: failed ? false : latest.updateAvailable,
             checkFailed: failed,
+            checkUnavailable: latest.latestCheckUnavailable,
             checkedAt: failed ? prev.checkedAt : Date.now(),
             checking: false,
           }));
         },
         () => {
           if (mounted.current) {
-            setState((prev) => ({ ...prev, checking: false, checkFailed: true, updateAvailable: false }));
+            setState((prev) => ({ ...prev, checking: false, checkFailed: true, checkUnavailable: false, updateAvailable: false }));
           }
         },
       )
@@ -228,11 +227,13 @@ function AgentVersionRow({
   };
   const status = state.checking
     ? t('settings.about.harnessChecking')
-    : state.checkFailed
-      ? t('settings.about.harnessCheckFailed')
-      : updateAvailable
-        ? t('settings.about.harnessUpdateAvailable')
-        : '';
+    : state.checkUnavailable
+      ? t('settings.about.harnessCheckUnavailable')
+      : state.checkFailed
+        ? t('settings.about.harnessCheckFailed')
+        : updateAvailable
+          ? t('settings.about.harnessUpdateAvailable')
+          : '';
 
   const handleUpdate = async () => {
     if (!canUpdate() || !currentVersion || !latestVersion) return;
@@ -293,9 +294,11 @@ function AgentVersionRow({
         onSelect={() => void handleUpdate()}
       />
       <DropdownMenuSeparator />
-      <DropdownMenuItem className={HARNESS_MENU_ITEM_CLASS} disabled={state.checking} onSelect={onCheck}>
-        {state.checking ? t('settings.about.harnessChecking') : t('settings.about.harnessCheck')}
-      </DropdownMenuItem>
+      {!state.checkUnavailable && (
+        <DropdownMenuItem className={HARNESS_MENU_ITEM_CLASS} disabled={state.checking} onSelect={onCheck}>
+          {state.checking ? t('settings.about.harnessChecking') : t('settings.about.harnessCheck')}
+        </DropdownMenuItem>
+      )}
       {state.checkedAt && (
         <HarnessMenuFootnote>
           {t('settings.about.harnessCheckedAt', { time: new Date(state.checkedAt).toLocaleString(i18n.language) })}
@@ -327,31 +330,19 @@ export function AboutSection() {
           'border border-[var(--settings-theme-card-border)]',
         )}
       >
-        {CURRENT_CINDY_REGION === 'cn' && (
-          <>
-            <InfoRow
-              label={t('settings.about.appVersionLabel')}
-              value={window.electronAPI.appDisplayVersion}
-              title={window.electronAPI.appDisplayVersionDetail}
-            />
-            <Divider />
-          </>
-        )}
-        <AutoUpdateToggleRow />
+        <InfoRow
+          label={t('settings.about.appVersionLabel')}
+          value={window.electronAPI.appDisplayVersion}
+          title={window.electronAPI.appDisplayVersionDetail}
+        />
         <Divider />
-        <AnalyticsToggleRow />
-        <Divider />
+        {/* 无 CDN 端点的构建没有应用自动更新与版本对比通道:不渲染死开关,
+            harness 行自带「此构建无法检查更新」的说明。 */}
         <AgentVersionsRows />
         <DebugLogToggleRow />
         <Divider />
         <div id="settings-search-settings-about-logsDirLabel">
           <OpenLogsRow />
-        </div>
-        <Divider />
-        <CrashAutoUploadToggleRow />
-        <Divider />
-        <div id="settings-search-settings-about-logUpload-uploadLabel">
-          <UploadLogsRow />
         </div>
         <Divider />
         <LegalLinksRows />
@@ -508,86 +499,6 @@ function SocialPlatformIcon({ id }: { id: (typeof DESKTOP_SOCIAL_LINKS)[number][
   );
 }
 
-export function AutoUpdateToggleRow() {
-  const { t } = useTranslation();
-  const isLinux = window.electronAPI?.platform === 'linux';
-  const { state, setAutoRelaunchOnIdle, reset } = useAutoUpdateSettings();
-  const [saving, setSaving] = useState(false);
-
-  if (isLinux) {
-    return (
-      <div className="flex flex-col gap-1.5 px-[18px] py-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <span id="settings-search-settings-about-autoUpdateLabel" className="text-13 text-[var(--settings-section-sublabel)]">
-            {t('settings.about.autoUpdateLabel')}
-          </span>
-          <p className="text-12 leading-[1.4] text-[var(--text-secondary)]">
-            {t('settings.about.linuxUpdateDescription')}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const handleToggle = async (next: boolean) => {
-    setSaving(true);
-    try {
-      await setAutoRelaunchOnIdle(next);
-      toast.success(
-        next
-          ? t('settings.about.autoUpdateEnabledToast')
-          : t('settings.about.autoUpdateDisabledToast'),
-      );
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('settings.about.autoUpdateSaveFailed'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleReset = async () => {
-    setSaving(true);
-    try {
-      await reset();
-      toast.success(t('settings.defaults.restored'));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('settings.defaults.restoreFailed'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const disabled = state.loading || saving;
-
-  return (
-    <div className="flex flex-col gap-1.5 px-[18px] py-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <span id="settings-search-settings-about-autoUpdateLabel" className="text-13 text-[var(--settings-section-sublabel)]">
-            {t('settings.about.autoUpdateLabel')}
-          </span>
-          <p className="text-12 leading-[1.4] text-[var(--text-secondary)]">
-            {t('settings.about.autoUpdateDescription')}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <DefaultOverrideControls
-            isCustomized={state.isCustomized}
-            disabled={disabled}
-            onReset={handleReset}
-          />
-          <Switch
-            checked={state.autoRelaunchOnIdle}
-            disabled={disabled}
-            onCheckedChange={handleToggle}
-            aria-label={t('settings.about.autoUpdateLabel')}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /**
  * 使用统计(TapDB)开关。
  *
@@ -599,71 +510,6 @@ export function AutoUpdateToggleRow() {
  * 不是配置项,不会被它清掉(configuration-and-overrides §4)。没有这个入口的话,
  * 用户把开关拨回当前默认值写入的是一个显式 true,此后再也跟不上默认值的变化。
  */
-function AnalyticsToggleRow() {
-  const { t } = useTranslation();
-  const { state, setAnalyticsEnabled, resetAnalyticsEnabled } = useAnalyticsSettings();
-  const [saving, setSaving] = useState(false);
-
-  const handleToggle = async (next: boolean) => {
-    setSaving(true);
-    try {
-      await setAnalyticsEnabled(next);
-      toast.success(
-        next
-          ? t('settings.about.analyticsEnabledToast')
-          : t('settings.about.analyticsDisabledToast'),
-      );
-    } catch {
-      // 不透传 err.message:main 侧的 IPC 错误串是英文技术串(`[INTERNAL] ...`),
-      // 直接 toast 出去会让非中文用户看到不可读的内部信息。错误码只用于分支,
-      // 展示一律走本地化文案。
-      toast.error(t('settings.about.analyticsSaveFailed'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleReset = async () => {
-    setSaving(true);
-    try {
-      await resetAnalyticsEnabled();
-      toast.success(t('settings.defaults.restored'));
-    } catch {
-      toast.error(t('settings.defaults.restoreFailed'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-1.5 px-[18px] py-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <span id="settings-search-settings-about-analyticsLabel" className="text-13 text-[var(--settings-section-sublabel)]">
-            {t('settings.about.analyticsLabel')}
-          </span>
-          <p className="text-12 leading-[1.4] text-[var(--text-secondary)]">
-            {t('settings.about.analyticsDescription')}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <DefaultOverrideControls
-            isCustomized={state.analyticsEnabledCustomized}
-            disabled={state.loading || saving}
-            onReset={handleReset}
-          />
-          <Switch
-            checked={state.analyticsEnabled}
-            disabled={state.loading || saving}
-            onCheckedChange={handleToggle}
-            aria-label={t('settings.about.analyticsLabel')}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /**
  * Debug 日志开关。
  *
@@ -701,84 +547,6 @@ function DebugLogToggleRow() {
       <p className="text-12 leading-[1.4] text-[var(--text-secondary)] pr-12">
         {t('settings.about.debugLogDescription')}
       </p>
-    </div>
-  );
-}
-
-/**
- * 「崩溃时自动上传日志」开关。**默认关闭**。
- *
- * 语义是 opt-in:必须已同意《隐私政策》**且**用户显式打开,崩溃现场才会被自动送达。
- * 关掉开关会立刻清掉已有的待补传标记(main 侧做),不会在下次启动偷偷补传。
- *
- * 「恢复默认」删掉这条 override 重新跟随版本默认值;因为默认值就是关闭,用户「打开又关掉」
- * 会留痕(main 侧 preserveDefaults),这也是合规问询时能自证的依据。
- */
-function CrashAutoUploadToggleRow() {
-  const { t } = useTranslation();
-  const { state, setCrashAutoUpload, resetCrashAutoUpload } = useLogUploadSettings();
-  const [saving, setSaving] = useState(false);
-
-  const handleToggle = async (next: boolean) => {
-    setSaving(true);
-    try {
-      await setCrashAutoUpload(next);
-      toast.success(
-        next
-          ? t('settings.about.logUpload.crashAutoEnabledToast')
-          : t('settings.about.logUpload.crashAutoDisabledToast'),
-      );
-    } catch {
-      // 不透传 err.message:main 侧的 IPC 错误串是英文技术串,直接 toast 会让非中文用户
-      // 看到不可读的内部信息。
-      toast.error(t('settings.about.logUpload.saveFailed'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleReset = async () => {
-    setSaving(true);
-    try {
-      await resetCrashAutoUpload();
-      toast.success(t('settings.defaults.restored'));
-    } catch {
-      toast.error(t('settings.defaults.restoreFailed'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // 未配置上报目标 / 未同意隐私政策时开关不可用 —— 打开它也不会有任何效果,
-  // 让它可拨只会造成「我开了却没传」的误解。
-  const blocked = !state.targetConfigured || !state.privacyConsentAccepted;
-  const disabled = state.loading || saving || blocked;
-
-  return (
-    <div className="flex flex-col gap-1.5 px-[18px] py-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <span id="settings-search-settings-about-logUpload-crashAutoLabel" className="text-13 text-[var(--settings-section-sublabel)]">
-            {t('settings.about.logUpload.crashAutoLabel')}
-          </span>
-          <p className="text-12 leading-[1.4] text-[var(--text-secondary)]">
-            {t('settings.about.logUpload.crashAutoDescription')}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <DefaultOverrideControls
-            isCustomized={state.crashAutoUploadCustomized}
-            disabled={state.loading || saving}
-            onReset={handleReset}
-          />
-          <Switch
-            checked={state.crashAutoUploadEnabled}
-            disabled={disabled}
-            onCheckedChange={handleToggle}
-            aria-label={t('settings.about.logUpload.crashAutoLabel')}
-          />
-        </div>
-      </div>
     </div>
   );
 }

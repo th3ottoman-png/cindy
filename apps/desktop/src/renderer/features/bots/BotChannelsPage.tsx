@@ -28,7 +28,6 @@ import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Select } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { WechatBotSection } from '@/components/settings/WechatBotSection';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import { formatRelative } from '@/hooks/useRelativeTime';
@@ -119,11 +118,10 @@ export function BotChannelsPage({ bot }: { bot: BotProfile }) {
   const { t } = useBotTranslation();
   // This computer's messaging stack, or the teammate's computer's through the settings target.
   const target = useBotSettingsTarget();
-  const { im, wechat, x: remoteX } = target.channels;
+  const { im, x: remoteX } = target.channels;
   const { payload, loading, apply } = useBotImConnections(im, target);
   const { confirm } = useConfirmDialog();
   const [adding, setAdding] = useState(false);
-  const [wechatExpanded, setWechatExpanded] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   const mine = (payload?.connections ?? []).filter((item) => item.botId === bot.id);
@@ -249,14 +247,6 @@ export function BotChannelsPage({ bot }: { bot: BotProfile }) {
           {t('bots.channels.add.button')}
         </Button>
       </div>
-      {wechat ? (
-        <WechatBotSection companion={{ id: bot.id, name: bot.name }} expanded={wechatExpanded}
-          host={{ name: target.deviceName ?? '', api: wechat }}
-          onToggle={() => setWechatExpanded((expanded) => !expanded)} />
-      ) : target.kind === 'local' && typeof window.electronAPI.wechatBot?.setCompanion === 'function' ? (
-        <WechatBotSection companion={{ id: bot.id, name: bot.name }} expanded={wechatExpanded}
-          onToggle={() => setWechatExpanded((expanded) => !expanded)} />
-      ) : null}
       <p className="px-1 text-12 leading-[1.5] text-[var(--text-tertiary)]">
         {t('bots.channels.externalNote', { name: bot.name })}
       </p>
@@ -635,7 +625,8 @@ function ConnectionLanes({ api, connectionId, botName, platform, deviceId }: {
   );
 }
 
-const PLATFORMS: ReadonlyArray<BotImChannel> = ['telegram', 'feishu', 'wecom', 'dingtalk', 'discord'];
+// 本地私有构建只保留 Telegram(其余渠道已下架,main 侧 adapter 未动)。
+const PLATFORMS: ReadonlyArray<BotImChannel> = ['telegram'];
 
 /** 个人 bot 给人看的身份: Telegram @用户名 / Discord 标签原样, 其它平台的 id 打码。 */
 function adoptableIdentity(item: BotImAdoptablePersonalBot): string | undefined {

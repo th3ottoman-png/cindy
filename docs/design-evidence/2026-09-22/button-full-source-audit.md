@@ -39,7 +39,7 @@ Production calls now contain 509 shared Button JSX references across 170 files. 
 | --- | ---: | --- |
 | components/settings/TelegramRemoteDevices.tsx | 234 | variant="secondary" size="sm" compact loading={busyDeviceId === d.deviceId} |
 | components/settings/RemoteDesktopPermissions.tsx | 102 | variant="secondary" size="sm" compact tone="quiet" |
-| components/settings/HelpAssistantPanel.tsx | 26 | variant="secondary" size="sm" compact |
+| ~~components/settings/HelpAssistantPanel.tsx~~ (file removed 2026-10-27 with the Help feature) | 26 | variant="secondary" size="sm" compact |
 | components/settings/PiPackagesSection.tsx | 343 | variant="secondary" size="md" compact loading={busy?.action === "install"} |
 | components/settings/PiPackagesSection.tsx | 393 | variant="secondary" size="md" compact |
 | features/cc-agent/HomeZeroModelAction.tsx | 37 | variant="cta" size="lg" compact |

@@ -615,7 +615,7 @@ function RemoteModelLoadNotice({
 }
 
 export interface ModelSelectorAgentIdentity {
-  vendorKey: 'cc' | 'codex' | 'pi';
+  vendorKey: 'cc' | 'codex' | 'pi' | 'hermes';
   /**
    * current = 已由会话/runtime 元数据确认的当前 Agent；
    * pending = 已登记、将在下一条消息应用的切换目标。
@@ -627,8 +627,8 @@ export function resolveModelSelectorAgentIdentity(
   runtimeAgentKind: AgentKind | null | undefined,
   pendingTarget: AgentKind | null | undefined,
 ): ModelSelectorAgentIdentity | undefined {
-  const toVendorKey = (kind: AgentKind): 'cc' | 'codex' | 'pi' =>
-    kind === 'codex' ? 'codex' : kind === 'pi' ? 'pi' : 'cc';
+  const toVendorKey = (kind: AgentKind): 'cc' | 'codex' | 'pi' | 'hermes' =>
+    kind === 'codex' ? 'codex' : kind === 'pi' ? 'pi' : kind === 'hermes' ? 'hermes' : 'cc';
   if (pendingTarget) {
     return {
       vendorKey: toVendorKey(pendingTarget),
@@ -767,7 +767,7 @@ interface ModelSelectorProps {
   /** 非选中模型行的 effort/fast 全局预设读写器(按本机 / 被控设备隔离)。 */
   modelMemory?: ModelMemoryAccessors;
   /** When provided, only models with this vendorKey are shown in the dropdown. */
-  vendorKey?: 'cc' | 'codex' | 'pi';
+  vendorKey?: 'cc' | 'codex' | 'pi' | 'hermes';
   /**
    * 已创建会话的 trigger 同时展示 Agent 与模型，避免 Claude Code 使用 OpenAI 模型时
    * 只看来源图标而误判成 Codex。必须由权威 session/runtime 身份或明确切换 intent 提供，
@@ -855,7 +855,7 @@ interface ModelSelectorProps {
    * (含「即将切到 X」),但 title / aria-label 仍原样保留那份措辞 —— 读屏与 hover
    * 拿得到的信息不减,只是视觉上换成图标。
    */
-  engineMarkVendor?: SelectableVendor | null;
+  engineMarkVendor?: SelectableVendor | 'hermes' | null;
   /** 语义同 ModelSelectorContentProps.selectedFavoriteUid（统一面板的收藏锚点选中态）。 */
   selectedFavoriteUid?: string | null;
   /** 语义同 ModelSelectorContentProps.onSessionFavoriteAnchorChange（会话内收藏锚点回传）。 */
@@ -891,7 +891,7 @@ interface ModelSelectorProps {
    * device-link / SSH 远程不传(v1 不支持切换)。
    */
   agentSwitch?: {
-    currentVendor: 'cc' | 'codex' | 'pi';
+    currentVendor: 'cc' | 'codex' | 'pi' | 'hermes';
     /**
      * 进入非当前 Agent 浏览态前确认；false 时保持原分段，什么都不改。
      *
@@ -899,7 +899,7 @@ interface ModelSelectorProps {
      * 判据是「会话上已有**指向该目标**的切换意图」。不传目标,它只能判「有没有意图」,
      * 于是先切 Codex 再选 Pi 时确认框永久静默(见 agentSwitchConfirmation.hasSwitchIntent)。
      */
-    confirmBrowseSwitch?: (targetVendor: 'cc' | 'codex' | 'pi') => Promise<boolean>;
+    confirmBrowseSwitch?: (targetVendor: 'cc' | 'codex' | 'pi' | 'hermes') => Promise<boolean>;
     /**
      * 返回值(若有)= 切换事务**真的登记成功了没有**;本两步分段路径不消费它,
      * 声明成宽联合只是为了让同一个 `performAgentSwitch` 能同时喂给这里与统一面板的
@@ -934,7 +934,7 @@ interface ModelSelectorContentProps {
   thinkingEnabled?: boolean;
   onThinkingChange?: (enabled: boolean) => void | Promise<void>;
   modelMemory?: ModelMemoryAccessors;
-  vendorKey?: 'cc' | 'codex' | 'pi';
+  vendorKey?: 'cc' | 'codex' | 'pi' | 'hermes';
   /** device-link 远程会话所属被控端 id(列被控端模型)。 */
   deviceId?: string;
   /** 远程 Agent 选择入口(语义同 ModelSelectorProps.remoteAgent)。 */
@@ -1036,7 +1036,7 @@ interface ModelSelectorContentProps {
     anchor: {
       uid: string;
       wireModelId: string;
-      engine: 'cc' | 'codex' | 'pi';
+      engine: 'cc' | 'codex' | 'pi' | 'hermes';
       /** 选中时的显式来源。来源也是锚点身份的一部分:同 wire id 同引擎、仅来源不同的
        *  配置是两份配置,少了它,别的窗口把会话来源从 A 切到 B 后,面板仍在 A 的收藏上
        *  打勾(2026-08-17 review)。 */
@@ -1061,7 +1061,7 @@ interface ModelSelectorContentProps {
     modelId: string;
     /** 该行生效档位;该 (模型, 引擎) 不可调档时为 undefined。 */
     effort?: Effort;
-    engine: 'cc' | 'codex' | 'pi';
+    engine: 'cc' | 'codex' | 'pi' | 'hermes';
     fast: boolean | 'ultrafast';
     favoriteUid: string | null;
     /** 配置浮层「恢复推荐」的应用动作；调用方应删除 override，不得重新记忆推荐值。 */
@@ -1087,9 +1087,9 @@ interface ModelSelectorContentProps {
   fluidWidth?: boolean;
   /** 语义同 ModelSelectorProps.agentSwitch(显式两步引擎切换)。 */
   agentSwitch?: {
-    currentVendor: 'cc' | 'codex' | 'pi';
+    currentVendor: 'cc' | 'codex' | 'pi' | 'hermes';
     /** 语义同 ModelSelectorProps.agentSwitch.confirmBrowseSwitch(带本次目标引擎)。 */
-    confirmBrowseSwitch?: (targetVendor: 'cc' | 'codex' | 'pi') => Promise<boolean>;
+    confirmBrowseSwitch?: (targetVendor: 'cc' | 'codex' | 'pi' | 'hermes') => Promise<boolean>;
     /**
      * 返回值(若有)= 切换事务**真的登记成功了没有**;本两步分段路径不消费它,
      * 声明成宽联合只是为了让同一个 `performAgentSwitch` 能同时喂给这里与统一面板的
@@ -1117,10 +1117,11 @@ interface ModelSelectorContentProps {
   interactionDisabled?: boolean;
 }
 
-function vendorKeyToAgentKind(v?: 'cc' | 'codex' | 'pi'): AgentKind | null {
+function vendorKeyToAgentKind(v?: 'cc' | 'codex' | 'pi' | 'hermes'): AgentKind | null {
   if (v === 'cc') return 'claude-code';
   if (v === 'codex') return 'codex';
   if (v === 'pi') return 'pi';
+  if (v === 'hermes') return 'hermes';
   return null;
 }
 
@@ -1148,6 +1149,7 @@ export function resolveRemoteModelListStatus({
   cc,
   codex,
   pi,
+  hermes,
   providers,
 }: {
   deviceId?: string;
@@ -1155,11 +1157,18 @@ export function resolveRemoteModelListStatus({
   cc: RemoteCapabilityLoadState;
   codex: RemoteCapabilityLoadState;
   pi: RemoteCapabilityLoadState;
+  hermes?: RemoteCapabilityLoadState;
   providers: RemoteProviderLoadState;
 }): RemoteModelListStatus {
   if (!deviceId) return 'idle';
   const required = agentKind
-    ? [agentKind === 'claude-code' ? cc : agentKind === 'codex' ? codex : pi]
+    ? [agentKind === 'claude-code'
+      ? cc
+      : agentKind === 'codex'
+        ? codex
+        : agentKind === 'hermes'
+          ? (hermes ?? pi)
+          : pi]
     : [cc, codex, pi];
   if (required.some((state) => !!state.error)) return 'error';
   if (providers.error && !providers.unsupported) return 'error';
@@ -1316,11 +1325,12 @@ function ModelSelectorContentView({
   const modelTagDensity = modelTagDensityForWidth(paneWidth ?? (fluidWidth ? null : 320));
   // session-agent-switch:两步式引擎切换的浏览态。browseVendor 初始 = 会话当前引擎;
   // 切到另一家 tab 只是「浏览目标引擎的模型」,选中模型行才真正触发切换事务。
-  const [browseVendor, setBrowseVendor] = useState<'cc' | 'codex' | 'pi'>(
+  const [browseVendor, setBrowseVendor] = useState<'cc' | 'codex' | 'pi' | 'hermes'>(
     agentSwitch?.currentVendor ?? vendorKey ?? 'cc',
   );
   const browseSwitchPendingRef = useRef(false);
-  const handleBrowseVendorChange = async (next: 'cc' | 'codex' | 'pi') => {
+  const handleBrowseVendorChange = async (next: 'cc' | 'codex' | 'pi' | 'hermes') => {
+    if (next === 'hermes') return; // hermes v1 不进引擎浏览态(无 tab、无模型)
     if (interactionDisabled || next === browseVendor || browseSwitchPendingRef.current) return;
     // 返回当前引擎（含已有意图时浏览原引擎准备撤销）不需要确认；只有从
     // currentVendor 进入另一 Agent 浏览态才调用上层风险确认。确认前绝不翻分段。
@@ -1347,7 +1357,13 @@ function ModelSelectorContentView({
   const unifiedAgents = (browsingSelectedCatalog ? requestedUnifiedAgents : undefined) ??
     (vendorKey && agentKind && !onUnifiedSelect && !sessionEngineFilter ? [agentKind] : undefined);
   const browseTargetLabel =
-    browseVendor === 'codex' ? 'Codex' : browseVendor === 'pi' ? 'Pi' : 'Claude Code';
+    browseVendor === 'codex'
+      ? 'Codex'
+      : browseVendor === 'pi'
+        ? 'Pi'
+        : browseVendor === 'hermes'
+          ? 'Hermes'
+          : 'Claude Code';
   const enqueueAgentSwitch = (
     targetAgentKind: 'claude-code' | 'codex' | 'pi',
     targetModelId: string,
@@ -1363,6 +1379,7 @@ function ModelSelectorContentView({
   const cc = useAgentCapabilities('claude-code', deviceId);
   const codex = useAgentCapabilities('codex', deviceId);
   const pi = useAgentCapabilities('pi', deviceId);
+  const hermes = useAgentCapabilities('hermes', deviceId);
   // 本机折扣 GPT 仍按本机 API key gate；device-link 必须只看被控端 provider 状态。
   // 旧被控端不支持 provider:list 时按远端 capabilities 退化，不得误用控制端 key。
   const { hasSavedKey } = useApiKey();
@@ -1388,7 +1405,9 @@ function ModelSelectorContentView({
     [deviceId, providersOverride],
   );
   // Old device-link hosts expose capabilities only. Never substitute local routes.
-  const unifiedPanel = useUnifiedPanel && !(deviceId && remoteProviders.unsupported);
+  // hermes 的单一模型不是目录行,联合列表没有可展示条目 —— 走扁平单模型列表。
+  const unifiedPanel =
+    useUnifiedPanel && agentKind !== 'hermes' && !(deviceId && remoteProviders.unsupported);
   const providersLoading = deviceId ? remoteProviders.loading : !providersOverride && localProviders.loading;
   const remoteModelListStatus = resolveRemoteModelListStatus({
     deviceId,
@@ -1396,6 +1415,7 @@ function ModelSelectorContentView({
     cc,
     codex,
     pi,
+    hermes,
     providers: remoteProviders,
   });
   // 分享来的供应商：分享者电脑上的 Cindy 太旧，只答得了模型目录、答不了 Agent 能力
@@ -1909,6 +1929,7 @@ function ModelSelectorContentView({
         deviceCcModels: cc.capabilities?.availableModels ?? [],
         deviceCodexModels: codex.capabilities?.availableModels ?? [],
         devicePiModels: pi.capabilities?.availableModels ?? [],
+        hermesModels: hermes.capabilities?.availableModels ?? [],
         excludeSubscriptionDirect,
         excludeChatBridgedCodex,
       }),
@@ -1919,6 +1940,7 @@ function ModelSelectorContentView({
       cc.capabilities,
       codex.capabilities,
       pi.capabilities,
+      hermes.capabilities,
       excludeSubscriptionDirect,
       excludeChatBridgedCodex,
     ],
@@ -2210,7 +2232,8 @@ function ModelSelectorContentView({
     // 会话选择器 / IM `/model` 的同一套「已连接来源 × 用户可见模型」规则。否则设置页里
     // 已忽略或仅由断开来源提供的目录项仍会被列出来，选中后没有可用路由。
     // device-link 使用被控端 override；旧被控端没有快照时保持历史 fail-open。
-    const selectableIds = deviceId
+    // hermes 的唯一模型不来自供应商目录,可见性规则不适用。
+    const selectableIds = agentKind === 'hermes' ? null : deviceId
       ? remoteProviders.modelVisibilityOverrides === undefined
         ? null
         : new Set(
@@ -3187,6 +3210,7 @@ function ModelSelectorContentView({
     sourcesEnabled &&
     !deviceId &&
     currentAgentKind &&
+    currentAgentKind !== 'hermes' &&
     !providersLoading &&
     connected.length === 0 ? (
       <div className="flex flex-col gap-[14px] p-2">
@@ -4120,7 +4144,7 @@ export function ModelSelector({
     if (!confirmBrowseSwitch) return agentSwitch;
     return {
       ...agentSwitch,
-      confirmBrowseSwitch: async (targetVendor: 'cc' | 'codex' | 'pi') => {
+      confirmBrowseSwitch: async (targetVendor: 'cc' | 'codex' | 'pi' | 'hermes') => {
         setKeepOpenForAgentConfirmation(true);
         try {
           return await confirmBrowseSwitch(targetVendor);
@@ -4182,6 +4206,7 @@ export function ModelSelector({
   const cc = useAgentCapabilities('claude-code', deviceId);
   const codex = useAgentCapabilities('codex', deviceId);
   const pi = useAgentCapabilities('pi', deviceId);
+  const hermes = useAgentCapabilities('hermes', deviceId);
   const gatewayPricing = useGatewayModelPricing();
   const referencePricing = useReferenceModelPricing();
   const { accountTier: modelAccessAccountTier } = useModelAccessStatus();
@@ -4191,20 +4216,29 @@ export function ModelSelector({
   const remoteProviders = useDeviceProviders(deviceId);
   const providers = deviceId ? remoteProviders.providers : providersOverride ?? localProviders.providers;
   // Old device-link hosts expose capabilities only. Never substitute local routes.
-  const unifiedPanel = useUnifiedPanel && !(deviceId && remoteProviders.unsupported);
+  // hermes 的单一模型不是目录行,联合列表没有可展示条目 —— 走扁平单模型列表。
+  const unifiedPanel =
+    useUnifiedPanel && agentKind !== 'hermes' && !(deviceId && remoteProviders.unsupported);
   const remoteModelListStatus = resolveRemoteModelListStatus({
     deviceId,
     agentKind,
     cc,
     codex,
     pi,
+    hermes,
     providers: remoteProviders,
   });
   const remoteModelLoading = providersOverrideState?.status === 'loading' || (!!deviceId && remoteModelListStatus === 'loading');
   const remoteModelLoadFailed = providersOverrideState?.status === 'error' || (!!deviceId && remoteModelListStatus === 'error');
   const localModelLoading = !deviceId && !providersOverride && !localProviders.loadFailed && (
     localProviders.loading ||
-    (agentKind === 'codex' ? codex.loading : agentKind === 'pi' ? pi.loading : cc.loading)
+    (agentKind === 'codex'
+      ? codex.loading
+      : agentKind === 'pi'
+        ? pi.loading
+        : agentKind === 'hermes'
+          ? hermes.loading
+          : cc.loading)
   );
   const visibleModels = useMemo(
     () =>
@@ -4215,6 +4249,7 @@ export function ModelSelector({
         deviceCcModels: cc.capabilities?.availableModels ?? [],
         deviceCodexModels: codex.capabilities?.availableModels ?? [],
         devicePiModels: pi.capabilities?.availableModels ?? [],
+        hermesModels: hermes.capabilities?.availableModels ?? [],
         excludeSubscriptionDirect,
         excludeChatBridgedCodex,
       }),
@@ -4225,6 +4260,7 @@ export function ModelSelector({
       cc.capabilities,
       codex.capabilities,
       pi.capabilities,
+      hermes.capabilities,
       excludeSubscriptionDirect,
       excludeChatBridgedCodex,
     ],
@@ -4273,7 +4309,9 @@ export function ModelSelector({
         ? t('newChat.modelSelector.trigger.agent.claudeCode')
         : agentIdentity.vendorKey === 'pi'
           ? t('newChat.modelSelector.trigger.agent.pi')
-          : t('newChat.modelSelector.trigger.agent.codex')
+          : agentIdentity.vendorKey === 'hermes'
+            ? 'Hermes'
+            : t('newChat.modelSelector.trigger.agent.codex')
       : null;
   const baseDisplayIdentityLabel = agentName
     ? `${agentName} · ${displayLabel}`
@@ -4342,6 +4380,7 @@ export function ModelSelector({
     !!onNavigateToProviders &&
     !deviceId &&
     !!currentAgentKind &&
+    currentAgentKind !== 'hermes' &&
     !providersLoading &&
     !hasConnectedSource;
   // trigger 上仍展示当前模型的 effort(模型支持时)。

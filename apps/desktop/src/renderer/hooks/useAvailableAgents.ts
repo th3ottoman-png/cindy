@@ -47,10 +47,13 @@ function refreshRemoteCapabilitiesOnce(deviceId: string): void {
   remoteCapabilitiesRefreshInFlight.set(deviceId, pending);
 }
 
-type RuntimeAgentKind = 'claude-code' | 'codex' | 'pi';
+type RuntimeAgentKind = 'claude-code' | 'codex' | 'pi' | 'hermes';
+
+/** 本 hook 产出的 vendor 值域 = 运行时 roster 注册结果。 */
+type VendorTuple = Extract<MakerVendor, 'cc' | 'codex' | 'pi' | 'hermes'>;
 
 /** runtime agent id → NewMaker vendor(其余保持同名)。 */
-function toVendor(agent: RuntimeAgentKind): MakerVendor {
+function toVendor(agent: RuntimeAgentKind): VendorTuple {
   return agent === 'claude-code' ? 'cc' : agent;
 }
 
@@ -80,7 +83,7 @@ async function fetchAvailableAgents(deviceId?: string | null): Promise<RuntimeAg
     if (!dl) throw new Error('device-link IPC not available');
     const raw = await dl.invoke(deviceId, 'maker:list-available-agents', []);
     return Array.isArray(raw) ? (raw.filter((v): v is RuntimeAgentKind =>
-      v === 'claude-code' || v === 'codex' || v === 'pi') as RuntimeAgentKind[]) : [];
+      v === 'claude-code' || v === 'codex' || v === 'pi' || v === 'hermes') as RuntimeAgentKind[]) : [];
   }
   const api = getMakerApi();
   if (!api) throw new Error('maker IPC not available');
@@ -101,11 +104,11 @@ async function fetchAvailableAgents(deviceId?: string | null): Promise<RuntimeAg
  */
 const REFETCH_MIN_INTERVAL_MS = 15_000;
 interface AgentsCacheEntry {
-  vendors: ReadonlySet<MakerVendor>;
+  vendors: ReadonlySet<VendorTuple>;
   fetchedAt: number;
 }
 const agentsCache = new Map<string, AgentsCacheEntry>();
-const inFlight = new Map<string, Promise<ReadonlySet<MakerVendor>>>();
+const inFlight = new Map<string, Promise<ReadonlySet<VendorTuple>>>();
 /**
  * 每个 roster 缓存 key 的失效代际。收到 roster push 后递增，使 push 之前发起的
  * 在途请求不能把旧的 agent 集合重新写回缓存或覆盖当前 hook 状态。
@@ -201,14 +204,14 @@ function cacheKeyOf(deviceId?: string | null): string {
   return deviceId ?? '';
 }
 
-function loadAvailableAgents(deviceId?: string | null): Promise<ReadonlySet<MakerVendor>> {
+function loadAvailableAgents(deviceId?: string | null): Promise<ReadonlySet<VendorTuple>> {
   const key = cacheKeyOf(deviceId);
   const pending = inFlight.get(key);
   if (pending) return pending;
   const requestGeneration = currentAgentsCacheGeneration(key);
   const promise = fetchAvailableAgents(deviceId)
     .then((agents) => {
-      const vendors: ReadonlySet<MakerVendor> = new Set(agents.map(toVendor));
+      const vendors: ReadonlySet<VendorTuple> = new Set(agents.map(toVendor));
       // A roster push can invalidate this request while the IPC call is pending. Do not
       // let that pre-change response become the authoritative cache entry.
       if (currentAgentsCacheGeneration(key) === requestGeneration) {
@@ -225,7 +228,7 @@ function loadAvailableAgents(deviceId?: string | null): Promise<ReadonlySet<Make
 
 export interface UseAvailableAgentsResult {
   /** runtime 已注册的 vendor 集合(cc/codex/pi);loaded=false 时为空。 */
-  availableVendors: ReadonlySet<MakerVendor>;
+  availableVendors: ReadonlySet<VendorTuple>;
   /** 首次结果是否已返回。未加载完成时消费方不应据此隐藏任何入口。 */
   loaded: boolean;
 }
@@ -237,7 +240,7 @@ export function useAvailableAgents(deviceId?: string | null): UseAvailableAgents
   const cached = agentsCache.get(cacheKeyOf(deviceId));
   // 初值取缓存:同一 deviceId 已经查过时,新实例挂载即出值,不再走一遍「空集合 → loaded」
   // 的闪帧。useState 的 lazy 初值只在首次 render 取一次,后续由下面的 effect 维护。
-  const [availableVendors, setAvailableVendors] = useState<ReadonlySet<MakerVendor>>(
+  const [availableVendors, setAvailableVendors] = useState<ReadonlySet<VendorTuple>>(
     () => cached?.vendors ?? new Set(),
   );
   const [loaded, setLoaded] = useState(() => cached !== undefined);
@@ -307,15 +310,19 @@ export function __resetAvailableAgentsCacheForTest(): void {
 }
 
 /** Model pickers keep the current Harness visible while excluding unregistered runtimes. */
-export function useModelPickerAgents(current: RuntimeAgentKind, deviceId?: string | null): readonly RuntimeAgentKind[] | undefined {
+export function useModelPickerAgents(
+  current: RuntimeAgentKind | 'hermes',
+  deviceId?: string | null,
+): readonly RuntimeAgentKind[] | undefined {
   const { availableVendors, loaded } = useAvailableAgents(deviceId);
   if (!loaded) return undefined;
+  // hermes v1 无 runtime roster 条目:除自身外不匹配任何 vendor,列表只剩三家可见性判定。
   return (['claude-code', 'codex', 'pi'] as const).filter(
-    (agent) => agent === current || availableVendors.has(toVendor(agent)),
+    (agent) => (current !== 'hermes' && agent === current) || availableVendors.has(toVendor(agent)),
   );
 }
 
 /** Synchronous projection of the same runtime roster used by the client picker. */
-export function getCachedAvailableVendors(): ReadonlySet<MakerVendor> | null {
+export function getCachedAvailableVendors(): ReadonlySet<VendorTuple> | null {
   return agentsCache.get('')?.vendors ?? null;
 }
