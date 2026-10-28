@@ -144,20 +144,27 @@ Two fixes in `f1df8f8a08`:
 
 Live evidence: two turns on one daemon session returned the codeword stored in turn 1, proving real conversational continuity.
 
-### 6.4 De-clouding
+### 6.4 Auto-title and prompt prediction for Hermes (task 1.2) — done
+
+- `apps/desktop/src/main/maker-ipc/title.ts`: added `hermes` to `TITLE_AGENT_KINDS`.
+- Sessions no longer fail `maker:auto-title` and `maker:predict-prompt` with `INVALID_PARAMS: invalid agentKind`.
+- Sessions receive heuristic first-message titling immediately, followed by auxiliary model title resolution when available.
+- Unit tested via `autoTitleIpcBoundary.test.ts` and `predictPromptIpcBoundary.test.ts`.
+
+### 6.5 De-clouding
 
 - Settings: removed Shared Tasks, Help, the "Not signed in" banner ("Data stays on this device"), manual update/log-upload rows, and the auto-update/analytics/crash-upload toggles.
 - About: app version always shown; harness checks honestly report "unavailable" when no vendor endpoint is configured; official CDN update checks skipped when unconfigured.
 - Bots: all IM channels except **Telegram** removed from the UI; Feishu/WeChat/WeCom/DingTalk/Discord UI files deleted; builtin plugin metadata retired.
 - Log noise: migration status poll returns an idle view instead of erroring every 10 s; bot-group retry stops on non-retryable codes.
 
-### 6.5 Local cleanup (2026-10-28)
+### 6.6 Local cleanup (2026-10-28)
 
 - Deleted the entire dead **Help feature** backend: `help-knowledge/` (25 docs), `maker-ipc/help.ts`, `help-feedback.ts`, `helpKnowledge.generated.ts`, renderer `helpThreadStore`, shared `helpTypes`, `gen-help-kb` scripts and their tests, plus the IPC channels/preload/type entries. The Help UI had already been removed, so this was unreachable code.
 - Deleted upstream PR/mobile evidence: `docs/e2e-evidence/`, `docs/pr-assets/`, `prototypes/`.
 - Removed a stray empty `apps/desktop/C:/locks` directory (Windows path artifact).
 
-### 6.6 Plugins and skills
+### 6.7 Plugins and skills
 
 - **Hermes** is headless and does **not** consume Cindy's plugin marketplace. Its plugins/skills/MCP servers are installed into `~/.hermes-cindy`.
 - `obra/superpowers` is installed in Hermes (disabled → enabled after review) and in Pi (`~/.pi/agent/settings.json`).
@@ -169,6 +176,7 @@ Live evidence: two turns on one daemon session returned the codeword stored in t
 - Multi-turn Hermes continuity after `f1df8f8a08`.
 - Recovery from a stale resume id (fresh session + one-line notice).
 - Hermes model catalog from the provider's own `/models`, plus the home-default write path (unit tested; the button was not clicked live on purpose to avoid mutating the default).
+- Hermes auto-titling and prompt prediction: `maker:auto-title` and `maker:predict-prompt` accept `hermes` agentKind (unit tested in `autoTitleIpcBoundary.test.ts` and `predictPromptIpcBoundary.test.ts`).
 - Local-only Settings/About/Bots surfaces after the de-clouding pass (verified over CDP DOM sweeps).
 - Repo gates: typecheck, `test:runner`, test hygiene, i18n parity, related unit tests (apart from the two known failures listed in §4).
 
@@ -211,7 +219,7 @@ Ordered as agreed. The full plan also lives in `~/Desktop/Cindy-Master-Plan.md` 
 
 | # | Task | Where to start |
 |---|---|---|
-| **1.2** | **Auto-title for Hermes sessions.** Today title generation rejects `invalid agentKind: hermes`, so sessions stay "Untitled session" or fall back to the first message. | `apps/desktop/src/main/maker-ipc/` title handler; route through the auxiliary/title model chain; check `docs/dev-rules/` for the title contract |
+| **1.2** | **Auto-title for Hermes sessions.** *(Done)* Added `hermes` to `TITLE_AGENT_KINDS` in `title.ts`; tested via `autoTitleIpcBoundary.test.ts` & `predictPromptIpcBoundary.test.ts`. | `apps/desktop/src/main/maker-ipc/title.ts` |
 | **1.4** | **Image attachments for Hermes.** Text files are inlined today (`agent.ts` → `inlineFileAttachment`); images are rejected. Options: write to a temp dir and reference the path, or model-native inline if the provider supports it. | `packages/maker-core/src/agents/hermes/agent.ts` (`flattenUserMessage`), daemon `query/send` image guard |
 | **1.5** | **Bridge Cindy's toolset into Hermes via MCP.** Give Hermes Cindy's builtin/MCP tools so "Cindy plugins vs Hermes plugins" stops mattering. Hermes supports `hermes mcp add`; decide static generated config vs per-session injection. | `packages/maker-hermes-manager` + `apps/desktop/src/main/maker-host`; study the Pi MCP injection pattern first |
 | **1.6** | **Hermes settings surface in Cindy.** View/edit home default model/provider and show plugin/skill status. Optional; natural follow-on to 1.1. | `apps/desktop/src/renderer/components/settings/` |
@@ -259,4 +267,4 @@ Ordered as agreed. The full plan also lives in `~/Desktop/Cindy-Master-Plan.md` 
 4. Start the app: `node scripts/desktop-dev-runner.mjs local`.
 5. Open a Hermes task, send one short message. Confirm the reply streams and `~/.hermes-cindy/hermes-mgr/sessions.json` gains a `hermesSessionId`.
 6. Send a second message that depends on the first (e.g. "what did I just say?"). If it answers correctly, resume works.
-7. Pick the next task from §9 (currently **1.2 auto-title**).
+7. Pick the next task from §9 (currently **1.4 image attachments**).

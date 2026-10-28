@@ -371,6 +371,15 @@ describe('maker title IPC — payload 运行期校验', () => {
       title: null,
     });
     expect(h.generateTitle).not.toHaveBeenCalled();
+
+    h.generateTitle.mockClear();
+    await expect(
+      invokeGenerate({ message: '排查网络问题', agentKind: 'hermes' }),
+    ).resolves.toEqual({ title: '任务标题' });
+    expect(h.generateTitle).toHaveBeenCalledWith(
+      expect.objectContaining({ agentKind: 'hermes' }),
+      expect.anything(),
+    );
   });
 });
 
@@ -392,6 +401,16 @@ describe('maker:auto-title — sender 断言', () => {
       sessionId: 's1',
       text: '帮我排查登录失败',
       agentKind: 'codex',
+    });
+
+    h.run.mockClear();
+    await expect(
+      invoke({ sessionId: 's2', text: '帮我排查 Hermes 任务', agentKind: 'hermes' }),
+    ).resolves.toEqual({ applied: true, done: true });
+    expect(h.run).toHaveBeenCalledWith({
+      sessionId: 's2',
+      text: '帮我排查 Hermes 任务',
+      agentKind: 'hermes',
     });
   });
 });

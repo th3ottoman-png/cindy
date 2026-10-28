@@ -361,6 +361,18 @@ describe('maker:predict-prompt — sender 断言', () => {
         agentKind: 'claude-code',
       }),
     );
+
+    h.predict.mockClear();
+    h.sessionRow.agentKind = 'hermes';
+    await expect(
+      invokePredict({ ...VALID_REQUEST, sessionId: 'session-hermes', agentKind: 'hermes' }),
+    ).resolves.toEqual({ prompt: '下一步做什么' });
+    expect(h.predict).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-hermes',
+        agentKind: 'hermes',
+      }),
+    );
   });
 });
 
