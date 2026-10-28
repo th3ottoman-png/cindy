@@ -9,6 +9,18 @@ describe('normalizeHermesEvent', () => {
     ).toEqual({ kind: 'session-bound', hermesSessionId: 'h-1' });
   });
 
+  it('normalizes the daemon resume-reset lifecycle event', () => {
+    expect(
+      normalizeHermesEvent({
+        type: 'hermes-mgr',
+        subtype: 'resume-reset',
+        previousHermesSessionId: 'local-gone',
+      }),
+    ).toEqual({ kind: 'resume-reset', previousHermesSessionId: 'local-gone' });
+    expect(normalizeHermesEvent({ type: 'hermes-mgr', subtype: 'resume-reset' }))
+      .toEqual({ kind: 'resume-reset' });
+  });
+
   it('normalizes text deltas and drops the empty sentinel', () => {
     expect(normalizeHermesEvent({ type: 'text', text: 'Hello ' })).toEqual({
       kind: 'assistant-delta',

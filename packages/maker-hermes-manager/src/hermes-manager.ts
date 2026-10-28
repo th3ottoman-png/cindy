@@ -14,7 +14,7 @@ import { readHermesDefaultRoute, writeHermesDefaultRoute } from './hermes-config
 import { fetchProviderModels, hermesHomeApiKey, parseHermesDotEnv } from './hermes-models.js';
 import { readFile } from 'node:fs/promises';
 import * as nodePath from 'node:path';
-import { startHermesRun, type HermesRunHandle } from './hermes-run.js';
+import { isInvalidResumeFailure, startHermesRun, type HermesRunHandle } from './hermes-run.js';
 import {
   HERMES_MGR_BUNDLE_VERSION,
   METHODS,
@@ -181,39 +181,99 @@ export class HermesManager {
         }
       }
 
-      const run = startHermesRun(
-        {
-          hermesBin: this.hermesBin,
-          hermesHome: this.hermesHome,
-          cwd: rec.cwd,
-          text: p.text,
-          ...(preamble ? { preamble } : {}),
-          ...(rec.hermesSessionId ? { resumeHermesSessionId: rec.hermesSessionId } : {}),
-          ...(routeModel ? { model: routeModel } : {}),
-          ...(routeProvider ? { provider: routeProvider } : {}),
-          ...(rec.permissionMode ? { permissionMode: rec.permissionMode } : {}),
-          ...(this.hermesExtraArgs ? { extraArgs: this.hermesExtraArgs } : {}),
-          env: this.sessionEnv.get(rec.sessionId),
-        },
-        (event) => this.onHermesEvent(rec.sessionId, event),
-      );
-      const turn: RunningTurn = { handle: run, killed: false };
-      this.running.set(rec.sessionId, turn);
-      this.registry.update(rec.sessionId, { running: true });
+      const baseSpec = {
+        hermesBin: this.hermesBin,
+        hermesHome: this.hermesHome,
+        cwd: rec.cwd,
+        text: p.text,
+        ...(preamble ? { preamble } : {}),
+        ...(routeModel ? { model: routeModel } : {}),
+        ...(routeProvider ? { provider: routeProvider } : {}),
+        ...(rec.permissionMode ? { permissionMode: rec.permissionMode } : {}),
+        ...(this.hermesExtraArgs ? { extraArgs: this.hermesExtraArgs } : {}),
+        env: this.sessionEnv.get(rec.sessionId),
+      };
 
-      void run.result.then((res) => {
-        this.running.delete(rec.sessionId);
-        this.registry.update(rec.sessionId, { running: false });
-        let reason: SessionClosedNotification['reason'];
-        if (turn.killed) {
-          reason = 'killed';
-        } else if (res.spawnError || (res.code !== 0 && !res.sawResult)) {
-          reason = 'error';
-        } else {
-          reason = 'completed';
-        }
-        this.emitClosed(rec.sessionId, reason, res.stderrTail || res.spawnError);
-      });
+      const startTurn = (
+        resumeHermesSessionId: string | undefined,
+        allowResumeFallback: boolean,
+      ): void => {
+        // A resume Hermes cannot resolve fails before producing any turn output.
+        // Hold the events back until the id is proven live so the retry below can
+        // discard them instead of showing the user a phantom failed turn.
+        const held: unknown[] = [];
+        let holding = Boolean(resumeHermesSessionId);
+        const flushHeld = (): void => {
+          for (const event of held.splice(0)) this.onHermesEvent(rec.sessionId, event);
+        };
+        const onEvent = (event: unknown): void => {
+          if (!holding) {
+            this.onHermesEvent(rec.sessionId, event);
+            return;
+          }
+          held.push(event);
+          const evt = event as { type?: string; session_id?: string } | null;
+          const type = evt?.type;
+          // A non-empty id proves the resume resolved (a missing one reports
+          // ''); any real content event means Hermes is past session lookup.
+          if (type !== 'system' && type !== 'result') holding = false;
+          else if (type === 'system' && typeof evt?.session_id === 'string' && evt.session_id) {
+            holding = false;
+          }
+          if (!holding) flushHeld();
+        };
+
+        const run = startHermesRun(
+          {
+            ...baseSpec,
+            ...(resumeHermesSessionId ? { resumeHermesSessionId } : {}),
+          },
+          onEvent,
+        );
+        const turn: RunningTurn = { handle: run, killed: false };
+        this.running.set(rec.sessionId, turn);
+        this.registry.update(rec.sessionId, { running: true });
+
+        void run.result.then((res) => {
+          // A fallback turn replaces this record; only the live turn settles.
+          if (this.running.get(rec.sessionId) !== turn) return;
+          if (
+            allowResumeFallback &&
+            resumeHermesSessionId &&
+            !turn.killed &&
+            isInvalidResumeFailure(res) &&
+            this.registry.get(rec.sessionId)?.hermesSessionId === resumeHermesSessionId
+          ) {
+            held.length = 0;
+            // The home lost the session (purged, reset, or replaced). Drop the
+            // dead id so later turns stop resuming it, tell the client why, and
+            // replay this same input against a fresh session — the user's
+            // message must not fail over a bookkeeping detail.
+            this.registry.update(rec.sessionId, { hermesSessionId: undefined });
+            this.emitEvent(rec.sessionId, {
+              type: 'hermes-mgr',
+              subtype: 'resume-reset',
+              previousHermesSessionId: resumeHermesSessionId,
+            });
+            startTurn(undefined, false);
+            return;
+          }
+          flushHeld();
+          this.running.delete(rec.sessionId);
+          this.registry.update(rec.sessionId, { running: false });
+          let reason: SessionClosedNotification['reason'];
+          if (turn.killed) {
+            reason = 'killed';
+          } else if (res.spawnError || (res.code !== 0 && !res.sawResult)) {
+            reason = 'error';
+          } else {
+            reason = 'completed';
+          }
+          this.emitClosed(rec.sessionId, reason, res.stderrTail || res.spawnError);
+        });
+      };
+
+      startTurn(rec.hermesSessionId, true);
 
       return {
         sessionId: rec.sessionId,
@@ -378,14 +438,22 @@ export class HermesManager {
 
   private onHermesEvent(sessionId: string, event: unknown): void {
     const evt = event as { type?: string; subtype?: string; session_id?: string } | null;
-    if (evt && evt.type === 'system' && evt.subtype === 'init' && evt.session_id) {
+    // Two bind points: lifecycle init on older builds, and the terminal result
+    // on current ones (this CLI sends init with an empty session_id and puts
+    // the id only on `result`). Without the result path the registry never
+    // learns a fresh session's id, so the next turn cannot resume it.
+    const reportedId = evt && (evt.type === 'system' || evt.type === 'result')
+      && typeof evt.session_id === 'string'
+      ? evt.session_id.trim()
+      : '';
+    if (reportedId) {
       const rec = this.registry.get(sessionId);
-      if (rec?.hermesSessionId !== evt.session_id) {
-        this.registry.bindHermes(sessionId, evt.session_id);
+      if (rec?.hermesSessionId !== reportedId) {
+        this.registry.bindHermes(sessionId, reportedId);
         this.emitEvent(sessionId, {
           type: 'hermes-mgr',
           subtype: 'session-bound',
-          hermesSessionId: evt.session_id,
+          hermesSessionId: reportedId,
         });
       }
     }

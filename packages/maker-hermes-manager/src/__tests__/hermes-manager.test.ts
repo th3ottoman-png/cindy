@@ -216,6 +216,147 @@ describe('HermesManager socket integration (fake hermes)', () => {
     expect(argv[argv.indexOf('--provider') + 1]).toBe('fake-provider');
   }, 20_000);
 
+  it('starts a fresh Hermes session when --resume names a session the home lost', async () => {
+    const h = current!;
+    await h.client.request(METHODS.QUERY_START, {
+      sessionId: 'sf',
+      cwd: h.dir,
+      permissionMode: 'default',
+    }, { timeoutMs: 5_000 });
+    await h.client.request(METHODS.QUERY_SEND, { sessionId: 'sf', text: 'turn one' }, { timeoutMs: 5_000 });
+    await h.collector.waitFor(
+      (n) =>
+        n.method === NOTIFICATIONS.SESSION_CLOSED &&
+        (n.params as SessionClosedNotification).sessionId === 'sf',
+    );
+
+    const log = path.join(h.dir, 'sf-argv.log');
+    process.env.FAKE_BEHAVIOR = 'missing-session';
+    process.env.FAKE_RECORD_LOG = log;
+    try {
+      await h.client.request(METHODS.QUERY_SEND, { sessionId: 'sf', text: 'turn two' }, { timeoutMs: 5_000 });
+      await h.collector.waitFor(
+        (n) =>
+          n.method === NOTIFICATIONS.SESSION_CLOSED &&
+          (n.params as SessionClosedNotification).sessionId === 'sf' &&
+          h.collector.closedEvents().filter((c) => c.sessionId === 'sf').length >= 2,
+      );
+    } finally {
+      delete process.env.FAKE_BEHAVIOR;
+      delete process.env.FAKE_RECORD_LOG;
+    }
+
+    // Attempt one resumed the dead id; the fallback dropped --resume and replayed
+    // the same input against a fresh session.
+    const attempts = fs.readFileSync(log, 'utf8').trim().split('\n')
+      .map((line) => JSON.parse(line) as string[]);
+    expect(attempts).toHaveLength(2);
+    expect(attempts[0]).toContain('--resume');
+    expect(attempts[0][attempts[0].indexOf('--resume') + 1]).toBe('fake-h-1');
+    expect(attempts[1]).not.toContain('--resume');
+
+    // Nothing from the failed lookup reached the client: the turn completed
+    // once, and the retry's own init/result are the only ones besides turn one.
+    const closes = h.collector.closedEvents().filter((c) => c.sessionId === 'sf');
+    expect(closes).toHaveLength(2);
+    expect(closes.every((c) => c.reason === 'completed')).toBe(true);
+    const results = h.collector.eventsOfType('result')
+      .map((n) => (n.params as { event: { exit_code: number } }).event);
+    expect(results).toHaveLength(2);
+    expect(results.every((event) => event.exit_code === 0)).toBe(true);
+    const inits = h.collector.eventsOfType('system')
+      .map((n) => (n.params as { event: { session_id: string } }).event);
+    expect(inits.map((event) => event.session_id)).toEqual(['fake-h-1', 'fake-h-fresh']);
+
+    // The client is told why the history is missing, and the registry forgets
+    // the dead id in favour of the fresh one so later turns stop resuming it.
+    const reset = h.collector.eventsOfType('hermes-mgr').find(
+      (n) => (n.params as { event: { subtype?: string } }).event.subtype === 'resume-reset',
+    );
+    expect((reset?.params as { event: { previousHermesSessionId: string } }).event.previousHermesSessionId)
+      .toBe('fake-h-1');
+    const list = await h.client.request(METHODS.SESSION_LIST, {}, { timeoutMs: 5_000 });
+    const entry = (list as { sessions: Array<{ sessionId: string; hermesSessionId?: string }> })
+      .sessions.find((s) => s.sessionId === 'sf');
+    expect(entry?.hermesSessionId).toBe('fake-h-fresh');
+  }, 20_000);
+
+  it('binds the session id from the result event when init reports none', async () => {
+    const h = current!;
+    process.env.FAKE_INIT_EMPTY = '1';
+    try {
+      await h.client.request(METHODS.QUERY_START, {
+        sessionId: 's7',
+        cwd: h.dir,
+        permissionMode: 'default',
+      }, { timeoutMs: 5_000 });
+      await h.client.request(METHODS.QUERY_SEND, { sessionId: 's7', text: 'hello' }, { timeoutMs: 5_000 });
+      await h.collector.waitFor(
+        (n) =>
+          n.method === NOTIFICATIONS.SESSION_CLOSED &&
+          (n.params as SessionClosedNotification).sessionId === 's7',
+      );
+    } finally {
+      delete process.env.FAKE_INIT_EMPTY;
+    }
+
+    // Current Hermes builds put the id only on `result`; the registry must
+    // still learn it or the next turn has nothing to resume.
+    const list = await h.client.request(METHODS.SESSION_LIST, {}, { timeoutMs: 5_000 });
+    const entry = (list as { sessions: Array<{ sessionId: string; hermesSessionId?: string }> })
+      .sessions.find((s) => s.sessionId === 's7');
+    expect(entry?.hermesSessionId).toBe('fake-h-1');
+    const bound = h.collector.eventsOfType('hermes-mgr').filter(
+      (n) => (n.params as { event: { subtype?: string } }).event.subtype === 'session-bound',
+    );
+    expect(bound).toHaveLength(1);
+    expect((bound[0].params as { event: { hermesSessionId: string } }).event.hermesSessionId)
+      .toBe('fake-h-1');
+  }, 20_000);
+
+  it('does not retry a non-resume failure as a fresh session', async () => {
+    const h = current!;
+    await h.client.request(METHODS.QUERY_START, {
+      sessionId: 's4',
+      cwd: h.dir,
+      permissionMode: 'default',
+    }, { timeoutMs: 5_000 });
+    await h.client.request(METHODS.QUERY_SEND, { sessionId: 's4', text: 'turn one' }, { timeoutMs: 5_000 });
+    await h.collector.waitFor(
+      (n) =>
+        n.method === NOTIFICATIONS.SESSION_CLOSED &&
+        (n.params as SessionClosedNotification).sessionId === 's4',
+    );
+
+    const log = path.join(h.dir, 's4-argv.log');
+    process.env.FAKE_BEHAVIOR = 'fail';
+    process.env.FAKE_RECORD_LOG = log;
+    try {
+      await h.client.request(METHODS.QUERY_SEND, { sessionId: 's4', text: 'crash me' }, { timeoutMs: 5_000 });
+      await h.collector.waitFor(
+        (n) =>
+          n.method === NOTIFICATIONS.SESSION_CLOSED &&
+          (n.params as SessionClosedNotification).sessionId === 's4' &&
+          h.collector.closedEvents().filter((c) => c.sessionId === 's4').length >= 2,
+      );
+    } finally {
+      delete process.env.FAKE_BEHAVIOR;
+      delete process.env.FAKE_RECORD_LOG;
+    }
+
+    // One attempt only: an unrelated crash must surface, not silently restart.
+    expect(fs.readFileSync(log, 'utf8').trim().split('\n')).toHaveLength(1);
+    const closes = h.collector.closedEvents().filter((c) => c.sessionId === 's4');
+    expect(closes).toHaveLength(2);
+    expect(closes[1].reason).toBe('error');
+    expect(closes[1].detail).toContain('simulated hermes crash');
+    expect(
+      h.collector.eventsOfType('hermes-mgr').some(
+        (n) => (n.params as { event: { subtype?: string } }).event.subtype === 'resume-reset',
+      ),
+    ).toBe(false);
+  }, 20_000);
+
   it('fails with an actionable error when safe mode has no resolvable home route', async () => {
     const h = current!;
     fs.rmSync(path.join(h.dir, 'home', 'config.yaml'));

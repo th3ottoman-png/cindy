@@ -45,6 +45,8 @@ interface FakeDaemon {
   socketPath: string;
   methods: string[];
   startParams: Array<Record<string, unknown>>;
+  sendTexts: string[];
+  setModels: string[];
   emit(event: unknown): void;
   closeSession(reason: 'completed' | 'closed' | 'killed' | 'error', detail?: string): void;
   waitForNoConnections(): Promise<void>;
@@ -497,10 +499,10 @@ describe('HermesAgent', () => {
     const daemon = await startDaemon();
     const handle = await start(buildAgent());
     try {
-      await handle.setModel('deepseek-v4-flash');
+      await handle.setModel!('deepseek-v4-flash');
       expect(daemon.setModels).toEqual(['deepseek-v4-flash']);
 
-      await handle.setModel('hermes-default');
+      await handle.setModel!('hermes-default');
       expect(daemon.setModels).toEqual(['deepseek-v4-flash', '']);
       expect(daemon.methods).toContain('query/setModel');
     } finally {
@@ -625,6 +627,50 @@ describe('HermesAgent', () => {
         },
       )).rejects.toBeInstanceOf(TurnPermissionPolicyUnsupportedError);
       expect(daemon.methods).not.toContain('query/send');
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('surfaces a durable notice when the daemon replaced a lost resume id', async () => {
+    const daemon = await startDaemon({ turn: 'manual' });
+    const handle = await start(buildAgent());
+    const pump = createEventPump(handle);
+    try {
+      await handle.send({ type: 'user', content: 'continue' });
+      daemon.emit({
+        type: 'hermes-mgr',
+        subtype: 'resume-reset',
+        previousHermesSessionId: 'local-lost',
+      });
+      daemon.emit({ type: 'system', subtype: 'init', session_id: 'local-fresh' });
+      daemon.emit({ type: 'text', text: 'Fresh start' });
+      daemon.emit({
+        type: 'result',
+        session_id: 'local-fresh',
+        exit_code: 0,
+        text: 'Fresh start',
+        tokens: { input: 1, output: 1 },
+      });
+      daemon.closeSession('completed');
+      await pump.until((event) => event.type === 'done');
+
+      const notice = pump.seen.find((event) => event.standaloneText === true);
+      expect(notice).toMatchObject({
+        type: 'text',
+        source: 'hermes',
+        standaloneText: true,
+        data: { isFinal: true },
+      });
+      expect((notice?.data as { text?: string }).text).toMatch(/starts a new one/);
+      // The notice is not model output: the reply and the fresh resumable id
+      // still arrive as their own events for the host to persist.
+      expect((pump.seen.find(isText('Fresh start'))?.data as { text?: string }).text)
+        .toBe('Fresh start');
+      expect(pump.seen.filter((event) => event.type === 'session_id').map((event) => event.data))
+        .toEqual(['local-fresh']);
+      expect(pump.seen.find((event) => event.type === 'done')?.data)
+        .toMatchObject({ status: 'completed', result: 'Fresh start' });
     } finally {
       await handle.close();
     }

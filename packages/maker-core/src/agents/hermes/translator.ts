@@ -21,6 +21,7 @@ export type NormalizedHermesTokens = {
 
 export type NormalizedHermesEvent =
   | { kind: 'session-bound'; hermesSessionId: string }
+  | { kind: 'resume-reset'; previousHermesSessionId?: string }
   | { kind: 'assistant-delta'; text: string }
   | { kind: 'tool-use'; toolCallId?: string; name: string; input?: Record<string, unknown> }
   | {
@@ -82,6 +83,15 @@ export function normalizeHermesEvent(event: unknown): NormalizedHermesEvent {
     const hermesSessionId = asNonEmptyString(evt.hermesSessionId);
     if (!hermesSessionId) return { kind: 'unknown', event };
     return { kind: 'session-bound', hermesSessionId };
+  }
+  // The stored resume id no longer exists in the Hermes home; the daemon
+  // already replayed the turn against a fresh session.
+  if (evt.type === 'hermes-mgr' && evt.subtype === 'resume-reset') {
+    const previousHermesSessionId = asNonEmptyString(evt.previousHermesSessionId);
+    return {
+      kind: 'resume-reset',
+      ...(previousHermesSessionId ? { previousHermesSessionId } : {}),
+    };
   }
 
   switch (evt.type) {

@@ -50,6 +50,27 @@ export interface HermesRunHandle {
 const STDERR_TAIL_BYTES = 16 * 1024;
 const KILL_ESCALATION_MS = 2_000;
 
+/**
+ * `hermes chat --resume <id>` validates the id before any turn runs and exits
+ * with this message when the home no longer has the session. Matching only the
+ * documented wording keeps unrelated failures (auth, gateway, tool crashes) out
+ * of the fresh-start fallback.
+ */
+const INVALID_RESUME_PATTERN = /no session found matching|session not found/i;
+
+/**
+ * True when the run failed because the requested resume id is gone. Both the
+ * stream-json `result.error` and the stderr trailer are checked: Hermes writes
+ * the message to both today, and a future version may keep only one.
+ */
+export function isInvalidResumeFailure(result: HermesRunResult): boolean {
+  if (result.spawnError || result.code === 0) return false;
+  const resultError = typeof result.resultEvent?.error === 'string'
+    ? result.resultEvent.error
+    : '';
+  return INVALID_RESUME_PATTERN.test(resultError) || INVALID_RESUME_PATTERN.test(result.stderrTail);
+}
+
 /** Cindy permission modes → Hermes CLI flags (approved mapping; v1). */
 export function permissionModeToFlags(mode?: HermesPermissionMode): string[] {
   return mode === 'bypassPermissions' ? ['--yolo'] : ['--safe-mode'];
