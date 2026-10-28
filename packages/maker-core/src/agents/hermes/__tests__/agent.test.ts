@@ -591,15 +591,38 @@ describe('HermesAgent', () => {
     }
   });
 
-  it('rejects attachment blocks without dispatching a turn', async () => {
+  it('inlines image attachment references into the turn text', async () => {
+    const daemon = await startDaemon();
+    const agent = buildAgent();
+    expect(agent.capabilities.multimodal.image.supported).toBe(true);
+    const handle = await start(agent);
+    try {
+      await handle.send({
+        type: 'user',
+        content: [
+          { type: 'text', text: 'describe this' },
+          { type: 'image', path: '/tmp/screenshot.png', mimeType: 'image/png' },
+        ],
+      });
+      expect(daemon.methods).toContain('query/send');
+      expect(daemon.sendTexts[0]).toContain('describe this');
+      expect(daemon.sendTexts[0]).toContain(
+        'Attached image `screenshot.png` (image/png) located at: `/tmp/screenshot.png` (available on the local filesystem).',
+      );
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('rejects unsupported attachment blocks without dispatching a turn', async () => {
     const daemon = await startDaemon();
     const handle = await start(buildAgent());
     try {
       await expect(handle.send({
         type: 'user',
         content: [
-          { type: 'text', text: 'describe this' },
-          { type: 'image', path: '/tmp/screenshot.png' },
+          { type: 'text', text: 'listen to this' },
+          { type: 'audio' as never, path: '/tmp/clip.mp3' } as never,
         ],
       })).rejects.toThrow(/attachments are not supported yet/i);
       expect(daemon.methods).not.toContain('query/send');

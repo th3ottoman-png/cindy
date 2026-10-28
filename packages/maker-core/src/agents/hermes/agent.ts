@@ -130,7 +130,15 @@ async function flattenUserMessage(message: UserMessage): Promise<string> {
       parts.push(`Referenced ${block.kind ?? 'resource'}: ${block.name} (${block.path})`);
       continue;
     }
-    throw new Error(`hermes: ${block.type} attachments are not supported yet`);
+    if (block.type === 'image') {
+      const name = attachmentName(block.path);
+      const mime = block.mimeType ? ` (${block.mimeType})` : '';
+      parts.push(
+        `Attached image \`${name}\`${mime} located at: \`${block.path}\` (available on the local filesystem).`,
+      );
+      continue;
+    }
+    throw new Error(`hermes: ${(block as { type: string }).type} attachments are not supported yet`);
   }
   return parts.join('\n');
 }
@@ -178,8 +186,7 @@ export class HermesAgent extends BaseAgent {
       planMode: unsupported(),
       multimodal: {
         text: { supported: true },
-        // v1 daemons reject image attachments rather than dropping them.
-        image: unsupported(),
+        image: { supported: true },
         file: unsupported(),
       },
       fork: unsupported(),
