@@ -1061,7 +1061,7 @@ import {
 } from '../shared/windowBehavior.js';
 import { getDesktopCommandRegistry, registerBuiltinDesktopCommands } from './commands/index.js';
 import { registerRemoteCmdIpc } from './commands/remoteCmdIpc.js';
-import { resolvePreferredSystemLocale, resolveSystemLocale } from '../shared/locale.js';
+import { DEFAULT_LOCALE, resolvePreferredSystemLocale, resolveSystemLocale } from '../shared/locale.js';
 import {
   isImDefaultSettingsChannel,
   type ImDefaultSettingsChannel,
@@ -2817,8 +2817,7 @@ function resolveApplicationMenuLocale(raw: string | null | undefined): Applicati
 }
 
 function getPreferredApplicationLocale(): ApplicationMenuLocale {
-  const langs = app.getPreferredSystemLanguages();
-  return resolvePreferredSystemLocale(langs.length > 0 ? langs : [app.getLocale()]);
+  return DEFAULT_LOCALE;
 }
 
 function dispatchApplicationMenuCommand(

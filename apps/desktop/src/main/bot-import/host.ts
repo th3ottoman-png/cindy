@@ -121,7 +121,7 @@ export async function inviteNativeBotPackage(input: BotPackageIdentity & { local
       // a second package progress ledger or another companion.
     }
     // A reused request keeps the language it was made in: the profile name is part of its selection identity.
-    const locale = existing ? existing.nativePackage?.locale : input.locale;
+    const locale = existing ? existing.nativePackage?.locale : (input.locale || 'en');
     const previewId = randomUUID();
     pkg.snapshot.nativePackage!.locale = locale;
     // Profile name and description, the opening and the routine names follow the language the invite was made in.

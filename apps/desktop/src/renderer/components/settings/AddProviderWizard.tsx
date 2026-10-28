@@ -695,7 +695,7 @@ export function AddProviderWizard({
       const oauth = providerPresetOAuth(preset.id);
       if (oauth && !useApiKey) {
         pickOauth({ ...buildUserProvider({
-          id: preset.id, name: preset.name,
+          id: preset.id, name: preset.nameEn ?? preset.name,
           auth: { method: 'oauth', oauth },
           runtimes: providerPresetOAuthRuntimes(preset),
         }), connected: false } as ProviderView);

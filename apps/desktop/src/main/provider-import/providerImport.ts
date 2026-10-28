@@ -852,7 +852,7 @@ function materializePreset(record: DraftRecord, presets: readonly ProviderPreset
     draft.keys[agent] = draft.presetApiKey!;
   }
   if (!Object.keys(runtimes).length) fail('preset has no supported runtimes');
-  draft.config = { id: draft.config.id, name: preset.name, runtimes };
+  draft.config = { id: draft.config.id, name: preset.nameEn ?? preset.name, runtimes };
   delete draft.presetId;
   delete draft.presetApiKey;
 }

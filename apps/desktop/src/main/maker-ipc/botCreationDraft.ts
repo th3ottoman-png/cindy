@@ -48,7 +48,7 @@ export function readBotCreationDraft(token: unknown): Entry {
     entry.expires < Date.now() ||
     isAppSessionBoundaryPending()
   )
-    throwIpcError('PRECONDITION_FAILED', '伙伴草稿已过期，请重新生成');
+    throwIpcError('PRECONDITION_FAILED', 'Bot draft has expired. Please regenerate.');
   return entry;
 }
 

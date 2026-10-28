@@ -72,7 +72,7 @@ function resolveOsLocale(): SupportedLocale {
 
 function getMainLocale(): SupportedLocale {
   if (cachedLocale) return cachedLocale;
-  cachedLocale = resolveOsLocale();
+  cachedLocale = DEFAULT_LOCALE;
   return cachedLocale;
 }
 
