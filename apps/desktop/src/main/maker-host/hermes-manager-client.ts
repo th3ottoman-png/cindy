@@ -324,6 +324,108 @@ export async function getHermesModelCatalog(
   }, { timeoutMs: requestTimeoutMs + 5_000 });
 }
 
+export interface HermesHomePluginInfo {
+  id: string;
+  source?: string;
+  revision?: string;
+  enabled: boolean;
+}
+
+export interface HermesHomeStatus {
+  homePath: string;
+  route: { model?: string; provider?: string; baseUrl?: string };
+  models: string[];
+  plugins: HermesHomePluginInfo[];
+  skills: string[];
+  error?: string;
+}
+
+/**
+ * Overview of the Hermes environment for the Settings UI:
+ * home directory, model routing, installed plugins, and skills categories.
+ */
+export async function getHermesHomeStatus(
+  requestTimeoutMs = 15_000,
+): Promise<HermesHomeStatus> {
+  const homePath = resolveHermesHome();
+  const catalog = await getHermesModelCatalog(requestTimeoutMs).catch((err) => ({
+    route: {},
+    models: [],
+    error: err instanceof Error ? err.message : String(err),
+  }));
+
+  const plugins: HermesHomePluginInfo[] = [];
+  const skills: string[] = [];
+
+  // Read config.yaml for enabled plugins
+  const enabledPluginNames = new Set<string>();
+  try {
+    const configContent = await fs.promises.readFile(path.join(homePath, 'config.yaml'), 'utf8');
+    const enabledMatch = configContent.match(/plugins:\s*\n\s*enabled:\s*\n((?:\s*-\s*[^\n]+\n)+)/);
+    if (enabledMatch) {
+      const lines = enabledMatch[1].split('\n');
+      for (const line of lines) {
+        const m = line.match(/-\s*([^\s]+)/);
+        if (m) {
+          const raw = m[1].replace(/\/\.hermes-plugin$/, '');
+          enabledPluginNames.add(raw);
+        }
+      }
+    }
+  } catch {
+    // Tolerant if config is missing or unreadable
+  }
+
+  // Read installed plugins from plugins/.install-metadata.json
+  try {
+    const metaPath = path.join(homePath, 'plugins', '.install-metadata.json');
+    const metaContent = await fs.promises.readFile(metaPath, 'utf8');
+    const meta = JSON.parse(metaContent) as Record<string, { source?: string; revision?: string }>;
+    for (const [id, data] of Object.entries(meta)) {
+      plugins.push({
+        id,
+        source: data?.source,
+        revision: data?.revision,
+        enabled: enabledPluginNames.has(id),
+      });
+    }
+  } catch {
+    // If metadata file is absent, list plugin directories directly
+    try {
+      const pluginsDir = path.join(homePath, 'plugins');
+      const entries = await fs.promises.readdir(pluginsDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory() && !entry.name.startsWith('.')) {
+          plugins.push({
+            id: entry.name,
+            enabled: enabledPluginNames.has(entry.name),
+          });
+        }
+      }
+    } catch {}
+  }
+
+  // Read skill categories from skills/ directory
+  try {
+    const skillsDir = path.join(homePath, 'skills');
+    const entries = await fs.promises.readdir(skillsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        skills.push(entry.name);
+      }
+    }
+  } catch {}
+
+  return {
+    homePath,
+    route: catalog.route,
+    models: catalog.models,
+    plugins,
+    skills,
+    ...(catalog.error ? { error: catalog.error } : {}),
+  };
+}
+
 /** @internal test helper: 清空模块级缓存/持有状态(不杀真实进程)。 */
 export function resetHermesManagerClientForTests(): void {
   lifecycleGeneration += 1;

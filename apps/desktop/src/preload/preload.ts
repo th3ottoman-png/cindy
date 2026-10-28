@@ -6272,6 +6272,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         models: string[];
         error?: string;
       }> => ipcRenderer.invoke('maker:hermes-config:list-models'),
+      getStatus: (): Promise<import('../main/maker-host/hermes-manager-client').HermesHomeStatus> =>
+        ipcRenderer.invoke('maker:hermes-config:get-status'),
     },
     listAvailableAgents: (): Promise<Array<'claude-code' | 'codex' | 'pi'>> =>
       ipcRenderer.invoke('maker:list-available-agents'),

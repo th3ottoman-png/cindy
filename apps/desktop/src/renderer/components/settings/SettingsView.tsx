@@ -53,6 +53,7 @@ import { ExperimentalSection } from './ExperimentalSection';
 import { GitSafetySection } from './GitSafetySection';
 import { SessionImportSection } from './SessionImportSection';
 import { AgentResourceSection } from './AgentResourceSection';
+import { HermesSection } from './HermesSection';
 import { PiPackagesSection } from './PiPackagesSection';
 import { CollaborationSection } from './CollaborationSection';
 import { BuiltinToolsSection } from './BuiltinToolsSection';
@@ -437,6 +438,11 @@ export function SettingsView() {
                           </button>
                         </div>
                       </div>
+                    </section>
+
+                    {/* Hermes Harness (local autonomous runtime) */}
+                    <section id="settings-hermes" className="py-[18px]" aria-label="Hermes Harness">
+                      <HermesSection />
                     </section>
 
                     {/* Section — Experimental (py 18). */}

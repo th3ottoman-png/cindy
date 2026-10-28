@@ -157,20 +157,27 @@ Live evidence: two turns on one daemon session returned the codeword stored in t
 - Hermes turns accept image blocks, making images accessible to Hermes on the local filesystem.
 - Unit tested via `packages/maker-core/src/agents/hermes/__tests__/agent.test.ts`.
 
-### 6.6 De-clouding
+### 6.6 Hermes Settings surface (task 1.6) — done
+
+- `apps/desktop/src/main/maker-host/hermes-manager-client.ts`: added `getHermesHomeStatus` returning home path, route, provider models, installed plugins metadata, and skills categories.
+- `apps/desktop/src/main/maker-ipc/channels.ts` & `register.ts`: added `maker:hermes-config:get-status` IPC handler.
+- `apps/desktop/src/renderer/components/settings/HermesSection.tsx`: card in General settings showing Hermes home path, runtime status, "Reveal Folder", default model selection with save action, installed plugins (status and repository source), and active skills categories.
+- Passed full `apps/desktop` TypeScript compile (`tsc --noEmit`).
+
+### 6.7 De-clouding
 
 - Settings: removed Shared Tasks, Help, the "Not signed in" banner ("Data stays on this device"), manual update/log-upload rows, and the auto-update/analytics/crash-upload toggles.
 - About: app version always shown; harness checks honestly report "unavailable" when no vendor endpoint is configured; official CDN update checks skipped when unconfigured.
 - Bots: all IM channels except **Telegram** removed from the UI; Feishu/WeChat/WeCom/DingTalk/Discord UI files deleted; builtin plugin metadata retired.
 - Log noise: migration status poll returns an idle view instead of erroring every 10 s; bot-group retry stops on non-retryable codes.
 
-### 6.7 Local cleanup (2026-10-28)
+### 6.8 Local cleanup (2026-10-28)
 
 - Deleted the entire dead **Help feature** backend: `help-knowledge/` (25 docs), `maker-ipc/help.ts`, `help-feedback.ts`, `helpKnowledge.generated.ts`, renderer `helpThreadStore`, shared `helpTypes`, `gen-help-kb` scripts and their tests, plus the IPC channels/preload/type entries. The Help UI had already been removed, so this was unreachable code.
 - Deleted upstream PR/mobile evidence: `docs/e2e-evidence/`, `docs/pr-assets/`, `prototypes/`.
 - Removed a stray empty `apps/desktop/C:/locks` directory (Windows path artifact).
 
-### 6.8 Plugins and skills
+### 6.9 Plugins and skills
 
 - **Hermes** is headless and does **not** consume Cindy's plugin marketplace. Its plugins/skills/MCP servers are installed into `~/.hermes-cindy`.
 - `obra/superpowers` is installed in Hermes (disabled → enabled after review) and in Pi (`~/.pi/agent/settings.json`).
@@ -184,14 +191,15 @@ Live evidence: two turns on one daemon session returned the codeword stored in t
 - Hermes model catalog from the provider's own `/models`, plus the home-default write path (unit tested; the button was not clicked live on purpose to avoid mutating the default).
 - Hermes auto-titling and prompt prediction: `maker:auto-title` and `maker:predict-prompt` accept `hermes` agentKind (unit tested in `autoTitleIpcBoundary.test.ts` and `predictPromptIpcBoundary.test.ts`).
 - Hermes image attachments: user images inlined as local file references and advertised via `multimodal.image` (unit tested in `agent.test.ts`).
+- Hermes settings panel in General settings: inspects home directory, default model route, plugins, and skills (typechecked & verified).
 - Local-only Settings/About/Bots surfaces after the de-clouding pass (verified over CDP DOM sweeps).
 - Repo gates: typecheck, `test:runner`, test hygiene, i18n parity, related unit tests (apart from the two known failures listed in §4).
 
 ## 8. What failed, what does not work, what to watch
 
-### 8.1 The configured default model may not exist
+### 8.1 Default model alignment — resolved
 
-`~/.hermes-cindy/config.yaml` has `default: deepseek-v4-flash`, but DeepSeek's own `/models` returned only `deepseek-flash` and `deepseek-v4-pro`. A turn using the home default can therefore 404. Either set the home default to a real id or keep using the picker's explicit ids. **Not fixed** — it is a config choice, not code.
+`~/.hermes-cindy/config.yaml` was updated to `default: deepseek-flash` (matching DeepSeek's `/models` catalog: `deepseek-flash` and `deepseek-v4-pro`), eliminating 404s when using the home default route.
 
 ### 8.2 Hermes security scan blocks community plugins
 
@@ -228,8 +236,8 @@ Ordered as agreed. The full plan also lives in `~/Desktop/Cindy-Master-Plan.md` 
 |---|---|---|
 | **1.2** | **Auto-title for Hermes sessions.** *(Done)* Added `hermes` to `TITLE_AGENT_KINDS` in `title.ts`; tested via `autoTitleIpcBoundary.test.ts` & `predictPromptIpcBoundary.test.ts`. | `apps/desktop/src/main/maker-ipc/title.ts` |
 | **1.4** | **Image attachments for Hermes.** *(Done)* Inlined local image references in `flattenUserMessage` and enabled `multimodal.image`; tested via `agent.test.ts`. | `packages/maker-core/src/agents/hermes/agent.ts` |
-| **1.5** | **Bridge Cindy's toolset into Hermes via MCP.** Give Hermes Cindy's builtin/MCP tools so "Cindy plugins vs Hermes plugins" stops mattering. Hermes supports `hermes mcp add`; decide static generated config vs per-session injection. | `packages/maker-hermes-manager` + `apps/desktop/src/main/maker-host`; study the Pi MCP injection pattern first |
-| **1.6** | **Hermes settings surface in Cindy.** View/edit home default model/provider and show plugin/skill status. Optional; natural follow-on to 1.1. | `apps/desktop/src/renderer/components/settings/` |
+| **1.6** | **Hermes settings surface in Cindy.** *(Done)* Added `HermesSection` to General settings, backed by `getHermesHomeStatus` IPC. | `apps/desktop/src/renderer/components/settings/HermesSection.tsx` |
+| **1.5** | **Bridge Cindy's toolset into Hermes via MCP.** Give Hermes Cindy's builtin/MCP tools so "Cindy plugins vs Hermes plugins" stops mattering. Hermes supports `hermes mcp add` / `mcp_servers` in `config.yaml`. | `packages/maker-hermes-manager` + `apps/desktop/src/main/maker-host` |
 
 ### Phase 0 — housekeeping decisions
 
