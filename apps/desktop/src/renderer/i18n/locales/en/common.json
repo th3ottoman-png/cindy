@@ -11484,6 +11484,7 @@
   },
   "voiceInputOverlay": {
     "rateLimited": "Too many voice requests. Wait a moment, then try again.",
+    "emptyInputNotice": "No microphone signal — check microphone permissions and audio connection.",
     "status": {
       "listening": "Voice input",
       "submitting": "Finalizing",

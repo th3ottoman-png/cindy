@@ -262,8 +262,8 @@ Ordered as agreed. The full plan also lives in `~/Desktop/Cindy-Master-Plan.md` 
 | **2.1** | **App-wide "Sign in to Cindy" sweep outside Settings.** *(Done)* In `HomeZeroModelAction.tsx`, `ConnectProviderBanner.tsx`, and `ConnectProviderCard.tsx`, replaced cloud-service login prompts with direct navigation to local/BYOK provider wizards when in local mode; suppressed Cindy AI managed service row in local mode. 20 tests passing. |
 | 2.2 | Decide on the remaining cloud-only Bots surfaces (group chat endpoints are unavailable locally): hide or leave. |
 | 2.3 | Harness update checks: either vendor-direct checks (npm registry / GitHub releases) with real installers, or keep the honest "unavailable" copy. |
-| 2.4 | ElevenLabs key fallback to the saved provider key. |
-| 2.5 | Voice zero-input user-facing notice. |
+| **2.4** | **ElevenLabs key fallback to the saved provider key.** *(Done)* `readElevenLabsApiKey()` falls back to `elevenlabs-api`/`elevenlabs` custom provider credentials or `voice-asr` key when `ELEVENLABS_API_KEY` is not in environment. Tested via `elevenLabsKeyFallback.test.ts`. |
+| **2.5** | **Voice zero-input user-facing notice.** *(Done)* In `VoiceInputOverlay.tsx`, empty voice input displays localized notice "No microphone signal — check microphone permissions and audio connection" before scheduling close instead of silent dismiss. i18n added for en/zh-CN/zh-TW/ja/ko. |
 | 2.6 | Housekeeping: delete stale "Untitled session" rows, rotate the ElevenLabs key, decide on the unused Nous login. |
 
 ### Phase 3 — parked ideas (explicitly do not build until asked)

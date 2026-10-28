@@ -11443,6 +11443,7 @@
   },
   "voiceInputOverlay": {
     "rateLimited": "음성 요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
+    "emptyInputNotice": "마이크 신호가 감지되지 않았습니다. 마이크 권한이나 오디오 연결을 확인하세요.",
     "status": {
       "listening": "음성 입력 중",
       "submitting": "확정 중",

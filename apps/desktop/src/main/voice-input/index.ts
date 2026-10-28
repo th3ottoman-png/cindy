@@ -35,7 +35,7 @@ import {
 import { getMaker } from '../maker-host/index.js';
 import { getEffectiveAuxiliaryModelChainSnapshot } from '../utility-model/resolveAuxiliaryModelChain.js';
 import { getAppCapabilities } from '../appCapabilities.js';
-import { getProviderSecretStore } from '../secrets/providerSecretStore.js';
+import { getProviderSecretStore, readCustomProviderKey } from '../secrets/providerSecretStore.js';
 import { assertTrustedAppRendererEvent } from '../security/trustedAppRenderer.js';
 import {
   desktopCodexAuthAdapter,
@@ -868,11 +868,30 @@ function readEnvSecret(...names: string[]): string | null {
   return null;
 }
 
-function readElevenLabsApiKey(): string | null {
-  return readEnvSecret('XDT_ELEVENLABS_API_KEY', 'ELEVENLABS_API_KEY');
+export function readElevenLabsApiKey(): string | null {
+  const envKey = readEnvSecret('XDT_ELEVENLABS_API_KEY', 'ELEVENLABS_API_KEY');
+  if (envKey) return envKey;
+
+  // Fallback to Settings -> Providers keys (elevenlabs-api preset or elevenlabs ID)
+  for (const providerId of ['elevenlabs-api', 'elevenlabs']) {
+    for (const agent of ['codex', 'claude-code', 'pi'] as const) {
+      const key = readCustomProviderKey(providerId, agent);
+      if (key) return key;
+    }
+  }
+
+  // Fallback to voice-asr custom key if configured in Voice Input settings
+  try {
+    const voiceAsrKey = getProviderSecretStore().get('voice-asr');
+    if (voiceAsrKey) return voiceAsrKey;
+  } catch {
+    // Secret store might not be ready or available
+  }
+
+  return null;
 }
 
-function readElevenLabsBaseUrl(): string | undefined {
+export function readElevenLabsBaseUrl(): string | undefined {
   return process.env.XDT_ELEVENLABS_BASE_URL?.trim() || process.env.ELEVENLABS_BASE_URL?.trim() || undefined;
 }
 

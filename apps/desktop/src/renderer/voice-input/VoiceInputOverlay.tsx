@@ -1274,9 +1274,10 @@ export function VoiceInputOverlay() {
 
     const text = (finalTextRef.current || draftTextRef.current).trim();
     if (!text) {
-      stateRef.current = 'done';
+      setError(t('voiceInputOverlay.emptyInputNotice'));
+      setVoiceState('error');
       commitUsageStats();
-      void closeOverlayAndReset();
+      scheduleErrorClose();
       return;
     }
     pendingPasteTextRef.current = text;
