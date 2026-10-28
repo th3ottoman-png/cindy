@@ -22506,6 +22506,42 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     if (typeof sessionId !== 'string' || typeof model !== 'string') {
       throwIpcError('INVALID_PARAMS', 'sessionId + model required');
     }
+    // Hermes v1: model switching does not go through the catalog routing — the session-level override is written directly to the daemon runtime
+    // (AgentSessionHandle.setModel; empty/'hermes-default' sentinel = clear the override and fall back to home default), and persisted to sessions.model.
+    // Resume/start already forwards according to the sentinel semantics; the catalog routing/agent switch revision machinery is not applicable.
+    {
+      const routeSnapshot = getCurrentDbClientSnapshot();
+      if (routeSnapshot) {
+        const [hermesRow] = await routeSnapshot.client.drizzle
+          .select({ agentKind: sessions.agentKind, model: sessions.model })
+          .from(sessions)
+          .where(eq(sessions.id, sessionId))
+          .limit(1);
+        if (hermesRow?.agentKind === 'hermes') {
+          const nextModel = model.trim() || 'hermes-default';
+          const previousModel = hermesRow.model ?? 'hermes-default';
+          const sess = maker.getSession(sessionId);
+          let runtimeChanged = false;
+          try {
+            if (sess?.setModel) {
+              await sess.setModel(nextModel);
+              runtimeChanged = true;
+            }
+            await routeSnapshot.client.drizzle
+              .update(sessions)
+              .set({ model: nextModel })
+              .where(eq(sessions.id, sessionId));
+          } catch (error) {
+            if (runtimeChanged && sess?.setModel && routeSnapshot === getCurrentDbClientSnapshot()) {
+              await sess.setModel(previousModel).catch(() => undefined);
+            }
+            throw error;
+          }
+          broadcastSessionPatched(sessionId, { model: nextModel });
+          return { deferred: false, superseded: false };
+        }
+      }
+    }
     const normalizedWireArgs =
       internalOptions.source === 'user'
         ? normalizeDeviceLinkSetModelWireArgs(
