@@ -6954,12 +6954,6 @@ interface ElectronAPI {
       completionRevision: number;
       cancel: true;
     }) => Promise<{ prompt: string | null }>;
-    helpAsk: (
-      request: import('../shared/helpTypes').HelpAskRequest,
-    ) => Promise<import('../shared/helpTypes').HelpAnswerResult>;
-    helpFeedbackCreate: (
-      input: import('../shared/helpTypes').HelpFeedbackDraftInput,
-    ) => Promise<import('../shared/helpTypes').HelpFeedbackDraft>;
     /** /issues 页面的「我的 Issue」列表;force=true 绕过 main 侧 60s TTL(手动刷新)。 */
     /**
      * /issues 首屏快照(上次查询成功时落盘的列表镜像)。进页面先渲染它,避免空等远端;

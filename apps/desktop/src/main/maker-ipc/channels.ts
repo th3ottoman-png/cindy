@@ -331,13 +331,6 @@ export const MAKER_INVOKE = {
   /** 输入框推荐提示词:turn 结束后预测用户下一步输入(走 titleModel 轻量 one-shot)。 */
   PREDICT_PROMPT: 'maker:predict-prompt',
   WORKING_STATUS: 'maker:working-status',
-  HELP_ASK: 'maker:help:ask',
-  /**
-   * Help-assistant 反馈草稿 (Phase 1):用户对某条回答不满时,点 👎 → 弹小表单 →
-   * 创建一条 draft 落本地 `<userData>/help-feedback-drafts.json`,不发任何远程。
-   * Phase 2 会加一个 submit-to-GitHub 动作(同 PAT 配置 + 去重相同 open issue)。
-   */
-  HELP_FEEDBACK_CREATE: 'maker:help:feedback:create',
   /**
    * /issues 页面的「我的 Issue」列表。三路合并去重,主次不要记反:
    * 平台通道(按 Cindy 登录态取「我提交过的 issue」,唯一给实时状态且跨设备的来源)

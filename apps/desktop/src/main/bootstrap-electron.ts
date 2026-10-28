@@ -963,8 +963,6 @@ import { registerMakerTitleIpc } from './maker-ipc/title.js';
 import { registerAuxiliaryModelSettingsIpc } from './maker-ipc/auxiliary-model-settings.js';
 import { registerContactsIpc } from './maker-ipc/contacts-ipc.js';
 import { disposeDesktopContactsManager } from './maker-host/maker-contacts-host.js';
-import { registerMakerHelpIpc } from './maker-ipc/help.js';
-import { registerHelpFeedbackIpc } from './maker-ipc/help-feedback.js';
 import { registerMyIssuesIpc } from './maker-ipc/my-issues.js';
 import { registerMakerPlanWriteIpc } from './maker-ipc/plan-write.js';
 import { registerMakerRewindIpc } from './maker-ipc/rewind.js';
@@ -6372,8 +6370,6 @@ const registerIpcHandlers = () => {
       registerMakerTitleIpc({ isSessionTurnPendingCompletion });
       registerWorkingStatusIpc();
       registerAuxiliaryModelSettingsIpc();
-      registerMakerHelpIpc(ipcMaker);
-      registerHelpFeedbackIpc();
       registerMakerPlanWriteIpc();
       registerMakerRewindIpc();
       registerMakerForkIpc();

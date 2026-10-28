@@ -8017,14 +8017,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       completionRevision: number;
       cancel: true;
     }): Promise<{ prompt: string | null }> => ipcRenderer.invoke('maker:predict-prompt', request),
-    helpAsk: (
-      request: import('../shared/helpTypes').HelpAskRequest,
-    ): Promise<import('../shared/helpTypes').HelpAnswerResult> =>
-      ipcRenderer.invoke('maker:help:ask', request),
-    helpFeedbackCreate: (
-      input: import('../shared/helpTypes').HelpFeedbackDraftInput,
-    ): Promise<import('../shared/helpTypes').HelpFeedbackDraft> =>
-      ipcRenderer.invoke('maker:help:feedback:create', input),
     // /issues 首屏快照(上次结果的落盘镜像);没有 / 坏掉返回 null。非权威,fresh 一到即接管。
     getMyIssuesSnapshot: (): Promise<import('../shared/myIssues').MyIssuesSnapshot | null> =>
       ipcRenderer.invoke('maker:issues:snapshot-mine'),
