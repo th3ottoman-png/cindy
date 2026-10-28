@@ -66,6 +66,7 @@ export const HERMES_METHODS = {
   PROTOCOL_HELLO: 'protocol/hello',
   QUERY_START: 'query/start',
   QUERY_SEND: 'query/send',
+  QUERY_SET_MODEL: 'query/setModel',
   QUERY_SET_PERMISSION_MODE: 'query/setPermissionMode',
   QUERY_INTERRUPT: 'query/interrupt',
   QUERY_CLOSE: 'query/close',

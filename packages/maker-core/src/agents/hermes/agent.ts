@@ -648,6 +648,18 @@ export class HermesAgent extends BaseAgent {
           mode: mapped,
         });
       },
+      // Per-session model override, live for the *next* turn (each turn spawns
+      // the CLI with the record's model; the home default route applies when the
+      // override is absent). 'hermes-default' is Cindy's sentinel for "follow
+      // the home default again" and maps to an empty override on the wire.
+      async setModel(model: string): Promise<void> {
+        const trimmed = model.trim();
+        if (!trimmed) throw new Error('hermes: model is required');
+        await transport.request(HERMES_METHODS.QUERY_SET_MODEL, {
+          sessionId,
+          model: trimmed === HERMES_DEFAULT_MODEL_ID ? '' : trimmed,
+        });
+      },
     };
 
     return handle;

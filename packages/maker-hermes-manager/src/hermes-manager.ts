@@ -228,10 +228,14 @@ export class HermesManager {
     s.setHandler(METHODS.QUERY_SET_MODEL, async (raw) => {
       const p = raw as { sessionId?: string; model?: string };
       this.requireRecord(p.sessionId);
-      if (typeof p.model !== 'string' || !p.model) {
+      if (typeof p.model !== 'string') {
         throw rpcError('INVALID_PARAMS', 'model is required');
       }
-      this.registry.update(p.sessionId!, { model: p.model });
+      // Empty string = drop the per-session override: the next turn reads the
+      // home default route again (config.yaml). Cindy's 'hermes-default'
+      // sentinel arrives here as '' for exactly that reason.
+      const model = p.model.trim();
+      this.registry.update(p.sessionId!, { model: model || undefined });
       return {};
     });
 

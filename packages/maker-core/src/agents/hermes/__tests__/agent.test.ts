@@ -69,6 +69,7 @@ async function startFakeDaemon(
   const methods: string[] = [];
   const startParams: Array<Record<string, unknown>> = [];
   const sendTexts: string[] = [];
+  const setModels: string[] = [];
   const sockets = new Set<net.Socket>();
   const emptyWaiters: Array<() => void> = [];
   let client: net.Socket | null = null;
@@ -134,6 +135,10 @@ async function startFakeDaemon(
             sessionId,
             ...(startHermesSessionId ? { hermesSessionId: startHermesSessionId } : {}),
           });
+          return;
+        case 'query/setModel':
+          setModels.push(String((message.params as { model?: unknown } | undefined)?.model ?? ''));
+          respond(message.id!, { sessionId });
           return;
         case 'query/send':
           sendTexts.push(String((message.params as { text?: unknown } | undefined)?.text ?? ''));
@@ -227,6 +232,7 @@ async function startFakeDaemon(
     methods,
     startParams,
     sendTexts,
+    setModels,
     emit(event: unknown) {
       notify('query/event', {
         sessionId,
@@ -467,6 +473,21 @@ describe('HermesAgent', () => {
       expect(daemon.methods).toEqual(
         expect.arrayContaining(['protocol/hello', 'query/start', 'query/send']),
       );
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('per-session setModel forwards the model and maps the home-default sentinel to an empty override', async () => {
+    const daemon = await startDaemon();
+    const handle = await start(buildAgent());
+    try {
+      await handle.setModel('deepseek-v4-flash');
+      expect(daemon.setModels).toEqual(['deepseek-v4-flash']);
+
+      await handle.setModel('hermes-default');
+      expect(daemon.setModels).toEqual(['deepseek-v4-flash', '']);
+      expect(daemon.methods).toContain('query/setModel');
     } finally {
       await handle.close();
     }
