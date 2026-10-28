@@ -102,6 +102,10 @@ export const METHODS = {
   SESSION_ATTACH: 'session/attach',
   SESSION_LIST: 'session/list',
   SESSION_KILL: 'session/kill',
+
+  // Config (daemon-level: the home's default model route in config.yaml)
+  CONFIG_GET_DEFAULT_ROUTE: 'config/getDefaultRoute',
+  CONFIG_SET_DEFAULT_ROUTE: 'config/setDefaultRoute',
 } as const;
 
 export type MethodName = (typeof METHODS)[keyof typeof METHODS];

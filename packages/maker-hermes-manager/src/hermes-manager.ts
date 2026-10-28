@@ -10,7 +10,7 @@
  */
 
 import { encodeMessage } from './codec.js';
-import { readHermesDefaultRoute } from './hermes-config.js';
+import { readHermesDefaultRoute, writeHermesDefaultRoute } from './hermes-config.js';
 import { startHermesRun, type HermesRunHandle } from './hermes-run.js';
 import {
   HERMES_MGR_BUNDLE_VERSION,
@@ -201,6 +201,27 @@ export class HermesManager {
       return {
         sessionId: rec.sessionId,
         ...(rec.hermesSessionId ? { hermesSessionId: rec.hermesSessionId } : {}),
+      };
+    });
+
+    s.setHandler(METHODS.CONFIG_GET_DEFAULT_ROUTE, async () => {
+      return { route: await readHermesDefaultRoute(this.hermesHome) };
+    });
+
+    s.setHandler(METHODS.CONFIG_SET_DEFAULT_ROUTE, async (raw) => {
+      const p = raw as { model?: string; provider?: string; baseUrl?: string };
+      const model = typeof p.model === 'string' ? p.model.trim() : '';
+      const provider = typeof p.provider === 'string' ? p.provider.trim() : '';
+      const baseUrl = typeof p.baseUrl === 'string' ? p.baseUrl.trim() : '';
+      if (!model || !provider) {
+        throw rpcError('INVALID_PARAMS', 'model and provider are required');
+      }
+      return {
+        route: await writeHermesDefaultRoute(this.hermesHome, {
+          model,
+          provider,
+          ...(baseUrl ? { baseUrl } : {}),
+        }),
       };
     });
 

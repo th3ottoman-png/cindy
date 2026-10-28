@@ -5518,6 +5518,16 @@ interface ElectronAPI {
    * apps/desktop/src/main/maker-ipc/ 的 handlers + apps/desktop/src/main/maker-host/。
    */
   maker: {
+    hermesConfig: {
+      getDefaultRoute: () => Promise<{
+        route: { model?: string; provider?: string; baseUrl?: string };
+      }>;
+      setDefaultRoute: (input: {
+        model: string;
+        provider: string;
+        baseUrl?: string;
+      }) => Promise<{ route: { model?: string; provider?: string; baseUrl?: string } }>;
+    },
     listAvailableAgents: () => Promise<Array<'claude-code' | 'codex' | 'pi'>>;
     onAgentsChanged: (cb: () => void) => () => void;
     getCapabilities: (agentKind: 'claude-code' | 'codex' | 'pi') => Promise<unknown>;

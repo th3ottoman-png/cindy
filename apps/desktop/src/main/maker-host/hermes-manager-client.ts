@@ -225,6 +225,71 @@ export function stopHermesManagerDaemon(): Promise<void> {
   return inFlight;
 }
 
+export interface HermesDaemonRequestOptions {
+  timeoutMs?: number;
+}
+
+/**
+ * 对已确保运行的 hermes-mgr daemon 发一次短请求(config 级 RPC:get/set 默认
+ * 模型路由)。ensure → connect → protocol/hello → request → dispose;不与
+ * Agent 的会话级 transport 共享连接。默认 10s 超时,写 config 足够。
+ */
+export async function withHermesManagerDaemon<T>(
+  run: (client: RpcClient) => Promise<T>,
+  options: HermesDaemonRequestOptions = {},
+): Promise<T> {
+  const ensure = await ensureHermesManagerDaemon();
+  if (!ensure.ok) {
+    throw new Error(`hermes-mgr daemon not ready: ${ensure.message}`);
+  }
+  const socketPath = hermesManagerSocketPath();
+  if (!socketPath) {
+    throw new Error('hermes-mgr socket path unavailable after ensure');
+  }
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    let socket: net.Socket | null = null;
+    let client: RpcClient | null = null;
+    let timer: NodeJS.Timeout | undefined;
+
+    const finish = (err: Error | null, value?: T): void => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      try {
+        client?.dispose();
+      } catch {
+        /* best effort */
+      }
+      try {
+        socket?.destroy();
+      } catch {
+        /* best effort */
+      }
+      if (err) reject(err);
+      else resolve(value as T);
+    };
+
+    timer = setTimeout(() => finish(new Error('hermes-mgr request timed out')), timeoutMs);
+    try {
+      socket = net.createConnection(socketPath);
+    } catch (err) {
+      finish(err instanceof Error ? err : new Error(String(err)));
+      return;
+    }
+    socket.once('error', (err) => finish(err));
+    socket.once('connect', () => {
+      client = new RpcClient(socket!, { clientId: 'desktop-config' });
+      client
+        .hello({ timeoutMs })
+        .then(() => run(client!))
+        .then((value) => finish(null, value))
+        .catch((err: unknown) => finish(err instanceof Error ? err : new Error(String(err))));
+    });
+  });
+}
+
 /** @internal test helper: 清空模块级缓存/持有状态(不杀真实进程)。 */
 export function resetHermesManagerClientForTests(): void {
   lifecycleGeneration += 1;

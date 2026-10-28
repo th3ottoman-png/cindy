@@ -31,7 +31,7 @@ describe('protocol constants', () => {
 
   it('keeps method names namespaced', () => {
     for (const method of Object.values(METHODS)) {
-      expect(method).toMatch(/^(protocol|query|session)\//);
+      expect(method).toMatch(/^(protocol|query|session|config)\//);
     }
     for (const name of Object.values(NOTIFICATIONS)) {
       expect(name).toMatch(/^(query|session|client)\//);
