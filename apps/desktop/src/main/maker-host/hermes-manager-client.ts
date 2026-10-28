@@ -310,12 +310,14 @@ export async function getHermesModelCatalog(
       route: { model?: string; provider?: string; baseUrl?: string };
     }>(HERMES_MGR_METHODS.CONFIG_GET_DEFAULT_ROUTE, {}, { timeoutMs: requestTimeoutMs });
     const provider = route.provider ?? '';
+    // Desktop-env key when present; otherwise the daemon falls back to the
+    // Hermes home .env (the same file the CLI loads for its turns).
     const envName = `${provider.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_API_KEY`;
     const key = provider ? process.env[envName]?.trim() ?? '' : '';
-    if (!route.baseUrl || !key) return { route, models: [] };
+    if (!route.baseUrl) return { route, models: [] };
     const result = await client.request<{ route: HermesModelCatalog['route']; models: string[]; error?: string }>(
       HERMES_MGR_METHODS.CONFIG_LIST_MODELS,
-      { key },
+      key ? { key } : {},
       { timeoutMs: requestTimeoutMs },
     );
     return { route: result.route, models: result.models, ...(result.error ? { error: result.error } : {}) };
