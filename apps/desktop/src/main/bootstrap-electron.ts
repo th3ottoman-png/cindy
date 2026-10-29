@@ -339,6 +339,7 @@ import {
 } from './rsb-browser-bridge/native-popup-surfaces.js';
 import { disposeAndroidAdb } from './mcp-integrations/android.js';
 import { shutdownCodexEnvironment } from './mcp-integrations/codexEnvironment.js';
+import { clearHermesBridgeRuntimeFileOnShutdown } from './mcp-integrations/hermesBridgeHost.js';
 import {
   invalidatePiEnvironment,
   shutdownPiEnvironment,
@@ -10398,6 +10399,8 @@ onQuit(
   'post-async',
 );
 onQuit('pi-env', () => shutdownPiEnvironment(), 'post-async');
+// Hermes shim handoff file: its port and tokens die with the bridge above.
+onQuit('hermes-bridge-file', () => clearHermesBridgeRuntimeFileOnShutdown(), 'post-async');
 // 正常退出时保留到 Agent 和 Session 收尾完成；async 超时后仍按退出预算尽力清理。
 onQuit('codex-env', () => shutdownCodexEnvironment(), 'post-async');
 onQuit('codex-proxy', () => disposeCodexProxy(), 'post-async');

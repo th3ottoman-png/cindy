@@ -459,6 +459,48 @@ export async function removeHermesMcpServer(
   return removeConfigMcpServer(homePath, name);
 }
 
+export async function listHermesMcpServers(): Promise<Record<string, HermesMcpServerConfig>> {
+  return readHermesMcpServers(resolveHermesHome());
+}
+
+/**
+ * hermes-bridge-shim.mjs 路径(cindy-tools `bundle:shim` 产物):dev 取源码 dist,
+ * packaged 取 resources/hermes-bridge-shim/。两处都没有 → null,Hermes 不带 Cindy 工具运行
+ * (packaged 构建尚未随包携带 shim —— ROADMAP §Debt)。
+ */
+export function resolveHermesBridgeShimPath(): string | null {
+  const candidates: string[] = [];
+  try {
+    candidates.push(
+      path.join(
+        app.getAppPath(),
+        '..',
+        '..',
+        'packages',
+        'cindy-tools',
+        'dist',
+        'hermes-bridge-shim.mjs',
+      ),
+    );
+  } catch {
+    // 非 Electron 环境:只试 packaged 路径。
+  }
+  if (process.resourcesPath) {
+    candidates.push(
+      path.join(process.resourcesPath, 'hermes-bridge-shim', 'hermes-bridge-shim.mjs'),
+    );
+  }
+  for (const candidate of candidates) {
+    try {
+      const st = fs.statSync(candidate);
+      if (st.isFile() && st.size > 0) return candidate;
+    } catch {
+      // try next
+    }
+  }
+  return null;
+}
+
 /** @internal test helper: 清空模块级缓存/持有状态(不杀真实进程)。 */
 export function resetHermesManagerClientForTests(): void {
   lifecycleGeneration += 1;

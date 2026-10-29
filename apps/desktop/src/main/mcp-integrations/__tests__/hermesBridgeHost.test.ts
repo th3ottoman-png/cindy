@@ -1,0 +1,248 @@
+import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+
+import type { Logger, McpProvider } from '@cindy/maker-core';
+import { withMcpRouteIdentity } from '../codexHttpBridge.js';
+import {
+  HERMES_BRIDGE_GATED_SERVERS,
+  HERMES_BRIDGE_SAFE_SERVERS,
+  buildHermesShimServerConfig,
+  createHermesBridgePreparer,
+  selectHermesBridgeServers,
+  syncHermesShimRegistrations,
+  type HermesShimRegistrationDeps,
+  type HermesShimServerConfig,
+} from '../hermesBridgeHost.js';
+import { readHermesBridgeRuntimeFile } from '../hermesBridgeRuntimeFile.js';
+import { resetPiEnvironmentForTest, shutdownPiEnvironment } from '../piEnvironment.js';
+
+function noopLogger(): Logger {
+  const logger: Logger = {
+    trace() {},
+    debug() {},
+    info() {},
+    warn() {},
+    error() {},
+    fatal() {},
+    child() {
+      return logger;
+    },
+  };
+  return logger;
+}
+
+const SHIM = '/opt/cindy/hermes-bridge-shim.mjs';
+
+describe('hermes bridge exposure policy', () => {
+  it('exposes only SAFE servers by default and only running ones', () => {
+    expect(
+      selectHermesBridgeServers(['cindy_docs', 'cindy_ssh', 'cindy_browser', 'cindy_memory']),
+    ).toEqual(['cindy_docs']);
+    expect(selectHermesBridgeServers(['cindy_ssh'])).toEqual([]);
+  });
+
+  it('adds a GATED server only when opted in AND running', () => {
+    const all = [...HERMES_BRIDGE_SAFE_SERVERS, ...HERMES_BRIDGE_GATED_SERVERS];
+    expect(selectHermesBridgeServers(all, new Set(['cindy_ssh']))).toEqual([
+      'cindy_docs',
+      'cindy_ssh',
+    ]);
+    expect(selectHermesBridgeServers(['cindy_docs'], new Set(['cindy_ssh']))).toEqual([
+      'cindy_docs',
+    ]);
+    // Not on either list → never exposed, opt-in or not.
+    expect(selectHermesBridgeServers(['cindy_memory'], new Set(['cindy_memory']))).toEqual([]);
+  });
+
+  it('builds a static shim command with an unexpanded ${VAR} and no secret', () => {
+    expect(buildHermesShimServerConfig(SHIM, 'cindy_docs')).toEqual({
+      command: 'node',
+      args: [SHIM, '--server', 'cindy_docs'],
+      env: { CINDY_BRIDGE_SESSION: '${CINDY_BRIDGE_SESSION}' },
+    });
+  });
+});
+
+describe('syncHermesShimRegistrations', () => {
+  function fakeConfig(
+    initial: Record<string, { command?: string; args?: string[]; env?: Record<string, string> }>,
+  ) {
+    const servers = { ...initial };
+    const calls: string[] = [];
+    const deps: HermesShimRegistrationDeps = {
+      listServers: async () => ({ ...servers }),
+      setServer: async (name: string, server: HermesShimServerConfig) => {
+        calls.push(`set:${name}`);
+        servers[name] = server;
+      },
+      removeServer: async (name: string) => {
+        calls.push(`remove:${name}`);
+        delete servers[name];
+      },
+    };
+    return { servers, calls, deps };
+  }
+
+  it('writes missing entries and is idempotent', async () => {
+    const cfg = fakeConfig({});
+    expect(await syncHermesShimRegistrations(cfg.deps, SHIM, ['cindy_docs'])).toEqual({
+      written: ['cindy_docs'],
+      removed: [],
+    });
+    expect(await syncHermesShimRegistrations(cfg.deps, SHIM, ['cindy_docs'])).toEqual({
+      written: [],
+      removed: [],
+    });
+    expect(cfg.calls).toEqual(['set:cindy_docs']);
+  });
+
+  it('removes our own no-longer-exposed entries but never a user-owned one', async () => {
+    const cfg = fakeConfig({
+      cindy_ssh: buildHermesShimServerConfig(SHIM, 'cindy_ssh'),
+      cindy_browser: { command: 'npx', args: ['my-own-browser-mcp'] },
+    });
+    expect(await syncHermesShimRegistrations(cfg.deps, SHIM, ['cindy_docs'])).toEqual({
+      written: ['cindy_docs'],
+      removed: ['cindy_ssh'],
+    });
+    expect(cfg.servers.cindy_browser).toEqual({ command: 'npx', args: ['my-own-browser-mcp'] });
+  });
+
+  it('does not overwrite a user-owned entry that squats an exposed name', async () => {
+    const cfg = fakeConfig({ cindy_docs: { command: 'npx', args: ['mine'] } });
+    expect((await syncHermesShimRegistrations(cfg.deps, SHIM, ['cindy_docs'])).written).toEqual([]);
+    expect(cfg.servers.cindy_docs).toEqual({ command: 'npx', args: ['mine'] });
+  });
+});
+
+describe('createHermesBridgePreparer (real bridge, stub providers)', () => {
+  let dir: string;
+  let runtimeFile: string;
+
+  const stubProvider = (name: string, text: string): McpProvider =>
+    ({
+      name,
+      toClaudeSdkConfig: () => {
+        const instance = new McpServer({ name, version: '1.0.0' });
+        instance.tool('ping', 'ping', {}, async () => ({
+          content: [{ type: 'text' as const, text }],
+        }));
+        return { type: 'sdk', name, instance };
+      },
+    }) as unknown as McpProvider;
+
+  beforeEach(async () => {
+    resetPiEnvironmentForTest();
+    dir = await mkdtemp(path.join(tmpdir(), 'hermes-host-'));
+    runtimeFile = path.join(dir, 'hermes-bridge.json');
+  });
+
+  afterEach(async () => {
+    await shutdownPiEnvironment();
+    resetPiEnvironmentForTest();
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
+  });
+
+  async function callTool(
+    server: string,
+    sessionId: string,
+  ): Promise<{ status: number; body: string }> {
+    const file = (await readHermesBridgeRuntimeFile(runtimeFile))!;
+    const url = withMcpRouteIdentity(`http://127.0.0.1:${file.port}/mcp/${server}`, { sessionId });
+    const headers: Record<string, string> = {
+      authorization: `Bearer ${file.sessions[sessionId]}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    };
+    const init = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: { name: 'shim', version: '1' },
+        },
+      }),
+    });
+    if (init.status !== 200) return { status: init.status, body: await init.text() };
+    headers['mcp-session-id'] = init.headers.get('mcp-session-id')!;
+    await init.text();
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: { name: 'ping', arguments: {} },
+      }),
+    });
+    return { status: res.status, body: await res.text() };
+  }
+
+  it('registers identity, writes only SAFE shim entries, blocks a gated plugin, and cleans up', async () => {
+    const written: string[] = [];
+    const prepare = createHermesBridgePreparer({
+      providers: () => [
+        stubProvider('cindy_docs', 'docs-ok'),
+        stubProvider('cindy_browser', 'browser-ok'),
+      ],
+      logger: noopLogger(),
+      runtimeFile,
+      resolveShimPath: () => SHIM,
+      registration: {
+        listServers: async () => ({}),
+        setServer: async (name) => {
+          written.push(name);
+        },
+        removeServer: async () => undefined,
+      },
+    });
+
+    const session = await prepare({ sessionId: 'sess-H', workingDir: dir });
+    expect(session).not.toBeNull();
+    expect(session!.env).toEqual({ CINDY_BRIDGE_SESSION: 'sess-H' });
+    expect(written).toEqual(['cindy_docs']);
+    if (process.platform !== 'win32') {
+      expect((await stat(runtimeFile)).mode & 0o777).toBe(0o600);
+    }
+
+    const docs = await callTool('cindy_docs', 'sess-H');
+    expect(docs.body).toContain('docs-ok');
+    const browser = await callTool('cindy_browser', 'sess-H');
+    expect(browser.body).not.toContain('browser-ok');
+
+    session!.dispose();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const after = await readHermesBridgeRuntimeFile(runtimeFile);
+    expect(after?.sessions['sess-H']).toBeUndefined();
+  });
+
+  it('fails open (null) without a shim bundle, and registers nothing', async () => {
+    let touched = false;
+    const prepare = createHermesBridgePreparer({
+      providers: () => [stubProvider('cindy_docs', 'docs-ok')],
+      logger: noopLogger(),
+      runtimeFile,
+      resolveShimPath: () => null,
+      registration: {
+        listServers: async () => {
+          touched = true;
+          return {};
+        },
+        setServer: async () => undefined,
+        removeServer: async () => undefined,
+      },
+    });
+    expect(await prepare({ sessionId: 'sess-N', workingDir: dir })).toBeNull();
+    expect(touched).toBe(false);
+    expect(await readHermesBridgeRuntimeFile(runtimeFile)).toBeNull();
+  });
+});

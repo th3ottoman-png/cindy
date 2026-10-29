@@ -216,8 +216,13 @@ import {
 import { buildPiAgent } from './pi-host.js';
 import {
   hermesManagerSocketPath,
+  listHermesMcpServers,
+  removeHermesMcpServer,
+  resolveHermesBridgeShimPath,
   resolveHermesManagerBundlePath,
+  setHermesMcpServer,
 } from './hermes-manager-client.js';
+import { createHermesBridgePreparer } from '../mcp-integrations/hermesBridgeHost.js';
 import {
   captureLocalPiPackageRuntimeInvalidationSnapshot,
   settleLocalPiPackageRuntimeSnapshot,
@@ -2829,6 +2834,18 @@ export function getMaker(): Maker {
       return new HermesAgent({
         binaryPath: bundlePath,
         resolveHermesManagerSocketPath: () => hermesManagerSocketPath(),
+        // Cindy tools inside Hermes (1.5b-3): per-session bridge identity + frozen
+        // tool policy; only SAFE servers are exposed (see hermesBridgeHost.ts).
+        prepareHermesBridgeSession: createHermesBridgePreparer({
+          providers: () => _mcpProviders.pi ?? [],
+          logger: desktopMakerLogger,
+          resolveShimPath: resolveHermesBridgeShimPath,
+          registration: {
+            listServers: listHermesMcpServers,
+            setServer: setHermesMcpServer,
+            removeServer: removeHermesMcpServer,
+          },
+        }),
         auth: HERMES_HOST_AUTH,
         runtimeConfig: { userDataPath: app.getPath('userData') },
         logger: desktopMakerLogger,

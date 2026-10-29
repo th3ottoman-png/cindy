@@ -402,6 +402,43 @@ export function invalidatePiEnvironment(): void {
   if (current) retireGeneration(current);
 }
 
+export interface CindyToolBridgeLease {
+  bridge: CodexHttpBridge;
+  /** Local (in-process) bridge server names, before any per-agent allow-list. */
+  serverNames: string[];
+  /** Idempotent: lets a retired generation shut down once its last lease is gone. */
+  release: () => void;
+}
+
+/**
+ * Lease the shared local bridge for a non-Pi agent (Hermes). Same generation,
+ * same lifecycle as Pi: invalidate/shutdown retire it, and a held lease keeps a
+ * retired generation alive for the running session. Null when no local bridge
+ * could start (Hermes then runs without Cindy tools).
+ */
+export async function acquireCindyToolBridge(
+  providers: McpProvider[],
+  logger: MakerLogger,
+): Promise<CindyToolBridgeLease | null> {
+  for (;;) {
+    const started = await ensureBridge(providers, logger);
+    if (!started?.bridge) return null;
+    // Confirm-not-retired and take the lease in one synchronous section.
+    if (started.retired) continue;
+    started.refs += 1;
+    let released = false;
+    return {
+      bridge: started.bridge,
+      serverNames: [...started.serverNames],
+      release: () => {
+        if (released) return;
+        released = true;
+        releaseGeneration(started);
+      },
+    };
+  }
+}
+
 export async function shutdownPiEnvironment(): Promise<void> {
   // 轮 40-w4-t10 MEDIUM:先置关停门闩再收口 —— 关停期间 ensureBridge fail-closed。
   environmentShuttingDown = true;
@@ -519,7 +556,8 @@ async function doStart(
       if (
         active?.agentKind !== 'pi' &&
         active?.agentKind !== 'codex' &&
-        active?.agentKind !== 'claude-code'
+        active?.agentKind !== 'claude-code' &&
+        active?.agentKind !== 'hermes'
       ) {
         return undefined;
       }

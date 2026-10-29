@@ -10,6 +10,47 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-3 main-process wiring
+
+**Outcome:** 1.5b-3 `unit-tested`. Not `live-proven`: no real Hermes has loaded the shim (1.5b-4). Original 1.5b stays open.
+
+**Changed (`apps/desktop/src/main`):**
+- `mcp-integrations/hermesBridgeHost.ts` (new): `createHermesBridgePreparer` = the `prepareHermesBridgeSession` hook. Per turn it
+  leases the shared local bridge, freezes the per-project policy into the ctx `vendorOptions` (disabled plugin ids via the plugin
+  registry, allowed plugin ids, `RUNTIME_MCP_NAMES_KEY` = exposed servers), then calls `registerHermesBridgeSession`. Also
+  `syncHermesShimRegistrations` (static `config.yaml` entries) and the exposure allow-list.
+- `mcp-integrations/piEnvironment.ts`: new `acquireCindyToolBridge` (lease on the same Pi bridge generation; Pi behaviour unchanged)
+  and `'hermes'` accepted in the provider session-context pass-through.
+- `maker-host/index.ts`: injects the hook into `HermesAgent`. `maker-host/hermes-manager-client.ts`: `listHermesMcpServers`,
+  `resolveHermesBridgeShimPath`. `bootstrap-electron.ts`: runtime file cleared on quit; the hook also clears it once per process
+  before the first entry (stale file from a crashed run).
+
+**Decisions (mine, reversible, please veto):**
+- Exposure is fail-closed. Default: `cindy_docs` only. `cindy_browser`, `cindy_computer`, `cindy_ssh` are GATED and stay off
+  because Hermes' approval hook is not wired (protocol "reserved M3"). Nothing supplies an opt-in yet (`optedInGatedServers`).
+- `config.yaml` entries are written via the 1.5a helpers with a static command `node <shim> --server <name>` and
+  `env: { CINDY_BRIDGE_SESSION: "${CINDY_BRIDGE_SESSION}" }`. Only entries pointing at our bundle are ever changed or removed;
+  a user-owned entry with the same name is left alone.
+- Shim bundle: dev `packages/cindy-tools/dist/hermes-bridge-shim.mjs`; packaged `resources/hermes-bridge-shim/`. Nothing ships it
+  there yet, so a packaged app runs Hermes without Cindy tools (logged in ROADMAP Debt). Missing bundle = fail open, no tools.
+
+**Verified (`unit-tested`):** `mcp-integrations/__tests__/hermesBridgeHost.test.ts` 8 pass: exposure policy, static shim config,
+idempotent sync and user-entry protection, and the preparer against a real bridge with stub providers (identity + 0600 file,
+only the SAFE entry written, a gated server's route refused, dispose removes the session, null without a bundle).
+`hermesBridgeSession.test.ts` still 5/5.
+
+**Gates (Node 22, exit 0):** `pnpm typecheck && pnpm test:runner && pnpm test:unit:related && pnpm check:test-hygiene` ran as one
+chain on the final tree, `EXIT=0`.
+
+**Surprise:** a formatter hook rewrote `index.ts`, `bootstrap-electron.ts` and `piEnvironment.ts` wholesale after my edits (+1400
+lines in `index.ts`). I restored those from git and re-applied only my hunks via script (diff +101/-1), then reran the gates.
+
+**Open:** (1) `command: node` must resolve on Hermes' PATH, 1.5b-4. (2) Whether Hermes re-reads `config.yaml` for an already
+running daemon or only at session start, 1.5b-4. (3) Known edge from 1.5b-1: re-registering a session id before the old handle's late
+`dispose` removes the file entry; the shim then fails closed. (4) Packaging of the bundle. (5) A source for the gated opt-in.
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-2 stdio shim
 
 **Outcome:** 1.5b-2 `unit-tested`. Not registered with Hermes or launched by the app (1.5b-3); original 1.5b stays open.
