@@ -10,6 +10,32 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-4b option (a) probe, gateway per session (free, mechanism `live-proven`)
+
+**Outcome:** option (a) works as a mechanism, and it is expensive. Nothing built; 1.5b-4b stays open. Stub MCP server only, throwaway homes, no
+model call, nothing under `~/.hermes*` touched, all four probe gateways stopped and scratch deleted. Table and detail:
+`docs/evidence/1.5b-4b-attempt-not-proven.md`.
+
+**Proven:** a per-session `HERMES_HOME` gives a per-session gateway whose MCP children receive that session's env: 4 homes, 4 gateways, 4 correct values.
+A symlinked shared `config.yaml` works. `startHermesRun` already takes `hermesHome` per spawn; only `hermes-manager.ts:198` (and the route/config reads)
+pass the daemon-wide home today, so the code change is small.
+
+**Costs measured:** cold home 14.02 s and 8.69 s (9–14 s observed), warm 0.4 s, about 250 MB RSS per gateway.
+
+**Not proven, and the real risk:** (1) a real `hermes chat` client starting the gateway with its own env (the probe used `gateway ensure`; 4a's leftover
+gateway suggests yes, but that was by accident). (2) What a thin per-session home must share: credentials (`.env`, `auth.json`, Nous token refresh writes
+back), models/route, plugins, skills, memories. Symlinks break if Hermes or `hermes-config.ts` writes with temp-file-plus-rename, which replaces the link
+with a file. (3) Resume: Hermes session ids live under the home, so a Cindy session must always reuse its own home. (4) Lifecycle: stopping gateways at
+session close and app quit, and reaping orphans, is new work. (5) The first turn of a new session pays the cold-start cost unless homes are pre-cloned
+from a template.
+
+**Where this leaves the options:** (a) is viable but is a real architecture change in how Cindy drives Hermes (state fragmentation, per-session process,
+lifecycle), not a small wiring fix. (b) one shim entry per session is unprobed except for its reconcile latency (~60 s measured); a way to force reload
+is the open question and would be a free probe. Both preserve today's bridge trust model. Recommendation: do one more free probe for (b)'s forced reload
+(`hermes mcp`/gateway commands, no model call) before choosing, because (b) avoids per-session state and processes entirely if the latency can be removed.
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-4b free control experiment (design finding, `live-proven` for the mechanism)
 
 **Outcome:** the identity-channel risk from the 4b attempt is now confirmed, not just suspected. 1.5b-4b stays open; **the current per-session-env
