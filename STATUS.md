@@ -10,6 +10,24 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b split (no code changed)
+
+**Outcome:** 1.5b stays 🔲. Split into 1.5b-1…4 in `ROADMAP.md`. Nothing built; label `unverified` for all.
+
+**Why not done in one session:** reading `codexHttpBridge.ts` / `codexEnvironment.ts` / `piEnvironment.ts` showed
+1. The loopback streamable-HTTP bridge already serves Cindy's in-process MCP servers (Codex/Pi use it), so the
+   shim can be a thin stdio↔HTTP proxy.
+2. Bridge tools resolve identity from a registered session ctx (per-session token + `?session=`, or Codex
+   `threadId`), never from tool args. A Hermes turn has no such identity today — that is the real design work (1.5b-1).
+3. `live-proven` needs a real model call (DeepSeek). Not made; needs owner approval (1.5b-4).
+
+**Owner decision (this session):** shim gets port+token from a **0600 runtime file** written by the main process
+at bridge start; `config.yaml` holds only a static command. Rejected: per-turn env, token in `config.yaml`.
+
+**Next:** 1.5b-1 (session identity), then -2 shim, -3 wiring, -4 live proof. Gates not rerun (docs only).
+
+---
+
 ## 2026-10-29 — Roadmap 0.8–0.12: built, split, and UI-proven
 
 **Outcomes:** 0.8 `live-proven` · 0.9a ✅ done / 0.9b ✅ done (owner actions) · 0.10 `unit-tested` ·
