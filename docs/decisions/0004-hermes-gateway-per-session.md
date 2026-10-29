@@ -37,3 +37,20 @@ Give each Cindy Hermes session its own `HERMES_HOME`, and therefore its own gate
 - Isolation holds by construction: a session's agent only sees its own shim entries.
 - Cost: a per-session process and home, new lifecycle code, and a change to how Cindy drives Hermes (`hermes-manager.ts`), which is the hot path and needs `live-proven` with a before/after transcript (AGENTS §6.5).
 - If question 2 or 3 cannot be answered safely, fall back to telling the owner; do not weaken to single-active-session without a new decision.
+
+## Probe results (1.5b-5a, 2026-10-29; evidence in `docs/evidence/1.5b-5a-probes.md`)
+
+1. **Client-started gateway takes the client's env: yes.** The design's core mechanism holds with a real `hermes chat` client.
+2. **Symlinks survive; the config must be a generated file.** `.env`, `auth.json`, `SOUL.md`, `skills`, `plugins`, `memories` links were kept and files unchanged.
+   Hermes' own writer writes through links, but Cindy's rename-based writer would replace one, so the per-session `config.yaml` is a regular file Cindy generates.
+   Untested: `auth.json` refresh write-back (needs credentials), so `auth.json` sharing is still an open risk.
+3. **Share** `.env`, `auth.json`, `SOUL.md`, `skills`, `plugins`, `installs` (and likely `cache`); **per session** `config.yaml`, `state.db`, `sessions`, `kanban.db`, logs.
+   `memories` shared-or-isolated is an owner decision. Old sessions in `~/.hermes-cindy` do not resume in new homes.
+4. **Template copy fails (absolute venv paths); sharing `installs/` works.** Home goes from 1.0 GB to 5 MB; start from 9–18 s to ~2–7 s; start the gateway at session
+   creation to hide it.
+
+### New blocker found: `--safe-mode`
+
+`--safe-mode` (which Cindy passes for every permission mode except full access) disables all config and **MCP servers**, so no Cindy tool can reach a "default permissions"
+Hermes run no matter how identity is solved. Running without `--safe-mode` has unknown approval behaviour in non-interactive mode (no model-free way to probe),
+and `--yolo` removes dangerous-command approvals. The permission mapping in `permissionModeToFlags` needs an owner decision (new row 1.5b-5d) before 1.5b-5c is useful.

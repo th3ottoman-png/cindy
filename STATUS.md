@@ -10,6 +10,28 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-5a free probes (`live-proven`, probes) + new blocker `--safe-mode`
+
+**Outcome:** 1.5b-5a done to `live-proven` at probe level (real Hermes v0.22.5, stub MCP server, throwaway homes, scrubbed env, no credentials, no model call; real
+`~/.hermes-cindy/config.yaml` unchanged, probe gateways stopped, scratch deleted). Full results: `docs/evidence/1.5b-5a-probes.md`; ADR 0004 amended with them.
+
+**Answers:** (1) a real `hermes chat` client starts the gateway with the client's env, so gateway-per-session works with how `hermes-run.ts` already spawns. (2) Symlinks to
+`.env`/`auth.json`/`SOUL.md`/`skills`/`plugins`/`memories` survive; Cindy's rename-based writer would replace a link, so the per-session `config.yaml` must be a generated regular file.
+(3) Share `.env`, `auth.json`, `SOUL.md`, `skills`, `plugins`, `installs`; per session `config.yaml`, `state.db`, sessions, logs. (4) Copying a warmed home fails (absolute venv paths);
+sharing `installs/` by symlink works: home 1.0 GB → 5 MB, start 9–18 s → ~2–7 s.
+
+**Mistake caught:** my first template-clone timing (0.76 s) was a fast failure, not a start. I noticed only 2 of 3 gateways were up and the `--json` output was empty, reran with the
+exit code, and corrected the conclusion.
+
+**New blocker (affects the whole 1.5b, not just identity):** Hermes documents `--safe-mode` as disabling "user config, AGENTS.md/memory injection, plugins, and MCP servers".
+`permissionModeToFlags` passes `--safe-mode` for every Cindy permission mode except full access (`--yolo`). So a default/ask Hermes run has MCP off regardless of identity. That also
+explains why the 4b model saw only `terminal` and `todo`. Recorded as row **1.5b-5d** (owner decision on the mapping); 1.5b-5c is not useful before it.
+
+**Still untested (needs credentials or a model call):** `auth.json` refresh write-back from a session home; approval behaviour without `--safe-mode`/`--yolo` in non-interactive mode;
+memory sharing policy. No paid calls this session. Gates not rerun: docs only.
+
+---
+
 ## 2026-10-29 — Phase 1: identity channel decided, design recorded (docs only)
 
 **Outcome:** owner answered the one open product question: Hermes sessions **do overlap** ("Sometimes overlap"). So single-active-session identity is out and
