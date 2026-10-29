@@ -36,6 +36,15 @@ if (process.env.FAKE_RECORD_LOG) {
 
 const emit = (obj) => process.stdout.write(JSON.stringify(obj) + '\n');
 
+if (process.argv.includes('--version')) {
+  if (process.env.FAKE_VERSION_ERROR) {
+    process.stderr.write('simulated version failure\n');
+    process.exit(1);
+  }
+  process.stdout.write(`Hermes Agent v${process.env.FAKE_VERSION ?? '0.22.5'} (test fixture)\n`);
+  process.exit(0);
+}
+
 // Consume stdin (the daemon writes the query then closes it) without parsing.
 process.stdin.resume();
 

@@ -18,6 +18,10 @@ import {
   removeHermesMcpServer,
 } from './hermes-config.js';
 import { fetchProviderModels, hermesHomeApiKey, parseHermesDotEnv } from './hermes-models.js';
+import {
+  HERMES_CLI_PINNED_VERSION,
+  readInstalledHermesVersion,
+} from './hermes-version.js';
 import { readFile } from 'node:fs/promises';
 import * as nodePath from 'node:path';
 import { isInvalidResumeFailure, startHermesRun, type HermesRunHandle } from './hermes-run.js';
@@ -68,12 +72,14 @@ export class HermesManager {
   private readonly hermesBin: string;
   private readonly hermesExtraArgs?: string[];
   private readonly defaultPreamble?: string;
+  private readonly logger?: ManagerLogger;
 
   constructor(opts: HermesManagerOptions) {
     this.hermesHome = opts.hermesHome;
     this.hermesBin = opts.hermesBin ?? 'hermes';
     this.hermesExtraArgs = opts.hermesExtraArgs;
     this.defaultPreamble = opts.defaultPreamble;
+    this.logger = opts.logger;
     this.registry = new SessionRegistry(opts.registryFile ?? null);
     this.server = new ManagerServer({
       socketPath: opts.socketPath,
@@ -285,6 +291,37 @@ export class HermesManager {
         sessionId: rec.sessionId,
         ...(rec.hermesSessionId ? { hermesSessionId: rec.hermesSessionId } : {}),
       };
+    });
+
+    s.setHandler(METHODS.CONFIG_STATUS, async () => {
+      try {
+        const installedVersion = await readInstalledHermesVersion({
+          hermesBin: this.hermesBin,
+          hermesHome: this.hermesHome,
+          ...(this.hermesExtraArgs ? { hermesExtraArgs: this.hermesExtraArgs } : {}),
+        });
+        const matches = installedVersion === HERMES_CLI_PINNED_VERSION;
+        if (!matches) {
+          this.logger?.warn('Hermes CLI version mismatch', {
+            installedVersion,
+            pinnedVersion: HERMES_CLI_PINNED_VERSION,
+          });
+        }
+        return {
+          installedVersion,
+          pinnedVersion: HERMES_CLI_PINNED_VERSION,
+          matches,
+        };
+      } catch (error) {
+        this.logger?.warn('Unable to verify Hermes CLI version', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return {
+          installedVersion: null,
+          pinnedVersion: HERMES_CLI_PINNED_VERSION,
+          matches: null,
+        };
+      }
     });
 
     s.setHandler(METHODS.CONFIG_GET_DEFAULT_ROUTE, async () => {

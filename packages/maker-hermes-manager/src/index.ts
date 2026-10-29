@@ -13,6 +13,11 @@ export {
 } from './hermes-run.js';
 export { SessionRegistry, type HermesSessionRecord } from './session-registry.js';
 export {
+  HERMES_CLI_PINNED_VERSION,
+  readInstalledHermesVersion,
+  type HermesVersionProbeOptions,
+} from './hermes-version.js';
+export {
   parseHermesDefaultRoute,
   readHermesDefaultRoute,
   writeHermesDefaultRoute,

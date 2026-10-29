@@ -39,7 +39,7 @@ Nothing below is glamorous. All of it is what separates a toy from a daily drive
 | 0.3 | **Enforce Node 22.** Add `.nvmrc` (`22.23.4`), `"engines"` + `engine-strict=true`, and an early exit in `scripts/desktop-dev-runner.mjs` that prints the PATH export. | Running under Node 26 fails fast with the fix on screen | ✅ `live-proven` |
 | 0.4 | **Green gate.** Fix, skip-with-reason, or quarantine the two known failing suites and the two `maker-core` type errors. | Default gate set exits 0 | 🧪 `unit-tested` |
 | 0.5 | **Atomic `sessions.json`.** Temp-write + rename in the registry; add a corruption test (truncated file → empty registry + warning, not crash). | 🧪 | 🧪 `unit-tested` |
-| 0.6 | **Pin Hermes version.** Record installed `hermes --version` in `HANDOVER.md` §Versions. Daemon logs a warning on `status` if installed version ≠ pinned. | ✅ | 🔲 (0.22.5 recorded; daemon warning open) |
+| 0.6 | **Pin Hermes version.** Record installed `hermes --version` in `HANDOVER.md` §Versions. Daemon logs a warning on `status` if installed version ≠ pinned. | ✅ | ✅ `live-proven` |
 | 0.7 | **Fixture parity test.** Capture one real `hermes chat` NDJSON transcript (redacted) into fixtures; assert `fake-hermes.mjs` emits the same event shapes and key placement (`session_id` on `result`). | 🧪 | 🔲 |
 | 0.8 | **Live-prove the config writers.** Back up `~/.hermes-cindy/config.yaml`, click "set default model", add and remove one MCP server from the UI, diff the file, confirm `hermes-cindy` still starts and loads the MCP server. | ✅ | 🔲 |
 | 0.9 | **Secrets hygiene.** Rotate the ElevenLabs key; `git log -p` grep for any key material; decide and record what to do with the unused Nous login. | Done in `STATUS.md` | 🔲 |

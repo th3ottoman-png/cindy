@@ -71,6 +71,7 @@ interface Harness {
   collector: NotificationCollector;
   dir: string;
   registryFile: string;
+  warnings: Array<{ msg: string; ctx?: Record<string, unknown> }>;
 }
 
 let current: Harness | null = null;
@@ -87,8 +88,15 @@ async function startHarness(): Promise<Harness> {
   );
   const registryFile = path.join(home, 'hermes-mgr', 'sessions.json');
   const socketPath = path.join(dir, 'm.sock');
+  const warnings: Harness['warnings'] = [];
   const manager = new HermesManager({
     socketPath, hermesHome: home, hermesBin: process.execPath, hermesExtraArgs: [FIXTURE], registryFile,
+    logger: {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: (msg, ctx) => warnings.push({ msg, ...(ctx ? { ctx } : {}) }),
+      error: () => undefined,
+    },
   });
   await manager.start();
   const socket = net.createConnection(socketPath);
@@ -98,7 +106,7 @@ async function startHarness(): Promise<Harness> {
     onNotification: (n) => collector.push(n),
   });
   await client.hello({ timeoutMs: 5_000 });
-  return { manager, client, collector, dir, registryFile };
+  return { manager, client, collector, dir, registryFile, warnings };
 }
 
 function recordPath(dir: string, name: string): string {
@@ -112,6 +120,8 @@ beforeEach(async () => {
 afterEach(async () => {
   await current?.manager.stop();
   current?.client.dispose();
+  delete process.env.FAKE_VERSION;
+  delete process.env.FAKE_VERSION_ERROR;
   current = null;
 });
 
@@ -448,6 +458,54 @@ describe('HermesManager socket integration (fake hermes)', () => {
     const closes = h.collector.closedEvents().filter((c) => c.sessionId === 's5');
     expect(closes[closes.length - 1].reason).toBe('closed');
   }, 20_000);
+
+  it('warns on status when the installed Hermes version differs from the pin', async () => {
+    const h = current!;
+    process.env.FAKE_VERSION = '0.22.6';
+
+    const status = await h.client.request(METHODS.CONFIG_STATUS, {}, { timeoutMs: 5_000 });
+
+    expect(status).toEqual({
+      installedVersion: '0.22.6',
+      pinnedVersion: '0.22.5',
+      matches: false,
+    });
+    expect(h.warnings).toHaveLength(1);
+    expect(h.warnings[0].msg).toBe('Hermes CLI version mismatch');
+    expect(h.warnings[0].ctx).toEqual({
+      installedVersion: '0.22.6',
+      pinnedVersion: '0.22.5',
+    });
+  });
+
+  it('does not warn on status when the installed Hermes version matches the pin', async () => {
+    const h = current!;
+    process.env.FAKE_VERSION = '0.22.5';
+
+    const status = await h.client.request(METHODS.CONFIG_STATUS, {}, { timeoutMs: 5_000 });
+
+    expect(status).toEqual({
+      installedVersion: '0.22.5',
+      pinnedVersion: '0.22.5',
+      matches: true,
+    });
+    expect(h.warnings).toHaveLength(0);
+  });
+
+  it('reports an unverified status and warns when the Hermes version cannot be read', async () => {
+    const h = current!;
+    process.env.FAKE_VERSION_ERROR = '1';
+
+    const status = await h.client.request(METHODS.CONFIG_STATUS, {}, { timeoutMs: 5_000 });
+
+    expect(status).toEqual({
+      installedVersion: null,
+      pinnedVersion: '0.22.5',
+      matches: null,
+    });
+    expect(h.warnings).toHaveLength(1);
+    expect(h.warnings[0].msg).toBe('Unable to verify Hermes CLI version');
+  });
 
   it('rejects protocol version mismatch', async () => {
     const h = current!;

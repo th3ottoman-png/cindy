@@ -33,7 +33,7 @@ export const PROTOCOL_VERSION = 1 as const;
  * Desktop uses this (not a content hash) to decide remote-style upgrades, so
  * unrelated tooling changes must not touch it.
  */
-export const HERMES_MGR_BUNDLE_VERSION = '0.1.0' as const;
+export const HERMES_MGR_BUNDLE_VERSION = '0.2.0' as const;
 
 export type RpcId = number;
 
@@ -103,7 +103,8 @@ export const METHODS = {
   SESSION_LIST: 'session/list',
   SESSION_KILL: 'session/kill',
 
-  // Config (daemon-level: the home's default model route and MCP servers in config.yaml)
+  // Config (daemon-level: runtime status, default model route, and MCP servers)
+  CONFIG_STATUS: 'config/status',
   CONFIG_GET_DEFAULT_ROUTE: 'config/getDefaultRoute',
   CONFIG_SET_DEFAULT_ROUTE: 'config/setDefaultRoute',
   CONFIG_LIST_MODELS: 'config/listModels',
@@ -264,6 +265,12 @@ export interface SessionKillParams {
 }
 
 /* ============================== Config / MCP shapes ============================== */
+
+export interface ConfigStatusResult {
+  installedVersion: string | null;
+  pinnedVersion: string;
+  matches: boolean | null;
+}
 
 export interface HermesMcpServerConfig {
   command?: string;

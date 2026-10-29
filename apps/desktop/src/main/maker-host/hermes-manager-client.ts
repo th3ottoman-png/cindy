@@ -87,9 +87,7 @@ const INHERITED_ENV_KEYS = [
   'XDG_CACHE_HOME',
 ] as const;
 
-export type HermesEnsureResult =
-  | { ok: true; socketPath: string }
-  | { ok: false; message: string };
+export type HermesEnsureResult = { ok: true; socketPath: string } | { ok: false; message: string };
 
 /** fork seam: 生产用 utilityProcess.fork; 单测注入 fake, 绝不真实拉起 daemon。 */
 export type HermesManagerFork = typeof utilityProcess.fork;
@@ -305,27 +303,39 @@ export interface HermesModelCatalog {
  * The active provider's real model ids, for the Hermes picker. Route comes
  * from the home config; the Bearer key comes from THIS process' env (the
  * daemon runs secret-free) and rides the request only — never stored.
+ * Also pings `config/status` first so the daemon logs a warning when the
+ * installed Hermes CLI differs from the pinned version.
  */
 export async function getHermesModelCatalog(
   requestTimeoutMs = 15_000,
 ): Promise<HermesModelCatalog> {
-  return withHermesManagerDaemon(async (client) => {
-    const { route } = await client.request<{
-      route: { model?: string; provider?: string; baseUrl?: string };
-    }>(HERMES_MGR_METHODS.CONFIG_GET_DEFAULT_ROUTE, {}, { timeoutMs: requestTimeoutMs });
-    const provider = route.provider ?? '';
-    // Desktop-env key when present; otherwise the daemon falls back to the
-    // Hermes home .env (the same file the CLI loads for its turns).
-    const envName = `${provider.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_API_KEY`;
-    const key = provider ? process.env[envName]?.trim() ?? '' : '';
-    if (!route.baseUrl) return { route, models: [] };
-    const result = await client.request<{ route: HermesModelCatalog['route']; models: string[]; error?: string }>(
-      HERMES_MGR_METHODS.CONFIG_LIST_MODELS,
-      key ? { key } : {},
-      { timeoutMs: requestTimeoutMs },
-    );
-    return { route: result.route, models: result.models, ...(result.error ? { error: result.error } : {}) };
-  }, { timeoutMs: requestTimeoutMs + 5_000 });
+  return withHermesManagerDaemon(
+    async (client) => {
+      await client.request(HERMES_MGR_METHODS.CONFIG_STATUS, {}, { timeoutMs: requestTimeoutMs });
+      const { route } = await client.request<{
+        route: { model?: string; provider?: string; baseUrl?: string };
+      }>(HERMES_MGR_METHODS.CONFIG_GET_DEFAULT_ROUTE, {}, { timeoutMs: requestTimeoutMs });
+      const provider = route.provider ?? '';
+      // Desktop-env key when present; otherwise the daemon falls back to the
+      // Hermes home .env (the same file the CLI loads for its turns).
+      const envName = `${provider.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_API_KEY`;
+      const key = provider ? (process.env[envName]?.trim() ?? '') : '';
+      if (!route.baseUrl) return { route, models: [] };
+      const result = await client.request<{
+        route: HermesModelCatalog['route'];
+        models: string[];
+        error?: string;
+      }>(HERMES_MGR_METHODS.CONFIG_LIST_MODELS, key ? { key } : {}, {
+        timeoutMs: requestTimeoutMs,
+      });
+      return {
+        route: result.route,
+        models: result.models,
+        ...(result.error ? { error: result.error } : {}),
+      };
+    },
+    { timeoutMs: requestTimeoutMs + 5_000 },
+  );
 }
 
 export interface HermesHomePluginInfo {
@@ -351,9 +361,7 @@ export type { HermesMcpServerConfig };
  * Overview of the Hermes environment for the Settings UI:
  * home directory, model routing, installed plugins, and skills categories.
  */
-export async function getHermesHomeStatus(
-  requestTimeoutMs = 15_000,
-): Promise<HermesHomeStatus> {
+export async function getHermesHomeStatus(requestTimeoutMs = 15_000): Promise<HermesHomeStatus> {
   const homePath = resolveHermesHome();
   const catalog = await getHermesModelCatalog(requestTimeoutMs).catch((err) => ({
     route: {},
@@ -463,9 +471,7 @@ export function resetHermesManagerClientForTests(): void {
 /* ============================== private ============================== */
 
 type ProbeOutcome =
-  | { state: 'ok' }
-  | { state: 'mismatch'; protocolVersion?: number }
-  | { state: 'dead' };
+  { state: 'ok' } | { state: 'mismatch'; protocolVersion?: number } | { state: 'dead' };
 
 async function stopInner(): Promise<void> {
   lifecycleGeneration += 1;
@@ -504,9 +510,7 @@ async function ensureInner(
   let socketPath: string;
   let home: string;
   try {
-    socketPath =
-      options.socketPathOverride ??
-      hermesManagerSocketPathFor(app.getPath('userData'));
+    socketPath = options.socketPathOverride ?? hermesManagerSocketPathFor(app.getPath('userData'));
     home = resolveHermesHome();
   } catch (err) {
     const message = errorText(err);
@@ -534,9 +538,7 @@ async function ensureInner(
       daemonProtocol: live.protocolVersion,
     });
     const observed =
-      live.protocolVersion !== undefined
-        ? `v${live.protocolVersion}`
-        : 'an incompatible version';
+      live.protocolVersion !== undefined ? `v${live.protocolVersion}` : 'an incompatible version';
     mismatchNote =
       `hermes-mgr protocol upgrade required: daemon speaks ${observed}, ` +
       `this app expects v${PROTOCOL_VERSION}; rebuild/repackage the hermes-mgr bundle ` +
@@ -564,7 +566,11 @@ function hermesManagerSocketPathFor(userDataDir: string): string {
   if (process.platform === 'win32') {
     // 命名管道没有目录清理这一步; 用 userData 的短 hash 避免超过 256 字符上限,
     // 同时让 dev/正式实例(不同 userData)互不串道。
-    const digest = crypto.createHash('sha256').update(userDataDir, 'utf8').digest('hex').slice(0, 16);
+    const digest = crypto
+      .createHash('sha256')
+      .update(userDataDir, 'utf8')
+      .digest('hex')
+      .slice(0, 16);
     return `\\\\.\\pipe\\cindy-hermes-mgr-${digest}`;
   }
   return path.join(userDataDir, 'hermes-mgr', 'hermes-mgr.sock');
@@ -620,18 +626,14 @@ async function spawnAndVerify(opts: SpawnAndVerifyOpts): Promise<HermesEnsureRes
   const stderrTail = { text: '' };
   let child: HermesUtilityProcess;
   try {
-    child = opts.forkImpl(
-      bundlePath,
-      ['--socket', opts.socketPath, '--hermes-home', opts.home],
-      {
-        cwd: os.tmpdir(),
-        env: hermesDaemonEnv(),
-        stdio: ['ignore', 'pipe', 'pipe'],
-        serviceName: SERVICE_NAME,
-        // 与 cindy-brain worker 一致: daemon 的系统权限访问仍归属 Cindy。
-        ...(process.platform === 'darwin' ? { disclaim: false } : {}),
-      },
-    );
+    child = opts.forkImpl(bundlePath, ['--socket', opts.socketPath, '--hermes-home', opts.home], {
+      cwd: os.tmpdir(),
+      env: hermesDaemonEnv(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      serviceName: SERVICE_NAME,
+      // 与 cindy-brain worker 一致: daemon 的系统权限访问仍归属 Cindy。
+      ...(process.platform === 'darwin' ? { disclaim: false } : {}),
+    });
   } catch (err) {
     return { ok: false, message: `failed to fork hermes-mgr: ${errorText(err)}` };
   }

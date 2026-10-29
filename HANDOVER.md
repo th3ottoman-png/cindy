@@ -7,10 +7,6 @@ This file describes **what the project is and how it works**. It changes rarely.
 - Rules you must follow → `AGENTS.md` (read it first)
 - Why things are the way they are → `docs/decisions/`
 
-> **Resuming on 2026-10-28 or later: read §10 first.** It is the current paused state of
-> roadmap 0.4, the measured gate results, and the environment trap that makes the gates lie.
-> It supersedes the generic startup sequence in §9 until 0.4 is green.
-
 ---
 
 ## 1. Purpose
@@ -53,7 +49,7 @@ This is not a product. There is no marketing surface, no onboarding funnel, no o
 |---|---|---|
 | Node | **22.23.4** at `/opt/homebrew/opt/node@22/bin` | System default is 26 and breaks native modules (`better-sqlite3` NODE_MODULE_VERSION mismatch). `.nvmrc` + `engine-strict` enforce this (ROADMAP 0.3). |
 | pnpm | 10.33.2 | |
-| Hermes CLI | **0.22.5** (2026.9.24, stable; local `bf0203a794a0`) | Resume logic depends on `session_id` appearing on the `result` event. Re-verify on every Hermes upgrade. |
+| Hermes CLI | **0.22.5** (2026.9.24, stable; local `bf0203a794a0`) | Resume logic depends on `session_id` appearing on the `result` event. Re-verify on every Hermes upgrade. The daemon's `config/status` RPC (called when Settings loads the model catalog) runs `<hermes> --version` and logs a warning on mismatch with the pin in `packages/maker-hermes-manager/src/hermes-version.ts`; an unreadable version warns and returns `matches: null`. Bump the pin there and here together. |
 | Upstream SHA at fork freeze | **`7c5bd270c956417127e12a74934d0ecdb97ba55d`** | `git merge-base main upstream/main`; see ADR 0001. |
 
 ---
@@ -213,3 +209,5 @@ precedence over this generic startup sequence where they differ.
    is healthy before you change anything.
 6. Take the **top open row** in the current `ROADMAP.md` phase. One task. Finish it to its label
    or hand it back honestly in `STATUS.md`.
+
+---

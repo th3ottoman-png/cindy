@@ -10,6 +10,66 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Roadmap 0.6: Hermes version-mismatch warning
+
+**Outcome: `live-proven`.** Resumed Kimi's paused 0.6 draft. Baseline before any change
+(Node 22.23.4): typecheck, test:runner (606/608, 2 skipped) and check:test-hygiene green;
+`test:unit:related` red on exactly the 2 documented version-probe tests.
+
+**Root cause:** `hermes-version.ts` used `/\b(\d+\.\d+\.\d+…)/`; there is no word boundary
+between `v` and `0` in `v0.22.5`, so the real CLI output (`Hermes Agent v0.22.5 …`) never
+matched. The handover's fixture-truncation hypothesis was **disproven**: the suite passes 5/5
+with the original fixture. Fix: `/\bv?(\d+…)/` in `packages/maker-hermes-manager/src/hermes-version.ts`.
+Tests were not weakened.
+
+**Changed:** the Kimi draft (`config/status` RPC, protocol bundle `0.2.0`, fixture `--version`,
+tests, `hermes-manager-client.ts` ping) plus the regex fix and a doc comment on
+`getHermesModelCatalog`. `HANDOVER.md` §3 now describes the behaviour; the paused §10 is removed.
+
+**Verification**
+- Package suite 58/58 (7 files); `tsc --noEmit` clean.
+- Live, built bundle `dist/hermes-mgr.mjs` with a temp `--hermes-home`, real RPC client:
+  real `hermes-cindy` → `{"installedVersion":"0.22.5","matches":true}`, no warning;
+  temp launcher printing v0.22.6 → `matches:false` + daemon log `Hermes CLI version mismatch`;
+  missing launcher → `matches:null` + `Unable to verify Hermes CLI version`.
+- Gates after the fix: `pnpm typecheck` 0 (107s); `test:runner` 0 (608: 606 pass, 2 skipped);
+  `test:unit:related` 0 (532s); `check:test-hygiene` 0. `git diff --check` clean; no new
+  outbound calls, credentials, `~/.hermes` references or upstream deletions.
+- Backups taken before the 0.7 capture: `~/.hermes-cindy/config.yaml.bak-2026-10-29`,
+  `~/.hermes-cindy/hermes-mgr/sessions.json.bak-2026-10-29`.
+
+**Open:** 0.7 next.
+
+---
+
+## 2026-10-29 — Paused handoff: roadmap 0.6 still red
+
+**Outcome: `unverified`; work stopped at the owner's request. No commit or push.** The version
+pin was already recorded; the daemon warning implementation is present but unfinished and left
+uncommitted intentionally. `HANDOVER.md` §10 is now the exact resume checklist.
+
+**Changed before pausing**
+- Added the draft `config/status` version probe and mismatch/failure warnings in
+  `packages/maker-hermes-manager/src/{hermes-version.ts,hermes-manager.ts,protocol.ts,index.ts}`.
+- Invoked status from `apps/desktop/src/main/maker-host/hermes-manager-client.ts`.
+- Added fixture support and matching/mismatch/failure tests under
+  `packages/maker-hermes-manager/src/__tests__/`.
+- Updated `HANDOVER.md` with the paused state, current evidence, modified files and resume steps.
+
+**Verification**
+- Initial RED: **4 failed / 21 passed** (missing RPC and old bundle version).
+- Current focused run: **2 failed / 23 passed**. Both valid-version cases return
+  `installedVersion: null`; the failure-path and protocol tests pass.
+- Direct fake `--version` output and real `hermes-cindy --version` (`0.22.5`) checks passed.
+- Package build, full package/Desktop suites, live daemon proof, code review and all four
+  required gates were **not run** for this diff. Do not reuse earlier green results as proof.
+
+**Open:** diagnose the valid-version probe failures without weakening tests, complete focused and
+live verification, run all gates, then update roadmap 0.6 honestly. Working tree must not be
+reset or cleaned. Full details and commands are in `HANDOVER.md` §10.
+
+---
+
 ## 2026-10-29 — Roadmap 0.5: atomic sessions registry
 
 **Outcome: `unit-tested`.** The registry already used temp-write + rename; this task added
