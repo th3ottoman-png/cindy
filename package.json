@@ -113,6 +113,8 @@
     "dev:desktop:remote": "node scripts/ensure-deps.mjs && node scripts/ensure-dev-runtime-assets.mjs && pnpm --filter desktop dev:remote",
     "restart:desktop:remote": "node scripts/desktop-restart-runner.mjs --wait-ready",
     "restart:desktop:local": "node scripts/desktop-restart-runner.mjs --local --wait-ready",
+    "backup:create": "node scripts/cindy-backup.mjs create",
+    "backup:restore": "node scripts/cindy-backup.mjs restore",
     "upstream:scan": "bash scripts/upstream-security-scan.sh",
     "desktop:whoami": "node scripts/desktop-whoami.mjs",
     "dev:desktop:inspect": "node scripts/ensure-deps.mjs && node scripts/ensure-dev-runtime-assets.mjs && pnpm --filter desktop dev:inspect",

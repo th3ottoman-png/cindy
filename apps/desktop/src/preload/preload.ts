@@ -6260,6 +6260,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─── Maker Core IPC ─────────────────────────────────────────────────────
   // renderer 通过统一 maker API 按 agentKind 调用 Claude Code / Codex / Pi。
   maker: {
+    backup: {
+      create: (): Promise<{ archivePath: string; sections: string[] }> =>
+        ipcRenderer.invoke('maker:backup:create'),
+      restore: (): Promise<{ restored: boolean; entries?: number }> =>
+        ipcRenderer.invoke('maker:backup:restore'),
+    },
     hermesConfig: {
       getDefaultRoute: (): Promise<{ route: { model?: string; provider?: string; baseUrl?: string } }> =>
         ipcRenderer.invoke('maker:hermes-config:get-default-route'),

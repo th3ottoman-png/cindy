@@ -707,10 +707,19 @@ import {
   setAutoReviewContextResolver,
   registerHermesAgentIfAvailable,
 } from '../maker-host/index.js';
+import { BRAND_IDENTITY } from '@cindy/maker-shared/brand-identity';
+import { closeDb } from '../localDb/index.js';
+import {
+  createBackup,
+  defaultBackupPaths,
+  restoreBackup,
+  type BackupPaths,
+} from '../backup/localBackup.js';
 import {
   ensureHermesManagerDaemon,
   getHermesHomeStatus,
   getHermesModelCatalog,
+  resolveHermesHome,
   setHermesMcpServer,
   removeHermesMcpServer,
   withHermesManagerDaemon,
@@ -13571,6 +13580,45 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       return removeHermesMcpServer(name);
     },
   );
+  // Local backup/restore (ROADMAP 0.11). Same code path as `pnpm backup:create|restore`.
+  const backupPaths = (): BackupPaths => ({
+    ...defaultBackupPaths(),
+    userDataDir: app.getPath('userData'),
+    hermesHome: resolveHermesHome(),
+  });
+  ipcMain.handle(MAKER_INVOKE.BACKUP_CREATE, async (event) => {
+    assertTrustedAppRendererEvent(event);
+    const { archivePath, manifest } = createBackup({
+      paths: backupPaths(),
+      outDir: path.join(os.homedir(), '.cindy-harness', 'backups'),
+      dbFilePrefix: BRAND_IDENTITY.dbFilePrefix,
+    });
+    return { archivePath, sections: manifest.sections };
+  });
+  ipcMain.handle(MAKER_INVOKE.BACKUP_RESTORE, async (event) => {
+    assertTrustedAppRendererEvent(event);
+    const picked = await dialog.showOpenDialog({
+      title: 'Restore Cindy backup',
+      defaultPath: path.join(os.homedir(), '.cindy-harness', 'backups'),
+      filters: [{ name: 'Cindy backup', extensions: ['gz'] }],
+      properties: ['openFile'],
+    });
+    if (picked.canceled || !picked.filePaths[0]) return { restored: false };
+    const confirm = await dialog.showMessageBox({
+      type: 'warning',
+      buttons: ['Restore and restart', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      message: 'Restore this backup?',
+      detail: 'Cindy will restart. Files it replaces are renamed to *.pre-restore-<time>, not deleted.',
+    });
+    if (confirm.response !== 0) return { restored: false };
+    closeDb();
+    const result = restoreBackup({ archive: picked.filePaths[0], paths: backupPaths() });
+    app.relaunch();
+    app.exit(0);
+    return { restored: true, entries: result.restored.length };
+  });
   ipcMain.handle(MAKER_INVOKE.BOT_GROUP_GET, async (event, groupId: unknown, options: unknown) => {
     assertTrustedAppRendererEvent(event);
     return botGroupChatServiceHolder ? botGroupChatServiceHolder.getGroup(groupId, options) : botGroupNotReady;

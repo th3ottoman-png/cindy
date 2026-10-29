@@ -5518,6 +5518,10 @@ interface ElectronAPI {
    * apps/desktop/src/main/maker-ipc/ 的 handlers + apps/desktop/src/main/maker-host/。
    */
   maker: {
+    backup: {
+      create: () => Promise<{ archivePath: string; sections: string[] }>;
+      restore: () => Promise<{ restored: boolean; entries?: number }>;
+    };
     hermesConfig: {
       getDefaultRoute: () => Promise<{
         route: { model?: string; provider?: string; baseUrl?: string };

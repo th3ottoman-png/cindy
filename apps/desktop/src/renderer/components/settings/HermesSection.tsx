@@ -104,6 +104,26 @@ export function HermesSection() {
     }
   };
 
+  const [backupBusy, setBackupBusy] = useState(false);
+  const handleBackup = async () => {
+    setBackupBusy(true);
+    try {
+      const r = await window.electronAPI.maker.backup.create();
+      toast.success(`Backup saved: ${r.archivePath}`);
+    } catch {
+      toast.error('Backup failed');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+  const handleRestore = async () => {
+    try {
+      await window.electronAPI.maker.backup.restore();
+    } catch {
+      toast.error('Restore failed');
+    }
+  };
+
   const handleRevealHome = () => {
     if (!status?.homePath) return;
     try {
@@ -201,7 +221,10 @@ export function HermesSection() {
           <div className="flex min-w-0 flex-col gap-1">
             <span className={SETTINGS_ROW_LABEL_CLASS}>Home Default Model</span>
             <span className={SETTINGS_ROW_HINT_CLASS}>
-              Provider: <code className="font-mono text-[var(--text-primary)]">{status?.route?.provider ?? 'none'}</code>
+              Provider:{' '}
+              <code className="font-mono text-[var(--text-primary)]">
+                {status?.route?.provider ?? 'none'}
+              </code>
               {status?.route?.baseUrl && (
                 <span className="ml-1 text-[var(--text-tertiary)]">({status.route.baseUrl})</span>
               )}
@@ -256,7 +279,8 @@ export function HermesSection() {
                 </span>
               </div>
               <span className={SETTINGS_ROW_HINT_CLASS}>
-                Model Context Protocol servers loaded on every Hermes turn via <code className="font-mono">config.yaml</code>
+                Model Context Protocol servers loaded on every Hermes turn via{' '}
+                <code className="font-mono">config.yaml</code>
               </span>
             </div>
 
@@ -361,6 +385,38 @@ export function HermesSection() {
 
         <div className={SETTINGS_ROW_DIVIDER_CLASS} />
 
+        {/* Row: Local backup / restore */}
+        <div className={SETTINGS_ROW_CLASS}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className={SETTINGS_ROW_LABEL_CLASS}>Backup</span>
+            <span className={SETTINGS_ROW_HINT_CLASS}>
+              Archives the Cindy database, Hermes home (no caches or keys) and experts to{' '}
+              <code className="font-mono">~/.cindy-harness/backups</code>
+            </span>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleBackup()}
+              disabled={backupBusy}
+              className="h-8 text-12"
+            >
+              Back up now
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleRestore()}
+              className="h-8 text-12"
+            >
+              Restore…
+            </Button>
+          </div>
+        </div>
+
+        <div className={SETTINGS_ROW_DIVIDER_CLASS} />
+
         {/* Row 4: Installed Plugins */}
         <div className={cn(SETTINGS_ROW_CLASS, 'items-start')}>
           <div className="flex min-w-0 flex-col gap-1">
@@ -369,7 +425,8 @@ export function HermesSection() {
               <span className={SETTINGS_ROW_LABEL_CLASS}>Plugins</span>
             </div>
             <span className={SETTINGS_ROW_HINT_CLASS}>
-              Headless Hermes plugins installed in <code className="font-mono">~/.hermes-cindy/plugins</code>
+              Headless Hermes plugins installed in{' '}
+              <code className="font-mono">~/.hermes-cindy/plugins</code>
             </span>
           </div>
 
