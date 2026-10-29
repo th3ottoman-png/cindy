@@ -63,3 +63,7 @@ MCP, so those sessions get no Cindy tools: `prepareHermesBridgeSession` must ret
 Accepted consequence: `--yolo` removes Hermes' dangerous-command approvals for that run, so ADR 0003's GATED servers (`cindy_browser`, `cindy_computer`, `cindy_ssh`) stay off and
 exposure stays `cindy_docs` only. Revisit when a mode that keeps approvals and still loads MCP is proven (its non-interactive behaviour needs a model call to probe). Status of this ADR is
 still Proposed for the gateway-per-session part; this paragraph is a recorded owner decision.
+
+## Consequence recorded 2026-10-29: orphan homes are reaped at startup
+
+A home is keyed by the manager's session id, so a session whose record is gone (or re-created with a new id after a restart) leaves a home nothing can reach. `hermes-mgr` start (per-session mode only) stops orphan gateways, then removes homes that no registered session owns **and** that were untouched for 24 h (`orphanHomeMinAgeMs`, default 24 h, guards a record that is not flushed yet). Only real `<id>-<10 hex>` directories directly under `session-homes/` qualify; a home whose gateway pid cannot be verified as its own Hermes gateway is kept; symlinks are never followed.

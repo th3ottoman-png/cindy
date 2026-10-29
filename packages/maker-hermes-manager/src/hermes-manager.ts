@@ -40,6 +40,7 @@ import { SessionRegistry } from './session-registry.js';
 import {
   prepareSessionHome,
   reapOrphanGateways,
+  reapOrphanHomes,
   removeSessionHome,
   sessionHomePath,
   stopSessionGateway,
@@ -123,6 +124,18 @@ export class HermesManager {
         if (reaped.length > 0) this.logger?.info('stopped orphan session gateways', { reaped });
       } catch (error) {
         this.logger?.warn('orphan gateway reap failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      try {
+        const removed = await reapOrphanHomes(this.hermesHome, known, {
+          ...(this.sessionHomes.orphanHomeMinAgeMs !== undefined
+            ? { minAgeMs: this.sessionHomes.orphanHomeMinAgeMs }
+            : {}),
+        });
+        if (removed.length > 0) this.logger?.info('removed orphan session homes', { removed });
+      } catch (error) {
+        this.logger?.warn('orphan home reap failed', {
           error: error instanceof Error ? error.message : String(error),
         });
       }

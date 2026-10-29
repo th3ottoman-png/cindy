@@ -28,16 +28,19 @@ export {
   type HermesDefaultRoute,
 } from './hermes-config.js';
 export {
+  DEFAULT_ORPHAN_HOME_MIN_AGE_MS,
   DEFAULT_SHARED_ITEMS,
   SESSION_HOMES_DIRNAME,
   prepareSessionHome,
   reapOrphanGateways,
+  reapOrphanHomes,
   removeSessionHome,
   sessionHomePath,
   sessionHomesRoot,
   stopSessionGateway,
   type GatewayProcessOps,
   type PreparedSessionHome,
+  type ReapOrphanHomesOptions,
   type SessionHomeOptions,
   type StopGatewayResult,
 } from './session-home.js';

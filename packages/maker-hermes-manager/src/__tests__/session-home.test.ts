@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   prepareSessionHome,
   reapOrphanGateways,
+  reapOrphanHomes,
   removeSessionHome,
   sessionHomePath,
   sessionHomesRoot,
@@ -228,5 +229,68 @@ describe('reapOrphanGateways', () => {
 
   it('returns nothing when there is no session-homes directory', async () => {
     expect(await reapOrphanGateways(base, [])).toEqual([]);
+  });
+});
+
+describe('reapOrphanHomes', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const later = { now: () => Date.now() + 2 * DAY };
+
+  it('removes idle homes of unregistered sessions and keeps registered ones', async () => {
+    const keep = (await prepareSessionHome(base, 'keep')).home;
+    const drop = (await prepareSessionHome(base, 'drop')).home;
+    const removed = await reapOrphanHomes(base, ['keep'], later);
+    expect(removed).toEqual([path.basename(drop)]);
+    expect(fs.existsSync(drop)).toBe(false);
+    expect(fs.existsSync(keep)).toBe(true);
+    // shared items are links: the base home's files must survive the removal
+    expect(fs.existsSync(path.join(base, 'auth.json'))).toBe(true);
+    expect(fs.existsSync(path.join(base, 'installs', 'venv-marker'))).toBe(true);
+  });
+
+  it('keeps a recently touched home even when no session owns it', async () => {
+    const recent = (await prepareSessionHome(base, 'recent')).home;
+    expect(await reapOrphanHomes(base, [])).toEqual([]);
+    expect(fs.existsSync(recent)).toBe(true);
+  });
+
+  it('ignores entries that are not `<id>-<10 hex>` directories and never follows symlinks', async () => {
+    const root = sessionHomesRoot(base);
+    fs.mkdirSync(root, { recursive: true });
+    fs.mkdirSync(path.join(root, 'notes'));
+    fs.writeFileSync(path.join(root, 'stray-0123456789'), 'file');
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-home-'));
+    fs.writeFileSync(path.join(outside, 'precious'), 'keep me');
+    fs.symlinkSync(outside, path.join(root, 'link-0123456789'));
+    try {
+      expect(await reapOrphanHomes(base, [], later)).toEqual([]);
+      expect(fs.existsSync(path.join(root, 'notes'))).toBe(true);
+      expect(fs.existsSync(path.join(root, 'stray-0123456789'))).toBe(true);
+      expect(fs.existsSync(path.join(outside, 'precious'))).toBe(true);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps a home whose gateway pid is alive but cannot be verified as its Hermes gateway', async () => {
+    const stuck = (await prepareSessionHome(base, 'stuck')).home;
+    fs.writeFileSync(
+      path.join(stuck, 'gateway.pid'),
+      JSON.stringify({ pid: 4242, kind: 'hermes-gateway', hermes_home: stuck }),
+    );
+    const ops: GatewayProcessOps = {
+      isAlive: () => true,
+      commandOf: async () => '/usr/bin/some-other-process',
+      kill: () => {
+        throw new Error('must not signal an unverified process');
+      },
+      sleep: async () => undefined,
+    };
+    expect(await reapOrphanHomes(base, [], { ...later, ops })).toEqual([]);
+    expect(fs.existsSync(stuck)).toBe(true);
+  });
+
+  it('returns nothing when there is no session-homes directory', async () => {
+    expect(await reapOrphanHomes(base, [], later)).toEqual([]);
   });
 });

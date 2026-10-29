@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: orphan session homes reaped at startup (`unit-tested`, NOT live-proven)
+
+**Outcome:** the Debt row "orphan Hermes session homes accumulate" is fixed in code. `hermes-mgr` start (only with per-session homes) now runs `reapOrphanHomes` after `reapOrphanGateways`: it removes `session-homes/<id>-<10 hex>` directories that no registered session owns and that were idle for 24 h (`orphanHomeMinAgeMs`, default 24 h). Safety: real directories only, never follows symlinks (shared items are links, so the base home's `auth.json`/`installs` survive), skips a home whose gateway pid is alive but not verifiably its Hermes gateway, best effort (errors logged, start continues). Decision recorded in ADR 0004.
+
+**Changed:** `packages/maker-hermes-manager/src/session-home.ts` (`reapOrphanHomes`, `orphanHomeMinAgeMs`), `index.ts` (exports), `hermes-manager.ts` (start). Tests: 5 in `session-home.test.ts` (removes idle orphan and keeps registered one with base-home files intact; keeps recent; ignores stray names/files and an outside-pointing symlink; keeps unverifiable live pid; no root dir), 1 in `hermes-manager-session-homes.test.ts` (start removes idle orphan, keeps recent).
+
+**Not done:** live proof in the running app. The real orphan `0c5e9200-...` is only about 1.5 h old, so it is not eligible until 24 h idle; a live check needs a planted old directory or waiting until tomorrow plus an app restart.
+
+**Gates (Node 22, exit 0):** GATES_PLACEHOLDER
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-5c close cleanup (`live-proven`)
 
 **Outcome:** after QuakeNotch was turned off I clicked B's archive icon twice (B was an unsent draft, no visible effect) and, on the owner's "Archive A", took full-screen control to click A's row. Before I could, the sidebar already showed no sessions (`localDb.sessions.list` filter=active rows=0) and `session-homes/` had changed at 23:08:26: homes `fa64fbc6-...` (B) and `3bc1dab6-...` (A) and both gateways (pids 13291, 17042) were gone. The pre-restart orphan home `0c5e9200-...` was untouched (matches the Debt row). Main log has no `session home cleanup failed` warning.

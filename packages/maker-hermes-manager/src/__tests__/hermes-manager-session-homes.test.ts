@@ -31,7 +31,10 @@ interface Harness {
 
 let current: Harness | null = null;
 
-async function startHarness(sessionHomes: HermesManagerOptions['sessionHomes']): Promise<Harness> {
+async function startHarness(
+  sessionHomes: HermesManagerOptions['sessionHomes'],
+  beforeStart?: (home: string) => void,
+): Promise<Harness> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermes-mgr-homes-'));
   const home = path.join(dir, 'home');
   fs.mkdirSync(home, { recursive: true });
@@ -40,6 +43,7 @@ async function startHarness(sessionHomes: HermesManagerOptions['sessionHomes']):
     'model:\n  default: fake/default-model\n  provider: fake-provider\n_config_version: 1\n',
   );
   fs.writeFileSync(path.join(home, '.env'), 'FAKE_VAR=1\n');
+  beforeStart?.(home);
   const envLog = path.join(dir, 'spawns.ndjson');
   process.env.FAKE_RECORD_ENV = envLog;
   const socketPath = path.join(dir, 'm.sock');
@@ -180,6 +184,23 @@ describe('HermesManager per-session homes (fake hermes)', () => {
       const warm = spawns(h).find((s) => s.argv.includes('gateway'))!;
       expect(warm.home).toBe(sessionHomePath(h.home, 'a'));
       expect(warm.probe).toBe('sess-a');
+    });
+  });
+
+  describe('orphan homes at startup', () => {
+    it('removes idle homes no registered session owns, keeps recent ones', async () => {
+      let idle = '';
+      let recent = '';
+      current = await startHarness({ prewarmGateway: false, orphanHomeMinAgeMs: 60_000 }, (home) => {
+        idle = sessionHomePath(home, 'old-session');
+        recent = sessionHomePath(home, 'new-session');
+        for (const dir of [idle, recent]) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(idle, 'state.db'), 'x');
+        const past = new Date(Date.now() - 10 * 60_000);
+        for (const entry of [idle, path.join(idle, 'state.db')]) fs.utimesSync(entry, past, past);
+      });
+      expect(fs.existsSync(idle)).toBe(false);
+      expect(fs.existsSync(recent)).toBe(true);
     });
   });
 });

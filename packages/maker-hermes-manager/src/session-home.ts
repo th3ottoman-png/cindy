@@ -39,6 +39,8 @@ export interface SessionHomeOptions {
   dailyHome?: string;
   /** Start the session's gateway at query/start so the first turn does not pay the cold start. Default true. */
   prewarmGateway?: boolean;
+  /** Startup reap of homes no registered session owns: idle time before removal. Default 24 h. */
+  orphanHomeMinAgeMs?: number;
 }
 
 export function sessionHomesRoot(baseHome: string): string {
@@ -235,4 +237,66 @@ export async function reapOrphanGateways(
     if (result.stopped) reaped.push(name);
   }
   return reaped;
+}
+
+/** A home no registered session owns is unreachable (the key is the session id), so it can only be waste. */
+export const DEFAULT_ORPHAN_HOME_MIN_AGE_MS = 24 * 60 * 60 * 1000;
+
+export interface ReapOrphanHomesOptions {
+  /** Only homes untouched for this long are removed. Guards a record that is not flushed yet. */
+  minAgeMs?: number;
+  /** Test seam. */
+  now?: () => number;
+  ops?: GatewayProcessOps;
+}
+
+/** Newest mtime of the home dir and its direct entries; symlinks are lstat'ed, never followed. */
+async function newestMtimeMs(dir: string): Promise<number> {
+  const top = await fs.lstat(dir);
+  let newest = top.mtimeMs;
+  for (const name of await fs.readdir(dir)) {
+    const st = await lstatOrNull(path.join(dir, name));
+    if (st && !st.isSymbolicLink() && st.mtimeMs > newest) newest = st.mtimeMs;
+  }
+  return newest;
+}
+
+/**
+ * Startup, after reapOrphanGateways: removes session homes whose session is no longer registered
+ * and that have been idle for `minAgeMs`. Only real directories named `<id>-<10 hex>` directly
+ * under `<baseHome>/session-homes/` qualify; a home whose gateway cannot be stopped is kept.
+ * Returns the removed home names.
+ */
+export async function reapOrphanHomes(
+  baseHome: string,
+  knownSessionIds: Iterable<string>,
+  opts: ReapOrphanHomesOptions = {},
+): Promise<string[]> {
+  const root = sessionHomesRoot(baseHome);
+  const known = new Set([...knownSessionIds].map((id) => path.basename(sessionHomePath(baseHome, id))));
+  let names: string[];
+  try {
+    names = await fs.readdir(root);
+  } catch {
+    return [];
+  }
+  const now = (opts.now ?? Date.now)();
+  const minAge = opts.minAgeMs ?? DEFAULT_ORPHAN_HOME_MIN_AGE_MS;
+  const removed: string[] = [];
+  for (const name of names) {
+    if (known.has(name) || !/^.+-[0-9a-f]{10}$/.test(name)) continue;
+    const home = path.join(root, name);
+    const st = await lstatOrNull(home);
+    if (!st || !st.isDirectory()) continue;
+    try {
+      if (now - (await newestMtimeMs(home)) < minAge) continue;
+      const stop = await stopSessionGateway(home, opts.ops);
+      if (!stop.stopped && stop.reason !== 'no-pid-file' && stop.reason !== 'not-running') continue;
+      await fs.rm(home, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+      removed.push(name);
+    } catch {
+      // Best effort: an unreadable or busy home stays for the next start.
+    }
+  }
+  return removed;
 }
