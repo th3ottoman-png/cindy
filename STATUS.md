@@ -10,6 +10,28 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-4b option (b) probe, per-session shim entry (free, negative result)
+
+**Outcome:** no way found to force Hermes to reload MCP config; option (b) as designed is weaker than it looked. Nothing built; 1.5b-4b stays open. Throwaway home,
+stub MCP server, no model call, no `~/.hermes*` touched, probe gateways stopped, scratch deleted. Table: `docs/evidence/1.5b-4b-attempt-not-proven.md`.
+
+**Measured:** Hermes reconciles `mcp_servers` on a fixed ~60 s tick (log at :56 each minute). Writing config, `hermes status`, `hermes gateway ensure`, and `touch`
+did not shorten the wait. SIGUSR1 and SIGHUP terminate the gateway instead of reloading. So a new entry is usable 0-60 s after it is written (avg ~30 s).
+
+**Reasoned, not tested (flagged):** a shared gateway exposes every registered MCP server to every session's agent. With one entry per session, session A's model
+would also see session B's tools and could call them under B's identity: that breaks the isolation the bridge's per-session tokens exist to give. It would only
+hold if `hermes chat -t/--toolsets` can scope MCP servers per run, which I could not test without a model call. Per-session entries also add the 0-60 s no-tools
+window at the start of a session.
+
+**State of the options:** (a) gateway per session preserves isolation by construction but is an architecture change (STATUS 2026-10-29 above); (b) has the
+tool-visibility hole and the latency; (c) single-active-session identity is simple but only safe if Hermes sessions never overlap; (d) tool-arg identity is forbidden.
+
+**Decision needed from the owner (a product fact, not something the repo answers):** do you ever run more than one Hermes session at the same time, or leave one
+open while starting another? If never, (c) with a hard guard (refuse tool calls unless exactly one Cindy Hermes session is active, fail closed) is a small change
+that restores the feature; if sometimes, (a) is the only isolation-safe route.
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-4b option (a) probe, gateway per session (free, mechanism `live-proven`)
 
 **Outcome:** option (a) works as a mechanism, and it is expensive. Nothing built; 1.5b-4b stays open. Stub MCP server only, throwaway homes, no
