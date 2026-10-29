@@ -640,6 +640,13 @@ describe('HermesAgent', () => {
     }
   });
 
+  it('tells the user which permission mode carries Cindy tools (1.5b-5d)', () => {
+    const modes = buildAgent().capabilities.permissionModes;
+    const text = (id: string) => modes.find((mode) => mode.id === id)?.description ?? '';
+    expect(text('default')).toMatch(/Cindy document tools are off/);
+    expect(text('bypassPermissions')).toMatch(/cindy_docs.*starts in this mode/);
+  });
+
   it('inlines image attachment references into the turn text', async () => {
     const daemon = await startDaemon();
     const agent = buildAgent();

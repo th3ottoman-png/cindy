@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-5c-ui-a: permission-mode descriptions say which mode carries Cindy tools (`unit-tested`, rendering NOT checked)
+
+**Outcome:** the Hermes permission-mode descriptions now state the 5d decision. Default: "Cindy document tools are off (safe mode disables MCP)." Full access: `cindy_docs` is available "when the chat starts in this mode". Wording is deliberate: switching mode mid-chat does not re-register the bridge, so tools depend on the mode the chat starts in.
+
+**Changed:** `packages/maker-core/src/agents/hermes/agent.ts` (two description strings); `packages/maker-core/src/agents/hermes/__tests__/agent.test.ts` (one test pins both strings; 36 Hermes tests pass). Descriptions render as tooltips in `apps/desktop/src/renderer/components/new-chat/PermissionSelector.tsx`; not opened in the app.
+
+**Row split:** 5c-ui-a done (`unit-tested`). **5c-ui-b open:** eyeball the tooltip in the running app (restart needed, the change is in `maker-core`); only then is it `live-proven`. Still untested live: two concurrent full-access sessions, session-close cleanup, `auth.json` write-back from a session home. `memories` shared across session homes: owner has not answered the veto flag.
+
+**Gates (Node 22, exit 0):** `pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` all exit 0 on 2026-10-29 (earlier run `gates9` never finished, so it was rerun).
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-5c live proof (`live-proven`): `cindy_docs` read_sheet round-trips inside the desktop app
 
 **Outcome:** one owner-approved paid DeepSeek turn in a Full-access Hermes session in the running dev app: `mcp__cindy_docs__read_sheet` completed and the answer (`figs` = 17) matched the file. This closes the 4b failure. Evidence, log excerpts and caveats: `docs/evidence/1.5b-5c-live-proof.md`.

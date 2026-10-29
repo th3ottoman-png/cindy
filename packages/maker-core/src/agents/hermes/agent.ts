@@ -174,12 +174,14 @@ export class HermesAgent extends BaseAgent {
         {
           id: 'default',
           displayName: 'Default permissions',
-          description: 'Hermes safe mode: tool actions follow the Hermes home policy.',
+          description:
+            'Hermes safe mode: tool actions follow the Hermes home policy. Cindy document tools are off (safe mode disables MCP).',
         },
         {
           id: 'bypassPermissions',
           displayName: 'Full access',
-          description: 'Runs Hermes with --yolo and no further confirmation. Highest risk.',
+          description:
+            'Runs Hermes with --yolo and no further confirmation. Highest risk. Cindy document tools (cindy_docs) are available when the chat starts in this mode.',
         },
       ],
       setPermissionModeMidSession: { supported: true },
