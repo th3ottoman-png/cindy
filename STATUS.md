@@ -10,6 +10,42 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-1 session identity for Hermes tool calls
+
+**Outcome:** 1.5b-1 `unit-tested`. Production wiring is **not** done (1.5b-3); the original 1.5b stays open.
+
+**Probe (live, no model call, temp `HERMES_HOME` under the scratchpad, not `~/.hermes*`):** `hermes mcp test` with a stub
+stdio server that dumps its env. Parent env is **not** forwarded to MCP children (`CINDY_PROBE` absent, 8 env keys).
+`env: { CINDY_PROBE: "${CINDY_PROBE}" }` in `config.yaml` **is** interpolated from the parent env. So config.yaml carries a
+static `${CINDY_BRIDGE_SESSION}` reference and the non-secret session id rides the existing per-session `query/start` env.
+The token stays in the 0600 runtime file (owner's earlier decision).
+
+**Changed:**
+- `packages/maker-core/src/agents/base-agent.ts`: optional `AgentDeps.prepareHermesBridgeSession`.
+- `packages/maker-core/src/agents/hermes/agent.ts`: calls it with the **Cindy** session id (`opts.sessionId`, not the
+  daemon's random id), merges its env into `query/start`, disposes on `close()` and on start failure. Prep failure logs and
+  continues without Cindy tools (fail open on convenience).
+- `apps/desktop/src/main/mcp-integrations/hermesBridgeRuntimeFile.ts` (new): atomic 0600 file `{version, port,
+  instanceId, sessions{id→token}}`, per-file write queue, stale `instanceId` drops old tokens, truncated file reads as absent.
+- `apps/desktop/src/main/mcp-integrations/hermesBridgeSession.ts` (new): `registerHermesBridgeSession` registers ctx
+  (`agentKind: 'hermes'`, `mcpCallerKind: 'root'`, attested) + HMAC per-session token, same model as `piEnvironment.ts`.
+
+**Verified (`unit-tested`):** Hermes agent tests 25 pass (3 new: env + dispose, fail-open, dispose on failed start);
+`hermesBridgeSession.test.ts` 5 pass against a **real** `startCodexHttpBridge`: tool call resolves `sess-A`, concurrent
+sessions isolated, session A's id with session B's token → 401, dispose → 401 and entry removed, stale instance dropped.
+
+**Open / known:**
+1. Nothing injects the hook in `maker-host` yet, so no Hermes session registers today (1.5b-3).
+2. Per-project tool policy (`CODEX_*_BUILTIN_PLUGIN_IDS_KEY`) is not frozen into `vendorOptions` yet (1.5b-3); the
+   option exists on `registerHermesBridgeSession`.
+3. Edge: if a session id is re-registered (resume) before the old handle's late `dispose`, the file entry is removed
+   while the bridge keeps the new registration. Effect is fail-closed (shim cannot auth), not a leak.
+
+**Gates (Node 22, exit 0):** typecheck ✅ (first run caught `opts.sessionId` being optional in `agent.ts`; hook now
+skipped without a session id), test:runner ✅, test:unit:related ✅, check:test-hygiene PASS (361 files).
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b split (no code changed)
 
 **Outcome:** 1.5b stays 🔲. Split into 1.5b-1…4 in `ROADMAP.md`. Nothing built; label `unverified` for all.

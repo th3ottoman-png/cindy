@@ -313,7 +313,9 @@ describe('HermesAgent', () => {
    * `socketPath: null` leaves the host resolver absent (daemon not provisioned).
    * BaseAgent still requires a binaryPath for every agent; Hermes does not spawn it.
    */
-  function buildAgent(options: { socketPath?: string | null } = {}): HermesAgent {
+  function buildAgent(
+    options: { socketPath?: string | null; deps?: Partial<AgentDeps> } = {},
+  ): HermesAgent {
     const deps: AgentDeps = {
       auth: {
         getState: async () => ({ authenticated: true }),
@@ -329,7 +331,7 @@ describe('HermesAgent', () => {
       const resolved = options.socketPath ?? socketPath;
       deps.resolveHermesManagerSocketPath = () => resolved;
     }
-    return new HermesAgent(deps);
+    return new HermesAgent({ ...deps, ...options.deps });
   }
 
   const start = (agent: HermesAgent): Promise<AgentSessionHandle> =>
@@ -493,6 +495,53 @@ describe('HermesAgent', () => {
       delete process.env.DEEPSEEK_API_KEY;
       await handle.close();
     }
+  });
+
+  it('registers the bridge identity with the Cindy session id, rides its env, and disposes on close', async () => {
+    const daemon = await startDaemon();
+    const calls: Array<{ sessionId: string; workingDir: string }> = [];
+    let disposed = 0;
+    const agent = buildAgent({
+      deps: {
+        prepareHermesBridgeSession: async (info) => {
+          calls.push({ sessionId: info.sessionId, workingDir: info.workingDir });
+          return { env: { CINDY_BRIDGE_SESSION: info.sessionId }, dispose: () => { disposed += 1; } };
+        },
+      },
+    });
+    const handle = await start(agent);
+    expect(calls).toEqual([{ sessionId: 'business-1', workingDir: workDir }]);
+    expect((daemon.startParams[0] as { env?: Record<string, string> }).env?.CINDY_BRIDGE_SESSION)
+      .toBe('business-1');
+    expect(disposed).toBe(0);
+    await handle.close();
+    expect(disposed).toBe(1);
+  });
+
+  it('starts without Cindy tools when bridge preparation fails', async () => {
+    const daemon = await startDaemon();
+    const agent = buildAgent({
+      deps: { prepareHermesBridgeSession: async () => { throw new Error('bridge down'); } },
+    });
+    const handle = await start(agent);
+    try {
+      const env = (daemon.startParams[0] as { env?: Record<string, string> }).env ?? {};
+      expect(env).not.toHaveProperty('CINDY_BRIDGE_SESSION');
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('disposes the bridge identity when the daemon start fails', async () => {
+    let disposed = 0;
+    const agent = buildAgent({
+      deps: {
+        prepareHermesBridgeSession: async () => ({ env: {}, dispose: () => { disposed += 1; } }),
+      },
+    });
+    // No daemon listening: startSession must fail and still release the identity.
+    await expect(start(agent)).rejects.toBeInstanceOf(AgentStartupStoppedError);
+    expect(disposed).toBe(1);
   });
 
   it('per-session setModel forwards the model and maps the home-default sentinel to an empty override', async () => {

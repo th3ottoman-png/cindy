@@ -748,6 +748,17 @@ export interface AgentDeps {
   resolveHermesManagerSocketPath?: (sessionId?: string) => string | undefined;
 
   /**
+   * Hermes-only: registers this Cindy session with the tool bridge and returns
+   * the non-secret env (`CINDY_BRIDGE_SESSION`) the shim reads via `${VAR}` in
+   * config.yaml. Absent or failing → the session runs without Cindy tools.
+   */
+  prepareHermesBridgeSession?: (info: {
+    sessionId: string;
+    sessionInstanceId?: string;
+    workingDir: string;
+  }) => Promise<{ env: Record<string, string>; dispose: () => void } | null>;
+
+  /**
    * Pi-only: advisory metadata for Cindy UI/command projection. This resolver
    * may inspect or snapshot known resources, but its result is never the launch
    * allowlist; resolvePiNativePackagePaths preserves Pi-native discovery.

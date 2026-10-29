@@ -235,6 +235,24 @@ export class HermesAgent extends BaseAgent {
     // user shell). Keys travel the local socket per session and are never
     // persisted by the daemon.
     const providerEnv = collectHermesProviderEnv();
+    // Cindy tool bridge identity: failure degrades to a session without Cindy
+    // tools (convenience), never blocks the chat (daily driver).
+    let bridgeSession: { env: Record<string, string>; dispose: () => void } | null = null;
+    // No Cindy session id means no identity to register.
+    if (this.deps.prepareHermesBridgeSession && opts.sessionId) {
+      try {
+        bridgeSession = await this.deps.prepareHermesBridgeSession({
+          sessionId: opts.sessionId,
+          ...(opts.sessionInstanceId ? { sessionInstanceId: opts.sessionInstanceId } : {}),
+          workingDir: opts.workingDir,
+        });
+      } catch (error) {
+        this.deps.logger.warn('hermes bridge session prep failed, continuing without cindy tools', {
+          error: String(error),
+        });
+      }
+    }
+    const sessionEnv = { ...providerEnv, ...(bridgeSession?.env ?? {}) };
     // Only a non-empty native id is resumable; an empty string is the documented
     // "start fresh" recovery path (Maker persists handle.id as sdk_session_id).
     const requestedResumeId = opts.resumeSessionId?.trim();
@@ -257,7 +275,7 @@ export class HermesAgent extends BaseAgent {
           // Provider keys ride per-session env (the daemon's own env is
           // deliberately secret-free). Hermes reads provider credentials from
           // env; without this a DeepSeek-direct home cannot authenticate.
-          ...(Object.keys(providerEnv).length ? { env: providerEnv } : {}),
+          ...(Object.keys(sessionEnv).length ? { env: sessionEnv } : {}),
         },
       );
       const resumableSessionId = typeof startResult?.hermesSessionId === 'string'
@@ -269,8 +287,14 @@ export class HermesAgent extends BaseAgent {
         model: opts.model,
         permissionMode: requestedPermissionMode,
         transport,
+        ...(bridgeSession ? { disposeBridgeSession: bridgeSession.dispose } : {}),
       });
     } catch (error) {
+      try {
+        bridgeSession?.dispose();
+      } catch (disposeError) {
+        this.deps.logger.warn('hermes bridge session dispose failed', { error: String(disposeError) });
+      }
       if (transport) {
         try {
           await transport.close();
@@ -294,6 +318,8 @@ export class HermesAgent extends BaseAgent {
     model: string;
     permissionMode: PermissionMode;
     transport: HermesTransport;
+    /** Unregisters the bridge identity; idempotent, called on close. */
+    disposeBridgeSession?: () => void;
   }): AgentSessionHandle {
     const { sessionId, transport } = input;
     const logger = this.deps.logger;
@@ -656,6 +682,11 @@ export class HermesAgent extends BaseAgent {
             await transport.close();
           } catch (error) {
             logger.warn('hermes transport close failed', { error: String(error) });
+          }
+          try {
+            input.disposeBridgeSession?.();
+          } catch (error) {
+            logger.warn('hermes bridge session dispose failed', { error: String(error) });
           }
           queue.end();
         })();
