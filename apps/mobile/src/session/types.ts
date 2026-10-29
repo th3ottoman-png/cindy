@@ -1,4 +1,5 @@
 import type { MobileSessionAgentSwitchIntent } from '@cindy/maker-shared/device-link-contract';
+import type { AgentKind } from '@cindy/model-providers/types';
 import type { AgentInputReference } from '@cindy/maker-shared/agent-input-projection';
 import type { RemoteMoney } from '@/session/remoteMoney';
 import type { MobileToolLoopErrorDetails } from '@/session/agentErrorI18n';
@@ -8,11 +9,12 @@ import type { AnnotationRegion } from '@cindy/maker-shared/image-annotation';
 export type RemoteSessionStatus = 'active' | 'archived' | 'deleted';
 
 /**
- * desktop main 公开的 pending intent(共享契约)+ 远程 Agent 的位置字段:只在这笔切换
- * 同时换 Agent 所在电脑时出现,null = 改回被控电脑本机运行。共享契约类型尚未声明该
- * 可选字段,手机端在这里补齐,旧被控端不发即缺省。
+ * desktop main 公开的 pending intent(共享契约)+ 手机端已支持的 Agent 与远程位置字段:
+ * 位置只在这笔切换同时换 Agent 所在电脑时出现,null = 改回被控电脑本机运行。共享契约类型
+ * 尚未声明这些字段,手机端在这里补齐,旧被控端不发即缺省。
  */
-export type RemoteSessionAgentSwitchIntent = MobileSessionAgentSwitchIntent & {
+export type RemoteSessionAgentSwitchIntent = Omit<MobileSessionAgentSwitchIntent, 'targetAgentKind'> & {
+  targetAgentKind: AgentKind;
   agentDeviceId?: string | null;
 };
 export type RemoteMessageRole =
@@ -74,7 +76,7 @@ export interface RemoteSession {
   interruptedTurnStartedAt?: number | null;
   lastTurnEndedAt?: number | null;
   status: RemoteSessionStatus;
-  agentKind: 'cc' | 'codex' | 'pi';
+  agentKind: 'cc' | 'codex' | 'pi' | 'hermes';
   /**
    * 远程 Agent:非空 = Agent 在同账号另一台电脑上运行(desktop sessions.agent_device_id),
    * 任务与文件仍留在被控电脑;null / 缺省 = Agent 就在被控电脑运行(含旧被控端)。
@@ -118,7 +120,7 @@ export interface RemoteSession {
 }
 
 export interface RemoteSessionRuntimeProfile {
-  agentKind: 'claude-code' | 'codex' | 'pi';
+  agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
   model: string;
   providerId: string | null;
   effort: string | null;
@@ -240,7 +242,7 @@ export interface QueuedRemoteMessage {
   /** Interface language of this phone. The desktop stamps it only for a remote turn. */
   uiLanguage?: string;
   createOpts: {
-    agentKind: 'claude-code' | 'codex' | 'pi';
+    agentKind: 'claude-code' | 'codex' | 'pi' | 'hermes';
     workingDir: string;
     model: string;
     effort?: string;

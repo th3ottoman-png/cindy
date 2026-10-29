@@ -19,8 +19,7 @@ import { parseModelFavoriteMutation, sameModelFavorite, type ModelFavoriteMutati
  *   认不出,反之亦然)。这里只收 EFFORT_VALUES 里的 canonical key,非法值**丢字段**
  *   (不是丢整条),调用层看到 effort === undefined 就回落该 (模型, 引擎) 的推荐档。
  *
- * 为什么 agent 用 'cc' | 'codex' | 'pi':与 modelEnginePrefs 同一理由(下游是选择器 →
- * newMakerDraft 的 vendor 口径,规格 §2.4),详见那个文件的文件头。
+ * agent 使用选择器 / 草稿链路的 SelectableVendor 口径,与 newMakerDraft 一致(规格 §2.4)。
  *
  * 只存用户显式动作的产物(configuration-and-overrides §2),唯一例外是**种子收藏**
  * (Chris 2026-08-16 裁决:去掉列表里的「默认」小节,官方默认推荐改以收藏形态一次性
@@ -76,7 +75,6 @@ import {
   normalizeModelConfigCopy,
   type ModelConfigCopy,
 } from './modelConfigCopy';
-import type { ModelEngine } from './modelEnginePrefs';
 import { createStorageReconciler } from './storageOpReplay';
 
 let requireDurableWrite = false;
@@ -95,7 +93,7 @@ export interface ModelFavoriteItem extends ModelFavoriteConfig {
 
 /** 编辑一条已有收藏。**模型身份(providerId/modelId)由锚点固定,不可改**——换模型 = 另收藏一条。 */
 export interface ModelFavoritePatch {
-  agent?: ModelEngine;
+  agent?: ModelConfigCopy['agent'];
   /** `null` = 清除该条深度(回落推荐档);`undefined`(不传该键)= 不改。 */
   effort?: Effort | null;
   fast?: boolean | 'ultrafast';
@@ -695,7 +693,11 @@ export function accessHostModelFavorites(ownerId: string | null, mutation?: Mode
       if (base.items.length >= 4096 && !base.items.some(item => modelConfigCopyIdentity(item) === modelConfigCopyIdentity(config))) throw new Error('Favorites limit reached');
       commitOp({kind:'add',config,preferredUid:uidOfSeq(base.uidSeq)},base);
     } else if (op.kind === 'remove') commitOp({kind:'remove',uid:op.expected.uid},base);
-    else commitOp({kind:'update',uid:op.expected.uid,patch:{agent:op.item.agent, effort:(op.item.effort as Effort | undefined) ?? null, fast:op.item.fast ?? false}},base);
+    else {
+      const config = normalizeModelConfigCopy(op.item);
+      if (!config) throw new Error('Invalid favorite');
+      commitOp({kind:'update',uid:op.expected.uid,patch:{agent:config.agent, effort:config.effort ?? null, fast:config.fast ?? false}},base);
+    }
     return readDurable().items;
   } finally { requireDurableWrite = false; }
 }

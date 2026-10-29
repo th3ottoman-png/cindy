@@ -1009,7 +1009,7 @@ function mergeScheduleInfo(group: readonly RemoteSessionListItem[]): RemoteSessi
 }
 
 function agentLabel(agentKind: RemoteSession['agentKind']): string {
-  return agentKind === 'codex' ? 'Codex' : agentKind === 'pi' ? 'Pi' : 'Claude Code';
+  return agentKind === 'codex' ? 'Codex' : agentKind === 'pi' ? 'Pi' : agentKind === 'hermes' ? 'Hermes' : 'Claude Code';
 }
 
 function sessionStatusLabel(status: RemoteSession['status']): string {

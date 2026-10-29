@@ -135,6 +135,11 @@ describe('sessionList', () => {
     });
   });
 
+  it('labels Hermes sessions without falling back to Claude Code', () => {
+    const item = toRemoteSessionListItem(session('hermes', { agentKind: 'hermes' }));
+    expect(item.subtitle).toBe('Hermes · claude-sonnet-4-6');
+  });
+
   it('formats sidebar activity time with desktop sidebar density', () => {
     const now = new Date('2026-01-01T12:00:00.000Z').getTime();
 

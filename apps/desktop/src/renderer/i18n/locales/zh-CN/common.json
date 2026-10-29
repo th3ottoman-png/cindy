@@ -11514,6 +11514,9 @@
     "verificationFailed": "暂时无法确认 ChatGPT 登录是否已恢复，请重新检测。"
   },
   "chat": {
+    "composer": {
+      "hermesDefaultSuccess": "Hermes default model updated to {{model}}"
+    },
     "imageDelivery": {
       "stored": "图片已交付",
       "failed": "图片交付失败，可重试传输已有图片。",

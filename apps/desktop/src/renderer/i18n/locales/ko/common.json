@@ -11514,6 +11514,9 @@
     "verificationFailed": "ChatGPT 로그인이 복구되었는지 확인할 수 없습니다. 다시 확인해 주세요."
   },
   "chat": {
+    "composer": {
+      "hermesDefaultSuccess": "Hermes default model updated to {{model}}"
+    },
     "imageDelivery": {
       "stored": "이미지 전달 완료",
       "failed": "이미지 전달에 실패했습니다. 기존 이미지 전송을 다시 시도할 수 있습니다.",

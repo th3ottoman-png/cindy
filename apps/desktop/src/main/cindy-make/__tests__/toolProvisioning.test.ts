@@ -231,7 +231,7 @@ describe('compatible local tool reuse and scoped environment', () => {
               command === 'git'
                 ? 'git version 2.45.0'
                 : command === 'node'
-                  ? 'v24.16.0'
+                  ? 'v22.23.4'
                   : command === 'python3'
                     ? 'Python 3.12.10'
                     : '10.33.2',
@@ -272,7 +272,7 @@ describe('compatible local tool reuse and scoped environment', () => {
     },
   );
   it.each([
-    ['v24.1.0', 'system'],
+    ['v22.23.4', 'system'],
     ['v20.0.0', 'managed'],
     ['', 'managed'],
   ])(

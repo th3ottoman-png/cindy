@@ -58,6 +58,11 @@ describe('sessionMenu header', () => {
     expect(header.usageSummary).toBe('¥2.31 · 上下文 45%');
   });
 
+  it('labels Hermes sessions as Hermes in the meta line', () => {
+    expect(buildSessionMenuHeader(session({ agentKind: 'hermes' })).metaLine)
+      .toBe('Hermes · xdt-maker');
+  });
+
   it('falls back to workspace name when the session has no title', () => {
     expect(buildSessionMenuHeader(session({ title: '' })).title).toBe('xdt-maker');
     expect(buildSessionMenuHeader(session({ title: '', workingDir: null })).title).toBe('远程任务');

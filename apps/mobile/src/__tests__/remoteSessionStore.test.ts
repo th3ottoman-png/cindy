@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAKER_EVENT_BATCH_CHANNEL, SESSION_SYNC_CHANNEL } from '@cindy/device-link';
+import type { AgentKind } from '@cindy/model-providers/types';
 import { clampLiveRowCreatedAt } from '@/session/messagePaging';
 import { MOBILE_TOOL_INPUT_PROJECTION_THRESHOLD_BYTES } from '@/session/messageToolPayloadProjection';
 import { remoteSessionStore, resolveSessionWriteDevices, sessionPendingWrites } from '@/session/remoteSessionStore';
@@ -154,7 +155,7 @@ function pushMakerStatus(sessionId: string, data: Record<string, unknown>, devic
 function pushMakerTaskUpdate(
   sessionId: string,
   taskId: string,
-  opts: { source?: 'claude-code' | 'codex' | 'pi'; status?: string; description?: string } = {},
+  opts: { source?: AgentKind; status?: string; description?: string } = {},
 ): void {
   remoteSessionStore.applyRemotePush('dev-1', 'maker:event', {
     sessionId,

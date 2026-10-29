@@ -19,10 +19,8 @@
 
 import { EFFORT_VALUES } from '@cindy/model-providers';
 
-import { isSelectableVendor } from '@/lib/agentVendors';
+import { isSelectableVendor, type SelectableVendor } from '@/lib/agentVendors';
 import type { Effort } from '@/lib/userPreferences.types';
-
-import type { ModelEngine } from './modelEnginePrefs';
 
 /**
  * v2 记忆 schema 内的保留来源 id:同一 agent 下跨真实 provider 共享的模型级预设槽。
@@ -38,7 +36,7 @@ export const MODEL_PRESET_SLOT_ID = '*';
 export interface ModelConfigCopy {
   providerId: string;
   modelId: string;
-  agent: ModelEngine;
+  agent: SelectableVendor;
   /** 思考深度**档位 key**('low' | 'high' | …);缺省 = 跟随该 (模型, 引擎) 的推荐档。 */
   effort?: Effort;
   /**
@@ -75,8 +73,7 @@ export function normalizeModelConfigCopy(raw: {
   const modelId = typeof raw.modelId === 'string' ? raw.modelId.trim() : '';
   if (!isUsableModelProviderId(providerId) || !modelId) return null;
   // agent 非法 → **丢整条**:副本的必要组成部分,缺了它这条记录无法表达任何配置。
-  // hermes 没有目录模型身份,不能出现在模型配置副本(收藏 / 最近)里。
-  if (!isSelectableVendor(raw.agent) || raw.agent === 'hermes') return null;
+  if (!isSelectableVendor(raw.agent)) return null;
   const config: ModelConfigCopy = { providerId, modelId, agent: raw.agent };
   if (isCanonicalModelEffort(raw.effort)) config.effort = raw.effort;
   if (raw.fast === true) config.fast = true;

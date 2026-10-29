@@ -60,4 +60,9 @@ describe('agentAuthGateHint', () => {
     expect(agentAuthGateHint('claude-code')).toContain('设置 → 模型供应商');
     expect(agentAuthGateHint('codex')).toContain('Codex');
   });
+
+  it('labels Hermes explicitly instead of falling through to another agent', () => {
+    expect(agentAuthGateHint('hermes')).toContain('Hermes');
+    expect(agentAuthGateHint('hermes')).toContain('设置 → 模型供应商');
+  });
 });

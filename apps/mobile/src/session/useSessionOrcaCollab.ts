@@ -720,7 +720,7 @@ export function useSessionOrcaCollab(params: {
   const role = enabled && !session?.orcaRemoteLead ? session?.orcaRole ?? null : null;
   const isLead = role === 'lead';
   const isWorker = role === 'worker';
-  const eligible = enabled && (isLead || isOrcaCollabEligible(session));
+  const eligible = enabled && session?.agentKind !== 'hermes' && (isLead || isOrcaCollabEligible(session));
   const team = useOrcaTeam({ maker, deviceId, leadSessionId: isLead ? sessionId : null, connectionEpoch });
   const workerLeadSessionId = useOrcaWorkerLeadSessionId({
     maker,

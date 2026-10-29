@@ -11514,6 +11514,9 @@
     "verificationFailed": "ChatGPT ログインが復旧したか確認できませんでした。再確認してください。"
   },
   "chat": {
+    "composer": {
+      "hermesDefaultSuccess": "Hermes default model updated to {{model}}"
+    },
     "imageDelivery": {
       "stored": "画像を受け取りました",
       "failed": "画像の転送に失敗しました。既存の画像の転送を再試行できます。",

@@ -667,6 +667,7 @@ function NewRemoteSessionContent({ creatingRef }: { creatingRef: { current: bool
     leadAgentDeviceId: remoteAgentPick?.deviceId ?? null,
     agentLocationSelectable: workerAgentLocationSupported,
   });
+  const collabAgentKind = draft.agentKind === 'hermes' ? null : draft.agentKind;
   const collabTarget = useMemo(() => ({
     orcaRole: null,
     workspaceKind: draft.workspaceKind,
@@ -675,7 +676,7 @@ function NewRemoteSessionContent({ creatingRef }: { creatingRef: { current: bool
   }), [draft.workingDir, draft.workspaceKind]);
   // 旧被控电脑不支持给 Worker 选 Agent 位置：首个 Worker 只能从被控电脑的目录里选，与任务的
   // Agent 在另一台电脑运行对不上，两者仍互斥。
-  const collabEligible = isOrcaCollabEligible(collabTarget)
+  const collabEligible = collabAgentKind !== null && isOrcaCollabEligible(collabTarget)
     && (remoteAgentPick === null || workerAgentLocationSupported);
   // 换设备 / 换工作区后,草稿里的协同设置属于旧目标:丢弃,避免在新目标上静默开启。
   // 按草稿武装时的目标比对(而不是「目标一变就清」):返回编辑恢复草稿时目标与草稿一起回填,
@@ -687,13 +688,13 @@ function NewRemoteSessionContent({ creatingRef }: { creatingRef: { current: bool
   }, [collabTargetKey]);
   // 读入口状态;重连后重读:断线时读失败会落成「不可用」,不能让表单一直卡住。
   useEffect(() => {
-    if (!contextSheetOpen || !collabEligible || !selectedDeviceId) return undefined;
+    if (!contextSheetOpen || !collabEligible || !selectedDeviceId || collabAgentKind === null) return undefined;
     let cancelled = false;
     setCollabEntryStatus('loading');
-    void readOrcaCollabEntryStatus(maker, collabTarget, draft.agentKind)
+    void readOrcaCollabEntryStatus(maker, collabTarget, collabAgentKind)
       .then((status) => { if (!cancelled) setCollabEntryStatus(status); });
     return () => { cancelled = true; };
-  }, [collabEligible, collabTarget, connectionEpoch, contextSheetOpen, draft.agentKind, maker, selectedDeviceId]);
+  }, [collabAgentKind, collabEligible, collabTarget, connectionEpoch, contextSheetOpen, maker, selectedDeviceId]);
   const openCollabDraftForm = useCallback(() => {
     if (collabDraft) {
       collabForm.restore(collabDraft);

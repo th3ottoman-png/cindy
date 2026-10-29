@@ -24,6 +24,11 @@ describe('mobile Orca collaboration wiring', () => {
     expect(collabView).toContain("trailing={worker.executionDevice?.reachable === false ? undefined : (");
   });
 
+  it('keeps Hermes sessions out of Orca collaboration', () => {
+    const source = read('src/session/useSessionOrcaCollab.ts');
+    expect(source).toContain("const eligible = enabled && session?.agentKind !== 'hermes' && (isLead || isOrcaCollabEligible(session));");
+  });
+
   it('keeps the Worker model picker separate from the task model', () => {
     const source = read('app/sessions/[sessionId].tsx');
     const start = source.indexOf('testID="session.collabModelSheet"');

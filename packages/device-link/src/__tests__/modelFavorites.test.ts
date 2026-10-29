@@ -46,6 +46,12 @@ it("strips unknown fields and rejects invalid identities, duplicates, and effort
   ).toThrow("identity");
 });
 
+it("round-trips Hermes favorites without remapping their agent", () => {
+  expect(parseModelFavorites([{ ...item, agent: "hermes" }])).toEqual([
+    { ...item, agent: "hermes" },
+  ]);
+});
+
 it("allows a larger local source bound without changing wire or other field limits", () => {
   const longItem = { ...item, providerId: 'p'.repeat(2048) };
   const add = { kind: 'add', item: longItem };

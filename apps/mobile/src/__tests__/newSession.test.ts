@@ -2,6 +2,7 @@ import { reconcileNewSessionCatalogDraft, reconcileNewSessionSubmitDraft, revali
 import { newSessionDraft } from './fixtures/newSession';
 import { modelNeedsReselection } from '../session/modelReselection';
 import { isCindyAutoModelId } from '@cindy/model-providers/provider-identity';
+import type { AgentKind } from '@cindy/model-providers/types';
 import { buildMobileModelSections, flattenProviderSections, isFastRestorable } from '../session/providerModelSections';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -82,7 +83,7 @@ function modelRow(
   id: string,
   efforts: readonly string[] = [],
   defaultEffort: string | null = null,
-  newSessionDefault?: readonly ('claude-code' | 'codex' | 'pi')[],
+  newSessionDefault?: readonly AgentKind[],
 ): ProviderModelRow {
   return {
     provider: { id: `prov-${id}`, name: id } as ProviderModelRow['provider'],

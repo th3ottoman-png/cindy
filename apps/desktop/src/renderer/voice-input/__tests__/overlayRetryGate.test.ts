@@ -22,7 +22,7 @@ describe('voice input overlay retry gate', () => {
     expect(overlaySource).toContain('setStopInFlight(false);');
     expect(overlaySource).toContain('if (stopInFlightRef.current) return;');
     expect(overlaySource).toContain('disabled={stopInFlight}');
-    expect(overlaySource).toContain('if (!text) {\n      stateRef.current = \'done\';\n      commitUsageStats();');
+    expect(overlaySource).toContain('if (!text) {\n      setError(t(\'voiceInputOverlay.emptyInputNotice\'));\n      setVoiceState(\'error\');\n      commitUsageStats();');
   });
 
   it('uses the overlay-safe readiness IPC to build the recovery action', () => {

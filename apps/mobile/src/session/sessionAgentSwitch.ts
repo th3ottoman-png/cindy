@@ -2,10 +2,11 @@
  * 手机端跨 Agent 切换的纯契约适配：只接收 desktop main 的公开 pending intent，
  * 不在控制端持久化第二份真相。
  */
+import type { AgentKind } from '@cindy/model-providers/types';
 import type { MobileAgentCapabilities } from './agentCapabilities';
 import type { RemoteSession, RemoteSessionAgentSwitchIntent } from './types';
 
-export type MobileSessionAgentKind = 'claude-code' | 'codex' | 'pi';
+export type MobileSessionAgentKind = AgentKind;
 
 /** 将不可信 device-link payload 收窄为公开 intent；非法值按“无意图”处理。 */
 export function normalizeSessionAgentSwitchIntent(
@@ -17,6 +18,7 @@ export function normalizeSessionAgentSwitchIntent(
     item.targetAgentKind !== 'claude-code'
     && item.targetAgentKind !== 'codex'
     && item.targetAgentKind !== 'pi'
+    && item.targetAgentKind !== 'hermes'
   ) return null;
   if (typeof item.model !== 'string' || item.model.length === 0) return null;
   // providerId 缺失(undefined)按 null 处理,与桌面 projectPendingAgentSwitchIntent 的
@@ -46,9 +48,9 @@ export function normalizeSessionAgentSwitchIntent(
   };
 }
 
-/** DB 会话行的 cc/codex 映射到 maker agent kind。 */
+/** DB 会话行的 cc/codex/hermes 映射到 maker agent kind。 */
 export function sessionAgentKind(session: Pick<RemoteSession, 'agentKind'>): MobileSessionAgentKind {
-  return session.agentKind === 'codex' || session.agentKind === 'pi'
+  return session.agentKind === 'codex' || session.agentKind === 'pi' || session.agentKind === 'hermes'
     ? session.agentKind
     : 'claude-code';
 }
@@ -63,14 +65,16 @@ export function supportsMobileSessionAgentSwitch(
 }
 
 export function mobileAgentLabel(agentKind: MobileSessionAgentKind): string {
+  if (agentKind === 'hermes') return 'Hermes';
   return agentKind === 'codex' ? 'Codex' : agentKind === 'pi' ? 'Pi' : 'Claude Code';
 }
 
 export function mobileAgentLabelFromUnknown(agentKind: unknown): string {
+  if (agentKind === 'hermes') return 'Hermes';
   return agentKind === 'codex' ? 'Codex' : agentKind === 'pi' ? 'Pi' : 'Claude Code';
 }
 
-export function mobileAgentVendor(agentKind: MobileSessionAgentKind): 'cc' | 'codex' | 'pi' {
+export function mobileAgentVendor(agentKind: MobileSessionAgentKind): 'cc' | 'codex' | 'pi' | 'hermes' {
   return agentKind === 'claude-code' ? 'cc' : agentKind;
 }
 

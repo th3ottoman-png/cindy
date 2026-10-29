@@ -60,6 +60,13 @@ it('reuses exact visible packages, preserves shadowed versions and terminates cy
   }
 });
 
+it('ships the Node HTML parser required by the bundled turndown converter', () => {
+  const forgeConfig = fs.readFileSync(path.resolve('forge.config.ts'), 'utf8');
+  const nativeDepsBlock = forgeConfig.match(/const NATIVE_RUNTIME_DEPS = \[[\s\S]*?\];/)?.[0];
+
+  expect(nativeDepsBlock).toMatch(/^\s*'@mixmark-io\/domino',$/m);
+});
+
 it('removes only generated snapshots from the packaged migration metadata', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cindy-migration-package-'));
   try {

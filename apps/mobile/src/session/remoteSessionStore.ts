@@ -1,3 +1,4 @@
+import type { AgentKind } from '@cindy/model-providers/types';
 import { readTokenSpeedSnapshot, type TokenSpeedSnapshot } from '@cindy/maker-shared/usage-format';
 import { historyTurnEnded, nextHistoryCacheReceipt } from '@cindy/maker-shared/message-window';
 import { normalizeTaskTags, reconcileTaskTags } from '@cindy/maker-shared';
@@ -3247,7 +3248,7 @@ function sweepStaleTaskUpdates(sessionId: string): boolean {
 function recallParkedTaskUpdates(
   sessionId: string,
   data: unknown,
-  source: 'claude-code' | 'codex' | 'pi' | undefined,
+  source: AgentKind | undefined,
   prevMap: ReadonlyMap<string, AgentTaskUpdate> | undefined,
 ): ReadonlyMap<string, AgentTaskUpdate> | undefined {
   const parkedMap = sessionParkedTaskUpdates.get(sessionId);

@@ -81,6 +81,17 @@ describe('mobileHomeListCache', () => {
     expect(snapshot[1].sessions.map((s) => s.id)).toEqual(['s-b1']);
   });
 
+  it('preserves Hermes session identity across a cache round-trip', async () => {
+    const { cacheHomeListSnapshot, getCachedHomeListSnapshot } = await import('@/session/mobileHomeListCache');
+
+    await cacheHomeListSnapshot(USER_ID, [
+      makeSession('s-hermes', 'dev-a', { agentKind: 'hermes' }),
+    ]);
+
+    const snapshot = await getCachedHomeListSnapshot(USER_ID);
+    expect(snapshot[0].sessions[0].agentKind).toBe('hermes');
+  });
+
   it('returns [] for missing cache, corrupt JSON, or wrong shapes', async () => {
     const { __testing, getCachedHomeListSnapshot } = await import('@/session/mobileHomeListCache');
 

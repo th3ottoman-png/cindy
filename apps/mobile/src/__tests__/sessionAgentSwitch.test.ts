@@ -50,13 +50,17 @@ describe('mobile session Agent switch contract', () => {
     expect(sessionAgentKind({ agentKind: 'cc' })).toBe('claude-code');
     expect(sessionAgentKind({ agentKind: 'codex' })).toBe('codex');
     expect(sessionAgentKind({ agentKind: 'pi' })).toBe('pi');
+    expect(sessionAgentKind({ agentKind: 'hermes' })).toBe('hermes');
     expect(mobileAgentLabel('claude-code')).toBe('Claude Code');
     expect(mobileAgentLabel('codex')).toBe('Codex');
     expect(mobileAgentLabel('pi')).toBe('Pi');
+    expect(mobileAgentLabel('hermes')).toBe('Hermes');
     expect(mobileAgentLabelFromUnknown('pi')).toBe('Pi');
+    expect(mobileAgentLabelFromUnknown('hermes')).toBe('Hermes');
     expect(mobileAgentVendor('claude-code')).toBe('cc');
     expect(mobileAgentVendor('codex')).toBe('codex');
     expect(mobileAgentVendor('pi')).toBe('pi');
+    expect(mobileAgentVendor('hermes')).toBe('hermes');
     expect(normalizeSessionAgentSwitchIntent({
       targetAgentKind: 'pi', model: 'gpt-5.5', providerId: 'openai',
     })).toEqual({ targetAgentKind: 'pi', model: 'gpt-5.5', providerId: 'openai' });

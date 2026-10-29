@@ -283,7 +283,7 @@ it('respects the original memory switch without enabling it or importing identit
   expect(h.importDocument).not.toHaveBeenCalled(); expect(h.profile.config).toEqual({ memory: false });
   expect(h.profile.identitySource).toBe(await nativeIdentity(entry.packageId));
   // Memory off is the user's choice: the teammate still opens the conversation.
-  expect(h.invitation).toHaveBeenCalledWith(result.botId, result.requestId, undefined, expect.objectContaining({ onboardingSkill: expect.any(String) }));
+  expect(h.invitation).toHaveBeenCalledWith(result.botId, result.requestId, 'en', expect.objectContaining({ onboardingSkill: expect.any(String) }));
 });
 it('still opens the conversation when only a disabled routine definition fails to save', async () => {
   h.native = true;
@@ -294,7 +294,7 @@ it('still opens the conversation when only a disabled routine definition fails t
   create.mockRestore();
   expect(result).toMatchObject({ saved: true, status: 'needs-attention' });
   expect(result.checks.filter(check => check.status === 'needs-attention').every(check => check.entryId.startsWith('routine-'))).toBe(true);
-  expect(h.invitation).toHaveBeenCalledWith(result.botId, result.requestId, undefined, expect.objectContaining({ welcome: entry.welcome }));
+  expect(h.invitation).toHaveBeenCalledWith(result.botId, result.requestId, 'en', expect.objectContaining({ welcome: entry.locales!.en!.welcome }));
 });
 it('keeps deletion cancellation as a fence and allocates a new request only for an explicit reinstall', async () => {
   h.native = true;

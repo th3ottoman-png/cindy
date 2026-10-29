@@ -17,6 +17,14 @@ if (mode !== 'remote' && mode !== 'local') {
   console.error(`desktop-dev-runner: mode must be remote or local, received ${mode ?? '(empty)'}`);
   process.exit(2);
 }
+const nodeMajor = Number(process.versions.node.split('.')[0]);
+if (nodeMajor !== 22) {
+  console.error(
+    `desktop-dev-runner: Node.js 22 is required; current version is ${process.versions.node}.\n` +
+    'Run: export PATH="/opt/homebrew/opt/node@22/bin:$PATH"',
+  );
+  process.exit(1);
+}
 
 const devScript = mode === 'local' ? 'dev:desktop' : 'dev:desktop:remote';
 // The restart pipeline opens a fresh Windows cmd.exe. That environment does

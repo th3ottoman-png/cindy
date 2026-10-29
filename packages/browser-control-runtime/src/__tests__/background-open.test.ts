@@ -25,6 +25,7 @@ function createProfileFixture() {
   const resolved = resolveBrowserConfig({
     enabled: true,
     defaultProfile: 'Cindy',
+    ssrfPolicy: { dangerouslyAllowPrivateNetwork: true },
     profiles: {
       Cindy: { driver: 'openclaw', cdpPort: 18800, color: '#00D9C5' },
     },
@@ -82,7 +83,7 @@ describe('background tab creation', () => {
       getProfileState: () => profileState,
     });
 
-    await expect(tabs.openTab('https://example.com', { background: true })).rejects.toBe(cdpError);
+    await expect(tabs.openTab('http://127.0.0.1:3000/', { background: true })).rejects.toBe(cdpError);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

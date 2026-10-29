@@ -209,7 +209,7 @@ describe('generic local app Cindy authorization', () => {
     expect(options.message).toContain('Notes $&');
     expect(options.message).not.toContain('{{app}}');
     expect(options.detail).toContain('org.example.notes');
-    expect(options.detail).toContain('工作目录不限制访问范围');
+    expect(options.detail).toContain('working directory does not restrict access');
     expect(options.detail).toContain('1.2');
     expect(options.detail).not.toMatch(/\{\{(?:id|version)\}\}/);
   });

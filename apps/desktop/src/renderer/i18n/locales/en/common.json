@@ -11555,6 +11555,9 @@
     "verificationFailed": "Cindy couldn’t confirm whether the ChatGPT sign-in has recovered. Check again."
   },
   "chat": {
+    "composer": {
+      "hermesDefaultSuccess": "Hermes default model updated to {{model}}"
+    },
     "imageDelivery": {
       "stored": "Image delivered",
       "failed": "Image delivery failed. Retry transferring the existing image.",

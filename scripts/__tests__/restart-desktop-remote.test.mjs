@@ -150,6 +150,36 @@ test("desktop restart no longer depends on the retired Feishu build app id", () 
 	assert.equal(source.includes("VITE_FEISHU_APP_ID"), false);
 });
 
+test("desktop dev runner refuses Node versions outside the Node 22 line", () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), "cindy-dev-node-version-"));
+	try {
+		const scriptsDir = path.join(root, "scripts");
+		fs.mkdirSync(scriptsDir);
+		fs.cpSync(new URL("../shared", import.meta.url), path.join(scriptsDir, "shared"), {
+			recursive: true,
+		});
+		const source = fs.readFileSync(new URL("../desktop-dev-runner.mjs", import.meta.url), "utf8");
+		const runnerPath = path.join(scriptsDir, "desktop-dev-runner.mjs");
+		fs.writeFileSync(runnerPath, source.replace(
+			"const mode = process.argv[2];",
+			"Object.defineProperty(process.versions, 'node', { value: '26.0.0' });\nconst mode = process.argv[2];",
+		));
+
+		const result = spawnSync(process.execPath, [runnerPath, "local"], {
+			cwd: root,
+			encoding: "utf8",
+			timeout: 10_000,
+		});
+		const output = `${result.stdout}${result.stderr}`;
+		assert.equal(result.status, 1, output);
+		assert.match(output, /Node(?:\.js)? 22/);
+		assert.match(output, /26\.0\.0/);
+		assert.match(output, /export PATH="\/opt\/homebrew\/opt\/node@22\/bin:\$PATH"/);
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("desktop restart clears only desktop Vite dev caches", () => {
 	const repo = fs.mkdtempSync(path.join(os.tmpdir(), "cindy-dev-cache-"));
 	const desktopCacheDirs = desktopDevCacheDirs(repo);

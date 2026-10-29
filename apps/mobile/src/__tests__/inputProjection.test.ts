@@ -149,6 +149,17 @@ describe('inputProjection', () => {
     });
   });
 
+  it('preserves Hermes in createOpts for lazy-create after restart', () => {
+    const queued = buildQueuedTextMessage(
+      session({ agentKind: 'hermes' }),
+      'continue please',
+      new Date('2026-01-01T00:00:05.000Z'),
+      'q-hermes',
+    );
+
+    expect(queued.createOpts.agentKind).toBe('hermes');
+  });
+
   it('persists the quote encoding flag for desktop and keeps it on the optimistic chat row', () => {
     const queued = buildQueuedTextMessage(
       session(),

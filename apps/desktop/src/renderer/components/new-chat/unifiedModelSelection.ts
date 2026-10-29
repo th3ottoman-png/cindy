@@ -250,7 +250,7 @@ export function resolveFavoriteRowConfig(args: {
 }): UnifiedRowConfig {
   const { entry, item, agentFastModeCapable } = args;
   const candidateEngines = entry.candidates.map(engineOfAgentKind);
-  const engine = candidateEngines.includes(item.agent)
+  const engine = item.agent !== 'hermes' && candidateEngines.includes(item.agent)
     ? item.agent
     : engineOfAgentKind(entry.recommended);
   const agent = agentKindOfEngine(engine);
@@ -292,6 +292,7 @@ export function favoriteMatchesSelection(args: {
     !agent ||
     item.providerId !== selected.providerId ||
     !entryMatchesModelId(entry, selected.modelId) ||
+    item.agent === 'hermes' ||
     agentKindOfEngine(item.agent) !== agent ||
     !entry.candidates.includes(agent)
   )
@@ -425,7 +426,7 @@ export interface ForeignFavoriteRow {
  * 没有任何能力):行不可选,目录到了自然换成真条目。
  */
 export function unavailableFavoriteEntry(item: ModelFavoriteItem): UnifiedModelEntry {
-  const agent = agentKindOfEngine(item.agent);
+  const agent: AgentKind = item.agent === 'hermes' ? 'hermes' : agentKindOfEngine(item.agent);
   return {
     providerId: item.providerId,
     modelId: item.modelId,

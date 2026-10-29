@@ -41,7 +41,7 @@ async function probeReadyTool(command: string): Promise<DoctorProbeResult> {
     command === 'git'
       ? 'git version 2.45.0'
       : command === 'node'
-        ? 'v24.16.0'
+        ? 'v22.23.4'
         : command === 'pnpm'
           ? '10.33.2'
           : command === 'python3'

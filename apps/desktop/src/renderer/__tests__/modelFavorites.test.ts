@@ -139,6 +139,20 @@ describe('modelFavorites store', () => {
     expect(m2.getModelFavorite(uid)).toMatchObject({ agent: 'cc', effort: 'high', fast: true });
   });
 
+  it('preserves Hermes favorites through add, update, and restart', async () => {
+    const m1 = await loadModule();
+    const hermes = { providerId: 'hermes', modelId: 'kimi-for-coding', agent: 'hermes' } as const;
+    const uid = m1.addModelFavorite(hermes);
+    expect(m1.getModelFavorite(uid)).toEqual({ uid, ...hermes });
+    m1.updateModelFavorite(uid, { agent: 'hermes' });
+    expect(m1.getModelFavorite(uid)).toEqual({ uid, ...hermes });
+
+    // reset-modules: 验证收藏从 localStorage 重新加载后仍保留 Hermes。
+    vi.resetModules();
+    const m2 = await loadModule();
+    expect(m2.listModelFavorites()).toEqual([{ uid, ...hermes }]);
+  });
+
   it('keeps Fast and Ultrafast as different favorite configurations', async () => {
     const m = await loadModule();
     const model = { providerId: 'openai', modelId: 'gpt-6-astra', agent: 'codex' as const };

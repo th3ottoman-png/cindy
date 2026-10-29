@@ -1,3 +1,4 @@
+import type { AgentKind } from '@cindy/model-providers/types';
 import { useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
 import { useReduceMotionEnabled } from '@/hooks/useReduceMotion';
@@ -13,7 +14,7 @@ import { MobileAgentMark } from './MobileAgentMark';
 const RUNNING_BREATH_HALF_CYCLE_MS = 750;
 const RUNNING_BREATH_MIN_OPACITY = 0.3;
 
-type AgentMarkKind = 'claude-code' | 'codex' | 'pi';
+type AgentMarkKind = AgentKind;
 
 /**
  * 各字形笔画右上角在自身方框里的位置(0–1,已留出与波纹点的间隙),与桌面 VendorIcon 的
@@ -23,6 +24,7 @@ type AgentMarkKind = 'claude-code' | 'codex' | 'pi';
 const REMOTE_SIGNAL_ANCHOR: Record<AgentMarkKind, { x: number; y: number }> = {
   'claude-code': { x: 0.95, y: 0.13 },
   codex: { x: 0.9, y: 0.1 },
+  hermes: { x: 0.9, y: 0.35 },
   pi: { x: 0.93, y: 0.19 },
 };
 
@@ -80,13 +82,13 @@ export function MobileVendorIcon({
     };
   }, [animate, opacity]);
 
-  const agentKind: AgentMarkKind = vendor === 'codex' || vendor === 'pi' ? vendor : 'claude-code';
+  const agentKind: AgentMarkKind = vendor === 'codex' || vendor === 'pi' || vendor === 'hermes' ? vendor : 'claude-code';
   const mark = <MobileAgentMark agentKind={agentKind} color={color} size={size} />;
   const anchor = REMOTE_SIGNAL_ANCHOR[agentKind];
   return (
     <Animated.View
       accessible
-      accessibilityLabel={vendor === 'codex' ? 'Codex' : vendor === 'pi' ? 'Pi' : 'Claude Code'}
+      accessibilityLabel={vendor === 'codex' ? 'Codex' : vendor === 'pi' ? 'Pi' : vendor === 'hermes' ? 'Hermes' : 'Claude Code'}
       accessibilityRole="image"
       style={{ alignItems: 'center', height: size, justifyContent: 'center', opacity, width: size }}
     >

@@ -97,7 +97,7 @@ describe('read-only personal-build diagnostics', () => {
   it.each([
     ['node', 'v22.11.0', 'incompatible'],
     ['node', 'v22.12.0', 'passed'],
-    ['node', 'v24.1.0', 'passed'],
+    ['node', 'v24.1.0', 'incompatible'],
     ['node', 'v22.12.0-rc.1', 'failed'],
     ['pnpm', '10.6.9', 'incompatible'],
     ['pnpm', '10.7.0', 'passed'],
@@ -117,7 +117,7 @@ describe('read-only personal-build diagnostics', () => {
     const manifest = JSON.parse(
       readFileSync(new URL('../../../../../../package.json', import.meta.url), 'utf8'),
     );
-    expect(manifest.engines).toMatchObject({ node: '>=22.12', pnpm: '>=10.7 <11' });
+    expect(manifest.engines).toMatchObject({ node: '>=22.12 <23', pnpm: '>=10.7 <11' });
     expect(manifest.packageManager.split('+')[0]).toBe('pnpm@10.33.2');
   });
 

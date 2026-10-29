@@ -1,3 +1,4 @@
+import type { AgentKind } from '@cindy/model-providers/types';
 import { PeerRecoveryScheduler } from './peerRecoveryScheduler';
 import {
   fetchDeviceProviders, getDeviceProvidersGen, invalidateDeviceProvidersForRefresh,
@@ -13,7 +14,7 @@ import { normalizeMobileAgentCapabilities } from '@/session/agentCapabilities';
  * parallel RPCs. Reuse peer recovery's serialized rerun and cancellation rules. */
 export function createDeviceCatalogRefresh(options: {
   readProviders(deviceId: string): Promise<DeviceProvidersPayload>;
-  readCapabilities(deviceId: string, agent: 'claude-code' | 'codex' | 'pi'): Promise<unknown>;
+  readCapabilities(deviceId: string, agent: AgentKind): Promise<unknown>;
   connectionEpoch(): number;
   canRead?(deviceId: string): boolean;
 }) {

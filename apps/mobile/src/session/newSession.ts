@@ -17,10 +17,11 @@ import type { DeviceProvidersPayload } from '@/device-link/deviceProvidersCache'
 import type { MobileModelOption } from './agentCapabilities';
 import { isCindyAutoModelId } from '@cindy/model-providers/provider-identity';
 import { effectiveSourceIdForModel, movedCindyAutoSourceId, type ProviderView } from '@cindy/model-providers/registry';
+import type { AgentKind } from '@cindy/model-providers/types';
 import { reconcileEffortForModel, type ProviderModelRow } from './providerModelSections';
 import type { RemoteSession } from './types';
 
-export type NewSessionAgentKind = 'claude-code' | 'codex' | 'pi';
+export type NewSessionAgentKind = AgentKind;
 export type NewSessionWorkspaceKind = 'project' | 'dialogue';
 
 export const NEW_SESSION_AGENT_OPTIONS: readonly { kind: NewSessionAgentKind; label: string }[] = [
@@ -264,7 +265,7 @@ export function summarizeNewSessionDraft(
   content: NewSessionDraftContentState = {},
 ): NewSessionDraftSummary {
   const validationMessage = validateNewSessionDraft(draft, content);
-  const agentLabel = draft.agentKind === 'codex' ? 'Codex' : draft.agentKind === 'pi' ? 'Pi' : 'Claude';
+  const agentLabel = draft.agentKind === 'hermes' ? 'Hermes' : draft.agentKind === 'codex' ? 'Codex' : draft.agentKind === 'pi' ? 'Pi' : 'Claude';
   const model = draft.model.trim() || i18n.t('session.new.noModelSelected');
   const effort = draft.effort.trim();
   const workspaceLabel = draft.workspaceKind === 'dialogue'
@@ -426,7 +427,7 @@ type NewSessionDefaultModel = {
   id: string;
   efforts: readonly string[];
   defaultEffort: string | null;
-  newSessionDefault?: readonly ('claude-code' | 'codex' | 'pi')[];
+  newSessionDefault?: readonly AgentKind[];
 };
 
 function isNewSessionDefaultForAgent(

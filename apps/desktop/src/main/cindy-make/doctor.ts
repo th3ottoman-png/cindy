@@ -110,7 +110,7 @@ export function checkMakeToolVersion(
         id,
         result,
         /^v(\d+\.\d+\.\d+)\s*$/,
-        ([major, minor]) => major > 22 || (major === 22 && minor >= 12),
+        ([major, minor]) => major === 22 && minor >= 12,
       );
     case 'pnpm':
       return versionCheck(

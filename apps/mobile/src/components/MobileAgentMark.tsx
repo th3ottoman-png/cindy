@@ -1,10 +1,11 @@
 /**
- * MobileAgentMark —— Claude Code / Codex CLI 的 Agent 身份 mark。
+ * MobileAgentMark —— Claude Code / Codex CLI / Pi / Hermes 的 Agent 身份 mark。
  * 不用于 Anthropic / OpenAI provider 或模型品牌；后两者由 MobileProviderMark 负责。
  */
+import type { AgentKind } from '@cindy/model-providers/types';
 import Svg, { G, Path } from 'react-native-svg';
 
-import { iconSize } from '@/theme';
+import { iconSize, iconStroke } from '@/theme';
 
 import {
   CLAUDE_AGENT_PATH,
@@ -19,7 +20,7 @@ const CODEX_SMALL_STROKE = 2;
 const CODEX_LARGE_STROKE = 1.6;
 
 export interface MobileAgentMarkProps {
-  agentKind: 'claude-code' | 'codex' | 'pi';
+  agentKind: AgentKind;
   color: string;
   size?: number;
 }
@@ -29,7 +30,15 @@ export function MobileAgentMark({ agentKind, color, size = iconSize.sm }: Mobile
   const codexStrokeWidth = size <= iconSize.sm ? CODEX_SMALL_STROKE : CODEX_LARGE_STROKE;
   return (
     <Svg accessible={false} height={size} viewBox="0 0 24 24" width={size}>
-      {agentKind === 'pi' ? (
+      {agentKind === 'hermes' ? (
+        <G fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth={iconStroke.medium}>
+          <Path d="M3.2 8.4c3.4.2 6 1.9 7.6 4.6" />
+          <Path d="M20.8 8.4c-3.4.2-6 1.9-7.6 4.6" />
+          <Path d="M12 6.2v12.2" />
+          <Path d="M6.2 12.4c2.6.1 4.6 1.4 5.8 3.4" />
+          <Path d="M17.8 12.4c-2.6.1-4.6 1.4-5.8 3.4" />
+        </G>
+      ) : agentKind === 'pi' ? (
         // Keep all three strokes in one native path. Separate horizontal/vertical
         // paths have degenerate bounds and can disappear in the iOS SVG renderer.
         <Path

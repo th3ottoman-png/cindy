@@ -48,6 +48,18 @@ describe('sessionOverview', () => {
     expect(overview.stateChips).toEqual([]);
   });
 
+  it('labels Hermes sessions without falling back to Claude Code', () => {
+    const overview = summarizeSessionOverview({
+      messageCount: 0,
+      pendingCount: 0,
+      queueCount: 0,
+      queuePaused: false,
+      session: session({ agentKind: 'hermes' }),
+    });
+
+    expect(overview.runtimeSubtitle).toBe('Hermes · claude-sonnet-4-6 · ask');
+  });
+
   it('promotes pending interactions before queue and spend copy', () => {
     const overview = summarizeSessionOverview({
       diffCount: 2,
