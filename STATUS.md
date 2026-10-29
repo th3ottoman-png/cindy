@@ -10,6 +10,14 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: `auth.json` write-back from a session home, free probe (`live-proven` for the writer only; real token refresh NOT tested)
+
+**Outcome:** Hermes v0.22.5 saves `auth.json` through `hermes_cli/auth.py::_save_auth_store` -> `utils.atomic_json_write` (temp file + replace). I ran that real function from the Hermes venv on a throwaway directory: `home/auth.json` as a symlink to `shared.json`, then a write. Result: the symlink survived and `shared.json` received the new content. So a write from a per-session home reaches the shared `auth.json`; a refreshed token will not be stranded in one session home. The "global root" write-through (`_global_auth_file_path`) returns None when the home and the root are the same directory; I did not run it against a session home.
+
+**Not proven:** a real provider token refresh (no OAuth provider is logged in: Nous was logged out in 0.9b, DeepSeek uses a static key in `.env`, `copilot` comes from the gh CLI), and the global-root write-through with a real `HERMES_HOME` set to a session home. The first is moot until the owner logs in to an OAuth provider again; re-check then. No credentials read, no real `auth.json` touched, no model call, `~/.hermes` not referenced.
+
+---
+
 ## 2026-10-29 — Phase 1: orphan session homes reaper live check (`live-proven`)
 
 **Outcome:** planted `session-homes/livecheck-old-aaaaaaaaaa` (mtime set to 2026-10-26) and `livecheck-new-bbbbbbbbbb` (fresh), restarted the dev app (`pnpm restart:desktop:local`; rebuilt `hermes-mgr.mjs` contains `reapOrphanHomes`), then waited for the window to finish loading (I only took a screenshot; no clicks or typing). The daemon was not running right after the restart, but by the next listing about 2 minutes later the old fake home was gone, so it started on its own during app start-up (exact trigger not identified). The fresh fake, the real `0c5e9200-...-2d51ca5605` (about 1.5 h idle) and `~/.hermes-cindy/auth.json` were untouched. I removed the fresh fake by hand afterwards. No model call, no config write.
