@@ -12,7 +12,7 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ## 2026-10-29 — Roadmap 0.8–0.12: built, split, and UI-proven
 
-**Outcomes:** 0.8 `live-proven` · 0.9a ✅ done / 0.9b 🔲 owner action · 0.10 `unit-tested` ·
+**Outcomes:** 0.8 `live-proven` · 0.9a ✅ done / 0.9b ✅ done (owner actions) · 0.10 `unit-tested` ·
 0.11a `live-proven` / 0.11b "Back up now" `live-proven`, "Restore…" `typechecked` only (→ 0.11c open) ·
 0.12 `live-proven`.
 
@@ -39,7 +39,9 @@ empty `~/Library/Application Support/CindyGlobal` profile; left in place.
 - `~/.hermes-cindy/.env`: only `DEEPSEEK_API_KEY`, `OPENAI_BASE_URL`.
 - ElevenLabs key location unknown (app reads `XDT_ELEVENLABS_API_KEY` / `ELEVENLABS_API_KEY` from env; earlier notes say `~/.zshrc`).
 - `~/.hermes-cindy/auth.json` holds a live Nous login (`providers.nous`, `active_provider` null → unused). Not deleted.
-**0.9b open (owner):** rotate ElevenLabs key; decide Nous logout. Agent cannot do either.
+**0.9b done (owner actions).** Owner ran `hermes-cindy logout --provider nous` ("Logged out of Nous Portal");
+verified after: `auth.json` `providers` empty, `active_provider` null, `auth list` shows only `copilot` (gh CLI) and
+`deepseek` (env). Owner reports the ElevenLabs key is rotated; I cannot verify that from here.
 
 **0.10 — `unit-tested`.** Master Plan → `docs/cindy-master-plan.md` with historical banner (body SHA-256 verified,
 then `~/Desktop/Cindy-Master-Plan.md` removed). `docs/decisions/0002-advisory-i18n-checks.md` keeps i18n/brand checks
@@ -69,7 +71,7 @@ real profile. Its logic is the same `restoreBackup` proven in 0.11a.
 
 Hermes backups: `config.yaml.bak-2026-10-29`, `hermes-mgr/sessions.json.bak-2026-10-29`.
 
-**Open:** 0.9b (owner: rotate ElevenLabs key, Nous decision), 0.11c (Restore button UI proof).
+**Open:** 0.11c (Restore button UI proof). Phase 0 is otherwise complete; Phase 1 not started.
 
 ---
 
