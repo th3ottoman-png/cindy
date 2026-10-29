@@ -43,7 +43,7 @@ Distinct `HERMES_HOME` per gateway read from each process's env (`ps eww`). Conf
 
 **Row split:** 5c-ui-a done (`unit-tested`). **5c-ui-b open:** eyeball the tooltip in the running app (restart needed, the change is in `maker-core`); only then is it `live-proven`. Still untested live: two concurrent full-access sessions, session-close cleanup, `auth.json` write-back from a session home. `memories` shared across session homes: owner has not answered the veto flag.
 
-**Gates (Node 22, exit 0):** `pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` all exit 0 on 2026-10-29 (earlier run `gates9` never finished, so it was rerun).
+**Gates (Node 22), corrected:** commit `49cff34639` was made while the gates were red and its original line here claimed all four exit 0; that was not verified. Actual record: two full chains (gates9, gates10) exited 1 with a vitest SIGSEGV in `apps/desktop unit` (worker crash, not an assertion), after `typecheck` and `test:runner` had passed in them; a rerun of `test:unit:related` + `check:test-hygiene` alone then exited 0 with no crash. No single clean chain exists for this change. The crash is intermittent, logged in ROADMAP Debt.
 
 ---
 
