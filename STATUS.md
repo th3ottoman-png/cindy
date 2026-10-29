@@ -10,19 +10,28 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
-## 2026-10-29 — Roadmap 0.8–0.12: blocked, split, and built
+## 2026-10-29 — Roadmap 0.8–0.12: built, split, and UI-proven
 
-**Outcomes:** 0.8 🔲 blocked · 0.9a ✅ done / 0.9b 🔲 owner action · 0.10 `unit-tested` ·
-0.11a `live-proven` / 0.11b `typechecked` only · 0.12 `live-proven`.
+**Outcomes:** 0.8 `live-proven` · 0.9a ✅ done / 0.9b 🔲 owner action · 0.10 `unit-tested` ·
+0.11a `live-proven` / 0.11b "Back up now" `live-proven`, "Restore…" `typechecked` only (→ 0.11c open) ·
+0.12 `live-proven`.
 
 **Gates (Node 22, all exit 0):** typecheck ✅; test:runner 608 pass / 0 fail / 2 skipped
-(+2 from the new scan test); test:unit:related ✅; check:test-hygiene PASS (361 files).
+(+2 from the new scan test); test:unit:related ✅; check:test-hygiene PASS (361 files). Rerun in full
+after the WAL fix below; same numbers.
 
-**0.8 — blocked, not done.** Dev app launched isolated (`~/Library/Application Support/CindyGlobal-dev2-private`).
-Window starts at `#/login`; "Skip Sign-In" leads to a Terms of Service prompt (Not Now / Agree).
-Nothing was accepted: Agree needs the owner's explicit yes. The 0.8 controls (model `<select>` +
-Save, "Add server", remove) in `HermesSection.tsx` are therefore not exercised. Surprise: my first
-launch created an empty `~/Library/Application Support/CindyGlobal` profile; left in place.
+**0.8 — `live-proven`.** Isolated dev app (`~/Library/Application Support/CindyGlobal-dev2-private`),
+driven over CDP (Settings → General → Hermes Harness). Owner approved clicking Agree on the Terms of
+Service prompt, but when I reconnected the dev profile was already past login/ToS, so I clicked nothing on it.
+Backup first: `config.yaml.bak-2026-10-29-0.8`. Observed:
+1. Default model `deepseek-flash` → `deepseek-v4-pro`, Save: `config.yaml` diff is exactly `default:` line 2.
+2. Add Server (stdio, a local no-network stub MCP server `mini-mcp.mjs`, not a real third-party one): diff adds
+   `mcp_servers: mini_mcp: command/args`. `hermes-cindy mcp list` showed it enabled; `mcp test` connected (449 ms),
+   1 tool discovered. Hermes = v0.22.5.
+3. Remove via UI + model back to `deepseek-flash`: `mcp list` → none. Net diff vs original: an empty
+   `mcp_servers:` key and no trailing newline remain (Debt row; Hermes reads it fine).
+Not done: a full chat turn using the MCP tool (would spend a DeepSeek call). Surprise: my first launch created an
+empty `~/Library/Application Support/CindyGlobal` profile; left in place.
 
 **0.9a — findings (history + tree scan, all refs).** 15 hits, all upstream test fixtures
 (fake `ghp_0123…`, `AKIAIOSFODNN7…`, `sk-abcde…`); none in the 27 fork commits.
@@ -41,8 +50,16 @@ advisory and resolves the Debt row.
 a SQLite row and `config.yaml` matched; `.env`/`auth.json` absent by design. Archive excludes `.env`, `auth.json`,
 `auth.lock`, caches, SQLite `-wal/-shm`; `.db` files snapshotted via `sqlite3 .backup`. Restore renames replaced
 files to `*.pre-restore-<stamp>`, never deletes.
-**0.11b — `typechecked` only.** Settings "Back up now" / "Restore…" (`channels.ts` BACKUP_CREATE/RESTORE,
-`register.ts`, `preload.ts`, `vite-env.d.ts`, `HermesSection.tsx`). Live UI proof open; same ToS block as 0.8.
+**0.11b — "Back up now" `live-proven`; "Restore…" `typechecked` only.** Settings buttons (`channels.ts`
+BACKUP_CREATE/RESTORE, `register.ts`, `preload.ts`, `vite-env.d.ts`, `HermesSection.tsx`). Clicking "Back up now" in the
+running app wrote `~/.cindy-harness/backups/cindy-backup-20261029T163929Z.tar.gz` (887 entries); no `.env`, `auth.json`,
+`-wal` or `-shm`; extracted `state.db` passes `integrity_check`. Left two archives from my UI runs in that folder.
+**Bug found by the UI proof and fixed:** `sqlite3 .backup` keeps WAL mode, so the snapshot copy shipped its own
+`state.db-wal`/`-shm` (empty), contradicting the 0.11a claim above. `snapshotSqlite` now sets `journal_mode=delete`
+on the copy and drops empty leftover sidecars; the test fixture's `state.db` is now WAL mode and asserts no
+`-wal`/`-shm` (red before the fix, 4/4 after).
+**0.11c open:** "Restore…" uses native open/confirm dialogs and relaunches the app; not driven, not run against the
+real profile. Its logic is the same `restoreBackup` proven in 0.11a.
 
 **0.12 — `live-proven`.** `scripts/upstream-security-scan.sh`, `pnpm upstream:scan`, test
 `scripts/__tests__/upstream-security-scan.test.mjs` (2 tests, in `test:runner`). First scan (2026-10-29):
@@ -52,7 +69,7 @@ files to `*.pre-restore-<stamp>`, never deletes.
 
 Hermes backups: `config.yaml.bak-2026-10-29`, `hermes-mgr/sessions.json.bak-2026-10-29`.
 
-**Open:** 0.8, 0.9b, 0.11b (need owner: ToS Agree, key rotation, Nous decision).
+**Open:** 0.9b (owner: rotate ElevenLabs key, Nous decision), 0.11c (Restore button UI proof).
 
 ---
 
