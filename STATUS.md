@@ -10,6 +10,30 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-4a live proof (harness-hosted bridge)
+
+**Outcome:** 1.5b-4a `live-proven`. 1.5b-4b (same inside the running desktop app) is open; original 1.5b stays open. Owner accepted the
+1.5b-3 choices ("lets go with your choices") and approved one paid DeepSeek turn; recorded in `docs/decisions/0003-hermes-cindy-tool-exposure.md`.
+
+**Done:** (1) free probe, throwaway `HERMES_HOME`, no model call: real Hermes v0.22.5 spawned `node <shim> --server cindy_docs`, connected
+in 679 ms to the real bridge and listed `read_sheet`. (2) One paid `hermes-cindy -z` turn on `deepseek-flash`: asked to call `read_sheet`
+on a CSV I wrote (`pears,42`); it answered `42` and named the tool. Transcript: `docs/evidence/1.5b-4-live-proof-transcript.md`.
+
+**State handling:** backed up `~/.hermes-cindy/config.yaml` to `config.yaml.bak-20261029` (no `sessions.json` existed to back up). The shim entry
+was written and removed through the 1.5a writers; `config.yaml` is identical to the backup afterwards and `~/.cindy-harness/hermes-bridge.json`
+is gone. `~/.hermes` untouched. No credentials read or written. The harness (a temporary vitest file) was deleted, not committed.
+
+**Resolved from the 1.5b-3 open list:** `node` resolves on Hermes' PATH (shell had Node 22 first; a GUI-launched app may differ, check in 4b).
+Hermes picked up the entry written moments before spawn (start-of-process read); mid-session re-read is still unknown and not needed.
+
+**Honest limits:** bridge hosted by a script, not the app, so `maker-host` injection and the UI path are unproven (4b). No bridge-side
+`tools/call` log and no Hermes session record exist; the claim rests on the unguessable `42`. The turn is two model requests (call + answer),
+one chat turn. Gates not rerun: docs only (no code changed since the 1.5b-3 `EXIT=0` run).
+
+**Next:** 1.5b-4b needs a second paid turn — ask the owner first. Still open from earlier: packaging of the shim bundle, a source for the gated opt-in.
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-3 main-process wiring
 
 **Outcome:** 1.5b-3 `unit-tested`. Not `live-proven`: no real Hermes has loaded the shim (1.5b-4). Original 1.5b stays open.
