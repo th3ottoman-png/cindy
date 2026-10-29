@@ -10,7 +10,15 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
-## 2026-10-29 — Phase 1: orphan session homes reaped at startup (`unit-tested`, NOT live-proven)
+## 2026-10-29 — Phase 1: orphan session homes reaper live check (`live-proven`)
+
+**Outcome:** planted `session-homes/livecheck-old-aaaaaaaaaa` (mtime set to 2026-10-26) and `livecheck-new-bbbbbbbbbb` (fresh), restarted the dev app (`pnpm restart:desktop:local`; rebuilt `hermes-mgr.mjs` contains `reapOrphanHomes`), then opened the app window (full tier, `app_*` tools). The manager daemon is lazy: it started on first Hermes use, and by the next listing the old fake home was gone. The fresh fake, the real `0c5e9200-...-2d51ca5605` (about 1.5 h idle) and `~/.hermes-cindy/auth.json` were untouched. I removed the fresh fake by hand afterwards. No model call, no config write.
+
+**Not proven:** a real 24 h-old orphan; a home whose gateway pid is alive. I did not find the "removed orphan session homes" log line (logger location not checked), so the evidence is the directory listing before and after.
+
+---
+
+## 2026-10-29 — Phase 1: orphan session homes reaped at startup (`unit-tested`; live check in the entry above)
 
 **Outcome:** the Debt row "orphan Hermes session homes accumulate" is fixed in code. `hermes-mgr` start (only with per-session homes) now runs `reapOrphanHomes` after `reapOrphanGateways`: it removes `session-homes/<id>-<10 hex>` directories that no registered session owns and that were idle for 24 h (`orphanHomeMinAgeMs`, default 24 h). Safety: real directories only, never follows symlinks (shared items are links, so the base home's `auth.json`/`installs` survive), skips a home whose gateway pid is alive but not verifiably its Hermes gateway, best effort (errors logged, start continues). Decision recorded in ADR 0004.
 
