@@ -10,6 +10,52 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Roadmap 0.8–0.12: blocked, split, and built
+
+**Outcomes:** 0.8 🔲 blocked · 0.9a ✅ done / 0.9b 🔲 owner action · 0.10 `unit-tested` ·
+0.11a `live-proven` / 0.11b `typechecked` only · 0.12 `live-proven`.
+
+**Gates (Node 22, all exit 0):** typecheck ✅; test:runner 608 pass / 0 fail / 2 skipped
+(+2 from the new scan test); test:unit:related ✅; check:test-hygiene PASS (361 files).
+
+**0.8 — blocked, not done.** Dev app launched isolated (`~/Library/Application Support/CindyGlobal-dev2-private`).
+Window starts at `#/login`; "Skip Sign-In" leads to a Terms of Service prompt (Not Now / Agree).
+Nothing was accepted: Agree needs the owner's explicit yes. The 0.8 controls (model `<select>` +
+Save, "Add server", remove) in `HermesSection.tsx` are therefore not exercised. Surprise: my first
+launch created an empty `~/Library/Application Support/CindyGlobal` profile; left in place.
+
+**0.9a — findings (history + tree scan, all refs).** 15 hits, all upstream test fixtures
+(fake `ghp_0123…`, `AKIAIOSFODNN7…`, `sk-abcde…`); none in the 27 fork commits.
+- `apps/desktop/.env`: untracked, gitignored; Google client id/secret + voice-provider settings, no ElevenLabs key.
+- `~/.hermes-cindy/.env`: only `DEEPSEEK_API_KEY`, `OPENAI_BASE_URL`.
+- ElevenLabs key location unknown (app reads `XDT_ELEVENLABS_API_KEY` / `ELEVENLABS_API_KEY` from env; earlier notes say `~/.zshrc`).
+- `~/.hermes-cindy/auth.json` holds a live Nous login (`providers.nous`, `active_provider` null → unused). Not deleted.
+**0.9b open (owner):** rotate ElevenLabs key; decide Nous logout. Agent cannot do either.
+
+**0.10 — `unit-tested`.** Master Plan → `docs/cindy-master-plan.md` with historical banner (body SHA-256 verified,
+then `~/Desktop/Cindy-Master-Plan.md` removed). `docs/decisions/0002-advisory-i18n-checks.md` keeps i18n/brand checks
+advisory and resolves the Debt row.
+
+**0.11a — `live-proven`.** `apps/desktop/src/main/backup/localBackup.ts` (+4 tests), `scripts/cindy-backup.mjs`,
+`pnpm backup:create` / `backup:restore`. Round trip: real `~/.hermes-cindy` backed up, restored into temp dirs;
+a SQLite row and `config.yaml` matched; `.env`/`auth.json` absent by design. Archive excludes `.env`, `auth.json`,
+`auth.lock`, caches, SQLite `-wal/-shm`; `.db` files snapshotted via `sqlite3 .backup`. Restore renames replaced
+files to `*.pre-restore-<stamp>`, never deletes.
+**0.11b — `typechecked` only.** Settings "Back up now" / "Restore…" (`channels.ts` BACKUP_CREATE/RESTORE,
+`register.ts`, `preload.ts`, `vite-env.d.ts`, `HermesSection.tsx`). Live UI proof open; same ToS block as 0.8.
+
+**0.12 — `live-proven`.** `scripts/upstream-security-scan.sh`, `pnpm upstream:scan`, test
+`scripts/__tests__/upstream-security-scan.test.mjs` (2 tests, in `test:runner`). First scan (2026-10-29):
+`upstream/main` at `727afb1ad6`, 999 commits since frozen SHA `7c5bd270c956417127e12a74934d0ecdb97ba55d`,
+47 cherry-pick candidates (1 message, 2 deps, 46 path). Applied nothing.
+**Quarterly reminder:** run `pnpm upstream:scan` next about **2027-01-29**, then every quarter.
+
+Hermes backups: `config.yaml.bak-2026-10-29`, `hermes-mgr/sessions.json.bak-2026-10-29`.
+
+**Open:** 0.8, 0.9b, 0.11b (need owner: ToS Agree, key rotation, Nous decision).
+
+---
+
 ## 2026-10-29 — Roadmap 0.7: fixture parity with a real transcript
 
 **Outcome: `unit-tested`.** Captured one real `hermes-cindy chat --format stream-json

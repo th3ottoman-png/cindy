@@ -41,11 +41,11 @@ Nothing below is glamorous. All of it is what separates a toy from a daily drive
 | 0.5 | **Atomic `sessions.json`.** Temp-write + rename in the registry; add a corruption test (truncated file → empty registry + warning, not crash). | 🧪 | 🧪 `unit-tested` |
 | 0.6 | **Pin Hermes version.** Record installed `hermes --version` in `HANDOVER.md` §Versions. Daemon logs a warning on `status` if installed version ≠ pinned. | ✅ | ✅ `live-proven` |
 | 0.7 | **Fixture parity test.** Capture one real `hermes chat` NDJSON transcript (redacted) into fixtures; assert `fake-hermes.mjs` emits the same event shapes and key placement (`session_id` on `result`). | 🧪 | 🧪 `unit-tested` |
-| 0.8 | **Live-prove the config writers.** Back up `~/.hermes-cindy/config.yaml`, click "set default model", add and remove one MCP server from the UI, diff the file, confirm `hermes-cindy` still starts and loads the MCP server. | ✅ | 🔲 |
-| 0.9 | **Secrets hygiene.** Rotate the ElevenLabs key; `git log -p` grep for any key material; decide and record what to do with the unused Nous login. | Done in `STATUS.md` | 🔲 |
-| 0.10 | **Docs consolidation.** Move `~/Desktop/Cindy-Master-Plan.md` into `docs/`; split old handover into `HANDOVER.md` (stable) + `STATUS.md` (log) + this file; mirror constraints into `AGENTS.md`. | Files exist, old sections removed | 🔲 |
-| 0.11 | **Local backup/restore.** One command (and a Settings button) that tars the Cindy SQLite DB, `~/.hermes-cindy` (minus caches), and the experts directory to a dated archive; and restores from one. | ✅ round-trip | 🔲 |
-| 0.12 | **Upstream security scan.** `scripts/upstream-security-scan.sh`: fetches `upstream/main`, lists commits since the frozen SHA whose message or diff touches `package.json` deps, `electron`, preload/IPC/sandbox files, or matches `security|CVE|vuln|fix.*crash|data loss`. Prints candidates for cherry-pick per ADR 0001 allow-list — never applies them. Add a `pnpm upstream:scan` script and a quarterly reminder line in `STATUS.md`. | Script runs clean against current upstream; first scan result logged in `STATUS.md` | 🔲 |
+| 0.8 | **Live-prove the config writers.** Back up `~/.hermes-cindy/config.yaml`, click "set default model", add and remove one MCP server from the UI, diff the file, confirm `hermes-cindy` still starts and loads the MCP server. | ✅ | 🔲 blocked: the app's first-run Terms of Service prompt needs the owner's approval to Agree (see STATUS 2026-10-29) |
+| 0.9 | **Secrets hygiene.** Rotate the ElevenLabs key; `git log -p` grep for any key material; decide and record what to do with the unused Nous login. | Done in `STATUS.md` | 🔲 split: **0.9a** history/tree scan ✅ done; **0.9b** rotate ElevenLabs key (owner action) + Nous login decision open |
+| 0.10 | **Docs consolidation.** Move `~/Desktop/Cindy-Master-Plan.md` into `docs/`; split old handover into `HANDOVER.md` (stable) + `STATUS.md` (log) + this file; mirror constraints into `AGENTS.md`. | Files exist, old sections removed | 🧪 `unit-tested` |
+| 0.11 | **Local backup/restore.** One command (and a Settings button) that tars the Cindy SQLite DB, `~/.hermes-cindy` (minus caches), and the experts directory to a dated archive; and restores from one. | ✅ round-trip | 🔲 split: **0.11a** CLI create/restore ✅ `live-proven`; **0.11b** Settings buttons `typechecked` only, live UI proof open |
+| 0.12 | **Upstream security scan.** `scripts/upstream-security-scan.sh`: fetches `upstream/main`, lists commits since the frozen SHA whose message or diff touches `package.json` deps, `electron`, preload/IPC/sandbox files, or matches `security|CVE|vuln|fix.*crash|data loss`. Prints candidates for cherry-pick per ADR 0001 allow-list — never applies them. Add a `pnpm upstream:scan` script and a quarterly reminder line in `STATUS.md`. | Script runs clean against current upstream; first scan result logged in `STATUS.md` | ✅ `live-proven` |
 
 ---
 
@@ -133,7 +133,7 @@ Frontmatter: `name`, `description`, `agent` (hermes | claude-code | codex | pi),
 | Item | Owner note |
 |---|---|
 | Hermes security-scan friction for community plugins | Accepted; 4.4 surfaces the report instead of hiding it |
-| i18n parity check vs English-only UI | Advisory per `AGENTS.md` §2; remove the gate in 0.10 or write an ADR to keep it |
+| ~~i18n parity check vs English-only UI~~ | Resolved in 0.10: kept advisory, see `docs/decisions/0002-advisory-i18n-checks.md` |
 
 ---
 

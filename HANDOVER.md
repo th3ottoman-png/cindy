@@ -129,6 +129,17 @@ node scripts/desktop-dev-runner.mjs local             # dev app (or: pnpm --filt
 pnpm release:package                                  # packaged build (ROADMAP 0.2)
 ```
 
+Local operations (Node 22):
+
+```bash
+pnpm backup:create [--out <dir>]     # dated .tar.gz of Cindy DB + ~/.hermes-cindy (no caches, no .env/auth.json) + experts → ~/.cindy-harness/backups
+pnpm backup:restore <archive>        # quit Cindy first; replaced files are renamed *.pre-restore-<stamp>, never deleted
+pnpm upstream:scan                   # fetch upstream/main, list cherry-pick candidates since the frozen SHA; applies nothing
+```
+
+Settings → Hermes Harness also has "Back up now" / "Restore…" (same code,
+`apps/desktop/src/main/backup/localBackup.ts`). `upstream:scan` is due quarterly (reminder in `STATUS.md`).
+
 Gates (all must pass before commit — see `AGENTS.md` §2):
 
 ```bash
