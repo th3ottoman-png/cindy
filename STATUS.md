@@ -10,6 +10,37 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Roadmap 0.7: fixture parity with a real transcript
+
+**Outcome: `unit-tested`.** Captured one real `hermes-cindy chat --format stream-json
+--query-file - --safe-mode -m deepseek-flash --provider deepseek` turn (prompt: run
+`echo parity-check` in the terminal tool): 7 events (init, tool_use, tool_result, 3× text,
+result). Real CLI = Hermes 0.22.5; this made one DeepSeek call through Hermes's own `.env`.
+Backups taken first: `config.yaml.bak-2026-10-29`, `hermes-mgr/sessions.json.bak-2026-10-29`.
+
+**Changed**
+- `packages/maker-hermes-manager/src/__tests__/fixtures/real-hermes-transcript.ndjson`
+  (new): the transcript with session id, tool-call id and timestamps redacted/synthetic.
+- `.../__tests__/fixture-parity.test.ts` (new, 5 tests): runs `fake-hermes.mjs` and asserts
+  every event kind in the real transcript exists in the fixture with identical keys and value
+  types; `session_id` empty on `init` (`FAKE_INIT_EMPTY`) and set on `result`; same `tokens`
+  keys; transcript contains no key-like strings.
+- `.../fixtures/fake-hermes.mjs`: `emit()` now adds the `timestamp` key the real CLI adds.
+  The parity test failed (`fixture lacks system/init`) without this and passes with it.
+
+**Findings:** the real CLI also emits events in tool-then-text order, the fixture's happy
+path emits text first; parity is asserted on shapes, not event order. A first capture attempt
+without `-m/--provider` produced the real "safe-mode needs explicit model" error shape
+(init with empty id, result exit_code 1).
+
+**Verification:** package suite 63/63, `tsc --noEmit` clean. Gates: typecheck 0 (100s),
+test:runner 0 (606/608, 2 skipped), test:unit:related 0 (531s), check:test-hygiene 0.
+Not live-proven beyond the capture itself (the row requires 🧪).
+
+**Open:** 0.8 next.
+
+---
+
 ## 2026-10-29 — Roadmap 0.6: Hermes version-mismatch warning
 
 **Outcome: `live-proven`.** Resumed Kimi's paused 0.6 draft. Baseline before any change

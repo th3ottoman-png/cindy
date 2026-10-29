@@ -1,0 +1,7 @@
+{"type":"system","subtype":"init","model":"deepseek-flash","session_id":"","timestamp":1700000000000}
+{"type":"tool_use","name":"terminal","tool_call_id":"call_REDACTED","input":{"command":"echo parity-check"},"timestamp":1700000000010}
+{"type":"tool_result","name":"terminal","tool_call_id":"call_REDACTED","output":"{\"output\": \"parity-check\", \"exit_code\": 0, \"error\": null}","duration_ms":125,"is_error":false,"timestamp":1700000000020}
+{"type":"text","text":"\n\npar","timestamp":1700000000030}
+{"type":"text","text":"ity","timestamp":1700000000040}
+{"type":"text","text":"-check","timestamp":1700000000050}
+{"type":"result","session_id":"local-REDACTED","exit_code":0,"text":"parity-check","tokens":{"input":10149,"output":43,"total":10192,"cache_read":6784,"cache_write":0},"duration_ms":7723,"timestamp":1700000000060}

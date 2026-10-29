@@ -34,7 +34,9 @@ if (process.env.FAKE_RECORD_LOG) {
   fs.appendFileSync(process.env.FAKE_RECORD_LOG, JSON.stringify(process.argv.slice(2)) + '\n');
 }
 
-const emit = (obj) => process.stdout.write(JSON.stringify(obj) + '\n');
+// The real CLI stamps every stream-json event with a ms timestamp
+// (see real-hermes-transcript.ndjson).
+const emit = (obj) => process.stdout.write(JSON.stringify({ ...obj, timestamp: Date.now() }) + '\n');
 
 if (process.argv.includes('--version')) {
   if (process.env.FAKE_VERSION_ERROR) {
