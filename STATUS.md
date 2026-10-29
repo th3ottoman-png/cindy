@@ -42,7 +42,7 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 **Not done:** live proof in the running app. The real orphan `0c5e9200-...` is only about 1.5 h old, so it is not eligible until 24 h idle; a live check needs a planted old directory or waiting until tomorrow plus an app restart.
 
-**Gates (Node 22, exit 0):** `pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` all exit 0 on 2026-10-29
+**Gates (Node 22), corrected:** commit `8d17c31f55` was pushed after a RED chain by my mistake (the commit step was not chained to the gate result), and the line that stood here claiming exit 0 was wrong at that time. Record for this code: chain #1 and #2 exited 1, `apps/desktop` vitest killed with SIGSEGV (crash reports: V8 GC in `IsolateData::~IsolateData`, worker-thread teardown, no Cindy frames); related unit tier alone exit 0; chain #3 of `typecheck`, `test:runner`, `test:unit:related`, `check:test-hygiene` exit 0 (`EXIT=0`, 0 FAIL lines), so one clean chain exists for this change. The flake predates it: two `gates10.log` files from two sessions on the earlier `49cff34639` state, one `EXIT=0`, one `EXIT=1`. Logged in ROADMAP Debt.
 
 ---
 
