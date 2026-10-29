@@ -34,6 +34,19 @@ if (process.env.FAKE_RECORD_LOG) {
   fs.appendFileSync(process.env.FAKE_RECORD_LOG, JSON.stringify(process.argv.slice(2)) + '\n');
 }
 
+// FAKE_RECORD_ENV appends one JSON line per invocation with the HERMES_HOME and the CINDY_PROBE
+// session env the daemon gave the child (per-session-home tests assert both).
+if (process.env.FAKE_RECORD_ENV) {
+  fs.appendFileSync(
+    process.env.FAKE_RECORD_ENV,
+    JSON.stringify({
+      home: process.env.HERMES_HOME ?? null,
+      probe: process.env.CINDY_PROBE ?? null,
+      argv: process.argv.slice(2),
+    }) + '\n',
+  );
+}
+
 // The real CLI stamps every stream-json event with a ms timestamp
 // (see real-hermes-transcript.ndjson).
 const emit = (obj) => process.stdout.write(JSON.stringify({ ...obj, timestamp: Date.now() }) + '\n');

@@ -10,6 +10,20 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-5b per-session homes + gateway lifecycle (`unit-tested`)
+
+**Outcome:** `hermes-manager` can run each Cindy session in its own `HERMES_HOME` with its own gateway. Opt-in and default off: `sessionHomes` option, `hermes-mgr --per-session-homes`. With it off, behaviour is unchanged. Not wired from the desktop yet (that is 1.5b-5c).
+
+**Changed (`packages/maker-hermes-manager/src`):** `session-home.ts` (new: build home, symlink shared items, generate regular `config.yaml`, share `installs/`), `hermes-manager.ts` (turns run in the session home; gateway prewarmed at `query/start`; `query/close` removes home and gateway; startup reaps orphan gateways; daemon stop stops session gateways), `bin/hermes-mgr.ts` (flag), `index.ts` (re-export), `__tests__/fixtures/fake-hermes.mjs` (`FAKE_RECORD_ENV` recorder), tests `session-home.test.ts` and `hermes-manager-session-homes.test.ts`.
+
+**Verified:** 24 new tests, package 87/87, all with `fake-hermes` (no real Hermes, no model call). Gates (Node 22, exit 0): `pnpm typecheck && pnpm test:runner && pnpm test:unit:related && pnpm check:test-hygiene`. Not `live-proven`: no real gateway was started by this code; that is 1.5b-5c.
+
+**For the owner to veto:** `memories` is shared across session homes (symlink), which preserves today's behaviour. Say so if sessions should get isolated memory.
+
+**Still open:** `auth.json` refresh write-back from a session home (needs credentials/model call); non-interactive approval behaviour without `--safe-mode`/`--yolo`. Next: 1.5b-5c (needs one paid DeepSeek turn, approval first).
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-5d decided, "full access only" (docs only)
 
 **Outcome:** owner chose "Full access only" for the `--safe-mode` blocker. Cindy tools in Hermes are available only in full-access (`bypassPermissions` → `--yolo`) sessions; all other

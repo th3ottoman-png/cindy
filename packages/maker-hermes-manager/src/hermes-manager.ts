@@ -22,6 +22,7 @@ import {
   HERMES_CLI_PINNED_VERSION,
   readInstalledHermesVersion,
 } from './hermes-version.js';
+import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import * as nodePath from 'node:path';
 import { isInvalidResumeFailure, startHermesRun, type HermesRunHandle } from './hermes-run.js';
@@ -36,6 +37,14 @@ import {
   type SessionListResult,
 } from './protocol.js';
 import { SessionRegistry } from './session-registry.js';
+import {
+  prepareSessionHome,
+  reapOrphanGateways,
+  removeSessionHome,
+  sessionHomePath,
+  stopSessionGateway,
+  type SessionHomeOptions,
+} from './session-home.js';
 import { ManagerServer, type ClientCtx, type ManagerLogger } from './server.js';
 
 export interface HermesManagerOptions {
@@ -50,6 +59,11 @@ export interface HermesManagerOptions {
   logger?: ManagerLogger;
   /** Fallback stdin preamble (Cindy cockpit context) when a session has none. */
   defaultPreamble?: string;
+  /**
+   * Opt-in (ADR 0004): run each Cindy session in its own HERMES_HOME (and therefore its own
+   * gateway) so the session env reaches MCP children. Omit to keep one shared home.
+   */
+  sessionHomes?: SessionHomeOptions;
 }
 
 interface RunningTurn {
@@ -73,6 +87,9 @@ export class HermesManager {
   private readonly hermesExtraArgs?: string[];
   private readonly defaultPreamble?: string;
   private readonly logger?: ManagerLogger;
+  private readonly sessionHomes?: SessionHomeOptions;
+  /** Session homes whose gateway this daemon may have started; stopped on close/stop. */
+  private readonly gatewayHomes = new Set<string>();
 
   constructor(opts: HermesManagerOptions) {
     this.hermesHome = opts.hermesHome;
@@ -80,6 +97,7 @@ export class HermesManager {
     this.hermesExtraArgs = opts.hermesExtraArgs;
     this.defaultPreamble = opts.defaultPreamble;
     this.logger = opts.logger;
+    this.sessionHomes = opts.sessionHomes;
     this.registry = new SessionRegistry(opts.registryFile ?? null);
     this.server = new ManagerServer({
       socketPath: opts.socketPath,
@@ -95,6 +113,20 @@ export class HermesManager {
   }
 
   async start(): Promise<void> {
+    if (this.sessionHomes) {
+      const known = this.registry.list().map((rec) => rec.sessionId);
+      for (const sessionId of known) {
+        this.gatewayHomes.add(sessionHomePath(this.hermesHome, sessionId));
+      }
+      try {
+        const reaped = await reapOrphanGateways(this.hermesHome, known);
+        if (reaped.length > 0) this.logger?.info('stopped orphan session gateways', { reaped });
+      } catch (error) {
+        this.logger?.warn('orphan gateway reap failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
     await this.server.start();
   }
 
@@ -105,7 +137,46 @@ export class HermesManager {
       kills.push(turn.handle.kill());
     }
     await Promise.allSettled(kills);
+    await Promise.allSettled([...this.gatewayHomes].map((home) => stopSessionGateway(home)));
     await this.server.stop();
+  }
+
+  /** The home a session's turns run in: the shared home, or the session's own when enabled. */
+  private async homeForSession(sessionId: string): Promise<string> {
+    if (!this.sessionHomes) return this.hermesHome;
+    const prepared = await prepareSessionHome(this.hermesHome, sessionId, this.sessionHomes);
+    this.gatewayHomes.add(prepared.home);
+    return prepared.home;
+  }
+
+  /** Start the session's gateway ahead of its first turn (hides the cold start). Best effort. */
+  private prewarmGateway(sessionId: string): void {
+    if (!this.sessionHomes || this.sessionHomes.prewarmGateway === false) return;
+    void this.homeForSession(sessionId)
+      .then((home) => {
+        const child = spawn(this.hermesBin, [...(this.hermesExtraArgs ?? []), 'gateway', 'ensure'], {
+          env: {
+            ...process.env,
+            HERMES_HOME: home,
+            HERMES_MGR_CHILD: '1',
+            ...this.sessionEnv.get(sessionId),
+          },
+          stdio: 'ignore',
+        });
+        const timer = setTimeout(() => child.kill('SIGKILL'), 90_000);
+        timer.unref();
+        child.once('error', (error) => {
+          clearTimeout(timer);
+          this.logger?.warn('gateway prewarm failed to spawn', { sessionId, error: error.message });
+        });
+        child.once('exit', () => clearTimeout(timer));
+      })
+      .catch((error: unknown) => {
+        this.logger?.warn('gateway prewarm skipped', {
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
   }
 
   private wireHandlers(): void {
@@ -145,6 +216,7 @@ export class HermesManager {
         }
       }
       const rec = this.registry.get(p.sessionId)!;
+      this.prewarmGateway(p.sessionId);
       return {
         sessionId: p.sessionId,
         ...(rec.hermesSessionId ? { hermesSessionId: rec.hermesSessionId } : {}),
@@ -193,9 +265,19 @@ export class HermesManager {
         }
       }
 
+      let turnHome: string;
+      try {
+        turnHome = await this.homeForSession(rec.sessionId);
+      } catch (error) {
+        throw rpcError(
+          'INTERNAL',
+          `could not prepare the session home: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+
       const baseSpec = {
         hermesBin: this.hermesBin,
-        hermesHome: this.hermesHome,
+        hermesHome: turnHome,
         cwd: rec.cwd,
         text: p.text,
         ...(preamble ? { preamble } : {}),
@@ -440,6 +522,21 @@ export class HermesManager {
       }
       this.registry.remove(p.sessionId!);
       this.attached.delete(p.sessionId!);
+      if (this.sessionHomes) {
+        // Closing ends the Cindy session for good (it cannot be resumed), so its gateway and
+        // home go with it. Best effort: a failure here must not fail the close.
+        const home = sessionHomePath(this.hermesHome, p.sessionId!);
+        this.gatewayHomes.delete(home);
+        try {
+          await stopSessionGateway(home);
+          await removeSessionHome(this.hermesHome, p.sessionId!);
+        } catch (error) {
+          this.logger?.warn('session home cleanup failed', {
+            sessionId: p.sessionId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
       this.emitClosed(p.sessionId!, 'closed');
       return {};
     });

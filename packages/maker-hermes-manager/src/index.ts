@@ -27,3 +27,17 @@ export {
   removeHermesMcpServer,
   type HermesDefaultRoute,
 } from './hermes-config.js';
+export {
+  DEFAULT_SHARED_ITEMS,
+  SESSION_HOMES_DIRNAME,
+  prepareSessionHome,
+  reapOrphanGateways,
+  removeSessionHome,
+  sessionHomePath,
+  sessionHomesRoot,
+  stopSessionGateway,
+  type GatewayProcessOps,
+  type PreparedSessionHome,
+  type SessionHomeOptions,
+  type StopGatewayResult,
+} from './session-home.js';
