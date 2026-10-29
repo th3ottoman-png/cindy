@@ -18,7 +18,7 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 **Not done:** live proof in the running app. The real orphan `0c5e9200-...` is only about 1.5 h old, so it is not eligible until 24 h idle; a live check needs a planted old directory or waiting until tomorrow plus an app restart.
 
-**Gates (Node 22, exit 0):** GATES_PLACEHOLDER
+**Gates (Node 22, exit 0):** `pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` all exit 0 on 2026-10-29
 
 ---
 
