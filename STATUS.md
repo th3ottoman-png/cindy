@@ -13,7 +13,7 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 ## 2026-10-29 — Roadmap 0.8–0.12: built, split, and UI-proven
 
 **Outcomes:** 0.8 `live-proven` · 0.9a ✅ done / 0.9b ✅ done (owner actions) · 0.10 `unit-tested` ·
-0.11a `live-proven` / 0.11b "Back up now" `live-proven`, "Restore…" `typechecked` only (→ 0.11c open) ·
+0.11a `live-proven` / 0.11b "Back up now" `live-proven`, 0.11c "Restore…" `live-proven` ·
 0.12 `live-proven`.
 
 **Gates (Node 22, all exit 0):** typecheck ✅; test:runner 608 pass / 0 fail / 2 skipped
@@ -60,8 +60,16 @@ running app wrote `~/.cindy-harness/backups/cindy-backup-20261029T163929Z.tar.gz
 `state.db-wal`/`-shm` (empty), contradicting the 0.11a claim above. `snapshotSqlite` now sets `journal_mode=delete`
 on the copy and drops empty leftover sidecars; the test fixture's `state.db` is now WAL mode and asserts no
 `-wal`/`-shm` (red before the fix, 4/4 after).
-**0.11c open:** "Restore…" uses native open/confirm dialogs and relaunches the app; not driven, not run against the
-real profile. Its logic is the same `restoreBackup` proven in 0.11a.
+**0.11c — `live-proven`.** Isolated dev app, but note the Hermes home is always the real `~/.hermes-cindy`.
+Safety first: full copy outside it (`scratchpad/hermes-cindy-safety-2026-10-29.tgz`, 182 MB) and
+`config.yaml.bak-2026-10-29-0.11c`. Steps: "Back up now" (UI) → appended a marker line to the live `config.yaml` →
+clicked "Restore…" → native picker (driven with System Events keystrokes: Go to Folder + full path; background clicks
+did not select rows) → confirm dialog "Restore and restart" (AXPress). Result: marker gone from live config, which is
+byte-identical to the archive's; `config.yaml.pre-restore-20261029T170045Z` still holds the marker; 39 replaced
+entries renamed `*.pre-restore-20261029T170045Z`, none deleted; `state.db` `integrity_check` ok; `hermes-cindy` starts
+(v0.22.5) and `auth list` unchanged; the app relaunched itself (CDP back up).
+**Clean-up left to the owner:** those 39 `*.pre-restore-*` entries in `~/.hermes-cindy` (not deleted by me, per
+AGENTS.md), plus 4 archives in `~/.cindy-harness/backups` from my UI runs.
 
 **0.12 — `live-proven`.** `scripts/upstream-security-scan.sh`, `pnpm upstream:scan`, test
 `scripts/__tests__/upstream-security-scan.test.mjs` (2 tests, in `test:runner`). First scan (2026-10-29):
@@ -71,7 +79,7 @@ real profile. Its logic is the same `restoreBackup` proven in 0.11a.
 
 Hermes backups: `config.yaml.bak-2026-10-29`, `hermes-mgr/sessions.json.bak-2026-10-29`.
 
-**Open:** 0.11c (Restore button UI proof). Phase 0 is otherwise complete; Phase 1 not started.
+**Open:** nothing in Phase 0. Phase 1 not started (owner has not asked).
 
 ---
 
