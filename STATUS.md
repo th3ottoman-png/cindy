@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-5c close cleanup (`live-proven`, attribution caveat)
+
+**Outcome:** after QuakeNotch was turned off I clicked B's archive icon twice (B was an unsent draft, no visible effect) and, on the owner's "Archive A", took full-screen control to click A's row. Before I could, the sidebar already showed no sessions (`localDb.sessions.list` filter=active rows=0) and `session-homes/` had changed at 23:08:26: homes `fa64fbc6-...` (B) and `3bc1dab6-...` (A) and both gateways (pids 13291, 17042) were gone. The pre-restart orphan home `0c5e9200-...` was untouched (matches the Debt row). Main log has no `session home cleanup failed` warning.
+
+**Caveat, stated plainly:** I did not observe the click that archived A. The earlier B clicks may have taken effect late, or the owner archived both by hand; the log has no archive event. The observation (sessions leave the active list, then home and gateway are removed together) is solid, the trigger is not attributed. Not tested: the removal on a session with an in-flight turn.
+
+**Still open:** `auth.json` refresh write-back from a session home; orphan-home accumulation (Debt).
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-5c concurrent sessions (`live-proven`); close cleanup NOT proven
 
 **Outcome:** one owner-approved paid DeepSeek turn (3 API calls). Dev app, two Full-access Hermes sessions with live gateways at the same time:
