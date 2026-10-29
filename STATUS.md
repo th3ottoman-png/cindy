@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-5c live proof (`live-proven`): `cindy_docs` read_sheet round-trips inside the desktop app
+
+**Outcome:** one owner-approved paid DeepSeek turn in a Full-access Hermes session in the running dev app: `mcp__cindy_docs__read_sheet` completed and the answer (`figs` = 17) matched the file. This closes the 4b failure. Evidence, log excerpts and caveats: `docs/evidence/1.5b-5c-live-proof.md`.
+
+**How:** fresh app start (daemon forked with `--per-session-homes`), new Full-access session, per-session home prewarmed, shim registered 6 tools in that session's own gateway before any model call. Config backed up first (`config.yaml.bak-20261029-1.5b-5c`).
+
+**Honest limits:** model also ran an unrecorded `terminal` call first, so the proof rests on the `read_sheet completed` + bridge `mcp session initialized` lines, not on the answer. One session only: concurrent sessions, close-time cleanup and `auth.json` write-back are not live-tested. UI note on why tools are absent outside Full access is still not built. Packaged builds still lack the shim bundle (Debt). Gates not rerun: docs only since `1b12c0110a` (gates exit 0).
+
+**Surprises:** the desktop UI renders slowly and background clicks on popups did nothing; `QuakeNotch` (overlay app) blocked full-screen clicks, so the owner switched the permission mode by hand.
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-5c wiring: full-access guard + per-session homes in the desktop (`unit-tested`, live proof NOT done)
 
 **Outcome:** the code half of 1.5b-5c. The live half (redo 4b, one paid DeepSeek turn) is **not done** and needs owner approval, so the row stays open.
