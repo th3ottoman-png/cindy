@@ -10,6 +10,34 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-4b free control experiment (design finding, `live-proven` for the mechanism)
+
+**Outcome:** the identity-channel risk from the 4b attempt is now confirmed, not just suspected. 1.5b-4b stays open; **the current per-session-env
+design (1.5b-1/-2/-3) cannot deliver a session id to the shim when one Hermes gateway serves several Cindy sessions.** No model call, no
+`~/.hermes*` touched (throwaway `HERMES_HOME` in the scratchpad, gateway stopped, scratch deleted). Detail: `docs/evidence/1.5b-4b-attempt-not-proven.md`.
+
+**Evidence:** (1) gateway started with `CINDY_PROBE=gateway-val`: an MCP child present at start got `gateway-val`. (2) an entry appended to `config.yaml`
+from another process with a different env was reconciled by the gateway ~60 s later and also got `gateway-val`. (3) code: `hermes-run.ts` spawns
+`hermes chat` as a client with the per-session env; Hermes routes it through the shared gateway. (4) the live 4b run: client env = app session id, shim got
+the gateway's stale value.
+
+**What this invalidates:** the 1.5b-1 decision "static `${CINDY_BRIDGE_SESSION}` in config.yaml + per-session `query/start` env" and the 1.5b-1/-3
+unit tests only prove the app side. What still stands: bridge identity registration, the 0600 file, the shim's proxying, exposure policy,
+mid-run config reconcile (~60 s latency, no trigger needed).
+
+**Options, none built (owner decision):**
+- (a) One Hermes gateway per Cindy session via a per-session profile/home (`--profile`, gateways are keyed by home). The shim env then really is per session.
+  Cost: per-session home must share credentials and config; heavier startup; touches how `hermes-mgr` launches.
+- (b) One shim entry per session (`cindy_docs__<id>`, session id baked into static `args`, token still in the 0600 file), written on session start
+  and removed on dispose. Cost: Hermes needs ~60 s to reconcile a new entry, so the first turn would have no tools unless a reload can be forced.
+- (c) Single-active-session identity read from the runtime file. Rejected here: breaks isolation with concurrent sessions.
+- (d) Identity as a tool argument. Forbidden by the bridge's trust rule.
+
+**Suggested next free step (my recommendation: look at (a) first):** read how `hermes-mgr` starts the gateway and whether a per-session profile is
+viable, and test `--profile` isolation with the same stub-probe method. Not started.
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-4b attempt in the desktop app (FAILED, not proven)
 
 **Outcome:** 1.5b-4b stays open, no label earned. Owner approved one more paid DeepSeek turn; it was spent and the tool did not connect.
