@@ -10,6 +10,39 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-4b attempt in the desktop app (FAILED, not proven)
+
+**Outcome:** 1.5b-4b stays open, no label earned. Owner approved one more paid DeepSeek turn; it was spent and the tool did not connect.
+Evidence and log excerpts: `docs/evidence/1.5b-4b-attempt-not-proven.md`.
+
+**What was proven (live, in the app):** the injected hook runs in `maker-host`: the app's own `hermes-bridge-host` started the bridge with
+`cindy_docs`, wrote the 0600 runtime file with the session entry, and wrote the static shim entry to `config.yaml`. Hermes reconciled that
+entry live (`added=['cindy_docs']`), so **mid-run config pickup works** (closes the 1.5b-3 open item). No credentials were entered; the
+sandbox ToS dialog was accepted only after the owner said yes.
+
+**What failed:** the shim exited 3 times with `no bridge credentials for this session`; Hermes answered "no cindy_docs tool available".
+Cause: the shim got a session id with no runtime-file entry. The Hermes gateway in use (pid started by my 4a harness) had
+`CINDY_BRIDGE_SESSION=live-1b4` in its own env, and Hermes expands `${CINDY_BRIDGE_SESSION}` from the gateway env, not from the per-session
+`query/start` env. So 4b was contaminated by 4a's leftover gateway.
+
+**Real design risk this exposes (not yet proven by a clean run):** one gateway serves many Cindy sessions and connects each MCP server once, so a
+per-session env var in `config.yaml` cannot carry per-session identity, even without the stale gateway. The 1.5b-1 probe used `hermes mcp test`
+(expands from its own process env), which could not reveal this. A fix needs an owner decision on the identity channel (options below).
+Second, smaller miss: my prompt's CSV was in the bot workspace, but the Hermes session ran in `dialogues/<date>/<session-id>/`; `read_sheet` is
+bound to the session dir.
+
+**Options for the owner (nothing built):** (a) one Hermes gateway per Cindy session so its env is the session's, checked first because it may
+already be how hermes-mgr behaves on a clean start; (b) a single-active-session rule: shim reads "current session" from the runtime file, which
+weakens isolation and is unsafe with concurrent sessions; (c) pass identity through a tool argument or a per-session MCP URL if Hermes supports
+it, which today's bridge rules forbid ("never trust tool-arg identity"). A free first step before any paid turn: start the app clean with no
+stale gateway, start a Hermes session, and `ps eww` the gateway to see what env it actually has.
+
+**State handling:** backed up `config.yaml` to `config.yaml.bak-20261029-1.5b-4b` before the run; restored from it afterwards (identical).
+Deleted the runtime file, the proof CSV in the dev sandbox workspace, stopped my leftover gateway and the dev app. `~/.hermes` untouched.
+Gates not rerun: docs only, no code changed since the 1.5b-3 `EXIT=0` run.
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-4a live proof (harness-hosted bridge)
 
 **Outcome:** 1.5b-4a `live-proven`. 1.5b-4b (same inside the running desktop app) is open; original 1.5b stays open. Owner accepted the
