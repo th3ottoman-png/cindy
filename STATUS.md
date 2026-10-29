@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-5c-ui-b: permission-mode tooltips checked in the running app (`live-proven`)
+
+**Outcome:** fresh dev-app restart (`pnpm restart:desktop:local`), opened the composer permission dropdown in a Hermes chat and hovered each item. Default permissions tooltip: "Hermes safe mode: tool actions follow the Hermes home policy. Cindy document tools are off (safe mode disables MCP)." Full access tooltip: "Runs Hermes with --yolo and no further confirmation. Highest risk. Cindy document tools (cindy_docs) are available when the chat starts in this mode." Both match 5c-ui-a. Mode left unchanged (Full access), no model call made. Row 5c-ui is now closed.
+
+**How:** hover needs full-screen control (the background `app_*` tools cannot hover); granted by the owner for this step and released afterwards. Docs-only change since `49cff34639`, gates not rerun.
+
+**Still open:** concurrent full-access sessions and session-close cleanup (paid turn, owner approval first); `memories` sharing veto flag.
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-5c-ui-a: permission-mode descriptions say which mode carries Cindy tools (`unit-tested`, rendering NOT checked)
 
 **Outcome:** the Hermes permission-mode descriptions now state the 5d decision. Default: "Cindy document tools are off (safe mode disables MCP)." Full access: `cindy_docs` is available "when the chat starts in this mode". Wording is deliberate: switching mode mid-chat does not re-register the bridge, so tools depend on the mode the chat starts in.
