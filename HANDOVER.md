@@ -190,8 +190,8 @@ Authoritative list is `AGENTS.md` §1–§3. Summary:
   inspect `.hermes-plugin/__init__.py`, enable, run `doctor`. Record what you read in `STATUS.md`.
 - **Line-based YAML editing** of `config.yaml` preserves comments but is sensitive to unusual
   formatting. Always back up before a live write (`AGENTS.md` §4).
-- **`sessions.json`** is rewritten every turn; until ROADMAP 0.5 lands, a crash mid-write can
-  lose the registry and silently restart every conversation.
+- **`sessions.json`** is rewritten every turn via temp-write + rename. A corrupt or truncated
+  file starts an empty registry and logs a warning; Cindy-held Hermes ids remain usable for resume.
 - **Untested surfaces**: Windows/Linux, voice, scheduler, device-link, mobile. The packaged
   build is live-proven under 0.2; mobile Hermes compatibility is unit-tested under 0.4.
 

@@ -51,9 +51,12 @@ export class SessionRegistry {
           }
         }
       }
-    } catch {
+    } catch (error) {
       // Missing or corrupt file: start empty; Hermes-side session ids held by
       // Cindy remain usable via resume on the next send.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.warn(`[hermes-mgr][warn] could not load session registry ${file}; starting empty`, error);
+      }
     }
   }
 

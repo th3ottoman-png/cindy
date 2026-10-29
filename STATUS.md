@@ -10,6 +10,32 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Roadmap 0.5: atomic sessions registry
+
+**Outcome: `unit-tested`.** The registry already used temp-write + rename; this task added
+the missing corruption warning and regression proof without changing the persistence format.
+
+**Changed**
+- `packages/maker-hermes-manager/src/session-registry.ts`: warn on registry read/parse
+  failures other than a missing file; truncated JSON still starts an empty registry.
+- `packages/maker-hermes-manager/src/__tests__/session-registry.test.ts`: isolated real-file
+  regression test for truncated JSON, empty recovery and one warning.
+- `HANDOVER.md`: replaced the stale non-atomic-write warning with the current behavior.
+
+**Verification**
+- RED: the new test failed before the fix because no warning was emitted; GREEN afterward.
+- Focused registry test **1/1**; full Hermes manager suite **55/55**; package `tsc --noEmit` passed.
+- `pnpm typecheck`: exit **0**, 161.611s; scope **37 of 38** workspace projects.
+- `pnpm test:runner`: exit **0**, 84.097s; **608 tests: 606 passed, 2 skipped, 0 failed**.
+- `pnpm test:unit:related`: exit **0**, 578.965s; **30 runnable workspaces passed**, 7 skipped.
+- `pnpm check:test-hygiene`: exit **0**; **361 files within baseline**.
+- Code review reported no findings; `git diff --check` passed. No live daemon restart or live
+  corruption exercise was performed; this entry makes no `live-proven` claim.
+
+**Open:** roadmap 0.6 next (Hermes version mismatch warning).
+
+---
+
 ## 2026-10-29 — Roadmap 0.1/0.4: Hermes compatibility and green gates
 
 **Outcome: `unit-tested`.** Roadmap 0.4 is complete: all four default gates exit 0
