@@ -10,6 +10,20 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-5d decided, "full access only" (docs only)
+
+**Outcome:** owner chose "Full access only" for the `--safe-mode` blocker. Cindy tools in Hermes are available only in full-access (`bypassPermissions` → `--yolo`) sessions; all other
+modes keep `--safe-mode` (MCP off) and get no Cindy tools. Recorded in ROADMAP row 1.5b-5d (✅ decided, no code yet) and as an addendum to `docs/decisions/0004-hermes-gateway-per-session.md`.
+
+**What it changes:** (1) 1.5b-5c gains a guard: `prepareHermesBridgeSession` returns null unless the session is `bypassPermissions` (the current hook in `maker-host` does not check this, so today it would
+register bridge state for sessions whose run ignores MCP); the UI should state why tools are absent. (2) The GATED servers stay off and exposure stays `cindy_docs` only, since `--yolo` bypasses
+Hermes' approvals (consistent with ADR 0003). (3) The live proof (4b, redone in 5c) must use a full-access session, which also fits the 4b failure: it ran "Default permissions", i.e. `--safe-mode`.
+
+**Order of the rest, each on the owner's word:** 1.5b-5b (per-session home + gateway lifecycle in `hermes-manager`, hot path) → 1.5b-5c (rewire preparer/shim, add the guard, redo 4b live, one paid turn with approval).
+Gates not rerun: docs only.
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-5a free probes (`live-proven`, probes) + new blocker `--safe-mode`
 
 **Outcome:** 1.5b-5a done to `live-proven` at probe level (real Hermes v0.22.5, stub MCP server, throwaway homes, scrubbed env, no credentials, no model call; real

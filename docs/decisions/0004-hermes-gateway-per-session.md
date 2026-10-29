@@ -54,3 +54,12 @@ Give each Cindy Hermes session its own `HERMES_HOME`, and therefore its own gate
 `--safe-mode` (which Cindy passes for every permission mode except full access) disables all config and **MCP servers**, so no Cindy tool can reach a "default permissions"
 Hermes run no matter how identity is solved. Running without `--safe-mode` has unknown approval behaviour in non-interactive mode (no model-free way to probe),
 and `--yolo` removes dangerous-command approvals. The permission mapping in `permissionModeToFlags` needs an owner decision (new row 1.5b-5d) before 1.5b-5c is useful.
+
+## Decision on the `--safe-mode` blocker (owner, 2026-10-29: "Full access only")
+
+Cindy tools reach Hermes only in **full-access** sessions (`bypassPermissions`, which Cindy maps to `--yolo`). Every other permission mode keeps `--safe-mode`, which disables
+MCP, so those sessions get no Cindy tools: `prepareHermesBridgeSession` must return null for them (fail closed) and the UI should say why rather than silently omit tools.
+
+Accepted consequence: `--yolo` removes Hermes' dangerous-command approvals for that run, so ADR 0003's GATED servers (`cindy_browser`, `cindy_computer`, `cindy_ssh`) stay off and
+exposure stays `cindy_docs` only. Revisit when a mode that keeps approvals and still loads MCP is proven (its non-interactive behaviour needs a model call to probe). Status of this ADR is
+still Proposed for the gateway-per-session part; this paragraph is a recorded owner decision.
