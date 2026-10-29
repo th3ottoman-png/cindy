@@ -45,7 +45,7 @@ function fixture(root: string): BackupPaths {
   fs.writeFileSync(path.join(paths.hermesHome, 'cache', 'big.bin'), 'cache');
   sqlite(
     path.join(paths.hermesHome, 'state.db'),
-    "create table s(v text); insert into s values ('hermes-original');",
+    "pragma journal_mode=wal; create table s(v text); insert into s values ('hermes-original');",
   );
   fs.writeFileSync(path.join(paths.hermesHome, 'state.db-wal'), 'stale-wal-must-not-be-archived');
   fs.writeFileSync(path.join(paths.hermesHome, '.env'), 'DEEPSEEK_API_KEY=not-a-real-key');
@@ -79,6 +79,7 @@ describe('local backup / restore round trip', () => {
     expect(listing).toContain('userdata/xdt-maker-u1.db');
     expect(listing).toContain('hermes/state.db');
     expect(listing).not.toContain('state.db-wal');
+    expect(listing).not.toContain('state.db-shm');
     expect(listing).not.toContain('Preferences');
     expect(listing).not.toContain('cache/big.bin');
     expect(listing).not.toContain('.env');

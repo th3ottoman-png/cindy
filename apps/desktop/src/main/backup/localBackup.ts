@@ -100,6 +100,20 @@ function snapshotSqlite(src: string, dest: string): void {
   } catch {
     // No sqlite3 CLI: fall back to a plain file copy (consistent only if the app is closed).
     fs.copyFileSync(src, dest);
+    return;
+  }
+  try {
+    // `.backup` keeps the source's WAL mode, so the snapshot grows its own -wal/-shm.
+    // Switch the copy to rollback journaling: checkpoints it and leaves one self-contained file.
+    execFileSync('sqlite3', [dest, 'pragma journal_mode=delete;'], { stdio: 'pipe' });
+  } catch {
+    // Snapshot is already valid; leftover sidecars are only the copy's own.
+  }
+  // The copy's own sidecars may linger (an empty -shm). Drop them only when nothing is in the WAL.
+  const wal = `${dest}-wal`;
+  if (!fs.existsSync(wal) || fs.statSync(wal).size === 0) {
+    fs.rmSync(wal, { force: true });
+    fs.rmSync(`${dest}-shm`, { force: true });
   }
 }
 
