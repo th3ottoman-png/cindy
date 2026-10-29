@@ -10,6 +10,23 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: identity channel decided, design recorded (docs only)
+
+**Outcome:** owner answered the one open product question: Hermes sessions **do overlap** ("Sometimes overlap"). So single-active-session identity is out and
+gateway-per-session is the route. Recorded as `docs/decisions/0004-hermes-gateway-per-session.md` (status **Proposed**) and three new ROADMAP rows,
+1.5b-5a (free probes), 1.5b-5b (per-session home + gateway lifecycle in `hermes-manager`), 1.5b-5c (rewire preparer/shim, then redo 4b live). No code written.
+
+**Why not the alternatives (details in the earlier 2026-10-29 entries):** shared-gateway env cannot carry per-session identity; per-session shim entries need
+up to 60 s to reconcile and would expose every session's tools to every session's agent; tool-argument identity is forbidden by the bridge's trust rule.
+
+**What stays valid from 1.5b-1/-2/-3:** bridge identity registration, the 0600 runtime file, the shim's proxying, ADR 0003 exposure policy, mid-run config
+reconcile. What gets replaced: the "static `${CINDY_BRIDGE_SESSION}` in shared config.yaml + per-session query/start env" channel.
+
+**Next (needs the owner's word, one sub-row at a time):** 1.5b-5a, the free probes that answer ADR 0004's four open questions (real `hermes chat` client env,
+what Hermes writes into a home, what must be shared, cold-start hiding). Gates not rerun: docs only.
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-4b option (b) probe, per-session shim entry (free, negative result)
 
 **Outcome:** no way found to force Hermes to reload MCP config; option (b) as designed is weaker than it looked. Nothing built; 1.5b-4b stays open. Throwaway home,
