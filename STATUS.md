@@ -10,6 +10,33 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-2 stdio shim
+
+**Outcome:** 1.5b-2 `unit-tested`. Not registered with Hermes or launched by the app (1.5b-3); original 1.5b stays open.
+
+**Changed (all in `packages/cindy-tools`):**
+- `src/hermes-bridge-shim/shim.ts`: `createBridgeShim` reads port+token for `CINDY_BRIDGE_SESSION` from the runtime file,
+  connects a streamable-HTTP client to `http://127.0.0.1:<port>/mcp/<server>?session=<id>` with the bearer token, and
+  proxies `tools/list` + `tools/call` (600 s call timeout, same as the desktop bridge) through a low-level stdio `Server`.
+  Error results (`isError`) pass through unchanged.
+- `src/hermes-bridge-shim/bin.ts`: `--server <name> [--runtime-file <path>]`, default `~/.cindy-harness/hermes-bridge.json`.
+  Exits 1 with a stderr message (stdout stays the MCP channel) if the session env is unset or still the literal `${...}`.
+- `build-shim.mjs` + `bundle:shim` script: esbuild → `dist/hermes-bridge-shim.mjs` (gitignored, ~800 KB, plain `node`).
+  Bug found and fixed while verifying: the "run directly" guard compared `file://` strings and silently built nothing in
+  this repo path (spaces); now uses `pathToFileURL`.
+
+**Verified (`unit-tested`):** `hermesBridgeShim.test.ts` 6 pass against a stub HTTP MCP server enforcing Bearer token +
+`?session=`: list/call proxy with token and session on every request, `isError` passthrough, fail-closed on missing file,
+unknown session, truncated file, wrong version, stale token (401), dead port; plus the **esbuild bundle over real stdio**
+(list/call round-trip) and bundle exit-1 on missing or un-interpolated session env.
+
+**Gates (Node 22, exit 0):** typecheck ✅, test:runner ✅, test:unit:related ✅ (cindy-tools unit PASS), check:test-hygiene PASS (361 files).
+
+**Open:** the shim has not talked to the real desktop bridge or a real Hermes (1.5b-3 wiring, 1.5b-4 live proof). The
+bundle must be rebuilt/shipped by the app; where it lives at runtime is a 1.5b-3 decision.
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-1 session identity for Hermes tool calls
 
 **Outcome:** 1.5b-1 `unit-tested`. Production wiring is **not** done (1.5b-3); the original 1.5b stays open.
