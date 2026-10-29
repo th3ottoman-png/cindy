@@ -245,6 +245,7 @@ export class HermesAgent extends BaseAgent {
           sessionId: opts.sessionId,
           ...(opts.sessionInstanceId ? { sessionInstanceId: opts.sessionInstanceId } : {}),
           workingDir: opts.workingDir,
+          permissionMode: requestedPermissionMode,
         });
       } catch (error) {
         this.deps.logger.warn('hermes bridge session prep failed, continuing without cindy tools', {

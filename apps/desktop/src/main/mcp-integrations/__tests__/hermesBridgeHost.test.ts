@@ -206,7 +206,7 @@ describe('createHermesBridgePreparer (real bridge, stub providers)', () => {
       },
     });
 
-    const session = await prepare({ sessionId: 'sess-H', workingDir: dir });
+    const session = await prepare({ sessionId: 'sess-H', workingDir: dir, permissionMode: 'bypassPermissions' });
     expect(session).not.toBeNull();
     expect(session!.env).toEqual({ CINDY_BRIDGE_SESSION: 'sess-H' });
     expect(written).toEqual(['cindy_docs']);
@@ -225,6 +225,31 @@ describe('createHermesBridgePreparer (real bridge, stub providers)', () => {
     expect(after?.sessions['sess-H']).toBeUndefined();
   });
 
+  it('returns null and touches nothing unless the session is full access (1.5b-5d)', async () => {
+    let touched = false;
+    const prepare = createHermesBridgePreparer({
+      providers: () => [stubProvider('cindy_docs', 'docs-ok')],
+      logger: noopLogger(),
+      runtimeFile,
+      resolveShimPath: () => SHIM,
+      registration: {
+        listServers: async () => {
+          touched = true;
+          return {};
+        },
+        setServer: async () => undefined,
+        removeServer: async () => undefined,
+      },
+    });
+    for (const permissionMode of [undefined, 'default', 'acceptEdits', 'plan']) {
+      expect(
+        await prepare({ sessionId: 'sess-D', workingDir: dir, ...(permissionMode ? { permissionMode } : {}) }),
+      ).toBeNull();
+    }
+    expect(touched).toBe(false);
+    expect(await readHermesBridgeRuntimeFile(runtimeFile)).toBeNull();
+  });
+
   it('fails open (null) without a shim bundle, and registers nothing', async () => {
     let touched = false;
     const prepare = createHermesBridgePreparer({
@@ -241,7 +266,7 @@ describe('createHermesBridgePreparer (real bridge, stub providers)', () => {
         removeServer: async () => undefined,
       },
     });
-    expect(await prepare({ sessionId: 'sess-N', workingDir: dir })).toBeNull();
+    expect(await prepare({ sessionId: 'sess-N', workingDir: dir, permissionMode: 'bypassPermissions' })).toBeNull();
     expect(touched).toBe(false);
     expect(await readHermesBridgeRuntimeFile(runtimeFile)).toBeNull();
   });

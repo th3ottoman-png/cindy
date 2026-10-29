@@ -499,18 +499,18 @@ describe('HermesAgent', () => {
 
   it('registers the bridge identity with the Cindy session id, rides its env, and disposes on close', async () => {
     const daemon = await startDaemon();
-    const calls: Array<{ sessionId: string; workingDir: string }> = [];
+    const calls: Array<{ sessionId: string; workingDir: string; permissionMode?: string }> = [];
     let disposed = 0;
     const agent = buildAgent({
       deps: {
         prepareHermesBridgeSession: async (info) => {
-          calls.push({ sessionId: info.sessionId, workingDir: info.workingDir });
+          calls.push({ sessionId: info.sessionId, workingDir: info.workingDir, permissionMode: info.permissionMode });
           return { env: { CINDY_BRIDGE_SESSION: info.sessionId }, dispose: () => { disposed += 1; } };
         },
       },
     });
     const handle = await start(agent);
-    expect(calls).toEqual([{ sessionId: 'business-1', workingDir: workDir }]);
+    expect(calls).toEqual([{ sessionId: 'business-1', workingDir: workDir, permissionMode: 'default' }]);
     expect((daemon.startParams[0] as { env?: Record<string, string> }).env?.CINDY_BRIDGE_SESSION)
       .toBe('business-1');
     expect(disposed).toBe(0);

@@ -10,6 +10,20 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-5c wiring: full-access guard + per-session homes in the desktop (`unit-tested`, live proof NOT done)
+
+**Outcome:** the code half of 1.5b-5c. The live half (redo 4b, one paid DeepSeek turn) is **not done** and needs owner approval, so the row stays open.
+
+**Changed:** `maker-core` `base-agent.ts` + `hermes/agent.ts` (the bridge hook now receives the requested `permissionMode`); `hermesBridgeHost.ts` (preparer returns null, before touching any state, unless `permissionMode === 'bypassPermissions'`; exported `HERMES_BRIDGE_PERMISSION_MODE`); `hermes-manager-client.ts` (desktop forks `hermes-mgr` with `--per-session-homes`). Tests: guard test (undefined/default/acceptEdits/plan -> null, nothing registered), agent passes the mode, client args.
+
+**Design note:** no shim/config change was needed. Session homes copy the base `config.yaml`, which already holds the static shim entries with `${CINDY_BRIDGE_SESSION}`; that variable now expands from the session's own gateway, which the client starts with the session env (5a/5b). The "static in the shared config" decision from 1.5b-1 therefore stands, but is only sound with per-session homes on.
+
+**Verified:** targeted tests pass; gates (Node 22, exit 0) on the second run. The first run failed once in `scheduler-host/preRunHook.test.ts` ("预检耗尽超时预算", 1 ms budget, asserts no spawn); it passed 3/3 alone and the full rerun was green, so it is a load-sensitive flake outside this change. Logged in ROADMAP Debt.
+
+**Known limits:** (1) a `hermes-mgr` daemon started before this change is reused without the flag until the app restarts, so shared-home behaviour (the 4b failure) persists until then; restart the app before the live proof. (2) The UI does not yet say why Cindy tools are absent outside full access (1.5b-5d asks for it). (3) Packaged builds still lack the shim bundle (Debt).
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-5b per-session homes + gateway lifecycle (`unit-tested`)
 
 **Outcome:** `hermes-manager` can run each Cindy session in its own `HERMES_HOME` with its own gateway. Opt-in and default off: `sessionHomes` option, `hermes-mgr --per-session-homes`. With it off, behaviour is unchanged. Not wired from the desktop yet (that is 1.5b-5c).

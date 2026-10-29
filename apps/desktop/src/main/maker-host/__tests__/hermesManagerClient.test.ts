@@ -155,7 +155,7 @@ describe('hermes manager daemon lifecycle', () => {
     expect(forkOverride).toHaveBeenCalledTimes(1);
     const [modulePath, args, options] = forkOverride.mock.calls[0]!;
     expect(modulePath).toBe(bundlePath);
-    expect(args).toEqual(['--socket', socketPath, '--hermes-home', home]);
+    expect(args).toEqual(['--socket', socketPath, '--hermes-home', home, '--per-session-homes']);
     expect(options).toMatchObject({
       cwd: os.tmpdir(),
       stdio: ['ignore', 'pipe', 'pipe'],

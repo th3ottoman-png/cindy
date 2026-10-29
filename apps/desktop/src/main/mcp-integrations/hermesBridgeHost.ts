@@ -141,7 +141,18 @@ export interface HermesBridgeHostDeps {
   registration: HermesShimRegistrationDeps;
 }
 
-type PrepareInfo = { sessionId: string; sessionInstanceId?: string; workingDir: string };
+type PrepareInfo = {
+  sessionId: string;
+  sessionInstanceId?: string;
+  workingDir: string;
+  permissionMode?: string;
+};
+
+/**
+ * Hermes' `--safe-mode` (every mode but full access) disables MCP, so only a
+ * `bypassPermissions` (`--yolo`) run can reach the shim. Owner decision, 1.5b-5d.
+ */
+export const HERMES_BRIDGE_PERMISSION_MODE = 'bypassPermissions';
 
 /** Builds the `AgentDeps.prepareHermesBridgeSession` hook. */
 export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
@@ -152,6 +163,7 @@ export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
   let startupClear: Promise<void> | null = null;
 
   return async (info: PrepareInfo): Promise<HermesBridgeSession | null> => {
+    if (info.permissionMode !== HERMES_BRIDGE_PERMISSION_MODE) return null;
     const shimPath = deps.resolveShimPath();
     if (!shimPath) {
       log.warn('hermes bridge shim bundle not found; Hermes runs without Cindy tools');

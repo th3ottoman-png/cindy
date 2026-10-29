@@ -756,6 +756,8 @@ export interface AgentDeps {
     sessionId: string;
     sessionInstanceId?: string;
     workingDir: string;
+    /** Requested Cindy permission mode; Cindy tools are full-access only (ROADMAP 1.5b-5d). */
+    permissionMode?: PermissionMode;
   }) => Promise<{ env: Record<string, string>; dispose: () => void } | null>;
 
   /**
