@@ -10,6 +10,21 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: 1.5b-5c concurrent sessions (`live-proven`); close cleanup NOT proven
+
+**Outcome:** one owner-approved paid DeepSeek turn (3 API calls). Dev app, two Full-access Hermes sessions with live gateways at the same time:
+- B (new session, prewarmed by typing in the composer, never sent): home `session-homes/fa64fbc6-...-d174bb84ce`, gateway pid 13291, `cindy_docs` registered 6 tools before any model call, **0 inbound messages** afterwards.
+- A (the earlier proof session, resumed): home `session-homes/3bc1dab6-...-f00551e2ef`, gateway pid 17042 (started by the turn), `read_sheet` completed, answer "plums = 5" from A's own `proof-5c.csv` (B's file said 9, so no cross-talk).
+Distinct `HERMES_HOME` per gateway read from each process's env (`ps eww`). Config backup: `config.yaml.bak-20261029-1.5b-5e`.
+
+**Not proven:** session close. The only UI route I found is the row's archive icon; a background `AXPress` just re-selected the row, then full-screen control was blocked by `QuakeNotch` (as in 5c). Both B's home and gateway are still there, so removal is untested either way. Code path: `QUERY_CLOSE` in `hermes-manager.ts`; unit-tested only. `auth.json` write-back also untested.
+
+**Surprises:** (1) a resumed session got a **new** session home after the app restart (old home `0c5e9200-...` stayed, no gateway): the home is keyed by the Hermes session id, which changed. Old homes are not removed by `reapOrphanGateways` (it stops gateways only), so they accumulate: logged for ROADMAP Debt. (2) Prewarm happens when you type in the composer, not when the composer opens.
+
+**Left running / on disk:** gateways 13291 and 17042 and three session homes; the owner can archive B's row by hand and I will check removal.
+
+---
+
 ## 2026-10-29 — Phase 1: 1.5b-5c-ui-b: permission-mode tooltips checked in the running app (`live-proven`)
 
 **Outcome:** fresh dev-app restart (`pnpm restart:desktop:local`), opened the composer permission dropdown in a Hermes chat and hovered each item. Default permissions tooltip: "Hermes safe mode: tool actions follow the Hermes home policy. Cindy document tools are off (safe mode disables MCP)." Full access tooltip: "Runs Hermes with --yolo and no further confirmation. Highest risk. Cindy document tools (cindy_docs) are available when the chat starts in this mode." Both match 5c-ui-a. Mode left unchanged (Full access), no model call made. Row 5c-ui is now closed.
