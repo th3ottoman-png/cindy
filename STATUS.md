@@ -10,6 +10,14 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-29 — Phase 1: shared `memories` across session homes, concurrent-writer probe (`live-proven` for the writer; veto flag still open)
+
+**Outcome:** Hermes v0.22.5 `MemoryStore._mutate` takes an exclusive `flock` on `MEMORY.md.lock`, re-reads `MEMORY.md` inside the lock, then replaces the file atomically. Probe: two real Python processes using the real `MemoryStore.add`, each with its own throwaway `HERMES_HOME` whose `memories` is a symlink to one shared directory, 40 adds each at the same time. Result: 0 failures and all 80 entries present in `MEMORY.md` (A 40/40, B 40/40). So two sessions sharing `memories` do not lose each other's writes. Throwaway dir under `$HOME`, deleted afterwards; no real memories, no model call, `~/.hermes` not referenced.
+
+**Not proven:** `replace`/`patch` races between sessions (a session can still edit an entry another session just changed; the drift guard returns an error then, not data loss), and the char limit being shared by all sessions. **Owner veto flag unchanged:** `memories` stays shared (today's behaviour) unless the owner says to isolate.
+
+---
+
 ## 2026-10-29 — Phase 1: `auth.json` write-back from a session home, free probe (`live-proven` for the writer only; real token refresh NOT tested)
 
 **Outcome:** Hermes v0.22.5 saves `auth.json` through `hermes_cli/auth.py::_save_auth_store` -> `utils.atomic_json_write` (temp file + replace). I ran that real function from the Hermes venv on a throwaway directory: `home/auth.json` as a symlink to `shared.json`, then a write. Result: the symlink survived and `shared.json` received the new content. So a write from a per-session home reaches the shared `auth.json`; a refreshed token will not be stranded in one session home. The "global root" write-through (`_global_auth_file_path`) returns None when the home and the root are the same directory; I did not run it against a session home.
