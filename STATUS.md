@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 3: ROADMAP 3.5a, starter experts (`unit-tested`)
+
+**Outcome:** `docs/experts-examples/{code-reviewer,research-analyst,repo-explainer,prompt-engineer}/expert.md` plus a README (copy a folder to `~/.cindy-harness/experts/`). All four are `agent: hermes`; only the Research Analyst has `memory: true`. `packages/maker-core/src/experts/__tests__/starter-experts.test.ts` loads them through the 3.1a loader and fails if one becomes invalid (no frontmatter drift). Prompts are new text for a new feature, not edits to any existing agent's prompt.
+
+**Not done:** 3.5b, running each expert once live; that waits for 3.2 (session-as-expert), so the quality of these prompts is untested against a model. They set no `model` (route names come with 2.3) and no `tools`, so a session uses whatever the Hermes home allows.
+
+**Gates (2026-10-30, Node 22.23.4):** typecheck, test:runner, test:unit:related, check:test-hygiene all exit 0 on the final tree. The first run was red only from the known `apps/desktop unit` SIGSEGV (root cause now recorded under ROADMAP Debt: V8 GC during worker-isolate teardown in the threads pool, which upstream pins on purpose); the rerun was green.
+
+---
+
 ## 2026-10-30 — Phase 3: ROADMAP 3.1b, experts IPC (`unit-tested`)
 
 **Outcome:** the expert loader is reachable from the renderer. Files: `apps/desktop/src/main/maker-ipc/expertsHandlers.ts` (new; `registerExpertsHandlers(registry, {rootDir, assertTrusted, broadcast})`), `channels.ts` (`MAKER_INVOKE.EXPERTS_LIST`, `MAKER_PUSH.EXPERTS_CHANGED`), `register.ts` (registers it with root `~/.cindy-harness/experts`, trust check = `assertTrustedAppRendererEvent`, broadcast = `broadcastToAllWindows`), `preload/preload.ts` + `renderer/vite-env.d.ts` (`maker.experts.list()`, `maker.experts.onChanged(cb)`), `packages/maker-core/package.json` (subpath export `@cindy/maker-core/experts`, so the big `index.ts` is untouched). Tests: `maker-ipc/__tests__/expertsHandlers.test.ts` (4: list with a broken expert, untrusted sender refused, change push, no watching before first list). Mutation check: removing the trust check fails 2. `pnpm --filter desktop typecheck` passes.
