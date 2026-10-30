@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 4: ROADMAP 4.2a, local plugin loader (`unit-tested`)
+
+**Outcome:** `packages/maker-core/src/plugins/plugin-loader.ts` (subpath `@cindy/maker-core/plugins`). `loadPlugins({root, registry, isEnabled?, timeoutMs?, importModule?})` walks `<root>/<name>/`, reads `manifest.yaml` (`entry` required; `version`, `description` optional), resolves the entry with `realpath` and refuses anything outside the plugin directory (absolute, `..`, symlink), imports it and calls the default export `activate(api)`. `api.register` is the 4.1a registry's `register` with `source: plugin:<name>` forced. Each plugin gets a report `{name, status: active|disabled|invalid|failed, error?, registered}`. A failing plugin (throw, bad export, timeout, default 5 s) has its partial registrations undone and does not stop the rest. Disabled plugins are never imported. Tests (`plugins/__tests__/plugin-loader.test.ts`, 7) write real plugin directories and load the files from disk. Mutation check: removing the escape check fails the dotdot/symlink test.
+
+**Surprise worth knowing:** vitest's module graph cannot `import()` files outside the repo, and `new Function('return import(url)')` fails inside its worker ("A dynamic import callback was not specified"). So tests inject a loader built on Node's `require` (CommonJS plugins). The production default is a native `import()` via `new Function` so a bundler leaves it alone; that default path is **not** exercised by any test and is for 4.2b's live proof.
+
+**Not done (4.2b):** loading at app startup, the Settings toggle and where its state lives, IPC, and a live run of the default import path in the real app. Nothing calls `loadPlugins` yet.
+
+**Gates (2026-10-30, Node 22):** `pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` all `EXIT=0` on the first full parallel run (`apps/desktop unit` 305 s, no SIGSEGV; third clean parallel run in a row, still not proof). The mutation run (escape check removed) was done before the gate run and the file restored.
+
+---
+
 ## 2026-10-30 — Phase 4: ROADMAP 4.1a, unified extension registry (`unit-tested`)
 
 **Outcome:** `packages/maker-core/src/extensions/registry.ts` (subpath `@cindy/maker-core/extensions`): `registerExtension({kind, id, title?, source?, value})` on a process-wide registry, or `createExtensionRegistry()` for an isolated one. `kind` and `id` are slugs; `kind` is open (well-known: adapter, tool, expert, route, panel) so a new kind needs no edit. Duplicate `(kind, id)` throws and keeps the first; `register` returns an unregister handle (a stale handle cannot remove a newer entry); `get`, `list(kind?)` in registration order, `subscribe` (a throwing subscriber is isolated). The registry never calls a registered `value`. Tests: `extensions/__tests__/registry.test.ts` (8). Mutation check: removing the duplicate guard fails the duplicate test.
