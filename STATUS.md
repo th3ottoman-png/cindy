@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 2: ROADMAP 2.4a, route health and no silent fallback (`unit-tested`)
+
+**Outcome:** `packages/model-providers/src/routeHealth.ts` (pure; subpath `@cindy/model-providers/route-health`). `assessRoute(resolution, routing, providers, probes)` takes a resolved task route (2.3a), the `providers.yaml` entries (2.1a) and the latest discovery probes (2.2a) and returns either `{ok: true, routeName, provider, model}` or a block with a `reason`, a message naming the provider (and the probe's error text), and `alternatives`: other routes whose provider is online and lists the model, local first, each marked `paid` when the endpoint is not loopback. The module has no path that returns a different route as the answer; a blocked route stays blocked and the alternatives are only for a click the owner makes. `llama3` matches an Ollama `llama3:latest`. Tests: `src/__tests__/routeHealth.test.ts` (6), including offline-local with a healthy paid route available (it is listed as paid, last, and not chosen). Mutation check: removing the local-before-paid sort fails the offline test.
+
+**Not done (2.4b, the row's actual goal):** the session-level error, the one-click "use X instead" control, feeding probes in, and a live proof. Nothing calls `assessRoute` yet.
+
+**Gates (2026-10-30, Node 22):** `pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` all `EXIT=0` on the first full parallel run (`apps/desktop unit` 303 s, no SIGSEGV; fourth clean parallel run in a row, still not proof). The mutation run was done first and the file restored.
+
+---
+
 ## 2026-10-30 — Phase 4: ROADMAP 4.2a, local plugin loader (`unit-tested`)
 
 **Outcome:** `packages/maker-core/src/plugins/plugin-loader.ts` (subpath `@cindy/maker-core/plugins`). `loadPlugins({root, registry, isEnabled?, timeoutMs?, importModule?})` walks `<root>/<name>/`, reads `manifest.yaml` (`entry` required; `version`, `description` optional), resolves the entry with `realpath` and refuses anything outside the plugin directory (absolute, `..`, symlink), imports it and calls the default export `activate(api)`. `api.register` is the 4.1a registry's `register` with `source: plugin:<name>` forced. Each plugin gets a report `{name, status: active|disabled|invalid|failed, error?, registered}`. A failing plugin (throw, bad export, timeout, default 5 s) has its partial registrations undone and does not stop the rest. Disabled plugins are never imported. Tests (`plugins/__tests__/plugin-loader.test.ts`, 7) write real plugin directories and load the files from disk. Mutation check: removing the escape check fails the dotdot/symlink test.
