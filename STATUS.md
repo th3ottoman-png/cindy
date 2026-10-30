@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 5: ROADMAP 5.1a, notes vault bridge (pure logic)
+
+**Outcome:** new `packages/maker-core/src/notes/vault-notes.ts` (+ `__tests__/vault-notes.test.ts`, 23 tests with real temp directories) and the `./vault-notes` export. List, read, search and append over a caller-supplied folder of Markdown notes. Paths are relative, `.md` only, no hidden segments, and containment is checked after `realpath`, so `..`, a symlinked note and a symlinked folder all fail with `outside-vault`. Append adds a dated `## <ISO>` entry, keeps earlier bytes, writes atomically, redacts credentials (5.2a `redactSecrets`) and neutralises `#`/`##` in the body. Search needs every term, ranks path matches above body matches, skips files over 512 KiB, redacts snippets.
+
+**Not claimed:** `unit-tested` only. No agent tool, no `tools.yaml` opt-in (needs 3.2's schema), no vault-path setting, nothing run in the app. The redactor is a heuristic. Mutation check: making the containment test always true failed the 2 symlink/traversal tests; restored.
+
+Gates (Node 22): `pnpm typecheck && pnpm test:runner && pnpm test:unit:related && pnpm check:test-hygiene`, EXIT=0 on the default parallel unit step (no SIGSEGV this run).
+
+---
+
 ## 2026-10-30 — Phase 3: ROADMAP 3.6a, expert handoff prompt (pure logic)
 
 **Outcome:** new `packages/maker-core/src/experts/expert-handoff.ts` (+ `__tests__/expert-handoff.test.ts`, 7 tests) and the `./expert-handoff` export. `buildExpertHandoff` returns a draft first message for a new session: source session label, the owner's question (default: a plain review request), and an excerpt of the conversation. It is deterministic and calls no model: newest messages are kept within `maxChars` (default 12000; the newest is always kept), each message is cut at `maxMessageChars` (default 2000), tool calls appear by name only so no tool input or output leaks, credentials are redacted with the 5.2a redactor, and an empty source or unloaded expert returns an error instead of a prompt. Nothing starts a session, which keeps the "owner stays in the loop" rule. Mutation check: appending tool output to the tool line fails the payload test.
