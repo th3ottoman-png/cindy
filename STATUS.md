@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 4: ROADMAP 4.1a, unified extension registry (`unit-tested`)
+
+**Outcome:** `packages/maker-core/src/extensions/registry.ts` (subpath `@cindy/maker-core/extensions`): `registerExtension({kind, id, title?, source?, value})` on a process-wide registry, or `createExtensionRegistry()` for an isolated one. `kind` and `id` are slugs; `kind` is open (well-known: adapter, tool, expert, route, panel) so a new kind needs no edit. Duplicate `(kind, id)` throws and keeps the first; `register` returns an unregister handle (a stale handle cannot remove a newer entry); `get`, `list(kind?)` in registration order, `subscribe` (a throwing subscriber is isolated). The registry never calls a registered `value`. Tests: `extensions/__tests__/registry.test.ts` (8). Mutation check: removing the duplicate guard fails the duplicate test.
+
+**Split, not narrowed:** 4.1 also says existing adapters are migrated with zero behaviour change. That is **4.1b, open and not started**: touching the Claude Code/Codex/Pi adapters is forbidden by AGENTS §3 unless a row says so, and needs before/after proof. Nothing uses the registry yet.
+
+**Gates (2026-10-30, Node 22):** `pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` all `EXIT=0` on the first full parallel run; `apps/desktop unit` passed (302 s), no SIGSEGV this run (second clean parallel run in a row after 4 crashes in 5 earlier ones; still not proof).
+
+---
+
 ## 2026-10-30 — Phase 2: ROADMAP 2.1b/2.2b IPC part (`unit-tested`)
 
 **Outcome:** `apps/desktop/src/main/maker-ipc/providersHandlers.ts` (copy of the experts pattern): `maker:providers:list` returns `{providers, issues}` from `~/.cindy-harness/providers.yaml`; `maker:providers:discover` probes every endpoint with `discoverEndpoints`. Both check the sender first. Wired in `channels.ts`, `register.ts`, `preload.ts` (`electronAPI.maker.providers`), `vite-env.d.ts`. Tests: `__tests__/providersHandlers.test.ts` (4; real local HTTP server, one online + one dead endpoint, missing file, untrusted caller). Mutation check: dropping the trust check on `discover` fails the untrusted-caller test. Read-only; no new outbound calls beyond 2.2a's probe, which runs only when the renderer asks.

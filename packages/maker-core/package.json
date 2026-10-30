@@ -17,6 +17,7 @@
     "./experts": "./src/experts/expert-loader.ts",
     "./providers-file": "./src/providers/providers-file.ts",
     "./providers-discovery": "./src/providers/discovery.ts",
+    "./extensions": "./src/extensions/registry.ts",
     "./routing-file": "./src/providers/routing-file.ts"
   },
   "scripts": {

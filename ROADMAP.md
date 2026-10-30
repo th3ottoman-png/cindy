@@ -119,7 +119,7 @@ Frontmatter: `name`, `description`, `agent` (hermes | claude-code | codex | pi),
 
 | # | Task | Done when | Status |
 |---|---|---|---|
-| 4.1 | **Unified registry.** One `registerExtension({kind, id, …})` entry point for adapters, tools, experts, model routes, UI panels. Existing adapters migrated with zero behaviour change. | 🧪 | 🔲 |
+| 4.1 | **Unified registry.** One `registerExtension({kind, id, …})` entry point for adapters, tools, experts, model routes, UI panels. Existing adapters migrated with zero behaviour change. | 🧪 | 🧪 partial. **4.1a ✅ `unit-tested`** (2026-10-30): `packages/maker-core/src/extensions/registry.ts` (subpath `@cindy/maker-core/extensions`): `registerExtension` / `createExtensionRegistry`, open-slug `kind` (no switch to edit), duplicate refusal, `get`/`list`/`subscribe`, unregister handle, a bad subscriber isolated; 8 tests, mutation-checked on the duplicate rule. **4.1b open** (the row's second half): migrating the existing adapters onto it with zero behaviour change. Not started on purpose: AGENTS §3 forbids changing Claude Code/Codex/Pi adapter behaviour, so it needs its own careful row with before/after proof. Nothing uses the registry yet. |
 | 4.2 | **Local plugin directory.** `~/.cindy-harness/plugins/<name>/manifest.yaml` + entry module, loaded at startup, toggled in Settings. Failure isolates to the plugin. | ✅ | 🔲 |
 | 4.3 | **MCP server catalog.** Settings page listing all configured MCP servers across agents (Hermes config, lizi MCP), start/stop/health, with "add to expert" shortcut. | ✅ | 🔲 |
 | 4.4 | **Skills manager.** Browse/install/enable Hermes skills from local folders or git URLs into `~/.hermes-cindy`, with the security-scan report shown before enabling. | ✅ | 🔲 |
