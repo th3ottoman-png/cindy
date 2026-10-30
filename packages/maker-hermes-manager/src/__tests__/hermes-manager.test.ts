@@ -226,6 +226,79 @@ describe('HermesManager socket integration (fake hermes)', () => {
     expect(argv[argv.indexOf('--provider') + 1]).toBe('fake-provider');
   }, 20_000);
 
+  // Runs one turn for `sessionId` and returns the argv the fake Hermes recorded.
+  async function runTurnArgv(h: Harness, sessionId: string, turnNo: number): Promise<string[]> {
+    const rec = recordPath(h.dir, `${sessionId}-turn${turnNo}`);
+    process.env.FAKE_RECORD = rec;
+    try {
+      await h.client.request(METHODS.QUERY_SEND, { sessionId, text: `turn ${turnNo}` }, { timeoutMs: 5_000 });
+      await h.collector.waitFor(
+        (n) =>
+          n.method === NOTIFICATIONS.SESSION_CLOSED &&
+          h.collector.closedEvents().filter((c) => c.sessionId === sessionId).length >= turnNo,
+      );
+    } finally {
+      delete process.env.FAKE_RECORD;
+    }
+    return JSON.parse(fs.readFileSync(rec, 'utf8')) as string[];
+  }
+
+  it('query/setModel overrides -m for the next turn and an empty model drops it (full access: no -m by default)', async () => {
+    const h = current!;
+    await h.client.request(METHODS.QUERY_START, {
+      sessionId: 'sm-yolo',
+      cwd: h.dir,
+      permissionMode: 'bypassPermissions',
+    }, { timeoutMs: 5_000 });
+
+    const first = await runTurnArgv(h, 'sm-yolo', 1);
+    expect(first).toContain('--yolo');
+    expect(first).not.toContain('-m');
+
+    await h.client.request(METHODS.QUERY_SET_MODEL, { sessionId: 'sm-yolo', model: 'override/model-x' }, { timeoutMs: 5_000 });
+    const second = await runTurnArgv(h, 'sm-yolo', 2);
+    expect(second[second.indexOf('-m') + 1]).toBe('override/model-x');
+    // The override changes the model only; the home config.yaml stays untouched.
+    expect(fs.readFileSync(path.join(h.dir, 'home', 'config.yaml'), 'utf8')).toContain('default: fake/default-model');
+
+    // Cindy's 'hermes-default' sentinel arrives as '': follow the home default again.
+    await h.client.request(METHODS.QUERY_SET_MODEL, { sessionId: 'sm-yolo', model: '' }, { timeoutMs: 5_000 });
+    const third = await runTurnArgv(h, 'sm-yolo', 3);
+    expect(third).not.toContain('-m');
+  }, 30_000);
+
+  it('query/setModel in safe mode swaps -m and falls back to the home route when cleared', async () => {
+    const h = current!;
+    await h.client.request(METHODS.QUERY_START, {
+      sessionId: 'sm-safe',
+      cwd: h.dir,
+      permissionMode: 'default',
+    }, { timeoutMs: 5_000 });
+
+    const first = await runTurnArgv(h, 'sm-safe', 1);
+    expect(first[first.indexOf('-m') + 1]).toBe('fake/default-model');
+
+    await h.client.request(METHODS.QUERY_SET_MODEL, { sessionId: 'sm-safe', model: 'override/model-y' }, { timeoutMs: 5_000 });
+    const second = await runTurnArgv(h, 'sm-safe', 2);
+    expect(second[second.indexOf('-m') + 1]).toBe('override/model-y');
+    expect(second[second.indexOf('--provider') + 1]).toBe('fake-provider');
+
+    await h.client.request(METHODS.QUERY_SET_MODEL, { sessionId: 'sm-safe', model: '' }, { timeoutMs: 5_000 });
+    const third = await runTurnArgv(h, 'sm-safe', 3);
+    expect(third[third.indexOf('-m') + 1]).toBe('fake/default-model');
+  }, 30_000);
+
+  it('query/setModel rejects an unknown session and a missing model', async () => {
+    const h = current!;
+    await expect(
+      h.client.request(METHODS.QUERY_SET_MODEL, { sessionId: 'nope', model: 'a/b' }, { timeoutMs: 5_000 }),
+    ).rejects.toBeTruthy();
+    await h.client.request(METHODS.QUERY_START, { sessionId: 'sm-bad', cwd: h.dir, permissionMode: 'default' }, { timeoutMs: 5_000 });
+    await expect(
+      h.client.request(METHODS.QUERY_SET_MODEL, { sessionId: 'sm-bad' }, { timeoutMs: 5_000 }),
+    ).rejects.toBeTruthy();
+  }, 15_000);
+
   it('starts a fresh Hermes session when --resume names a session the home lost', async () => {
     const h = current!;
     await h.client.request(METHODS.QUERY_START, {

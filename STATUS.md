@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 1: ROADMAP 1.8a, manager-level test that `query/setModel` reaches `-m` (`unit-tested`)
+
+**Outcome:** row 1.8 was mostly built already (`query/setModel` handler in `hermes-manager.ts`, `-m` in `hermes-run.ts` `buildHermesArgs`, agent method, chat-input picker). What was missing was a test at the manager level. Added 3 tests plus helper `runTurnArgv` to `packages/maker-hermes-manager/src/__tests__/hermes-manager.test.ts` (fake Hermes only): full-access session has no `-m` by default, an override sets it, clearing with `''` drops it, `config.yaml` untouched; safe mode uses the home route `fake/default-model`, an override swaps `-m` and keeps `--provider fake-provider`, clearing falls back; `query/setModel` rejects an unknown session and a missing model. All 16 tests in the file pass under Node 22. Mutation check: disabling the registry update in the handler made the two main tests fail; source restored.
+
+**Not done / still open:** 1.8b (model shown in session header; `SessionContentHeader.tsx` is an upstream file, needs owner OK) and 1.8c (live proof, paid turn, needs approval). Row 1.8 stays open. Nothing live was run.
+
+**Surprise (not fixed):** in safe mode an override model is paired with the home route's provider when the session has no provider of its own, so a model from a different provider could mismatch. Flagged for the owner.
+
+**Gates (2026-10-30, Node 22.23.4):** `pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` all exit 0. Two earlier runs were red for environmental reasons, not assertions: a vitest SIGSEGV in `apps/desktop unit` with the dev Electron app running, and vitest SIGABRT in every workspace after a background `brew` upgrade moved `simdjson` to 5.0.7 under Node 22 (fixed with `brew reinstall node@22`).
+
+---
+
 ## 2026-10-30 — Phase 1: ROADMAP housekeeping, 1.5b closed (docs only)
 
 **Outcome:** rows 1.5b and 1.5b-4b were still marked open although 1.5b-5c redid the 4b proof and is `live-proven` (`docs/evidence/1.5b-5c-live-proof.md`). Both are now ✅ `live-proven` via 5c; the 5c row's "Open: auth.json write-back" now points at the free probe. No code changed, no gates needed. Known gaps stay in Debt: packaged builds lack the shim bundle; real OAuth refresh untested.
