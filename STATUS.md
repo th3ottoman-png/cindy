@@ -10,11 +10,11 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
-## 2026-10-29 — Phase 1: shared `memories` across session homes, concurrent-writer probe (`live-proven` for the writer; veto flag still open)
+## 2026-10-29 — Phase 1: shared `memories` across session homes, concurrent-writer probe (`live-proven` for the writer; owner decided: keep shared)
 
 **Outcome:** Hermes v0.22.5 `MemoryStore._mutate` takes an exclusive `flock` on `MEMORY.md.lock`, re-reads `MEMORY.md` inside the lock, then replaces the file atomically. Probe: two real Python processes using the real `MemoryStore.add`, each with its own throwaway `HERMES_HOME` whose `memories` is a symlink to one shared directory, 40 adds each at the same time. Result: 0 failures and all 80 entries present in `MEMORY.md` (A 40/40, B 40/40). So two sessions sharing `memories` do not lose each other's writes. Throwaway dir under `$HOME`, deleted afterwards; no real memories, no model call, `~/.hermes` not referenced.
 
-**Not proven:** `replace`/`patch` races between sessions (a session can still edit an entry another session just changed; the drift guard returns an error then, not data loss), and the char limit being shared by all sessions. **Owner veto flag unchanged:** `memories` stays shared (today's behaviour) unless the owner says to isolate.
+**Not proven:** `replace`/`patch` races between sessions (a session can still edit an entry another session just changed; the drift guard returns an error then, not data loss), and the char limit being shared by all sessions. **Owner decision (2026-10-30): keep `memories` shared across session homes.** Veto flag closed; do not re-litigate.
 
 ---
 

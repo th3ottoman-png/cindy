@@ -45,7 +45,7 @@ Give each Cindy Hermes session its own `HERMES_HOME`, and therefore its own gate
    Hermes' own writer writes through links, but Cindy's rename-based writer would replace one, so the per-session `config.yaml` is a regular file Cindy generates.
    Untested: `auth.json` refresh write-back (needs credentials), so `auth.json` sharing is still an open risk. **Update 2026-10-29:** Hermes's own `atomic_json_write` was run on a throwaway symlinked `auth.json` and the write went through to the shared file (see STATUS). Real OAuth refresh is still untested, and moot while no OAuth provider is logged in.
 3. **Share** `.env`, `auth.json`, `SOUL.md`, `skills`, `plugins`, `installs` (and likely `cache`); **per session** `config.yaml`, `state.db`, `sessions`, `kanban.db`, logs.
-   `memories` shared-or-isolated is an owner decision. **Update 2026-10-29:** two concurrent `MemoryStore.add` writers on one shared directory lost no entries (80/80, see STATUS); sharing is safe for appends. Default stays shared unless vetoed. Old sessions in `~/.hermes-cindy` do not resume in new homes.
+   `memories` shared-or-isolated is an owner decision. **Update 2026-10-29:** two concurrent `MemoryStore.add` writers on one shared directory lost no entries (80/80, see STATUS); sharing is safe for appends. **Owner decision 2026-10-30: `memories` stays shared across session homes.** Old sessions in `~/.hermes-cindy` do not resume in new homes.
 4. **Template copy fails (absolute venv paths); sharing `installs/` works.** Home goes from 1.0 GB to 5 MB; start from 9–18 s to ~2–7 s; start the gateway at session
    creation to hide it.
 
