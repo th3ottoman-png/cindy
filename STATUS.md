@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 3: ROADMAP 3.4a, expert memory file (pure logic); 1.2 marked blocked
+
+**Outcome:** new `packages/maker-core/src/experts/expert-memory.ts` (+ `__tests__/expert-memory.test.ts`, 10 tests, real temp dirs) and the `./expert-memory` export. `appendExpertMemory` writes a `## <ISO timestamp>` entry to `<expertDir>/memory.md` only for experts with `memory: true`; it preserves existing bytes exactly (tested against a hand-edited file with trailing spaces), writes via temp file + rename, refuses empty and over-4000-char notes, and escapes leading `#`/`##` in the body so a note cannot forge entries. `readExpertMemory` returns the newest entries within `maxChars`. Mutation check: removing the heading escape fails the forgery test. Also recorded 1.2 as blocked on 2.3b: a try in the shared real profile (backup `cindy-local-v1.db.bak-20261030-221641` taken first, DB checksum unchanged afterwards) stopped at `MIGRATE_FAILED`, the dev build refusing to upgrade the official Cindy database, and the sandbox log showed the title helper with `no_candidate`.
+
+**Not claimed:** `unit-tested` only. No tool, no editor display, no prompt injection, no live run (3.4b). Nothing consumes the module. 1.2 is still unproven.
+
+Gates (Node 22): `pnpm typecheck && pnpm test:runner && pnpm test:unit:related && pnpm check:test-hygiene`, EXIT=0 on the default parallel unit step (no SIGSEGV this run).
+
+---
+
 ## 2026-10-30 — Live check of 1.2 and 1.4 in the dev app (owner clicked)
 
 **Outcome:** launched with `pnpm restart:desktop:remote --region=global` (`DESKTOP_DEV_VERDICT=ready`, isolated sandbox `dev`, commit d7c329fcab, nothing from the real profile). The owner attached an image in a new Hermes session (model route `hermes-default`); the reply described it accurately (screenshot seen). Row 1.4 → `live-proven`. Row 1.2 is NOT proven: the session title was `what is in this image?`, the owner's own prompt, i.e. the fallback title. `main-2026-10-30.log` at 21:46:48 shows `[maker-host/auxiliary-title-one-shot]` `agent fallback failed { errorName: 'AgentNotAuthenticatedError' }` then `auxiliary title model failed { reason: 'no_candidate' }`. Correction: my first write-up of this entry repeated the owner's "auto title generated" as fact; the screenshot shows otherwise, so it was fixed before commit.
