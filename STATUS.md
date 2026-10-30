@@ -14,7 +14,9 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 **Outcome:** rows 1.5b and 1.5b-4b were still marked open although 1.5b-5c redid the 4b proof and is `live-proven` (`docs/evidence/1.5b-5c-live-proof.md`). Both are now ✅ `live-proven` via 5c; the 5c row's "Open: auth.json write-back" now points at the free probe. No code changed, no gates needed. Known gaps stay in Debt: packaged builds lack the shim bundle; real OAuth refresh untested.
 
-**Next:** 1.6 is a design row (📐, needs a spec); 1.7 is the first actionable open row.
+**1.7 closed (docs only):** its 🧪 note said "live-prove via 0.8", and 0.8 did exactly that (model Save diffed the `default:` line); the catalog listing was already `live-proven` on 2026-10-23. Marked ✅ citing both entries. Caveat: the listing proof predates the 10-29 session-home work; nothing in that work touched the catalog code, but I did not re-run it.
+
+**Next:** 1.6 is a design row (📐, needs a spec); 1.8 (per-session model override) is the first open row with a testable spec.
 
 ---
 
