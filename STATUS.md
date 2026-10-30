@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 4: ROADMAP 4.4a, skill scan and local install (pure logic)
+
+**Outcome:** new `packages/maker-core/src/skills/skill-manager.ts` (+ `__tests__/skill-manager.test.ts`, 15 tests, real files in temp dirs) and the `./skills` export in `packages/maker-core/package.json`. `scanSkill` validates `SKILL.md` frontmatter (`name` slug, optional `description`) and applies line rules: HIGH pipe-to-shell, decode-to-shell, rm of root/home, credential-path reads, `.env` reads; MEDIUM eval/exec, network calls, sudo/chmod, package installs, unscanned large or binary files; LOW bundled scripts. Symlinks give verdict `blocked`. `installSkill` scans first, refuses HIGH without `acknowledgeHigh`, never installs a symlinked skill, never overwrites, rejects a category that is not a plain slug, copies to a temp dir inside the category and renames. `listInstalledSkills` reads the Hermes two-level layout. Mutation check: disabling the `blocked` refusal fails the symlink test.
+
+**Not claimed:** `unit-tested` only. Not run against the real `~/.hermes-cindy/skills`, no IPC, no UI, no git-URL install, no enable/disable (4.4b stays open). The scan is regex heuristics and can miss obfuscated payloads; the report is for the owner to read, not a guarantee. Nothing consumes the module yet.
+
+Gates (Node 22): `pnpm typecheck && pnpm test:runner && pnpm test:unit:related && pnpm check:test-hygiene`, EXIT=0 on the default parallel unit step (no SIGSEGV this run).
+
+---
+
 ## 2026-10-30 — Phase 4: ROADMAP 4.5, extension author guide (drafted, examples run)
 
 **Outcome:** `docs/extending.md` (126 lines): one section each for expert, route, tool, panel, adapter, preceded by a table of what works today and what is not wired. Worked examples are real files in `docs/examples/extending/` (a `hello` plugin, `providers.yaml`, `routing.yaml`, a `changelog-writer` expert). Verification: a throwaway tsx script (deleted) loaded them with the real code: the plugin went `active` with `tool/hello-tool` and `panel/hello-panel` tagged `plugin:hello`, through the loader's default native `import()` in plain Node (first real exercise of that path, outside the app); providers and routing had no issues, `title` resolved to `local-small`, and with Ollama offline the route came back blocked with only the paid `flash` route listed as a choice; the expert loaded with `model: local-small`.

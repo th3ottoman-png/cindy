@@ -19,6 +19,7 @@
     "./providers-discovery": "./src/providers/discovery.ts",
     "./extensions": "./src/extensions/registry.ts",
     "./plugins": "./src/plugins/plugin-loader.ts",
+    "./skills": "./src/skills/skill-manager.ts",
     "./routing-file": "./src/providers/routing-file.ts"
   },
   "scripts": {
