@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 5: ROADMAP 5.2a, session export to Markdown (pure logic)
+
+**Outcome:** new `packages/maker-core/src/export/session-markdown.ts` (+ `__tests__/session-markdown.test.ts`, 11 tests, real temp dirs) and the `./session-export` export. Input is a minimal `ExportSession` (title, agent, model, messages with optional tool calls) so the real stored-message adapter stays a separate 5.2b step. Output: YAML frontmatter, a title, `## User/Assistant/System` sections, tool calls in collapsed `<details>` blocks with fenced input/output (fence longer than any backtick run inside, cut at 2000 chars with a marker), message headings escaped so a message cannot forge sections, credentials redacted (`sk-…`, `Bearer …`, `api_key=`/`password:` style). `writeSessionExport` creates the target directory and never overwrites: it writes a temp file and `link`s it into place so an existing file fails with EEXIST and the next `-N` name is used. Self-review caught a bug before the first test run (the redaction callback could print a numeric match offset for a `Bearer` token ending in `=`); it is now covered by a test. Mutation check: replacing `link` with `rename` fails the no-overwrite test.
+
+**Not claimed:** `unit-tested` only. No adapter from real sessions, no IPC or UI, no live export, and nothing was written to the vault. The redactor is a heuristic and will miss unusual secrets, so exports should still be read before sharing. Nothing consumes the module. Another upstream `redactSecrets` exists in `apps/desktop/src/main/git-snapshot/`; it cannot be imported from `maker-core`, so this is a separate small copy of the idea.
+
+Gates (Node 22): `pnpm typecheck && pnpm test:runner && pnpm test:unit:related && pnpm check:test-hygiene`, EXIT=0 on the default parallel unit step (no SIGSEGV this run).
+
+---
+
 ## 2026-10-30 — Phase 3: ROADMAP 3.4a, expert memory file (pure logic); 1.2 marked blocked
 
 **Outcome:** new `packages/maker-core/src/experts/expert-memory.ts` (+ `__tests__/expert-memory.test.ts`, 10 tests, real temp dirs) and the `./expert-memory` export. `appendExpertMemory` writes a `## <ISO timestamp>` entry to `<expertDir>/memory.md` only for experts with `memory: true`; it preserves existing bytes exactly (tested against a hand-edited file with trailing spaces), writes via temp file + rename, refuses empty and over-4000-char notes, and escapes leading `#`/`##` in the body so a note cannot forge entries. `readExpertMemory` returns the newest entries within `maxChars`. Mutation check: removing the heading escape fails the forgery test. Also recorded 1.2 as blocked on 2.3b: a try in the shared real profile (backup `cindy-local-v1.db.bak-20261030-221641` taken first, DB checksum unchanged afterwards) stopped at `MIGRATE_FAILED`, the dev build refusing to upgrade the official Cindy database, and the sandbox log showed the title helper with `no_candidate`.
