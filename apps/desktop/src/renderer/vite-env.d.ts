@@ -5522,6 +5522,12 @@ interface ElectronAPI {
       create: () => Promise<{ archivePath: string; sections: string[] }>;
       restore: () => Promise<{ restored: boolean; entries?: number }>;
     };
+    experts: {
+      list: () => Promise<import('@cindy/maker-core/experts').ExpertEntry[]>;
+      onChanged: (
+        cb: (entries: import('@cindy/maker-core/experts').ExpertEntry[]) => void,
+      ) => () => void;
+    };
     hermesConfig: {
       getDefaultRoute: () => Promise<{
         route: { model?: string; provider?: string; baseUrl?: string };

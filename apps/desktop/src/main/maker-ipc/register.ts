@@ -908,6 +908,7 @@ import {
   resolveSessionReferences,
 } from './sessionReferenceResolver.js';
 import { registerAndroidAutomationHandlers } from './androidHandlers.js';
+import { registerExpertsHandlers } from './expertsHandlers.js';
 import { MAKER_INVOKE, MAKER_PUSH, MAKER_SEND } from './channels.js';
 import type { CollabDispatchOutcome } from './collabSendOutcome.js';
 import {
@@ -25468,6 +25469,13 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
 
   // ── Android automation (Settings →「电脑使用」) ──────────────────────────
   registerAndroidAutomationHandlers(createElectronIpcHandlerRegistry());
+
+  // ── Experts (ROADMAP 3.1b): read-only list + change push over ~/.cindy-harness/experts ──
+  registerExpertsHandlers(createElectronIpcHandlerRegistry(), {
+    rootDir: path.join(os.homedir(), '.cindy-harness', 'experts'),
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
+  });
 
   // ── Browser automation (Settings →「电脑使用」) ───────────────────────────
   // Probe local browser detection. Drives the detection status + download

@@ -796,6 +796,7 @@ const fanOutHookControlWorkspaceProviderSource = createIpcFanOut(
 // ─── Maker Core 一阶段重构（新链路）── 与 cc-agent:* / codex:* 双轨并行 ─────
 const fanOutMakerEvent = createIpcFanOut('maker:event');
 const fanOutMakerAgentsChanged = createIpcFanOut('maker:agents:changed');
+const fanOutMakerExpertsChanged = createIpcFanOut('maker:experts:changed');
 const fanOutMakerTurnChangeSetUpdated = createIpcFanOut('maker:turn-change-set:updated');
 const fanOutMakerStatusChanged = createIpcFanOut('maker:status-changed');
 const fanOutMakerInputProjection = createIpcFanOut('maker:input:projection');
@@ -6265,6 +6266,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('maker:backup:create'),
       restore: (): Promise<{ restored: boolean; entries?: number }> =>
         ipcRenderer.invoke('maker:backup:restore'),
+    },
+    experts: {
+      list: (): Promise<import('@cindy/maker-core/experts').ExpertEntry[]> =>
+        ipcRenderer.invoke('maker:experts:list'),
+      onChanged: fanOutMakerExpertsChanged,
     },
     hermesConfig: {
       getDefaultRoute: (): Promise<{ route: { model?: string; provider?: string; baseUrl?: string } }> =>

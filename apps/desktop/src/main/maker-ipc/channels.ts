@@ -19,6 +19,8 @@ export const MAKER_INVOKE = {
   HERMES_CONFIG_GET_STATUS: 'maker:hermes-config:get-status',
   HERMES_CONFIG_SET_MCP_SERVER: 'maker:hermes-config:set-mcp-server',
   HERMES_CONFIG_REMOVE_MCP_SERVER: 'maker:hermes-config:remove-mcp-server',
+  /** ROADMAP 3.1b: list experts under ~/.cindy-harness/experts (valid and invalid). */
+  EXPERTS_LIST: 'maker:experts:list',
   BACKUP_CREATE: 'maker:backup:create',
   BACKUP_RESTORE: 'maker:backup:restore',
   START_REVIEW: 'maker:review:start',
@@ -940,6 +942,8 @@ export const MAKER_PUSH = {
   EVENT: 'maker:event',
   /** Runtime agent roster changed after an optional agent recovery. */
   AGENTS_CHANGED: 'maker:agents:changed',
+  /** The experts directory changed; payload is the fresh expert list. */
+  EXPERTS_CHANGED: 'maker:experts:changed',
   TURN_CHANGE_SET_UPDATED: 'maker:turn-change-set:updated',
   STATUS_CHANGED: 'maker:status-changed',
   /** 用户从独立 Computer Use 授权引导浮窗主动取消。 */

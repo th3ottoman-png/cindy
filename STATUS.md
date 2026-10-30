@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 3: ROADMAP 3.1b, experts IPC (`unit-tested`)
+
+**Outcome:** the expert loader is reachable from the renderer. Files: `apps/desktop/src/main/maker-ipc/expertsHandlers.ts` (new; `registerExpertsHandlers(registry, {rootDir, assertTrusted, broadcast})`), `channels.ts` (`MAKER_INVOKE.EXPERTS_LIST`, `MAKER_PUSH.EXPERTS_CHANGED`), `register.ts` (registers it with root `~/.cindy-harness/experts`, trust check = `assertTrustedAppRendererEvent`, broadcast = `broadcastToAllWindows`), `preload/preload.ts` + `renderer/vite-env.d.ts` (`maker.experts.list()`, `maker.experts.onChanged(cb)`), `packages/maker-core/package.json` (subpath export `@cindy/maker-core/experts`, so the big `index.ts` is untouched). Tests: `maker-ipc/__tests__/expertsHandlers.test.ts` (4: list with a broken expert, untrusted sender refused, change push, no watching before first list). Mutation check: removing the trust check fails 2. `pnpm --filter desktop typecheck` passes.
+
+**Not proven:** no renderer code calls `maker.experts` yet and the running app was never asked (owner denied computer-use access), so there is no `live-proven` claim. The push goes through `broadcastToAllWindows`, which also stamps data-owner scope; whether the stamp suits this channel is unchecked.
+
+**Gates (2026-10-30, Node 22.23.4):** the full chain ran once: typecheck, test:runner and test:unit:related exit 0, `check:test-hygiene` red on one unannotated real wait in `expertsHandlers.test.ts`. After adding the `// real-wait:` justification (comment-only change), `check:test-hygiene` passes and the test file passes 4/4; the other three gates were not rerun on the comment-only edit.
+
+---
+
 ## 2026-10-30 — Phase 3: ROADMAP 3.1a, expert loader module (`unit-tested`)
 
 **Outcome:** new `packages/maker-core/src/experts/expert-loader.ts` (+ `__tests__/expert-loader.test.ts`, 14 tests). `loadExpert(dir)` parses `expert.md` (frontmatter via the existing `gray-matter` dep) into a typed `Expert` (name required; agent defaults to `hermes` and must be one of hermes/claude-code/codex/pi; model, temperature 0..2, tools/skills/tags lists, memory boolean; non-empty prompt body; optional `skills/*/SKILL.md`, `tools.yaml`, `knowledge/` paths) and never throws: failures come back as `error`. `loadExperts(root)` lists every directory sorted by slug with valid and invalid together (dot-dirs and files skipped, missing root = empty). `watchExperts(root, cb)` debounces `fs.watch` and re-lists (also when the root is created later). Read-only: nothing writes expert files. Mutation check: removing the name check fails 3 tests.
