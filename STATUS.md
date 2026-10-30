@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 2: ROADMAP 2.5a, context-window guard (`unit-tested`)
+
+**Outcome:** `packages/model-providers/src/contextGuard.ts` (pure; subpath `@cindy/model-providers/context-guard`). `assessContext(usedTokens, contextLength, thresholds)`: `ok` below 80%, `warn` from 80%, `critical` from 95% (both configurable, must satisfy 0 < warn < critical <= 1 or it throws), remaining tokens never negative, and `unknown` with an explanatory message when the context length (from `providers.yaml` `capabilities.contextLength`) or the usage is missing, so it never invents a limit. `guardContext(...)` adds, only at warn/critical, the 2.4a health of the routed `summary` route: ok with the target, or blocked with a reason and alternatives (paid ones flagged, none chosen). Tests: `src/__tests__/contextGuard.test.ts` (9). Mutation check: `>=` to `>` on the critical boundary fails the boundary test.
+
+**Not done (2.5b, the row's goal):** getting real token counts from a session, the in-UI warning, the summarise-and-continue action itself, and a live proof. Nothing calls this yet.
+
+**Gates (2026-10-30, Node 22):** `pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` all `EXIT=0` on the first full parallel run (`apps/desktop unit` 302 s, no SIGSEGV; fifth clean parallel run in a row, still not proof). The mutation run was done first and the file restored.
+
+---
+
 ## 2026-10-30 — Phase 2: ROADMAP 2.4a, route health and no silent fallback (`unit-tested`)
 
 **Outcome:** `packages/model-providers/src/routeHealth.ts` (pure; subpath `@cindy/model-providers/route-health`). `assessRoute(resolution, routing, providers, probes)` takes a resolved task route (2.3a), the `providers.yaml` entries (2.1a) and the latest discovery probes (2.2a) and returns either `{ok: true, routeName, provider, model}` or a block with a `reason`, a message naming the provider (and the probe's error text), and `alternatives`: other routes whose provider is online and lists the model, local first, each marked `paid` when the endpoint is not loopback. The module has no path that returns a different route as the answer; a blocked route stays blocked and the alternatives are only for a click the owner makes. `llama3` matches an Ollama `llama3:latest`. Tests: `src/__tests__/routeHealth.test.ts` (6), including offline-local with a healthy paid route available (it is listed as paid, last, and not chosen). Mutation check: removing the local-before-paid sort fails the offline test.

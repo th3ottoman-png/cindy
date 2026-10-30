@@ -22,7 +22,8 @@
     "./invocation": "./src/invocation.ts",
     "./providers-file": "./src/providersFile.ts",
     "./routing-file": "./src/routingFile.ts",
-    "./route-health": "./src/routeHealth.ts"
+    "./route-health": "./src/routeHealth.ts",
+    "./context-guard": "./src/contextGuard.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
