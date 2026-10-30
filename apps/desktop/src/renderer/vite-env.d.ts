@@ -5528,6 +5528,10 @@ interface ElectronAPI {
         cb: (entries: import('@cindy/maker-core/experts').ExpertEntry[]) => void,
       ) => () => void;
     };
+    providers: {
+      list: () => Promise<import('@cindy/maker-core/providers-file').ProviderFileResult>;
+      discover: () => Promise<import('@cindy/maker-core/providers-discovery').EndpointProbe[]>;
+    };
     hermesConfig: {
       getDefaultRoute: () => Promise<{
         route: { model?: string; provider?: string; baseUrl?: string };

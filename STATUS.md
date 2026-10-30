@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 2: ROADMAP 2.1b/2.2b IPC part (`unit-tested`)
+
+**Outcome:** `apps/desktop/src/main/maker-ipc/providersHandlers.ts` (copy of the experts pattern): `maker:providers:list` returns `{providers, issues}` from `~/.cindy-harness/providers.yaml`; `maker:providers:discover` probes every endpoint with `discoverEndpoints`. Both check the sender first. Wired in `channels.ts`, `register.ts`, `preload.ts` (`electronAPI.maker.providers`), `vite-env.d.ts`. Tests: `__tests__/providersHandlers.test.ts` (4; real local HTTP server, one online + one dead endpoint, missing file, untrusted caller). Mutation check: dropping the trust check on `discover` fails the untrusted-caller test. Read-only; no new outbound calls beyond 2.2a's probe, which runs only when the renderer asks.
+
+**Not done:** UI listing, polling schedule, the picker's online/offline display, `model-providers` consuming the file, a run against a real Ollama/LM Studio. Rows stay open.
+
+**Gates (2026-10-30, Node 22):** `pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` all `EXIT=0` on the first full (parallel) run of this tree; `apps/desktop unit` passed (293 s), no SIGSEGV this time (it crashed in 4 of 5 earlier parallel runs, so one green run is not proof).
+
+---
+
 ## 2026-10-30 — SIGSEGV isolation follow-up (no code change, `live-proven` for the findings)
 
 Another session landed 2.2a (`e12bee95a3`) and 2.3a (`14b7b60899`) while I was re-gating the same tree. Findings from my 8 full gate runs on that tree: `apps/desktop unit` SIGSEGV in 4 of 5 parallel runs (with the experts IPC watcher already faked, so that test is not the trigger); `apps/desktop unit` alone green; a serial-unit gate (`--workspace-concurrency=1`) green, `EXIT=0` incl. typecheck, test:runner and check:test-hygiene. Also seen: one `apps/mobile` 5 s timeout (flake) and `watchExperts` late-root failing under load, now covered by the 500 ms root poll in `expert-loader.ts`. Debt row updated. Open: the root cause stays V8 GC at worker teardown; serial running is a workaround, not a fix.

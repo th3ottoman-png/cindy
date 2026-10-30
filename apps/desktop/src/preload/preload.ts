@@ -6272,6 +6272,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('maker:experts:list'),
       onChanged: fanOutMakerExpertsChanged,
     },
+    providers: {
+      list: (): Promise<import('@cindy/maker-core/providers-file').ProviderFileResult> =>
+        ipcRenderer.invoke('maker:providers:list'),
+      discover: (): Promise<import('@cindy/maker-core/providers-discovery').EndpointProbe[]> =>
+        ipcRenderer.invoke('maker:providers:discover'),
+    },
     hermesConfig: {
       getDefaultRoute: (): Promise<{ route: { model?: string; provider?: string; baseUrl?: string } }> =>
         ipcRenderer.invoke('maker:hermes-config:get-default-route'),

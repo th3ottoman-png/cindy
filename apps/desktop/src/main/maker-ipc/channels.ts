@@ -21,6 +21,10 @@ export const MAKER_INVOKE = {
   HERMES_CONFIG_REMOVE_MCP_SERVER: 'maker:hermes-config:remove-mcp-server',
   /** ROADMAP 3.1b: list experts under ~/.cindy-harness/experts (valid and invalid). */
   EXPERTS_LIST: 'maker:experts:list',
+  /** ROADMAP 2.1b: providers.yaml entries plus file issues (read-only). */
+  PROVIDERS_LIST: 'maker:providers:list',
+  /** ROADMAP 2.2b: probe each providers.yaml endpoint for online/offline and models. */
+  PROVIDERS_DISCOVER: 'maker:providers:discover',
   BACKUP_CREATE: 'maker:backup:create',
   BACKUP_RESTORE: 'maker:backup:restore',
   START_REVIEW: 'maker:review:start',
