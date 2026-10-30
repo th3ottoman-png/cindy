@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Live check of 1.2 and 1.4 in the dev app (owner clicked)
+
+**Outcome:** launched with `pnpm restart:desktop:remote --region=global` (`DESKTOP_DEV_VERDICT=ready`, isolated sandbox `dev`, commit d7c329fcab, nothing from the real profile). The owner attached an image in a new Hermes session (model route `hermes-default`); the reply described it accurately (screenshot seen). Row 1.4 → `live-proven`. Row 1.2 is NOT proven: the session title was `what is in this image?`, the owner's own prompt, i.e. the fallback title. `main-2026-10-30.log` at 21:46:48 shows `[maker-host/auxiliary-title-one-shot]` `agent fallback failed { errorName: 'AgentNotAuthenticatedError' }` then `auxiliary title model failed { reason: 'no_candidate' }`. Correction: my first write-up of this entry repeated the owner's "auto title generated" as fact; the screenshot shows otherwise, so it was fixed before commit.
+
+**Not claimed:** no transcript or screenshot was captured; no file was written by the app that I inspected; 1.2 auto-title remains unproven (no model-generated title was seen). Not touched: `~/.hermes-cindy`, credentials, DeepSeek. Docs only, no code changed.
+
+Gates (Node 22): `pnpm typecheck && pnpm test:runner && pnpm test:unit:related && pnpm check:test-hygiene`, EXIT=0 on the default parallel unit step (docs-only change; no SIGSEGV this run).
+
+---
+
 ## 2026-10-30 — Phase 4: ROADMAP 4.3a, MCP server catalog and health (pure logic)
 
 **Outcome:** new `packages/maker-core/src/mcp/mcp-catalog.ts` (+ `__tests__/mcp-catalog.test.ts`, 11 tests) and the `./mcp-catalog` export in `packages/maker-core/package.json`. `buildMcpCatalog` flattens `{source, servers}` inputs into entries with `id = source/name`; env and header values never appear (key names only), http targets lose credentials and query, malformed entries (both command and url, neither, non-http url) become `invalid` with a reason. `checkMcpHealth` is static: stdio needs an executable file (PATH search or absolute path; a non-executable file is `missing-command`); http is `unchecked` unless the caller passes a `probe`, so nothing in the module touches the network or spawns a process. Mutation check: removing the URL stripping fails the strip test. Real temp files with real mode bits, no mocks of fs.
