@@ -294,8 +294,6 @@ export class HermesManager {
         cwd: rec.cwd,
         text: p.text,
         ...(preamble ? { preamble } : {}),
-        ...(routeModel ? { model: routeModel } : {}),
-        ...(routeProvider ? { provider: routeProvider } : {}),
         ...(rec.permissionMode ? { permissionMode: rec.permissionMode } : {}),
         ...(this.hermesExtraArgs ? { extraArgs: this.hermesExtraArgs } : {}),
         env: this.sessionEnv.get(rec.sessionId),
@@ -330,9 +328,22 @@ export class HermesManager {
           if (!holding) flushHeld();
         };
 
+        // A resume must repeat the launch route (Hermes rejects any difference);
+        // only a fresh session takes the current route and freezes it.
+        const frozen = resumeHermesSessionId ? this.registry.get(rec.sessionId)?.launch : undefined;
+        const flagModel = frozen ? frozen.model : routeModel;
+        const flagProvider = frozen ? frozen.provider : routeProvider;
+        if (!resumeHermesSessionId) {
+          this.registry.update(rec.sessionId, {
+            launch: { model: routeModel, provider: routeProvider },
+            appliedModel: routeModel,
+          });
+        }
         const run = startHermesRun(
           {
             ...baseSpec,
+            ...(flagModel ? { model: flagModel } : {}),
+            ...(flagProvider ? { provider: flagProvider } : {}),
             ...(resumeHermesSessionId ? { resumeHermesSessionId } : {}),
           },
           onEvent,
@@ -380,7 +391,53 @@ export class HermesManager {
         });
       };
 
-      startTurn(rec.hermesSessionId, true);
+      // Resuming with a different model: switch in-session with `/model` first
+      // (a local command, no model call). A failed switch ends the turn rather
+      // than silently running the wrong model.
+      const resumeId = this.registry.get(rec.sessionId)?.hermesSessionId;
+      const current = this.registry.get(rec.sessionId);
+      let switchTo: string | undefined;
+      if (resumeId && current?.launch) {
+        const running = current.appliedModel ?? current.launch.model;
+        let desired = routeModel;
+        if (!desired && running) desired = (await readHermesDefaultRoute(this.hermesHome)).model;
+        if (desired && desired !== running) switchTo = desired;
+      }
+      if (resumeId && switchTo) {
+        const target = switchTo;
+        const switchRun = startHermesRun(
+          {
+            ...baseSpec,
+            text: `/model ${target}`,
+            preamble: undefined,
+            resumeHermesSessionId: resumeId,
+            ...(current?.launch?.model ? { model: current.launch.model } : {}),
+            ...(current?.launch?.provider ? { provider: current.launch.provider } : {}),
+          },
+          () => undefined,
+        );
+        const switchTurn: RunningTurn = { handle: switchRun, killed: false };
+        this.running.set(rec.sessionId, switchTurn);
+        this.registry.update(rec.sessionId, { running: true });
+        void switchRun.result.then((res) => {
+          if (this.running.get(rec.sessionId) !== switchTurn) return;
+          const ok = !switchTurn.killed && !res.spawnError && res.code === 0;
+          if (ok) {
+            this.registry.update(rec.sessionId, { appliedModel: target });
+            startTurn(resumeId, true);
+            return;
+          }
+          this.running.delete(rec.sessionId);
+          this.registry.update(rec.sessionId, { running: false });
+          this.emitClosed(
+            rec.sessionId,
+            switchTurn.killed ? 'killed' : 'error',
+            `could not switch the Hermes session to model "${target}": ${res.stderrTail || res.spawnError || `exit ${res.code}`}`,
+          );
+        });
+      } else {
+        startTurn(rec.hermesSessionId, true);
+      }
 
       return {
         sessionId: rec.sessionId,

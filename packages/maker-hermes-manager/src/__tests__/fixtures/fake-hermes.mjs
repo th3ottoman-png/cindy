@@ -60,6 +60,15 @@ if (process.argv.includes('--version')) {
   process.exit(0);
 }
 
+// FAKE_RECORD_TEXT appends one JSON line {argv, text} per invocation (stdin is
+// read to EOF first; the daemon closes it after writing the query).
+if (process.env.FAKE_RECORD_TEXT) {
+  fs.appendFileSync(
+    process.env.FAKE_RECORD_TEXT,
+    JSON.stringify({ argv: process.argv.slice(2), text: fs.readFileSync(0, 'utf8') }) + '\n',
+  );
+}
+
 // Consume stdin (the daemon writes the query then closes it) without parsing.
 process.stdin.resume();
 

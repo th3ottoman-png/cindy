@@ -103,6 +103,9 @@ SQLite (Cindy DB)             ~/.hermes-cindy  (isolated Hermes home)
 
 1. Renderer sends the user message over IPC; `maker-core` Hermes adapter forwards to the daemon.
 2. Daemon looks up `sessions.json` for a `hermesSessionId`; builds argv (`--resume` if present).
+   A resume must repeat the session's launch `-m`/`--provider`/permission flags exactly (Hermes 0.22.5 rejects any
+   difference); the daemon stores them as `launch` in the registry. A model change is sent as a silent `/model <x>`
+   run before the turn, never as a changed `-m` (ROADMAP 1.8d).
 3. Spawns `hermes chat` with `HERMES_HOME=~/.hermes-cindy`; provider key passed in memory only.
 4. NDJSON events stream back; the translator maps them to Cindy events (text, tool call/result, usage).
 5. Real `session_id` is captured from `system/init` **and** `result`; registry updated.

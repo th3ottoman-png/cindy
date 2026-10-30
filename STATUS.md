@@ -10,6 +10,20 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 1: ROADMAP 1.8c/1.8d, per-session model switch broken on real Hermes, fixed (`live-proven` at daemon level)
+
+**Outcome:** the 1.8c live proof failed first. Against the real `hermes-cindy` (two paid DeepSeek turns, owner-authorised), `query/setModel` followed by a second turn made the daemon resume with a changed `-m`, and Hermes 0.22.5 refused it (`exit_code 2`, "resume without it and use /model after resuming"). Free probes showed a resume must repeat the launch `-m`/`--provider`/`--safe-mode` exactly, and that `/model <x>` on a resumed session is a local command whose effect persists (next turn: `model=deepseek-v4-pro`). The 1.8a unit tests had passed only because the fake Hermes accepts any flags, so 1.8a's `unit-tested` label overstated it for the resume case.
+
+**Fix (new row 1.8d):** `packages/maker-hermes-manager/src/session-registry.ts` (+`launch`, `appliedModel`), `hermes-manager.ts` (freeze the launch route on a session's first turn; replay it on resume; when the wanted model differs, run a silent `/model <x>` first; a failed switch ends the turn with `error`), `__tests__/fixtures/fake-hermes.mjs` (`FAKE_RECORD_TEXT` logs argv+query), and `hermes-manager.test.ts` (the two 1.8a tests rewritten + a failure test; mutation-checked: replaying the current route instead of the launch route fails both main tests). Package suite 97/97 under Node 22.
+
+**Live proof:** `docs/evidence/1.8c-live-proof.md` (before/after transcript). After the fix: turn 1 `deepseek-flash`, `setModel deepseek-v4-pro`, turn 2 `deepseek-v4-pro`, both closed `completed`, `config.yaml` byte-identical to its backup (`config.yaml.bak-20261030-1.8c`).
+
+**Still open:** 1.8c-2, the same switch driven from the desktop UI. Safe-mode resume + switch and clearing the override are fake-tested only. `HANDOVER.md` §4 now records the resume rule. Environment: a background `brew` upgrade (`simdjson` 5.0.7) broke Node 22 mid-session; fixed with `brew reinstall node@22`; set `HOMEBREW_NO_AUTO_UPDATE=1` for long sessions.
+
+**Gates (2026-10-30, Node 22.23.4):** typecheck, test:runner, test:unit:related, check:test-hygiene all exit 0 on the final tree. The first run was red only from the known `apps/desktop unit` SIGSEGV (dev app not running; logged under Debt); the rerun was green.
+
+---
+
 ## 2026-10-30 — Phase 1: ROADMAP 1.8b, Hermes model label in the session header (`unit-tested`)
 
 **Outcome:** new `apps/desktop/src/renderer/features/cc-agent/HermesSessionModelLabel.tsx` renders `session.model` as a muted read-only label next to the title when `agentKind === 'hermes'` (null otherwise); `SessionContentHeader.tsx` (upstream file, +3 lines, additive) mounts it, hidden while renaming. Test: `apps/desktop/src/renderer/__tests__/hermesSessionModelLabel.test.tsx` (`renderToStaticMarkup`, 2 tests). My first version read the source text in a test; `check:test-hygiene` rejected it, so it was replaced by this behavioural test.
