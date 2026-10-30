@@ -1,5 +1,6 @@
 import { SessionTaskMenu } from './sidebar/SessionTaskMenu';
 import { TaskMigrationStatus } from './TaskMigrationStatus';
+import { HermesSessionModelLabel } from './HermesSessionModelLabel';
 /**
  * SessionContentHeader — 会话视图注入 ContentHeader 的中部内容
  * ---------------------------------------------------------------------------
@@ -666,6 +667,8 @@ export function SessionContentHeader({
           {displayTitle}
         </span>
       )}
+
+      {!isEditing && <HermesSessionModelLabel agentKind={session.agentKind} model={session.model} />}
 
       {remoteSyncing && (
         <Tip text={t('ccAgent.remoteSession.syncing')}>

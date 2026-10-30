@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 1: ROADMAP 1.8b, Hermes model label in the session header (`unit-tested`)
+
+**Outcome:** new `apps/desktop/src/renderer/features/cc-agent/HermesSessionModelLabel.tsx` renders `session.model` as a muted read-only label next to the title when `agentKind === 'hermes'` (null otherwise); `SessionContentHeader.tsx` (upstream file, +3 lines, additive) mounts it, hidden while renaming. Test: `apps/desktop/src/renderer/__tests__/hermesSessionModelLabel.test.tsx` (`renderToStaticMarkup`, 2 tests). My first version read the source text in a test; `check:test-hygiene` rejected it, so it was replaced by this behavioural test.
+
+**Not proven:** the label is not seen rendered, and I have not checked that `session.model` updates after `setModel` in a running app. That is 1.8c (live). Owner authorised paid calls on 2026-10-30.
+
+**Gates (2026-10-30, Node 22.23.4):** `pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` all exit 0 on the final tree. An earlier run was red on `check:test-hygiene` (source-reading test), fixed as described above.
+
+---
+
 ## 2026-10-30 — Phase 1: ROADMAP 1.8a, manager-level test that `query/setModel` reaches `-m` (`unit-tested`)
 
 **Outcome:** row 1.8 was mostly built already (`query/setModel` handler in `hermes-manager.ts`, `-m` in `hermes-run.ts` `buildHermesArgs`, agent method, chat-input picker). What was missing was a test at the manager level. Added 3 tests plus helper `runTurnArgv` to `packages/maker-hermes-manager/src/__tests__/hermes-manager.test.ts` (fake Hermes only): full-access session has no `-m` by default, an override sets it, clearing with `''` drops it, `config.yaml` untouched; safe mode uses the home route `fake/default-model`, an override swaps `-m` and keeps `--provider fake-provider`, clearing falls back; `query/setModel` rejects an unknown session and a missing model. All 16 tests in the file pass under Node 22. Mutation check: disabling the registry update in the handler made the two main tests fail; source restored.
