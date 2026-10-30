@@ -14,7 +14,8 @@
     "./pi-subagent-runs": "./src/agents/pi/pi-subagent-runs.ts",
     "./skill-scan-limits": "./src/agents/shared/skill-scan-limits.ts",
     "./hermes-provider-env": "./src/agents/hermes/hermes-provider-env.ts",
-    "./experts": "./src/experts/expert-loader.ts"
+    "./experts": "./src/experts/expert-loader.ts",
+    "./providers-file": "./src/providers/providers-file.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

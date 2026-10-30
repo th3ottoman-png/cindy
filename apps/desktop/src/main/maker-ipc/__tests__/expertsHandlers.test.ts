@@ -59,14 +59,16 @@ describe('experts IPC', () => {
     handle = registerExpertsHandlers(harness, { rootDir: root, assertTrusted: vi.fn(), broadcast });
     await harness.invoke(MAKER_INVOKE.EXPERTS_LIST);
 
-    writeExpert('one', '---\nname: Renamed\n---\nPrompt.\n');
+    // The watcher may not deliver events for a moment after it starts; re-apply the change per poll.
     await vi.waitFor(
       () => {
+        writeExpert('one', '---\nname: Renamed\n---\nPrompt.\n');
         const last = broadcast.mock.calls.at(-1);
         expect(last?.[0]).toBe(MAKER_PUSH.EXPERTS_CHANGED);
         expect(last?.[1][0].expert.name).toBe('Renamed');
       },
-      { timeout: 15_000 },
+      // interval > the handler's 150 ms debounce, or each re-write would reset it
+      { timeout: 15_000, interval: 500 },
     );
   }, 60_000);
 

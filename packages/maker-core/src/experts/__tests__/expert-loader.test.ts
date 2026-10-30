@@ -112,19 +112,34 @@ describe('loadExperts', () => {
 });
 
 describe('watchExperts', () => {
+  // fs.watch can take a moment to start delivering events, and a change made before then is
+  // lost. Each poll re-applies the (idempotent) change until the callback reports it.
   it('re-loads after an edit, an addition and a deletion', async () => {
     writeExpert('one', FULL);
     const seen: ExpertEntry[][] = [];
     const w = watchExperts(root, (e) => seen.push(e), 30);
     try {
-      fs.writeFileSync(path.join(root, 'one', 'expert.md'), FULL.replace('Code Reviewer', 'Renamed'));
-      await vi.waitFor(() => expect(seen.at(-1)?.[0].expert?.name).toBe('Renamed'), { timeout: 15_000 });
-
-      writeExpert('two', FULL);
-      await vi.waitFor(() => expect(seen.at(-1)?.map((e) => e.slug)).toEqual(['one', 'two']), { timeout: 15_000 });
-
-      fs.rmSync(path.join(root, 'one'), { recursive: true });
-      await vi.waitFor(() => expect(seen.at(-1)?.map((e) => e.slug)).toEqual(['two']), { timeout: 15_000 });
+      await vi.waitFor(
+        () => {
+          fs.writeFileSync(path.join(root, 'one', 'expert.md'), FULL.replace('Code Reviewer', 'Renamed'));
+          expect(seen.at(-1)?.[0].expert?.name).toBe('Renamed');
+        },
+        { timeout: 15_000 },
+      );
+      await vi.waitFor(
+        () => {
+          writeExpert('two', FULL);
+          expect(seen.at(-1)?.map((e) => e.slug)).toEqual(['one', 'two']);
+        },
+        { timeout: 15_000 },
+      );
+      await vi.waitFor(
+        () => {
+          fs.rmSync(path.join(root, 'one'), { recursive: true, force: true });
+          expect(seen.at(-1)?.map((e) => e.slug)).toEqual(['two']);
+        },
+        { timeout: 15_000 },
+      );
     } finally {
       w.close();
     }
@@ -135,10 +150,14 @@ describe('watchExperts', () => {
     const seen: ExpertEntry[][] = [];
     const w = watchExperts(late, (e) => seen.push(e), 30);
     try {
-      fs.mkdirSync(late);
-      fs.mkdirSync(path.join(late, 'x'));
-      fs.writeFileSync(path.join(late, 'x', 'expert.md'), FULL);
-      await vi.waitFor(() => expect(seen.at(-1)?.map((e) => e.slug)).toEqual(['x']), { timeout: 15_000 });
+      await vi.waitFor(
+        () => {
+          fs.mkdirSync(path.join(late, 'x'), { recursive: true });
+          fs.writeFileSync(path.join(late, 'x', 'expert.md'), FULL);
+          expect(seen.at(-1)?.map((e) => e.slug)).toEqual(['x']);
+        },
+        { timeout: 15_000 },
+      );
     } finally {
       w.close();
     }

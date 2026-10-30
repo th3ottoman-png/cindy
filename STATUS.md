@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 2: ROADMAP 2.1a, `providers.yaml` schema and reader (`unit-tested`)
+
+**Outcome:** `packages/model-providers/src/providersFile.ts` (pure, new subpath `@cindy/model-providers/providers-file`) validates a parsed `providers.yaml`: entries `{id, kind: ollama|lmstudio|llamacpp|openai-compatible, baseUrl, keyEnv?, capabilities{tools,vision,contextLength}}`. Rules: `keyEnv` must look like an env var NAME (`^[A-Z_][A-Z0-9_]*$`), so a pasted key is rejected; `apiKey`/`token`/`secret`-style fields and credentials in the URL are rejected; ids unique and slug-shaped; http(s) only; trailing slash normalised; loopback hosts flagged `local`. A bad entry becomes an issue and the others still load. `packages/maker-core/src/providers/providers-file.ts` (new subpath `@cindy/maker-core/providers-file`) reads the file (missing file = empty registry, YAML errors = file-level issue). Tests: `maker-core/src/providers/__tests__/providers-file.test.ts` (14). Mutation check: disabling the env-name rule fails the key tests.
+
+**Deviation to know:** the spec says the file is "read by `model-providers`", but that package has zero runtime deps and I could not add `js-yaml` offline (`ERR_PNPM_NO_OFFLINE_META`; I did not use the network for a dependency, lockfile untouched). So parsing sits in maker-core using its existing `gray-matter`, and `model-providers` only holds the pure validator.
+
+**Not done:** 2.1b (IPC + Settings UI listing; nothing calls this yet, no UI, no live run).
+
+**Gates (2026-10-30, Node 22.23.4):** typecheck, test:runner, test:unit:related, check:test-hygiene all exit 0 on the final tree. The first run was red twice over: the known `apps/desktop unit` SIGSEGV, and a race in my own `watchExperts`/experts-IPC tests (the change was written before `fs.watch` was delivering events, so it was lost under load). The tests now re-apply their change each poll (and the IPC one polls slower than the handler's 150 ms debounce); they passed repeatedly and the rerun was green. This also touches 3.1a/3.1b tests: those two rows' tests were flaky until now.
+
+---
+
 ## 2026-10-30 — Phase 3: ROADMAP 3.5a, starter experts (`unit-tested`)
 
 **Outcome:** `docs/experts-examples/{code-reviewer,research-analyst,repo-explainer,prompt-engineer}/expert.md` plus a README (copy a folder to `~/.cindy-harness/experts/`). All four are `agent: hermes`; only the Research Analyst has `memory: true`. `packages/maker-core/src/experts/__tests__/starter-experts.test.ts` loads them through the 3.1a loader and fails if one becomes invalid (no frontmatter drift). Prompts are new text for a new feature, not edits to any existing agent's prompt.
