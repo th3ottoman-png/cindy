@@ -10,6 +10,14 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 1: ROADMAP housekeeping, 1.5b closed (docs only)
+
+**Outcome:** rows 1.5b and 1.5b-4b were still marked open although 1.5b-5c redid the 4b proof and is `live-proven` (`docs/evidence/1.5b-5c-live-proof.md`). Both are now ✅ `live-proven` via 5c; the 5c row's "Open: auth.json write-back" now points at the free probe. No code changed, no gates needed. Known gaps stay in Debt: packaged builds lack the shim bundle; real OAuth refresh untested.
+
+**Next:** 1.6 is a design row (📐, needs a spec); 1.7 is the first actionable open row.
+
+---
+
 ## 2026-10-29 — Phase 1: shared `memories` across session homes, concurrent-writer probe (`live-proven` for the writer; owner decided: keep shared)
 
 **Outcome:** Hermes v0.22.5 `MemoryStore._mutate` takes an exclusive `flock` on `MEMORY.md.lock`, re-reads `MEMORY.md` inside the lock, then replaces the file atomically. Probe: two real Python processes using the real `MemoryStore.add`, each with its own throwaway `HERMES_HOME` whose `memories` is a symlink to one shared directory, 40 adds each at the same time. Result: 0 failures and all 80 entries present in `MEMORY.md` (A 40/40, B 40/40). So two sessions sharing `memories` do not lose each other's writes. Throwaway dir under `$HOME`, deleted afterwards; no real memories, no model call, `~/.hermes` not referenced.
