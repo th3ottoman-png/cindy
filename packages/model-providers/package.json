@@ -20,7 +20,8 @@
     "./model-list": "./src/modelList.ts",
     "./classification": "./src/classification.ts",
     "./invocation": "./src/invocation.ts",
-    "./providers-file": "./src/providersFile.ts"
+    "./providers-file": "./src/providersFile.ts",
+    "./routing-file": "./src/routingFile.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

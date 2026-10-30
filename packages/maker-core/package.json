@@ -16,7 +16,8 @@
     "./hermes-provider-env": "./src/agents/hermes/hermes-provider-env.ts",
     "./experts": "./src/experts/expert-loader.ts",
     "./providers-file": "./src/providers/providers-file.ts",
-    "./providers-discovery": "./src/providers/discovery.ts"
+    "./providers-discovery": "./src/providers/discovery.ts",
+    "./routing-file": "./src/providers/routing-file.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

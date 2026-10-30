@@ -188,6 +188,7 @@ export function watchExperts(
   let closed = false;
   let timer: NodeJS.Timeout | undefined;
   let watcher: fs.FSWatcher | undefined;
+  let poll: NodeJS.Timeout | undefined;
 
   const fire = (): void => {
     if (timer) clearTimeout(timer);
@@ -199,17 +200,23 @@ export function watchExperts(
   const arm = (): void => {
     if (closed) return;
     watcher?.close();
+    if (poll) clearInterval(poll);
+    poll = undefined;
     try {
       if (exists(root)) {
         watcher = fs.watch(root, { recursive: true }, fire);
       } else {
         const parent = path.dirname(root);
-        watcher = fs.watch(parent, () => {
+        const rootAppeared = (): void => {
           if (exists(root)) {
             arm();
             fire();
           }
-        });
+        };
+        watcher = fs.watch(parent, rootAppeared);
+        // fs.watch can miss the parent event under load; a slow poll guarantees the root is found.
+        poll = setInterval(rootAppeared, 500);
+        poll.unref();
       }
       watcher.on('error', () => undefined);
     } catch {
@@ -222,6 +229,7 @@ export function watchExperts(
     close() {
       closed = true;
       if (timer) clearTimeout(timer);
+      if (poll) clearInterval(poll);
       watcher?.close();
     },
   };
