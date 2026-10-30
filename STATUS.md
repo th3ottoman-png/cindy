@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 3: ROADMAP 3.1a, expert loader module (`unit-tested`)
+
+**Outcome:** new `packages/maker-core/src/experts/expert-loader.ts` (+ `__tests__/expert-loader.test.ts`, 14 tests). `loadExpert(dir)` parses `expert.md` (frontmatter via the existing `gray-matter` dep) into a typed `Expert` (name required; agent defaults to `hermes` and must be one of hermes/claude-code/codex/pi; model, temperature 0..2, tools/skills/tags lists, memory boolean; non-empty prompt body; optional `skills/*/SKILL.md`, `tools.yaml`, `knowledge/` paths) and never throws: failures come back as `error`. `loadExperts(root)` lists every directory sorted by slug with valid and invalid together (dot-dirs and files skipped, missing root = empty). `watchExperts(root, cb)` debounces `fs.watch` and re-lists (also when the root is created later). Read-only: nothing writes expert files. Mutation check: removing the name check fails 3 tests.
+
+**Not done:** 3.1b, the IPC exposure (list + change push), so nothing in the app calls the loader yet. `tools.yaml` is only located, not parsed. `model` is stored as a route name; route resolution is 2.3. Skipped as needing the UI (owner denied computer-use access to the dev app): 1.8c-2, 1.2, 1.4.
+
+**Gates (2026-10-30, Node 22.23.4):** typecheck, test:runner, test:unit:related, check:test-hygiene all exit 0 on the final tree. The first run failed only on my own `watchExperts` test timing out under full-suite load; its timeouts were raised and the rerun was green.
+
+---
+
 ## 2026-10-30 — Phase 1: ROADMAP 1.8c/1.8d, per-session model switch broken on real Hermes, fixed (`live-proven` at daemon level)
 
 **Outcome:** the 1.8c live proof failed first. Against the real `hermes-cindy` (two paid DeepSeek turns, owner-authorised), `query/setModel` followed by a second turn made the daemon resume with a changed `-m`, and Hermes 0.22.5 refused it (`exit_code 2`, "resume without it and use /model after resuming"). Free probes showed a resume must repeat the launch `-m`/`--provider`/`--safe-mode` exactly, and that `/model <x>` on a resumed session is a local command whose effect persists (next turn: `model=deepseek-v4-pro`). The 1.8a unit tests had passed only because the fake Hermes accepts any flags, so 1.8a's `unit-tested` label overstated it for the resume case.
