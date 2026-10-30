@@ -10,6 +10,12 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — SIGSEGV isolation follow-up (no code change, `live-proven` for the findings)
+
+Another session landed 2.2a (`e12bee95a3`) and 2.3a (`14b7b60899`) while I was re-gating the same tree. Findings from my 8 full gate runs on that tree: `apps/desktop unit` SIGSEGV in 4 of 5 parallel runs (with the experts IPC watcher already faked, so that test is not the trigger); `apps/desktop unit` alone green; a serial-unit gate (`--workspace-concurrency=1`) green, `EXIT=0` incl. typecheck, test:runner and check:test-hygiene. Also seen: one `apps/mobile` 5 s timeout (flake) and `watchExperts` late-root failing under load, now covered by the 500 ms root poll in `expert-loader.ts`. Debt row updated. Open: the root cause stays V8 GC at worker teardown; serial running is a workaround, not a fix.
+
+---
+
 ## 2026-10-30 — Phase 2: ROADMAP 2.3a, `routing.yaml` schema and resolver (`unit-tested`)
 
 **Outcome:** `packages/model-providers/src/routingFile.ts` (pure; subpath `@cindy/model-providers/routing-file`): `parseRoutingFile(doc, knownProviderIds)` validates `routes` (name -> `{provider, model}`, provider must exist in `providers.yaml`) and `rules` (task class -> route name; well-known classes `title`, `predict`, `summary`, `chat.default`); bad entries are reported as issues and dropped, valid ones kept. `resolveTaskRoute(config, taskClass)` returns `{ok, routeName, target}` or `{ok:false, error}`: exact rule, then `<group>.default` for a dotted class (`chat.code` -> `chat.default`), otherwise an explicit error. It never picks a default or "next best" model, so a missing local route cannot silently become a paid call (principle 3, 2.4). `packages/maker-core/src/providers/routing-file.ts` (subpath `@cindy/maker-core/routing-file`) reads the YAML; a missing file is empty routing. Tests: `model-providers/src/__tests__/routingFile.test.ts` (13) and `maker-core/src/providers/__tests__/routing-file.test.ts` (4). Mutation check: a first-route fallback fails the fail-closed tests.
