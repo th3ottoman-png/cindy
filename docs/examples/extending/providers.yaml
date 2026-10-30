@@ -1,0 +1,10 @@
+providers:
+  - id: ollama-local
+    kind: ollama
+    baseUrl: http://127.0.0.1:11434
+    capabilities: { tools: true, vision: false, contextLength: 32768 }
+  - id: deepseek
+    kind: openai-compatible
+    baseUrl: https://api.deepseek.com
+    keyEnv: DEEPSEEK_API_KEY      # the NAME of an environment variable, never the key
+    capabilities: { tools: true, vision: false, contextLength: 128000 }

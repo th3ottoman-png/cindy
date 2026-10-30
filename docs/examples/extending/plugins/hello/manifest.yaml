@@ -1,0 +1,3 @@
+entry: index.mjs
+version: 1
+description: Registers one tool and one panel to show the plugin API.

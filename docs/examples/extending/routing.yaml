@@ -1,0 +1,7 @@
+routes:
+  local-small: { provider: ollama-local, model: "qwen3:8b" }
+  flash: { provider: deepseek, model: deepseek-flash }
+rules:
+  title: local-small
+  summary: local-small
+  chat.default: flash

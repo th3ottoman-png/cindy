@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 4: ROADMAP 4.5, extension author guide (drafted, examples run)
+
+**Outcome:** `docs/extending.md` (126 lines): one section each for expert, route, tool, panel, adapter, preceded by a table of what works today and what is not wired. Worked examples are real files in `docs/examples/extending/` (a `hello` plugin, `providers.yaml`, `routing.yaml`, a `changelog-writer` expert). Verification: a throwaway tsx script (deleted) loaded them with the real code: the plugin went `active` with `tool/hello-tool` and `panel/hello-panel` tagged `plugin:hello`, through the loader's default native `import()` in plain Node (first real exercise of that path, outside the app); providers and routing had no issues, `title` resolved to `local-small`, and with Ollama offline the route came back blocked with only the paid `flash` route listed as a choice; the expert loaded with `model: local-small`.
+
+**Not claimed:** "owner can follow it unaided" is the owner's test, so the row stays open. Tool, panel and adapter are documented as registry-only because nothing consumes the registry (4.1b, 4.2b). The adapter section has no example, deliberately. Nothing was run inside the app, against a real Ollama, or with an agent calling a registered tool. Docs only; no code changed, so the gates below are the unchanged-tree sanity run.
+
+Gates (Node 22): `pnpm typecheck`, `pnpm test:runner`, `pnpm check:test-hygiene` green; unit step run SERIAL (`node scripts/test-workspaces.mjs --tier unit --related --workspace-concurrency=1`), EXIT=0. The first attempt with the default parallel unit step crashed `apps/desktop unit` with SIGSEGV (EXIT=1, environment crash, known Debt row), and was not counted as green.
+
+---
+
 ## 2026-10-30 — Phase 2: ROADMAP 2.5a, context-window guard (`unit-tested`)
 
 **Outcome:** `packages/model-providers/src/contextGuard.ts` (pure; subpath `@cindy/model-providers/context-guard`). `assessContext(usedTokens, contextLength, thresholds)`: `ok` below 80%, `warn` from 80%, `critical` from 95% (both configurable, must satisfy 0 < warn < critical <= 1 or it throws), remaining tokens never negative, and `unknown` with an explanatory message when the context length (from `providers.yaml` `capabilities.contextLength`) or the usage is missing, so it never invents a limit. `guardContext(...)` adds, only at warn/critical, the 2.4a health of the routed `summary` route: ok with the target, or blocked with a reason and alternatives (paid ones flagged, none chosen). Tests: `src/__tests__/contextGuard.test.ts` (9). Mutation check: `>=` to `>` on the critical boundary fails the boundary test.
