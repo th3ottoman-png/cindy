@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 2: ROADMAP 2.2a, endpoint discovery (`unit-tested`)
+
+**Outcome:** `packages/maker-core/src/providers/discovery.ts` (+ subpath `@cindy/maker-core/providers-discovery`): `probeEndpoint(entry)` asks one `providers.yaml` endpoint for its models (Ollama `/api/tags`; others `/v1/models`, or `/models` when the base URL already ends in `/v1`) and returns `{id, status: online|offline|error, models, latencyMs, error?}`; `discoverEndpoints` runs all in parallel and a dead one does not affect the others. Offline = connect failure or timeout (default 2 s); error = reachable but HTTP error, non-JSON or no model list. Never throws. Tests (`__tests__/discovery.test.ts`, 14) run against real `http` servers on 127.0.0.1. Mutation check: allowing redirects fails the redirect test.
+
+**Outbound-call note (AGENTS §3):** this adds `fetch(` but only to base URLs the owner wrote in `providers.yaml`, nothing is polled yet (no caller), the key goes only to that host from the env var the entry names, and redirects are refused so a key cannot be bounced elsewhere.
+
+**Not done:** 2.2b: the polling schedule, IPC, the picker showing online/offline, and a run against a real Ollama or LM Studio (none was probed; no local model server was started).
+
+**Gates (2026-10-30, Node 22.23.4):** typecheck, test:runner, test:unit:related, check:test-hygiene all exit 0 on the final tree. Before that, three consecutive full runs were red from the known `apps/desktop unit` SIGSEGV (plus one `apps/mobile unit` failure on a run that reported 12,766 s, i.e. the machine had suspended). Crash frequency rose after the 3.1b experts IPC test arrived, which used a real `fs.watch` inside a vitest worker thread, so I injected the watcher (`ExpertsHandlerDeps.watch`, default the real `watchExperts`) and that test now uses a fake; real watching stays covered by maker-core's forks-pool tests. One green run is not proof the crash is gone; it is a suspect removed (ROADMAP Debt keeps the root cause).
+
+---
+
 ## 2026-10-30 — Phase 2: ROADMAP 2.1a, `providers.yaml` schema and reader (`unit-tested`)
 
 **Outcome:** `packages/model-providers/src/providersFile.ts` (pure, new subpath `@cindy/model-providers/providers-file`) validates a parsed `providers.yaml`: entries `{id, kind: ollama|lmstudio|llamacpp|openai-compatible, baseUrl, keyEnv?, capabilities{tools,vision,contextLength}}`. Rules: `keyEnv` must look like an env var NAME (`^[A-Z_][A-Z0-9_]*$`), so a pasted key is rejected; `apiKey`/`token`/`secret`-style fields and credentials in the URL are rejected; ids unique and slug-shaped; http(s) only; trailing slash normalised; loopback hosts flagged `local`. A bad entry becomes an issue and the others still load. `packages/maker-core/src/providers/providers-file.ts` (new subpath `@cindy/maker-core/providers-file`) reads the file (missing file = empty registry, YAML errors = file-level issue). Tests: `maker-core/src/providers/__tests__/providers-file.test.ts` (14). Mutation check: disabling the env-name rule fails the key tests.

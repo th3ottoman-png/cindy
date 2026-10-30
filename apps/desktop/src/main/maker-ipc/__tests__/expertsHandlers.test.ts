@@ -5,6 +5,8 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MAKER_INVOKE, MAKER_PUSH } from '../channels';
+import { loadExperts, type ExpertEntry, type watchExperts } from '@cindy/maker-core/experts';
+
 import { registerExpertsHandlers, type ExpertsHandlerHandle } from '../expertsHandlers';
 import { IpcHarness } from './helpers/ipcHarness';
 
@@ -52,33 +54,43 @@ describe('experts IPC', () => {
     await expect(harness.invoke(MAKER_INVOKE.EXPERTS_LIST)).rejects.toThrow('untrusted sender');
   });
 
-  it('pushes the fresh list when an expert file changes after the first list call', async () => {
+  // The watcher is faked: real fs.watch inside a vitest worker thread is a native handle that
+  // risks the threads-pool teardown SIGSEGV (ROADMAP Debt). Real watching is covered by
+  // maker-core's expert-loader tests, which run in the forks pool.
+  function fakeWatch() {
+    const calls: Array<{ root: string; onChange: (entries: ExpertEntry[]) => void; closed: boolean }> = [];
+    const watch = ((root: string, onChange: (entries: ExpertEntry[]) => void) => {
+      const call = { root, onChange, closed: false };
+      calls.push(call);
+      return { close: () => { call.closed = true; } };
+    }) as unknown as typeof watchExperts;
+    return { calls, watch };
+  }
+
+  it('starts one watcher on the first list call and pushes what it reports', async () => {
     writeExpert('one', '---\nname: One\n---\nPrompt.\n');
     const broadcast = vi.fn();
+    const { calls, watch } = fakeWatch();
     const harness = new IpcHarness();
-    handle = registerExpertsHandlers(harness, { rootDir: root, assertTrusted: vi.fn(), broadcast });
+    handle = registerExpertsHandlers(harness, { rootDir: root, assertTrusted: vi.fn(), broadcast, watch });
+    expect(calls).toHaveLength(0);
+
     await harness.invoke(MAKER_INVOKE.EXPERTS_LIST);
+    await harness.invoke(MAKER_INVOKE.EXPERTS_LIST);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].root).toBe(root);
 
-    // The watcher may not deliver events for a moment after it starts; re-apply the change per poll.
-    await vi.waitFor(
-      () => {
-        writeExpert('one', '---\nname: Renamed\n---\nPrompt.\n');
-        const last = broadcast.mock.calls.at(-1);
-        expect(last?.[0]).toBe(MAKER_PUSH.EXPERTS_CHANGED);
-        expect(last?.[1][0].expert.name).toBe('Renamed');
-      },
-      // interval > the handler's 150 ms debounce, or each re-write would reset it
-      { timeout: 15_000, interval: 500 },
-    );
-  }, 60_000);
+    const fresh = loadExperts(root);
+    calls[0].onChange(fresh);
+    expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.EXPERTS_CHANGED, fresh);
+  });
 
-  it('does not watch until the first list call', async () => {
-    writeExpert('one', '---\nname: One\n---\nPrompt.\n');
-    const broadcast = vi.fn();
-    handle = registerExpertsHandlers(new IpcHarness(), { rootDir: root, assertTrusted: vi.fn(), broadcast });
-    writeExpert('one', '---\nname: Changed\n---\nPrompt.\n');
-    // real-wait: asserting that no watcher event fires needs a bounded quiet period
-    await new Promise((r) => setTimeout(r, 500));
-    expect(broadcast).not.toHaveBeenCalled();
+  it('closes the watcher on dispose', async () => {
+    const { calls, watch } = fakeWatch();
+    const harness = new IpcHarness();
+    const h = registerExpertsHandlers(harness, { rootDir: root, assertTrusted: vi.fn(), broadcast: vi.fn(), watch });
+    await harness.invoke(MAKER_INVOKE.EXPERTS_LIST);
+    h.dispose();
+    expect(calls[0].closed).toBe(true);
   });
 });

@@ -15,7 +15,8 @@
     "./skill-scan-limits": "./src/agents/shared/skill-scan-limits.ts",
     "./hermes-provider-env": "./src/agents/hermes/hermes-provider-env.ts",
     "./experts": "./src/experts/expert-loader.ts",
-    "./providers-file": "./src/providers/providers-file.ts"
+    "./providers-file": "./src/providers/providers-file.ts",
+    "./providers-discovery": "./src/providers/discovery.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

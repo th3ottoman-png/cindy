@@ -17,6 +17,8 @@ export interface ExpertsHandlerDeps {
   assertTrusted(event: unknown): void;
   /** Production: send to every BrowserWindow. */
   broadcast(channel: string, payload: ExpertEntry[]): void;
+  /** Directory watcher; production default is the real `watchExperts`. Injected so tests need no native fs.watch. */
+  watch?: typeof watchExperts;
 }
 
 export interface ExpertsHandlerHandle {
@@ -30,7 +32,7 @@ export function registerExpertsHandlers(
   let watcher: ExpertWatcher | undefined;
   registry.handle(MAKER_INVOKE.EXPERTS_LIST, (event) => {
     deps.assertTrusted(event);
-    watcher ??= watchExperts(deps.rootDir, (entries) => deps.broadcast(MAKER_PUSH.EXPERTS_CHANGED, entries));
+    watcher ??= (deps.watch ?? watchExperts)(deps.rootDir, (entries) => deps.broadcast(MAKER_PUSH.EXPERTS_CHANGED, entries));
     return loadExperts(deps.rootDir);
   });
   return {
