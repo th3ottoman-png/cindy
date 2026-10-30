@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 4: ROADMAP 4.3a, MCP server catalog and health (pure logic)
+
+**Outcome:** new `packages/maker-core/src/mcp/mcp-catalog.ts` (+ `__tests__/mcp-catalog.test.ts`, 11 tests) and the `./mcp-catalog` export in `packages/maker-core/package.json`. `buildMcpCatalog` flattens `{source, servers}` inputs into entries with `id = source/name`; env and header values never appear (key names only), http targets lose credentials and query, malformed entries (both command and url, neither, non-http url) become `invalid` with a reason. `checkMcpHealth` is static: stdio needs an executable file (PATH search or absolute path; a non-executable file is `missing-command`); http is `unchecked` unless the caller passes a `probe`, so nothing in the module touches the network or spawns a process. Mutation check: removing the URL stripping fails the strip test. Real temp files with real mode bits, no mocks of fs.
+
+**Not claimed:** `unit-tested` only. Not fed from the real `~/.hermes-cindy/config.yaml`, no IPC, no UI, no start/stop. The lizi bridge is in-process and has no config entry, so it needs a source adapter in 4.3b. "Add to expert" is deferred: `tools.yaml` has no schema yet (ROADMAP §3 says only "allow/deny list"), and inventing one here would pre-empt 3.2. Nothing consumes the module.
+
+Gates (Node 22): `pnpm typecheck && pnpm test:runner && pnpm test:unit:related && pnpm check:test-hygiene`, EXIT=0 on the default parallel unit step (no SIGSEGV this run).
+
+---
+
 ## 2026-10-30 — Phase 4: ROADMAP 4.4a, skill scan and local install (pure logic)
 
 **Outcome:** new `packages/maker-core/src/skills/skill-manager.ts` (+ `__tests__/skill-manager.test.ts`, 15 tests, real files in temp dirs) and the `./skills` export in `packages/maker-core/package.json`. `scanSkill` validates `SKILL.md` frontmatter (`name` slug, optional `description`) and applies line rules: HIGH pipe-to-shell, decode-to-shell, rm of root/home, credential-path reads, `.env` reads; MEDIUM eval/exec, network calls, sudo/chmod, package installs, unscanned large or binary files; LOW bundled scripts. Symlinks give verdict `blocked`. `installSkill` scans first, refuses HIGH without `acknowledgeHigh`, never installs a symlinked skill, never overwrites, rejects a category that is not a plain slug, copies to a temp dir inside the category and renames. `listInstalledSkills` reads the Hermes two-level layout. Mutation check: disabling the `blocked` refusal fails the symlink test.

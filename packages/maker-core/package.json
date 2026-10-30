@@ -20,6 +20,7 @@
     "./extensions": "./src/extensions/registry.ts",
     "./plugins": "./src/plugins/plugin-loader.ts",
     "./skills": "./src/skills/skill-manager.ts",
+    "./mcp-catalog": "./src/mcp/mcp-catalog.ts",
     "./routing-file": "./src/providers/routing-file.ts"
   },
   "scripts": {
