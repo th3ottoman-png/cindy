@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 3: ROADMAP 3.6a, expert handoff prompt (pure logic)
+
+**Outcome:** new `packages/maker-core/src/experts/expert-handoff.ts` (+ `__tests__/expert-handoff.test.ts`, 7 tests) and the `./expert-handoff` export. `buildExpertHandoff` returns a draft first message for a new session: source session label, the owner's question (default: a plain review request), and an excerpt of the conversation. It is deterministic and calls no model: newest messages are kept within `maxChars` (default 12000; the newest is always kept), each message is cut at `maxMessageChars` (default 2000), tool calls appear by name only so no tool input or output leaks, credentials are redacted with the 5.2a redactor, and an empty source or unloaded expert returns an error instead of a prompt. Nothing starts a session, which keeps the "owner stays in the loop" rule. Mutation check: appending tool output to the tool line fails the payload test.
+
+**Not claimed:** `unit-tested` only. No UI action, no adapter from real stored messages, no new session created, no live run. Overlap noted: upstream `apps/desktop/src/main/maker-ipc/agentHandoff.ts` builds a similar deterministic handoff for engine switches inside one session; it lives in desktop and cannot be imported from `maker-core`, and 3.6b should reuse its `buildHandoffText` for the real-message adapter rather than copy it.
+
+Gates (Node 22): `pnpm typecheck && pnpm test:runner && pnpm test:unit:related && pnpm check:test-hygiene`, EXIT=0 on the default parallel unit step (no SIGSEGV this run).
+
+---
+
 ## 2026-10-30 — Phase 5: ROADMAP 5.2a, session export to Markdown (pure logic)
 
 **Outcome:** new `packages/maker-core/src/export/session-markdown.ts` (+ `__tests__/session-markdown.test.ts`, 11 tests, real temp dirs) and the `./session-export` export. Input is a minimal `ExportSession` (title, agent, model, messages with optional tool calls) so the real stored-message adapter stays a separate 5.2b step. Output: YAML frontmatter, a title, `## User/Assistant/System` sections, tool calls in collapsed `<details>` blocks with fenced input/output (fence longer than any backtick run inside, cut at 2000 chars with a marker), message headings escaped so a message cannot forge sections, credentials redacted (`sk-…`, `Bearer …`, `api_key=`/`password:` style). `writeSessionExport` creates the target directory and never overwrites: it writes a temp file and `link`s it into place so an existing file fails with EEXIST and the next `-N` name is used. Self-review caught a bug before the first test run (the redaction callback could print a numeric match offset for a `Bearer` token ending in `=`); it is now covered by a test. Mutation check: replacing `link` with `rename` fails the no-overwrite test.

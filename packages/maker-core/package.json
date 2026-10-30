@@ -23,6 +23,7 @@
     "./mcp-catalog": "./src/mcp/mcp-catalog.ts",
     "./expert-memory": "./src/experts/expert-memory.ts",
     "./session-export": "./src/export/session-markdown.ts",
+    "./expert-handoff": "./src/experts/expert-handoff.ts",
     "./routing-file": "./src/providers/routing-file.ts"
   },
   "scripts": {
