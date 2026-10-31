@@ -26,7 +26,8 @@
     "./vault-notes": "./src/notes/vault-notes.ts",
     "./scheduled-sessions": "./src/schedules/scheduled-sessions.ts",
     "./expert-handoff": "./src/experts/expert-handoff.ts",
-    "./routing-file": "./src/providers/routing-file.ts"
+    "./routing-file": "./src/providers/routing-file.ts",
+    "./turn-timeline": "./src/tasks/turn-timeline.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
