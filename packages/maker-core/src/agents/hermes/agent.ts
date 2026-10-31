@@ -154,7 +154,11 @@ export class HermesAgent extends BaseAgent {
 
   private static baseCapabilities(): Capabilities {
     return {
-      switchModel: unsupported(),
+      // Per-session model override is implemented (handle.setModel → query/setModel,
+      // applied to the next turn by the daemon). 1.8c-1 and 1.8d proved it against the
+      // real CLI. Declaring it unsupported made session.setModel throw before reaching
+      // the handle, so the desktop picker could never change a Hermes session's model.
+      switchModel: { supported: true },
       // Model selection comes from the Hermes home's own config; the daemon
       // omits `-m` for this descriptor.
       availableModels: [{

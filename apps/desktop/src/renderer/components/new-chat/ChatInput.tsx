@@ -51,6 +51,7 @@ import { WindowsSelectionReplacement } from './WindowsSelectionReplacement';
 import { useVoiceProcessingIndicator } from '../../voice-input/useVoiceProcessingIndicator';
 import { EmptyDocSelectionGuard } from './EmptyDocSelectionGuard';
 import { restoreComposerDocument } from './restoreComposerDocument';
+import { resolveModelChangeLane } from './modelChangeLane';
 import {
   hasFocusMovedToInteractiveElement,
   useComposerSendFocusRestore,
@@ -122,7 +123,7 @@ import {
   subscribeSessionLinkInsert,
   subscribeTodoReferenceInsert,
 } from '@/lib/composerActionsBus';
-import { resolveComposerModelSelection } from './composerModelSelection';
+import { resolveComposerDisplayProfile, resolveComposerModelSelection } from './composerModelSelection';
 import type { SessionRuntimeProfileProjection, SessionRuntimePendingProjection } from '@/lib/ccAgent.types';
 import {
   ModelSelector,
@@ -1844,7 +1845,11 @@ export function ChatInput({
       effort: initialEffort === null || initialEffort === '' ? null : initialEffort ?? localVendorDefaults.effort,
       fastMode: fastMode ?? false,
     },
-    effective: sessionId ? runtimeEffective : undefined,
+    effective: resolveComposerDisplayProfile({
+      sessionId,
+      runtimeAgentKind,
+      runtimeEffective,
+    }),
     pending: sessionId ? runtimePending : undefined,
     intent: agentSwitchIntent,
     optimistic: pendingRemoteSwitch,
@@ -7873,8 +7878,18 @@ export function ChatInput({
   const performModelChange = useCallback(
     async (newModelId: string, expectedAgentSwitchRevision?: number) => {
       if (settingsLocked) return false;
-      if (sessionId && sessionAgentSwitchSupported && !remoteHostId && runtimeAgentKind &&
-          expectedAgentSwitchRevision === undefined) {
+      // Hermes 走 SET_MODEL(见 modelChangeLane):它没有换引擎事务,送进
+      // switch-session-agent 只会被 host 的 targetAgentKind 守卫判成 INVALID_PARAMS。
+      if (
+        sessionId &&
+        runtimeAgentKind &&
+        resolveModelChangeLane({
+          runtimeAgentKind,
+          sessionAgentSwitchSupported,
+          remoteHostId,
+          expectedAgentSwitchRevision,
+        }) === 'agent-switch'
+      ) {
         const intent = makerChatStore.getAgentSwitchIntent(sessionId);
         return performAgentSwitch(intent?.target ?? runtimeAgentKind, newModelId,
           intent ? intent.providerId : effectiveSourceId ?? null);
@@ -8484,8 +8499,17 @@ export function ChatInput({
       reconciledFast?: boolean | 'ultrafast',
     ) => {
       if (settingsLocked) return false;
-      if (sessionId && sessionAgentSwitchSupported && !remoteHostId && runtimeAgentKind &&
-          expectedAgentSwitchRevision === undefined) {
+      // 同 performModelChange:Hermes 的换模型/换来源都是 SET_MODEL,不进换引擎事务。
+      if (
+        sessionId &&
+        runtimeAgentKind &&
+        resolveModelChangeLane({
+          runtimeAgentKind,
+          sessionAgentSwitchSupported,
+          remoteHostId,
+          expectedAgentSwitchRevision,
+        }) === 'agent-switch'
+      ) {
         const intent = makerChatStore.getAgentSwitchIntent(sessionId);
         return performAgentSwitch(intent?.target ?? runtimeAgentKind,
           reconciledModelId ?? intent?.model ?? activeModel, newProviderId, {

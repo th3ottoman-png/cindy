@@ -559,6 +559,15 @@ describe('HermesAgent', () => {
     }
   });
 
+  it('advertises switchModel so the session gate lets a per-session model change through', () => {
+    // Regression: the capability said unsupported while handle.setModel already
+    // implemented the per-session override (query/setModel). Session.setModel checks
+    // the capability first, so it threw NotSupportedError before reaching the handle and
+    // the desktop picker could never change a Hermes session's model (1.8c-2).
+    const agent = buildAgent();
+    expect(agent.capabilities.switchModel).toEqual({ supported: true });
+  });
+
   it('sends query/interrupt on abort, and close is idempotent', async () => {
     const daemon = await startDaemon({ turn: 'abort' });
     const handle = await start(buildAgent());

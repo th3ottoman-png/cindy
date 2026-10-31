@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import ts from 'typescript';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resolveModelChangeLane } from '../components/new-chat/modelChangeLane';
 
 import type { Session } from '@/lib/ccAgent.types';
 import { resolveManualCompactChannel } from '@/hooks/useAgentCapabilities';
@@ -896,6 +897,9 @@ describe("ChatInput 的入口门控与调用路由", () => {
     const switchAgent = vi.fn(async () => true);
     const bindings = { sessionOrcaRole, settingsLocked: false, sessionId: 's1',
       sessionAgentSwitchSupported: true, remoteHostId: null, runtimeAgentKind: 'codex',
+      // The callbacks delegate the lane choice to this predicate; binding the real one keeps
+      // the test honest about which transaction a pick actually takes.
+      resolveModelChangeLane,
       makerChatStore: { getAgentSwitchIntent: () => null }, performAgentSwitch: switchAgent,
       effectiveSourceId: 'provider-old', activeModel: 'model-old' };
     function callback(name: string) {

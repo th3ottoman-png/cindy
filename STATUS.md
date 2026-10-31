@@ -10,6 +10,67 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-31 — Phase 1: ROADMAP 1.8c-2 closed, Hermes model switch from the desktop picker (`live-proven`)
+
+Three separate defects sat between the picker and a working switch. All three are fixed,
+and the switch is now proven end to end in the running app.
+
+1. **Wrong transaction (renderer).** `performModelChange` and `performProviderChange` sent
+   every session model change through `switchSessionAgent` whenever a runtime agent kind
+   existed. For Hermes that meant `targetAgentKind: 'hermes'`, which
+   `performSessionAgentSwitch` rejects (`targetAgentKind must be claude-code | codex | pi`),
+   surfaced to the user as `INVALID_PARAMS` / "Invalid input. Please check and try again."
+   New `apps/desktop/src/renderer/components/new-chat/modelChangeLane.ts`
+   (`resolveModelChangeLane`) decides the lane in one place: Hermes and every
+   non-switchable case take SET_MODEL; claude-code, codex and pi keep the agent-switch lane.
+   Both call sites now use it.
+2. **Stale capability (maker-core).** With the lane fixed, `maker:set-model` threw
+   `NotSupportedError: Capability 'switchModel' not supported (reason: not-implemented)`.
+   `packages/maker-core/src/agents/hermes/agent.ts` declared `switchModel: unsupported()`
+   while `handle.setModel` already implemented the per-session override and the daemon
+   handler existed (`hermes-manager.ts` `query/setModel`), and 1.8c-1/1.8d had already
+   proven the behaviour against the real CLI. The flag was stale, not a real limit. Now
+   `{ supported: true }`, with the reasoning recorded in a comment.
+3. **Display did not follow the write (renderer).** The write then landed (DB held
+   `deepseek-v4-pro`) but the composer pill kept showing the previous model, because the
+   composer preferred the live runtime projection and Hermes only applies an override on
+   the *next* turn. A click on the new row was then treated as re-selecting the current
+   row, a deliberate no-op, so the picker looked frozen. New
+   `resolveComposerDisplayProfile` in `composerModelSelection.ts`: Hermes follows the
+   persisted session model, the live-switching harnesses keep the runtime projection.
+
+**Verification.** `unit-tested` for the two predicates and the capability (10 + 8 + 27
+tests, each mutation-checked: removing the guard fails exactly its own test).
+`typecheck` `EXIT=0`; `test:runner` `EXIT=0`; `check:test-hygiene` `EXIT=0`.
+
+Unit tier: the owner's run failed two Orca source-contract tests
+(`sessionAgentSwitchRemoteRouting.test.ts`), because that harness executes the
+`performModelChange` / `performProviderChange` bodies in isolation with a fixed binding
+set and did not know the new predicate. Fixed by binding the real `resolveModelChangeLane`
+into the harness (file 55/55). Re-run of the desktop tier in the agent shell afterwards:
+61,540 passed, 1 failed, and the single failure is `askpass.native`, the documented
+`/bin/ps` EPERM blocker in that shell, unrelated to this change. A fully green unit run in
+the owner's shell is therefore still outstanding for strict rule-0 compliance, though the
+only real failures it produced are fixed and re-verified.
+
+`live-proven` 2026-10-31 in the dev app: after a reload the pill read `deepseek-v4-pro`,
+clicking flash and then pro moved the selection both ways, `sessions.model` for session
+`7ad6b464` ended at `deepseek-v4-pro`, and the log carried no `set-model`,
+`NotSupportedError` or `INVALID_PARAMS` lines for the whole run.
+
+**Scope note.** Safe mode was not re-run separately: SET_MODEL does not touch permission
+mode, and 1.8d covers the `/model` replay under safe mode with fake-Hermes tests. Full
+access is what the live run used.
+
+**Surprises worth keeping.** A failed switch whose rollback also fails leaves the pill on
+the model that was never applied; that is how this looked "already on pro" while the DB
+said default. The two `AgentKind` vocabularies (`claude-code` vs `cc`) also collide here,
+so the predicate accepts both spellings. `docs/design-rules/design-inventory.md` was
+regenerated (one added file, `modelChangeLane.ts`, nothing removed) because adding a module
+under `components/new-chat` changes the `desktop.bots` surface file count.
+
+---
+
 ## 2026-10-31 — Phase 1: ROADMAP 1.5a closed (docs only)
 
 **Outcome:** 1.5a (MCP server config management: list/set/remove RPCs + UI) was still labelled 🧪 with the note "live-prove via 0.8", but 0.8's `live-proven` record (STATUS 2026-10-29) already exercised exactly this surface: a stdio MCP server added and removed through the Settings UI, `config.yaml` diffed after each step, `hermes-cindy mcp test` connected. Row updated to ✅ `live-proven` citing that evidence, same closure pattern as 1.7. No code changed; the residual empty `mcp_servers:` key stays in Debt.

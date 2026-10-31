@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveComposerModelSelection } from '../composerModelSelection';
+import { resolveComposerDisplayProfile, resolveComposerModelSelection } from '../composerModelSelection';
 import type { SessionRuntimeProfileProjection } from '@/lib/ccAgent.types';
 
 const current: SessionRuntimeProfileProjection = { agentKind: 'codex', model: 'codex/gpt-5.6-sol', providerId: 'xd', effort: 'high', fastMode: true };
@@ -23,5 +23,38 @@ describe('composer model selection projection', () => {
   });
   it('keeps remote Fast and provider in the same optimistic snapshot', () => {
     expect(resolveComposerModelSelection({ current, optimistic: next })).toEqual({ current, display: next, pending: true });
+  });
+});
+
+describe('composer display profile per agent', () => {
+  it('ignores the lagging runtime projection for hermes so a landed switch is visible', () => {
+    // Regression: the DB held deepseek-v4-pro after a successful switch while the pill
+    // kept showing the runtime model, so clicking the new row looked like a no-op.
+    expect(
+      resolveComposerDisplayProfile({
+        sessionId: 's1',
+        runtimeAgentKind: 'hermes',
+        runtimeEffective: current,
+      }),
+    ).toBeUndefined();
+  });
+
+  it.each(['claude-code', 'codex', 'pi'] as const)(
+    'keeps the runtime projection authoritative for %s',
+    (kind) => {
+      expect(
+        resolveComposerDisplayProfile({
+          sessionId: 's1',
+          runtimeAgentKind: kind,
+          runtimeEffective: current,
+        }),
+      ).toEqual(current);
+    },
+  );
+
+  it('has no runtime projection for a draft', () => {
+    expect(
+      resolveComposerDisplayProfile({ sessionId: null, runtimeAgentKind: 'codex', runtimeEffective: current }),
+    ).toBeUndefined();
   });
 });
