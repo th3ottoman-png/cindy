@@ -1,12 +1,20 @@
 /**
  * Session-title routing through the shared auxiliary-model chain.
  *
- * Automatic and custom chains both go through `requestUtilityText`. Automatic
- * routing may fall back to the owning session agent when the auxiliary chain
- * is unavailable; an explicit custom/env chain remains fail-closed.
+ * Owner routing wins first (ROADMAP 2.3b): when `~/.cindy-harness/routing.yaml` routes the
+ * `title` task class, the title is generated on that endpoint and a blocked or failed route
+ * fails closed — it never falls through to the auxiliary chain or a paid provider (ROADMAP 2.4).
+ * With no routing rule, behaviour is unchanged: automatic and custom chains both go through
+ * `requestUtilityText`. Automatic routing may fall back to the owning session agent when the
+ * auxiliary chain is unavailable; an explicit custom/env chain remains fail-closed.
  */
 
 import type { AgentKind } from '@cindy/maker-core';
+import {
+  requestRoutedTaskText,
+  type RoutedTaskTextRequest,
+  type RoutedTaskTextResult,
+} from '@cindy/maker-core/routed-auxiliary';
 import { AUTO_TITLE_MAX_CHARS } from '@cindy/maker-shared/session-title';
 
 import { activeOwnerScopeKey, isAppSessionBoundaryPending } from '../appSessionState.js';
@@ -41,12 +49,15 @@ interface AuxiliaryTitleRuntimeDeps {
     prompt: string,
     opts: Parameters<typeof requestUtilityText>[2],
   ) => ReturnType<typeof requestUtilityText>;
+  /** Owner `routing.yaml` lookup for the `title` task class (ROADMAP 2.3b). */
+  requestRouted: (args: RoutedTaskTextRequest) => Promise<RoutedTaskTextResult>;
 }
 
 const DEFAULT_DEPS: AuxiliaryTitleRuntimeDeps = {
   readModels: () => readAuxiliaryModelSettings().models,
   readOwnerScope: () => activeOwnerScopeKey(),
   requestText: (prompt, opts) => requestUtilityText(getMaker(), prompt, opts),
+  requestRouted: (args) => requestRoutedTaskText(args),
 };
 
 type TitleRequest = {
@@ -146,6 +157,29 @@ async function generateAuxiliaryTitle(
   args: TitleRequest,
   deps: AuxiliaryTitleRuntimeDeps,
 ): Promise<TitleOneShotResult> {
+  // The owner's routing.yaml decides first. `not-routed` keeps the historical chain below;
+  // an explicit route that cannot run fails closed instead of silently spending a paid call.
+  const routed = await deps.requestRouted({
+    taskClass: 'title',
+    prompt: args.prompt,
+    systemPrompt: AUXILIARY_TITLE_RESPONSE_INSTRUCTIONS,
+    maxTokens: AUXILIARY_TITLE_MAX_TOKENS,
+    timeoutMs: AUXILIARY_TITLE_TIMEOUT_MS,
+    ...(args.signal ? { signal: args.signal } : {}),
+  });
+  if (routed.kind === 'ok') {
+    const routedTitle = normalizeAuxiliaryTitle(routed.text);
+    return routedTitle ? { status: 'ok', title: routedTitle } : { status: 'failed' };
+  }
+  if (routed.kind !== 'not-routed') {
+    log.warn('routed title generation unavailable — failing closed', {
+      kind: routed.kind,
+      ...(routed.kind === 'blocked'
+        ? { reason: routed.reason, message: routed.message, alternatives: routed.alternatives.map((a) => a.routeName) }
+        : { message: routed.message, routeName: routed.routeName, provider: routed.provider, model: routed.model }),
+    });
+    return { status: 'failed' };
+  }
   const result = await requestAuxiliaryText({
     agentKind: args.agentKind,
     prompt: args.prompt,

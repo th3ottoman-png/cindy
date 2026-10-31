@@ -4,6 +4,7 @@ const h = vi.hoisted(() => ({
   models: [] as string[],
   ownerScope: 'local:owner-a:1',
   requestText: vi.fn(),
+  requestRouted: vi.fn(),
   oneShot: vi.fn(),
   chainSource: 'auto' as 'auto' | 'custom' | 'env',
   sessionBoundaryPending: false,
@@ -54,6 +55,7 @@ function runtimeDeps() {
     readModels: () => h.models,
     readOwnerScope: () => h.ownerScope,
     requestText: h.requestText,
+    requestRouted: h.requestRouted,
   };
 }
 
@@ -65,6 +67,7 @@ beforeEach(() => {
   h.sessionBoundaryPending = false;
   h.oneShotRouteDisabled = false;
   h.oneShot.mockResolvedValue('会话 Agent 命名');
+  h.requestRouted.mockResolvedValue({ kind: 'not-routed' });
   h.requestText.mockImplementation(async (_prompt: string, options: Record<string, unknown>) => {
     const allowed = await (options.beforeDispatch as () => Promise<boolean>)();
     return allowed
@@ -256,5 +259,63 @@ describe('auxiliary task-title routing', () => {
 
     await expect(generateTitleWithAuxiliaryModel(REQUEST, {}, runtimeDeps())).resolves.toBeNull();
     expect(h.oneShot).not.toHaveBeenCalled();
+  });
+});
+
+describe('owner routing.yaml decides first (ROADMAP 2.3b)', () => {
+  it('uses the routed endpoint and never touches the auxiliary chain or the session agent', async () => {
+    h.requestRouted.mockResolvedValue({
+      kind: 'ok', text: '  Local Title  ', routeName: 'small', provider: 'ollama-local', model: 'qwen3:8b',
+    });
+
+    await expect(generateTitleWithAuxiliaryModel(REQUEST, {}, runtimeDeps())).resolves.toBe('Local Title');
+    await expect(generateTitleWithAuxiliaryModelResult(REQUEST, {}, runtimeDeps())).resolves.toEqual({
+      status: 'ok', title: 'Local Title',
+    });
+    expect(h.requestText).not.toHaveBeenCalled();
+    expect(h.oneShot).not.toHaveBeenCalled();
+    expect(h.requestRouted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskClass: 'title',
+        prompt: REQUEST.prompt,
+        maxTokens: 160,
+        timeoutMs: 12_000,
+        systemPrompt: expect.stringContaining('Output only the short conversation title'),
+      }),
+    );
+  });
+
+  it('fails closed on a blocked route instead of falling through to the paid chain', async () => {
+    h.requestRouted.mockResolvedValue({
+      kind: 'blocked', reason: 'provider-offline', message: '"ollama-local" is offline', alternatives: [],
+    });
+
+    await expect(generateTitleWithAuxiliaryModel(REQUEST, {}, runtimeDeps())).resolves.toBeNull();
+    expect(h.requestText).not.toHaveBeenCalled();
+    expect(h.oneShot).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the routed generation call itself fails', async () => {
+    h.requestRouted.mockResolvedValue({
+      kind: 'failed', message: 'HTTP 500', routeName: 'small', provider: 'ollama-local', model: 'qwen3:8b',
+    });
+
+    await expect(generateTitleWithAuxiliaryModel(REQUEST, {}, runtimeDeps())).resolves.toBeNull();
+    expect(h.requestText).not.toHaveBeenCalled();
+    expect(h.oneShot).not.toHaveBeenCalled();
+  });
+
+  it('rejects routed output that fails title validation, same as the chain output', async () => {
+    h.requestRouted.mockResolvedValue({
+      kind: 'ok', text: 'x'.repeat(300), routeName: 'small', provider: 'ollama-local', model: 'qwen3:8b',
+    });
+
+    await expect(generateTitleWithAuxiliaryModel(REQUEST, {}, runtimeDeps())).resolves.toBeNull();
+  });
+
+  it('keeps the historical chain untouched when no routing rule exists', async () => {
+    await expect(generateTitleWithAuxiliaryModel(REQUEST, {}, runtimeDeps())).resolves.toBe('通用任务命名');
+    expect(h.requestRouted).toHaveBeenCalledOnce();
+    expect(h.requestText).toHaveBeenCalledOnce();
   });
 });
