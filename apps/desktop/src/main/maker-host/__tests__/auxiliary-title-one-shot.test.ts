@@ -12,7 +12,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('../../logger.js', () => ({
-  createLogger: () => ({ warn: vi.fn() }),
+  createLogger: () => ({ debug: vi.fn(), warn: vi.fn() }),
 }));
 
 vi.mock('../index.js', () => ({
@@ -278,8 +278,8 @@ describe('owner routing.yaml decides first (ROADMAP 2.3b)', () => {
       expect.objectContaining({
         taskClass: 'title',
         prompt: REQUEST.prompt,
-        maxTokens: 160,
-        timeoutMs: 12_000,
+        maxTokens: 1024,
+        timeoutMs: 45_000,
         systemPrompt: expect.stringContaining('Output only the short conversation title'),
       }),
     );

@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   boundaryPending: false,
   afterDispatch: null as null | (() => void),
   requestUtilityText: vi.fn(),
+  requestRouted: vi.fn(),
 }));
 
 vi.mock('../../logger.js', () => ({
@@ -64,6 +65,10 @@ vi.mock('../../maker-host/index.js', () => ({
   getMaker: () => ({}),
 }));
 
+vi.mock('@cindy/maker-core/routed-auxiliary', () => ({
+  requestRoutedTaskText: (...args: unknown[]) => h.requestRouted(...args),
+}));
+
 import { generatePromptPrediction } from '../promptPrediction.js';
 import {
   notePromptPredictionSessionCancelled,
@@ -107,6 +112,7 @@ beforeEach(() => {
   h.owner = 'owner-a:1';
   h.boundaryPending = false;
   h.rows = [{ ...VALID_ROW }, { ...VALID_ROW }];
+  h.requestRouted.mockResolvedValue({ kind: 'not-routed' });
   h.requestUtilityText.mockImplementation(
     async (_maker: unknown, _prompt: string, options: Record<string, unknown>) => {
       h.beforeDispatchCalls += 1;
@@ -304,5 +310,65 @@ describe('prompt prediction completion revision guard', () => {
     await expect(predict()).resolves.toBeNull();
     expect(h.beforeDispatchCalls).toBe(1);
     expect(h.dbReads).toBe(2);
+  });
+});
+
+describe('owner routing.yaml decides first (ROADMAP 2.3b-3)', () => {
+  const okRouted = (text: string) => ({
+    kind: 'ok' as const, text, routeName: 'small', provider: 'lmstudio-local', model: 'qwen3:8b',
+  });
+
+  it('uses the routed endpoint and never touches the shared chain', async () => {
+    h.requestRouted.mockResolvedValue(okRouted('  run the tests again  '));
+
+    await expect(predict()).resolves.toBe('run the tests again');
+    expect(h.requestUtilityText).not.toHaveBeenCalled();
+    expect(h.requestRouted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskClass: 'predict',
+        maxTokens: 512,
+        timeoutMs: 45_000,
+        systemPrompt: expect.stringContaining('terse predictive text engine'),
+      }),
+    );
+  });
+
+  it.each([
+    ['blocked', { kind: 'blocked' as const, reason: 'provider-offline' as const, message: '"lmstudio-local" is offline', alternatives: [] }],
+    ['failed', { kind: 'failed' as const, message: 'HTTP 500', routeName: 'small', provider: 'lmstudio-local', model: 'qwen3:8b' }],
+  ])('fails closed on a %s route instead of falling back to the paid chain', async (_label, routed) => {
+    h.requestRouted.mockResolvedValue(routed);
+
+    await expect(predict()).resolves.toBeNull();
+    expect(h.requestUtilityText).not.toHaveBeenCalled();
+  });
+
+  it('rejects routed output that fails validation, same as the chain output', async () => {
+    h.requestRouted.mockResolvedValue(okRouted('invalid\nmultiline'));
+
+    await expect(predict()).resolves.toBeNull();
+    expect(h.requestUtilityText).not.toHaveBeenCalled();
+  });
+
+  it('discards a routed result when a Stop arrives while the call is in flight', async () => {
+    h.requestRouted.mockImplementation(async () => {
+      notePromptPredictionSessionStopped('session-1');
+      return okRouted('late suggestion');
+    });
+
+    await expect(predict()).resolves.toBeNull();
+  });
+
+  it('does not fire the routed call after the prediction was cancelled', async () => {
+    notePromptPredictionSessionCancelled('session-1', 200, h.owner);
+
+    await expect(predict()).resolves.toBeNull();
+    expect(h.requestRouted).not.toHaveBeenCalled();
+  });
+
+  it('keeps the shared chain untouched when predict is not routed', async () => {
+    await expect(predict()).resolves.toBe('继续补测试');
+    expect(h.requestRouted).toHaveBeenCalledOnce();
+    expect(h.requestUtilityText).toHaveBeenCalledOnce();
   });
 });

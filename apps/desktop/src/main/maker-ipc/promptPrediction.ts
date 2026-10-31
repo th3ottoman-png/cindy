@@ -1,11 +1,18 @@
 /**
  * promptPrediction —— 输入框推荐提示词的 one-shot 预测。
  *
- * 走共享辅助模型链（`requestUtilityText`），不再按当前任务目录挑最便宜模型。
+ * 业主的 `routing.yaml` 优先(ROADMAP 2.3b-3):`predict` 任务类被路由时,预测直接
+ * 在该端点上生成,被阻断 / 失败时静默 fail-closed,绝不落回付费链(ROADMAP 2.4)。
+ * 未路由时走共享辅助模型链（`requestUtilityText`），不再按当前任务目录挑最便宜模型。
  * 失败静默返回 null，不 fallback 任何默认文案。
  */
 
 import type { AgentKind } from '@cindy/maker-core';
+import {
+  requestRoutedTaskText,
+  type RoutedTaskTextRequest,
+  type RoutedTaskTextResult,
+} from '@cindy/maker-core/routed-auxiliary';
 
 import { dbToMakerAgentKind } from '../../shared/agentKindConversion.js';
 import { getResolvedMainLocale } from '../i18n.js';
@@ -34,6 +41,11 @@ const PREDICTION_ASSISTANT_MSG_MAX = 600;
 /** 最近 N 轮 user↔assistant 配对数。 */
 const PREDICTION_RECENT_PAIRS = 3;
 const PREDICTION_RETRY_DELAY_MS = 1_500;
+// Routed endpoints: a routed reasoning model spends part of the budget thinking before it
+// answers, and 96 tokens can come back with empty content (seen live on LM Studio
+// qwen3-8b). Headroom budget + longer wall-clock cap; the chain constants stay untouched.
+const PREDICTION_ROUTED_MAX_TOKENS = 512;
+const PREDICTION_ROUTED_TIMEOUT_MS = 45_000;
 
 function isTransientPredictionFailure(result: UtilityTextFailure): boolean {
   const failures = result.attempts.filter((attempt) => attempt.status === 'failed');
@@ -196,9 +208,17 @@ export interface PromptPredictionParams {
  * 预测用户下一步可能输入的提示词。
  * 辅助模型链不可用 / HTTP 失败 / 空响应 / 会话资格变化 → 返回 null。
  */
+export interface PromptPredictionDeps {
+  /** Owner `routing.yaml` lookup for the `predict` task class (ROADMAP 2.3b-3). */
+  requestRouted?: (args: RoutedTaskTextRequest) => Promise<RoutedTaskTextResult>;
+}
+
 export async function generatePromptPrediction(
   params: PromptPredictionParams,
+  deps: PromptPredictionDeps = {},
 ): Promise<string | null> {
+  const requestRouted = deps.requestRouted
+    ?? ((args: RoutedTaskTextRequest) => requestRoutedTaskText(args));
   const requestOwnerScopeKey = activeOwnerScopeKey();
   const isCancelled = () => wasPromptPredictionSessionCancelled(
     params.sessionId, params.completionRevision, requestOwnerScopeKey,
@@ -228,6 +248,50 @@ export async function generatePromptPrediction(
     agentKind: params.agentKind,
     sessionId: params.sessionId,
   });
+
+  // 业主的 routing.yaml 优先(ROADMAP 2.3b-3)。`not-routed` 保持下面的共享辅助链;
+  // 明确路由但跑不起来 → 返回 null,绝不悄悄改走付费链(ROADMAP 2.4)。
+  // 派发前镜像 beforeDispatch 的三道门(边界 / owner / 取消),路由到远端端点时
+  // 这同样是一次花费。
+  if (
+    !isAppSessionBoundaryPending()
+    && activeOwnerScopeKey() === requestOwnerScopeKey
+    && !isCancelled()
+  ) {
+    const routed = await requestRouted({
+      taskClass: 'predict',
+      prompt: truncated,
+      systemPrompt,
+      maxTokens: PREDICTION_ROUTED_MAX_TOKENS,
+      timeoutMs: PREDICTION_ROUTED_TIMEOUT_MS,
+    });
+    if (routed.kind !== 'not-routed') {
+      if (routed.kind !== 'ok') {
+        log.warn('routed prompt prediction unavailable — failing closed', {
+          kind: routed.kind,
+          ...(routed.kind === 'blocked'
+            ? { reason: routed.reason, message: routed.message }
+            : { message: routed.message, routeName: routed.routeName, provider: routed.provider, model: routed.model }),
+        });
+        return null;
+      }
+      // 与链路径同一套派发后丢弃规则:其它窗口 / Device Link 的 Stop、owner 切换
+      // 或会话边界都会作废这次结果,即便调用已经发生。
+      if (
+        wasPromptPredictionSessionStopped(params.sessionId) ||
+        isCancelled() ||
+        isAppSessionBoundaryPending() ||
+        activeOwnerScopeKey() !== requestOwnerScopeKey
+      ) return null;
+      log.debug('prompt prediction generated on routed endpoint', {
+        routeName: routed.routeName,
+        provider: routed.provider,
+        model: routed.model,
+      });
+      const routedNormalized = validateTitleOutput(routed.text, 512);
+      return routedNormalized ? Array.from(routedNormalized).slice(0, 140).join('') : null;
+    }
+  }
 
   let beforeDispatchDrainUpdatedAt: number | undefined;
   if (params.materialDrainUpdatedAt != null) {

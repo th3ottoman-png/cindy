@@ -39,6 +39,12 @@ const AUXILIARY_TITLE_TIMEOUT_MS = 12_000;
 // Allow multi-byte Chinese / emoji titles within the shared character limit.
 const AUXILIARY_TITLE_MAX_TOKENS = AUTO_TITLE_MAX_CHARS * 4;
 const AUXILIARY_TITLE_OUTPUT_MAX_CHARS = 256;
+// Routed (owner-picked) endpoints bill the owner per their own provider, and a routed
+// reasoning model spends part of the budget thinking before it answers. 160 tokens can
+// come back with empty content (seen live on LM Studio qwen3-8b), so the routed call gets
+// a headroom budget and a longer wall-clock cap; the chain constants above stay untouched.
+const ROUTED_TITLE_MAX_TOKENS = 1_024;
+const ROUTED_TITLE_TIMEOUT_MS = 45_000;
 const AUXILIARY_TITLE_RESPONSE_INSTRUCTIONS =
   'Output only the short conversation title requested by the user message, without quotation marks or ending punctuation.';
 
@@ -163,11 +169,16 @@ async function generateAuxiliaryTitle(
     taskClass: 'title',
     prompt: args.prompt,
     systemPrompt: AUXILIARY_TITLE_RESPONSE_INSTRUCTIONS,
-    maxTokens: AUXILIARY_TITLE_MAX_TOKENS,
-    timeoutMs: AUXILIARY_TITLE_TIMEOUT_MS,
+    maxTokens: ROUTED_TITLE_MAX_TOKENS,
+    timeoutMs: ROUTED_TITLE_TIMEOUT_MS,
     ...(args.signal ? { signal: args.signal } : {}),
   });
   if (routed.kind === 'ok') {
+    log.debug('title generated on routed endpoint', {
+      routeName: routed.routeName,
+      provider: routed.provider,
+      model: routed.model,
+    });
     const routedTitle = normalizeAuxiliaryTitle(routed.text);
     return routedTitle ? { status: 'ok', title: routedTitle } : { status: 'failed' };
   }
