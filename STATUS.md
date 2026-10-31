@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-10-30 — Phase 5: ROADMAP 5.4a, scheduled sessions (pure logic)
+
+**Outcome:** new `packages/maker-core/src/schedules/scheduled-sessions.ts` (+ `__tests__/scheduled-sessions.test.ts`, 11 tests) and the `./scheduled-sessions` export. Schedules are Markdown files (frontmatter `expert`, `cron`, `timezone`, `enabled`, `output`; body is the prompt). `loadSchedules` lists bad files with their error beside good ones. `dueSchedules(schedules, lastRunMs, nowMs, cron, firstSeenMs?)` returns what should run: once after downtime, never a backfill for a schedule with no recorded run, nothing for disabled ones or a throwing cron. Cron maths is not reimplemented: it is injected as `CronApi`, and the tests pass the real `parseCron`/`nextRun` from `packages/maker-scheduler/src/engine/cron.ts` (relative import, since maker-core does not depend on maker-scheduler and no dependency was added offline). 5.4b should pass `@cindy/maker-scheduler/cron` in.
+
+**Not claimed:** `unit-tested` only. Nothing starts a session, stores last-run times, writes to the vault or reads settings; nothing ran in the app. Mutation check: `<=` to `<` on the due boundary failed 2 tests; restored.
+
+Gates (Node 22): `pnpm typecheck && pnpm test:runner && pnpm test:unit:related && pnpm check:test-hygiene`, EXIT=0 on the default parallel unit step (no SIGSEGV this run).
+
+---
+
 ## 2026-10-30 — Phase 5: ROADMAP 5.1a, notes vault bridge (pure logic)
 
 **Outcome:** new `packages/maker-core/src/notes/vault-notes.ts` (+ `__tests__/vault-notes.test.ts`, 23 tests with real temp directories) and the `./vault-notes` export. List, read, search and append over a caller-supplied folder of Markdown notes. Paths are relative, `.md` only, no hidden segments, and containment is checked after `realpath`, so `..`, a symlinked note and a symlinked folder all fail with `outside-vault`. Append adds a dated `## <ISO>` entry, keeps earlier bytes, writes atomically, redacts credentials (5.2a `redactSecrets`) and neutralises `#`/`##` in the body. Search needs every term, ranks path matches above body matches, skips files over 512 KiB, redacts snippets.
