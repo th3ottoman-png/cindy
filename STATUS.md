@@ -10,6 +10,14 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-02 — Permission change → fresh Hermes session + notice `live-proven`
+
+- **Run:** dev app from `main` (`a174962c89`, includes `3e8254cf99`), started by the owner. Task `ec5988cb`, `deepseek-v4-pro`. Turn 1 ran in Full access (Hermes `local-f671b164…`, 7 API calls, `history=0` as the first turn). The owner then switched the mode (desktop audit log 16:03:10: `fromMode bypassPermissions` → `toMode default`) and sent "i am thinking one sec".
+- **Observed:** the transcript showed and the DB stored the assistant line "Permission mode changed, so this message starts a new Hermes session without the earlier history." (created 1793635402436, before the reply). Hermes `agent.log` in the same session home: turn 2 is a new session `local-01b2c99c…` with `history=0`, and the DB `sessions.sdk_session_id` now points to it. The history loss is no longer silent. The agent read the results from the DB and logs only (owner screenshot as well).
+- Docs only in this commit.
+
+---
+
 ## 2026-11-02 — Debt: permission change drops Hermes history → fresh session + notice (`unit-tested`; live run open)
 
 - **Cause (read-only, dev session-home logs `session-homes/74824427…/logs`):** the Full-access turn ran through the Hermes gateway (`gateway.run … chat=local-dd4998a6…`, budget 150); the `--safe-mode` turns after the change ran outside it (no `gateway.run` line, unlimited budget) under `local-734661f7…`. The two flags use separate session stores, so a resume across a flag change can never keep history. Keeping the old flag instead would leave a tightened task on `--yolo` (fails open), so the daemon starts fresh on purpose and says so.
