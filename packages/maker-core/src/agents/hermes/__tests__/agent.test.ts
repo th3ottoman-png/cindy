@@ -516,11 +516,15 @@ describe('HermesAgent', () => {
         result: 'hello world',
       });
       // The done event names the model the turn ran on, so the desktop can
-      // price the tokens instead of showing a bare token count.
+      // price the tokens instead of showing a bare token count. Its
+      // `inputTokens` is the uncached part only (the TurnUsageDetails
+      // contract): the desktop adds `cacheReadTokens` on top and prices it at
+      // the cache rate, so leaving cache reads in `inputTokens` priced them
+      // twice (session 506bfaa2 turn 3: 26037 in, 17792 of it cache reads).
       expect(
         (events.find((event) => event.type === 'done')?.data as { usage?: unknown }).usage,
       ).toMatchObject({
-        inputTokens: 10,
+        inputTokens: 8,
         outputTokens: 5,
         cacheReadTokens: 2,
         cacheCreationTokens: 1,
@@ -559,7 +563,7 @@ describe('HermesAgent', () => {
       const usage = (secondEvents.find((event) => event.type === 'done')?.data as {
         usage?: Record<string, unknown>;
       }).usage;
-      expect(usage).toMatchObject({ inputTokens: 10, outputTokens: 5 });
+      expect(usage).toMatchObject({ inputTokens: 8, outputTokens: 5 });
       expect(usage).not.toHaveProperty('model');
     } finally {
       await handle.close();

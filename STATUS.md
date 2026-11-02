@@ -10,6 +10,17 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-02 — Hermes `done` usage no longer double-prices cache reads (`unit-tested`)
+
+- **Proven double count:** Hermes `result.tokens.input` is the full prompt with cache reads inside it. Session `506bfaa2` turn 3, `agent.log`: calls `in=9066 cache=8832` + `in=16971 cache=8960` = 26037 in, 17792 cached, which is exactly the stored `turnUsageDetails` (`inputTokens` 26037, `cacheReadTokens` 17792); turn 2 matches the same way (5229 + 8897 = 14126, cache 5120). The `TurnUsageDetails` contract (`apps/desktop/src/shared/turnUsageDetails.ts`) says `inputTokens` is the uncached part, and `conversationUsage.ts` adds `cacheReadTokens` on top and prices it at the cache rate. So every cached token was priced twice (input rate + cache rate), `totalTokens` was 44111 instead of 26319, and the cache hit rate read 41% instead of 68%.
+- **Fix** (`packages/maker-core/src/agents/hermes/agent.ts`): the `done` usage sends `inputTokens = max(0, tokens.input - tokens.cacheRead)`. `tokenUsage` and `contextTokens` unchanged. `cacheWrite` is still not subtracted: only cache reads are proven to sit inside `in=` (DeepSeek reports no cache writes); if Hermes also folds writes in, the error over-reports, which is the safe direction.
+- **Test first:** `agent.test.ts` now expects `inputTokens` 8 for the fixture's input 10 / cache_read 2 (red before the fix, 2 assertions). Hermes adapter 52/52.
+- **Gates (Node 22):** typecheck, test:runner, check:test-hygiene exit 0. test:unit:related exit 0.
+- **Not done:** live proof (needs one new Hermes turn in the dev app after a restart from this commit; expect `inputTokens` = `in` − cache). Rows stored before this fix keep the inflated `inputTokens`; no migration.
+- **Surprising:** another agent session was editing the same files in this checkout at the same time (permission-change history task). Only this change's hunks were committed; theirs were left unstaged.
+
+---
+
 ## 2026-11-02 — Hermes context ring `live-proven` (last call prompt + model window)
 
 - **Setup:** old dev app (from the `context-banner-fix` worktree) quit with SIGTERM; dev DB backed up to `CindyGlobal-dev2-dev/cindy-local-v1.db.bak-2026-11-02-ctxring` (`.backup`, integrity ok, 437 messages). `pnpm dev:desktop:remote -- --isolated=dev` from `main` (`fca53f67f8`); the app forked a fresh daemon from `packages/maker-hermes-manager/dist/hermes-mgr.mjs` (log 14:12:14, rebuilt with `context-usage`). The owner sent the three d89db470 read-only prompts in a new task (`506bfaa2`, `deepseek-v4-pro`); the agent read the results read-only (computer-use access to Electron was declined).

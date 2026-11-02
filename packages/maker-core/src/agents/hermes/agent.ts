@@ -594,7 +594,10 @@ export class HermesAgent extends BaseAgent {
               status: succeeded ? 'completed' : userAborted ? 'cancelled' : 'failed',
               ...(normalized.error && !userAborted ? { error: normalized.error } : {}),
               usage: {
-                inputTokens: tokens.input,
+                // `tokens.input` is the full prompt, cache reads included; the
+                // desktop counts and prices `cacheReadTokens` separately, so
+                // only the uncached part goes here.
+                inputTokens: Math.max(0, tokens.input - tokens.cacheRead),
                 outputTokens: tokens.output,
                 cacheReadTokens: tokens.cacheRead,
                 cacheCreationTokens: tokens.cacheWrite,
