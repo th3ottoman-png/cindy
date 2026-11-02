@@ -484,14 +484,17 @@ export class HermesAgent extends BaseAgent {
           if (normalized.contextWindow !== undefined) contextWindow = normalized.contextWindow;
           return;
         case 'resume-reset':
-          // The daemon already retried this turn against a fresh session after
-          // the stored id vanished from the Hermes home. Surface it as its own
+          // The daemon started this turn on a fresh session: the stored id vanished
+          // from the Hermes home, or the permission flag changed (Hermes keeps
+          // --yolo and --safe-mode sessions apart). Surface it as its own
           // durable one-liner so the transcript explains the missing history
           // instead of silently continuing without it.
           queue.push({
             type: 'text',
             data: {
-              text: 'Hermes no longer has the previous session, so this message starts a new one.',
+              text: normalized.reason === 'permission-mode-changed'
+                ? 'Permission mode changed, so this message starts a new Hermes session without the earlier history.'
+                : 'Hermes no longer has the previous session, so this message starts a new one.',
               isFinal: true,
             },
             source: 'hermes',

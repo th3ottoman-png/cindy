@@ -5,7 +5,7 @@
  * stream-json session on stdout.
  *
  * Fixture flags (scan-only, values may appear anywhere):
- *   --behavior happy|slow|fail|missing-session   script to run (default happy)
+ *   --behavior happy|slow|fail|missing-session|permission-scoped   script (default happy)
  *   --session-id <id>            session_id reported by system/init
  *   --record <path>              write the full argv as JSON here (assertions)
  *   --fail-when-resumed          exit 5 if --resume is present
@@ -128,6 +128,32 @@ if (behavior === 'happy') {
   emit({ type: 'text', text: 'partial output then boom' });
   process.stderr.write('simulated hermes crash\n');
   process.exit(3);
+} else if (behavior === 'permission-scoped') {
+  // Mirrors Hermes 0.22.5 (live 2026-11-02): a `--yolo` session and a
+  // `--safe-mode` session live in separate stores, so `--resume <id>` under the
+  // other flag silently starts a fresh session (history=0) and exits 0.
+  // FAKE_SESSION_STORE is a JSON file {id: flag} shared across invocations.
+  const store = process.env.FAKE_SESSION_STORE;
+  const sessions = store && fs.existsSync(store) ? JSON.parse(fs.readFileSync(store, 'utf8')) : {};
+  const flag = process.argv.includes('--yolo') ? 'yolo' : 'safe';
+  const resumeId = flagValue('--resume');
+  let id = resumeId && sessions[resumeId] === flag ? resumeId : undefined;
+  if (!id) {
+    id = `fake-h-${flag}-${Object.keys(sessions).length + 1}`;
+    sessions[id] = flag;
+    if (store) fs.writeFileSync(store, JSON.stringify(sessions));
+  }
+  emit({ type: 'system', subtype: 'init', model: 'fake-model', session_id: id });
+  emit({ type: 'text', text: id === resumeId ? 'resumed' : 'fresh' });
+  emit({
+    type: 'result',
+    session_id: id,
+    exit_code: 0,
+    text: id === resumeId ? 'resumed' : 'fresh',
+    tokens: { input: 3, output: 2, total: 5, cache_read: 0, cache_write: 0 },
+    duration_ms: 11,
+  });
+  process.exit(0);
 } else if (behavior === 'missing-session') {
   // Mirrors the real CLI: `--resume <unknown>` emits init with an empty
   // session_id and a failed result carrying the lookup error, then exits 1.

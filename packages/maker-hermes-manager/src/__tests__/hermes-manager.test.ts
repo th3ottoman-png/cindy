@@ -350,6 +350,55 @@ describe('HermesManager socket integration (fake hermes)', () => {
     expect(flagOf(third[0].argv, '--base-url')).toBe('http://127.0.0.1:1234/v1');
   }, 30_000);
 
+  // Hermes 0.22.5 keeps --yolo and --safe-mode sessions apart: a resume under
+  // the other flag silently starts fresh (live 2026-11-02, ROADMAP §Debt). The
+  // new mode must take effect, so the daemon starts fresh on purpose and says so.
+  it('query/setPermissionMode with a different flag starts a fresh session and emits resume-reset', async () => {
+    const h = current!;
+    process.env.FAKE_BEHAVIOR = 'permission-scoped';
+    process.env.FAKE_SESSION_STORE = path.join(h.dir, 'perm-store.json');
+    const resets = () =>
+      h.collector.eventsOfType('hermes-mgr')
+        .map((n) => (n.params as { sessionId: string; event: Record<string, unknown> }))
+        .filter((p) => p.sessionId === 'sp' && p.event.subtype === 'resume-reset')
+        .map((p) => p.event);
+    const boundId = async () => {
+      const list = await h.client.request(METHODS.SESSION_LIST, {}, { timeoutMs: 5_000 });
+      return (list as { sessions: Array<{ sessionId: string; hermesSessionId?: string }> })
+        .sessions.find((s) => s.sessionId === 'sp')?.hermesSessionId;
+    };
+    try {
+      await h.client.request(METHODS.QUERY_START, {
+        sessionId: 'sp',
+        cwd: h.dir,
+        permissionMode: 'bypassPermissions',
+      }, { timeoutMs: 5_000 });
+      const first = await runTurnLog(h, 'sp', 1);
+      expect(first[0].argv).toContain('--yolo');
+      expect(await boundId()).toBe('fake-h-yolo-1');
+
+      await h.client.request(METHODS.QUERY_SET_PERMISSION_MODE, { sessionId: 'sp', mode: 'default' }, { timeoutMs: 5_000 });
+      const second = await runTurnLog(h, 'sp', 2);
+      expect(second).toHaveLength(1);
+      expect(second[0].argv).toContain('--safe-mode');
+      expect(second[0].argv).not.toContain('--resume');
+      expect(resets()).toEqual([
+        expect.objectContaining({ previousHermesSessionId: 'fake-h-yolo-1', reason: 'permission-mode-changed' }),
+      ]);
+      expect(await boundId()).toBe('fake-h-safe-2');
+
+      // default -> plan keeps the --safe-mode flag: resume, no reset.
+      await h.client.request(METHODS.QUERY_SET_PERMISSION_MODE, { sessionId: 'sp', mode: 'plan' }, { timeoutMs: 5_000 });
+      const third = await runTurnLog(h, 'sp', 3);
+      expect(flagOf(third[0].argv, '--resume')).toBe('fake-h-safe-2');
+      expect(resets()).toHaveLength(1);
+      expect(await boundId()).toBe('fake-h-safe-2');
+    } finally {
+      delete process.env.FAKE_BEHAVIOR;
+      delete process.env.FAKE_SESSION_STORE;
+    }
+  }, 30_000);
+
   it('query/setModel ends the turn with an error when the /model switch fails, without running the turn', async () => {
     const h = current!;
     await h.client.request(METHODS.QUERY_START, {

@@ -26,7 +26,12 @@ import { spawn } from 'node:child_process';
 import { isValidHermesPluginName, setHermesPluginEnabled } from './hermes-plugins.js';
 import { readFile } from 'node:fs/promises';
 import * as nodePath from 'node:path';
-import { isInvalidResumeFailure, startHermesRun, type HermesRunHandle } from './hermes-run.js';
+import {
+  isInvalidResumeFailure,
+  permissionModeToFlags,
+  startHermesRun,
+  type HermesRunHandle,
+} from './hermes-run.js';
 import { readTurnContextUsage } from './hermes-context.js';
 import {
   HERMES_MGR_BUNDLE_VERSION,
@@ -345,7 +350,14 @@ export class HermesManager {
         const flagApiKey = frozen ? frozen.apiKey : routeApiKey;
         if (!resumeHermesSessionId) {
           this.registry.update(rec.sessionId, {
-            launch: { model: routeModel, provider: routeProvider, baseUrl: routeBaseUrl, apiKey: routeApiKey },
+            launch: {
+              model: routeModel,
+              provider: routeProvider,
+              baseUrl: routeBaseUrl,
+              apiKey: routeApiKey,
+              // Never undefined, so the key survives the sessions.json round-trip.
+              permissionMode: rec.permissionMode ?? 'default',
+            },
             appliedModel: routeModel,
           });
         }
@@ -416,8 +428,26 @@ export class HermesManager {
         ),
       );
 
+      // Hermes keeps --yolo and --safe-mode sessions apart: resuming under the
+      // other flag silently starts an empty session (0.22.5). The new mode must
+      // take effect (fail closed), so start fresh on purpose and say so.
+      // A launch recorded before the mode was tracked counts as unchanged.
+      const permissionChanged = Boolean(
+        launch?.permissionMode &&
+        permissionModeToFlags(launch.permissionMode).join(' ') !==
+          permissionModeToFlags(rec.permissionMode).join(' '),
+      );
+
       let effectiveResumeId = resumeId;
-      if (providerChanged && effectiveResumeId) {
+      if (permissionChanged && effectiveResumeId) {
+        this.emitEvent(rec.sessionId, {
+          type: 'hermes-mgr',
+          subtype: 'resume-reset',
+          previousHermesSessionId: effectiveResumeId,
+          reason: 'permission-mode-changed',
+        });
+      }
+      if ((providerChanged || permissionChanged) && effectiveResumeId) {
         // Provider or baseUrl changed: Hermes CLI rejects changing provider flags on resume.
         // Start a fresh Hermes session on the target provider.
         effectiveResumeId = undefined;

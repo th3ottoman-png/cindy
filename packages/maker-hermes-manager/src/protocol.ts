@@ -346,7 +346,8 @@ export interface HermesQueryEventNotification {
    * Hermes stream-json event verbatim (parsed JSONL line), or a
    * daemon-synthesized lifecycle event of shape
    * `{ type: 'hermes-mgr', subtype: 'session-bound', hermesSessionId }`,
-   * `{ type: 'hermes-mgr', subtype: 'resume-reset', previousHermesSessionId }`, or
+   * `{ type: 'hermes-mgr', subtype: 'resume-reset', previousHermesSessionId, reason? }`
+   * (`reason: 'permission-mode-changed'` when the daemon started fresh on purpose), or
    * `{ type: 'hermes-mgr', subtype: 'context-usage', promptTokens, model?, provider?, contextWindow? }`
    * (sent just before `result`: the turn's last API call prompt size, see hermes-context.ts).
    */

@@ -1126,6 +1126,30 @@ describe('HermesAgent', () => {
     }
   });
 
+  it('says the permission change started a new Hermes session', async () => {
+    const daemon = await startDaemon({ turn: 'manual' });
+    const handle = await start(buildAgent());
+    const pump = createEventPump(handle);
+    try {
+      await handle.send({ type: 'user', content: 'continue' });
+      daemon.emit({
+        type: 'hermes-mgr',
+        subtype: 'resume-reset',
+        previousHermesSessionId: 'local-yolo',
+        reason: 'permission-mode-changed',
+      });
+      daemon.emit({ type: 'system', subtype: 'init', session_id: 'local-safe' });
+      daemon.emit({ type: 'result', session_id: 'local-safe', exit_code: 0, text: 'ok', tokens: { input: 1, output: 1 } });
+      daemon.closeSession('completed');
+      await pump.until((event) => event.type === 'done');
+
+      const notice = pump.seen.find((event) => event.standaloneText === true);
+      expect((notice?.data as { text?: string }).text).toMatch(/permission mode changed/i);
+    } finally {
+      await handle.close();
+    }
+  });
+
   it('does not let a stale session/closed settle a newer turn', async () => {
     const daemon = await startDaemon({ turn: 'manual' });
     const handle = await start(buildAgent());

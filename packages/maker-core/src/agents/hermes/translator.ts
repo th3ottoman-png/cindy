@@ -21,7 +21,8 @@ export type NormalizedHermesTokens = {
 
 export type NormalizedHermesEvent =
   | { kind: 'session-bound'; hermesSessionId: string }
-  | { kind: 'resume-reset'; previousHermesSessionId?: string }
+  /** `reason` is set when the daemon started fresh on purpose (permission flag change). */
+  | { kind: 'resume-reset'; previousHermesSessionId?: string; reason?: 'permission-mode-changed' }
   /**
    * Daemon-read context size of the turn: the last API call's prompt tokens
    * (Hermes logs it; `result.tokens.input` is a session-wide sum) and the
@@ -106,6 +107,7 @@ export function normalizeHermesEvent(event: unknown): NormalizedHermesEvent {
     return {
       kind: 'resume-reset',
       ...(previousHermesSessionId ? { previousHermesSessionId } : {}),
+      ...(evt.reason === 'permission-mode-changed' ? { reason: 'permission-mode-changed' as const } : {}),
     };
   }
 

@@ -19,6 +19,12 @@ describe('normalizeHermesEvent', () => {
     ).toEqual({ kind: 'resume-reset', previousHermesSessionId: 'local-gone' });
     expect(normalizeHermesEvent({ type: 'hermes-mgr', subtype: 'resume-reset' }))
       .toEqual({ kind: 'resume-reset' });
+    expect(normalizeHermesEvent({
+      type: 'hermes-mgr',
+      subtype: 'resume-reset',
+      previousHermesSessionId: 'local-yolo',
+      reason: 'permission-mode-changed',
+    })).toEqual({ kind: 'resume-reset', previousHermesSessionId: 'local-yolo', reason: 'permission-mode-changed' });
   });
 
   it('normalizes the daemon context-usage event (last API call prompt + model window)', () => {
