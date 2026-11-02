@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-02 — Hermes `contextTokens` inflation: cause found; double count fixed (`unit-tested`)
+
+- **Cause (proven, two parts).** Hermes's `result.tokens.input` is (a) the prompt total, already *including* cache reads, and (b) **session-cumulative over every API call** (each resumed `hermes chat` reloads the session totals). `agent.ts` set `contextTokens = input + cache_read + cache_write`, so it summed every call's prompt and then added the cache reads a second time.
+- **Evidence, dev session `d89db470` (`deepseek-v4-pro`, 3 read-only turns, 7 API calls), all read-only:** Hermes session home `session-homes/d09fa3b7-…-039c7857fb/logs/agent.log` per-call prompts `in=` 13468, 13571, 13713 | 13818, 17391 | 17541, 24510 (turns split by `|`). Turn sums 40752 / 31209 / 42051; running totals 40752 / 71961 / 114012 = Cindy DB `turnUsageDetails.inputTokens` exactly. Hermes `state.db` session row: `input_tokens` 24156 (uncached) + `cache_read_tokens` 89856 = 114012, so `input` includes the cache reads. Cindy showed 68400 / 127001 / 203868 = input + cache_read. **Real last prompt: 13713 / 17391 / 24510**, i.e. ~2% of the window, not 102%.
+- **Window:** `HERMES_CONTEXT_WINDOW = 200_000` is wrong for this model. models.dev (`~/.hermes-cindy/models_dev_cache.json`, provider `deepseek`) lists `deepseek-v4-pro` at **1,048,576** context / 393,216 output. The renderer catalog already prefers `capabilities.contextLength`; `agent.ts` does not.
+- **Fix in this commit:** `packages/maker-core/src/agents/hermes/agent.ts` `contextTokens = tokens.input` (no second cache add). Test first: `agent.test.ts` "projects Hermes events and usage" now expects 10 (was 13); it failed before the fix, passes after (Hermes tests 50/50). This only halves the error: the value is still a session-cumulative sum, so the ring/banner still over-report and grow with every turn. **Not live-proven.**
+- **Still open (ROADMAP §Debt, new row):** the real fix needs the last call's prompt size, which the `result` event does not carry; and the per-model window.
+- Not touched: `tokenUsage` and the `done` usage (`inputTokens` includes cache reads, then `cacheReadTokens` is passed too, so pricing may count cached tokens twice; noted in the Debt row, not verified).
+- Gates (Node 22.23.4): `pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` — all green, EXIT 0.
+
+---
+
 ## 2026-11-02 — Debt: context banner over-report `live-proven`; ROADMAP 3.10 added
 
 - **First live check failed for a setup reason, not the fix:** the owner's screenshot showed "Context is 857% full" against a 100% ring (session `1894523c`, `deepseek-v4-pro`). The running dev app had been started at 11:01 from the main checkout on `main` (`7bea0c25`, process cwd `Cindy/apps/desktop`), which lacks the fix: 280,693 tokens / 32,768 (`chat.default` → `ollama-local`) = 857%. The dev DB row had no provider and a 200,000 window, so the fixed code cannot reach 32,768 for it.

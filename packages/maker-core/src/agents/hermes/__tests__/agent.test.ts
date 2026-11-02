@@ -501,11 +501,14 @@ describe('HermesAgent', () => {
       });
 
       // The turn opens with a running status; the terminal one follows it.
+      // Hermes `tokens.input` is the prompt total and already includes
+      // `cache_read`/`cache_write` (state.db input_tokens + cache_read_tokens
+      // == result input, observed live 2026-11-02), so they are not added again.
       const status = events.filter((event) => event.type === 'status').at(-1);
       expect(status?.data).toMatchObject({
         isRunning: false,
         tokenUsage: 15,
-        contextTokens: 13,
+        contextTokens: 10,
         contextWindow: 200_000,
       });
       expect(events.find((event) => event.type === 'done')?.data).toMatchObject({
@@ -525,7 +528,7 @@ describe('HermesAgent', () => {
       });
       expect(handle.getUsageSnapshot()).toEqual({
         tokenUsage: 15,
-        contextTokens: 13,
+        contextTokens: 10,
         contextWindow: 200_000,
         costUsd: 0,
       });

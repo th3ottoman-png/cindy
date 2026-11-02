@@ -548,7 +548,11 @@ export class HermesAgent extends BaseAgent {
             });
           }
           usage.tokenUsage += tokens.input + tokens.output;
-          usage.contextTokens = tokens.input + tokens.cacheRead + tokens.cacheWrite;
+          // Hermes `tokens.input` is the prompt total and already includes the
+          // cache reads/writes; adding them again double-counted (2026-11-02).
+          // It is still a sum over every API call of the session, not the last
+          // prompt size — see ROADMAP §Debt (Hermes contextTokens).
+          usage.contextTokens = tokens.input;
           const succeeded = normalized.exitCode === 0;
           // A turn the user stopped reports a failing result (SIGINT → exit
           // code 130); that is the cancellation itself, not a provider fault.
