@@ -32,6 +32,10 @@ export const MAKER_INVOKE = {
   EXPERTS_DRAFT_LIST: 'maker:experts:draft-list',
   /** ROADMAP 3.8: Approve / Reject an expert draft. */
   EXPERTS_DRAFT_DECIDE: 'maker:experts:draft-decide',
+  /** ROADMAP 3.3: one expert's expert.md for the Settings editor (fields + content hash). */
+  EXPERTS_READ: 'maker:experts:read',
+  /** ROADMAP 3.3: create / duplicate / edit an expert from the Settings editor. */
+  EXPERTS_SAVE: 'maker:experts:save',
   /** ROADMAP 2.1b: providers.yaml entries plus file issues (read-only). */
   PROVIDERS_LIST: 'maker:providers:list',
   /** ROADMAP 2.2b: probe each providers.yaml endpoint for online/offline and models. */

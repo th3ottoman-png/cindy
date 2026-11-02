@@ -5544,6 +5544,12 @@ interface ElectronAPI {
       onDraftEvent: (
         cb: (event: import('../main/maker-ipc/expertDraftConfirm').ExpertDraftEvent) => void,
       ) => () => void;
+      /** ROADMAP 3.3: one expert's form fields + content hash for the Settings editor. */
+      read: (slug: string) => Promise<import('@cindy/maker-core/expert-draft').ExpertSourceResult>;
+      /** ROADMAP 3.3: create / duplicate / edit; an edit is refused if the file changed since `read`. */
+      save: (
+        request: import('../main/maker-ipc/expertsHandlers').ExpertSaveRequest,
+      ) => Promise<import('@cindy/maker-core/expert-draft').ExpertSaveResult>;
     };
     providers: {
       list: () => Promise<import('@cindy/maker-core/providers-file').ProviderFileResult>;

@@ -6290,6 +6290,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
         decision: { approved: boolean; note?: string },
       ): Promise<boolean> => ipcRenderer.invoke('maker:experts:draft-decide', requestId, decision),
       onDraftEvent: fanOutMakerExpertsDraftEvent,
+      read: (slug: string): Promise<import('@cindy/maker-core/expert-draft').ExpertSourceResult> =>
+        ipcRenderer.invoke('maker:experts:read', slug),
+      save: (
+        request: import('../main/maker-ipc/expertsHandlers').ExpertSaveRequest,
+      ): Promise<import('@cindy/maker-core/expert-draft').ExpertSaveResult> =>
+        ipcRenderer.invoke('maker:experts:save', request),
     },
     providers: {
       list: (): Promise<import('@cindy/maker-core/providers-file').ProviderFileResult> =>

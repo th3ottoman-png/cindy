@@ -54,6 +54,7 @@ import { GitSafetySection } from './GitSafetySection';
 import { SessionImportSection } from './SessionImportSection';
 import { AgentResourceSection } from './AgentResourceSection';
 import { HermesSection } from './HermesSection';
+import { ExpertsSection } from './ExpertsSection';
 import { PiPackagesSection } from './PiPackagesSection';
 import { CollaborationSection } from './CollaborationSection';
 import { BuiltinToolsSection } from './BuiltinToolsSection';
@@ -443,6 +444,11 @@ export function SettingsView() {
                     {/* Hermes Harness (local autonomous runtime) */}
                     <section id="settings-hermes" className="py-[18px]" aria-label="Hermes Harness">
                       <HermesSection />
+                    </section>
+
+                    {/* Experts editor (ROADMAP 3.3) */}
+                    <section id="settings-experts" className="py-[18px]" aria-label="Experts">
+                      <ExpertsSection />
                     </section>
 
                     {/* Section — Experimental (py 18). */}

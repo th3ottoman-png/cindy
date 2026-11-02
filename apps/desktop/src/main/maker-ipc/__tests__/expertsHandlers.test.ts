@@ -93,4 +93,85 @@ describe('experts IPC', () => {
     h.dispose();
     expect(calls[0].closed).toBe(true);
   });
+
+  describe('editor (ROADMAP 3.3)', () => {
+    const HAND = '---\nname: Reviewer\ndescription: Reviews diffs.\ntools: [draft_expert]\n---\nYou review code.\n';
+    const fields = { name: 'Reviewer', description: 'Reviews diffs.', tags: [], memory: false, prompt: 'You review code.' };
+
+    function setup() {
+      const broadcast = vi.fn();
+      const assertTrusted = vi.fn();
+      const harness = new IpcHarness();
+      handle = registerExpertsHandlers(harness, { rootDir: root, assertTrusted, broadcast, watch: fakeWatch().watch });
+      return { harness, broadcast, assertTrusted };
+    }
+
+    it('reads an expert source after a trust check', async () => {
+      writeExpert('reviewer', HAND);
+      const { harness, assertTrusted } = setup();
+      const res = await harness.invoke(MAKER_INVOKE.EXPERTS_READ, 'reviewer');
+      expect(assertTrusted).toHaveBeenCalledOnce();
+      expect(res).toMatchObject({ ok: true, slug: 'reviewer', markdown: HAND, extras: { tools: ['draft_expert'] } });
+    });
+
+    it('creates through the draft write path (no tools) and pushes the fresh list', async () => {
+      const { harness, broadcast } = setup();
+      const res = await harness.invoke(MAKER_INVOKE.EXPERTS_SAVE, {
+        op: 'create',
+        slug: 'writer',
+        fields: { ...fields, name: 'Writer', description: 'Writes.' },
+      });
+      expect(res).toMatchObject({ ok: true, slug: 'writer' });
+      const list = loadExperts(root);
+      expect(list.map((e) => e.expert?.name)).toEqual(['Writer']);
+      expect(list[0].expert?.tools).toEqual([]);
+      expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.EXPERTS_CHANGED, list);
+    });
+
+    it('duplicates and edits through the same RPC', async () => {
+      writeExpert('reviewer', HAND);
+      const { harness } = setup();
+      expect(await harness.invoke(MAKER_INVOKE.EXPERTS_SAVE, { op: 'duplicate', from: 'reviewer', slug: 'reviewer-2', name: 'Reviewer 2' })).toMatchObject({ ok: true, slug: 'reviewer-2' });
+
+      const read = (await harness.invoke(MAKER_INVOKE.EXPERTS_READ, 'reviewer-2')) as { ok: true; hash: string };
+      const saved = await harness.invoke(MAKER_INVOKE.EXPERTS_SAVE, {
+        op: 'edit',
+        slug: 'reviewer-2',
+        baseHash: read.hash,
+        fields: { ...fields, name: 'Reviewer 2', prompt: 'Be strict.' },
+      });
+      expect(saved).toMatchObject({ ok: true, slug: 'reviewer-2' });
+      const copy = loadExperts(root).find((e) => e.slug === 'reviewer-2');
+      expect(copy?.expert).toMatchObject({ prompt: 'Be strict.', tools: ['draft_expert'] });
+    });
+
+    it('returns a conflict instead of overwriting a hand edit', async () => {
+      writeExpert('reviewer', HAND);
+      const { harness, broadcast } = setup();
+      const read = (await harness.invoke(MAKER_INVOKE.EXPERTS_READ, 'reviewer')) as { ok: true; hash: string };
+      writeExpert('reviewer', HAND.replace('You review code.', 'Hand edit.'));
+      const res = await harness.invoke(MAKER_INVOKE.EXPERTS_SAVE, { op: 'edit', slug: 'reviewer', baseHash: read.hash, fields });
+      expect(res).toMatchObject({ ok: false, reason: 'conflict' });
+      expect(fs.readFileSync(path.join(root, 'reviewer', 'expert.md'), 'utf8')).toContain('Hand edit.');
+      expect(broadcast).not.toHaveBeenCalled();
+    });
+
+    it('refuses an untrusted caller and junk requests without writing', async () => {
+      const harness = new IpcHarness();
+      handle = registerExpertsHandlers(harness, {
+        rootDir: root,
+        assertTrusted: () => {
+          throw new Error('untrusted sender');
+        },
+        broadcast: vi.fn(),
+        watch: fakeWatch().watch,
+      });
+      await expect(harness.invoke(MAKER_INVOKE.EXPERTS_SAVE, { op: 'create', slug: 'x-y', fields })).rejects.toThrow('untrusted sender');
+      handle.dispose();
+      const { harness: ok } = setup();
+      expect(await ok.invoke(MAKER_INVOKE.EXPERTS_SAVE, { op: 'delete', slug: 'x' })).toMatchObject({ ok: false, reason: 'invalid' });
+      expect(await ok.invoke(MAKER_INVOKE.EXPERTS_SAVE, null)).toMatchObject({ ok: false, reason: 'invalid' });
+      expect(fs.readdirSync(root)).toEqual([]);
+    });
+  });
 });
