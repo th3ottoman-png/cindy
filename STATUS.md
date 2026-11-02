@@ -10,6 +10,17 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-02 — Hermes context ring `live-proven` (last call prompt + model window)
+
+- **Setup:** old dev app (from the `context-banner-fix` worktree) quit with SIGTERM; dev DB backed up to `CindyGlobal-dev2-dev/cindy-local-v1.db.bak-2026-11-02-ctxring` (`.backup`, integrity ok, 437 messages). `pnpm dev:desktop:remote -- --isolated=dev` from `main` (`fca53f67f8`); the app forked a fresh daemon from `packages/maker-hermes-manager/dist/hermes-mgr.mjs` (log 14:12:14, rebuilt with `context-usage`). The owner sent the three d89db470 read-only prompts in a new task (`506bfaa2`, `deepseek-v4-pro`); the agent read the results read-only (computer-use access to Electron was declined).
+- **After (this run), Hermes `agent.log` per-call `in=`:** turn 1 15571 / 15706 / **15847**; turn 2 5229 / **8897**; turn 3 9066 / **16971**. Cindy DB `sessions` row: `context_tokens` **16971**, `context_window` **1048576** (also `context_window_runtime`). The turn-3 `result` input was 26037 (= 9066 + 16971, `turnUsageDetails.inputTokens`), which is what the fallback would have stored, so 16971 can only have come from the daemon's `context-usage` event, and 1,048,576 only from its models.dev lookup.
+- **Before (session `d89db470`, same prompts, old code):** 68,400 → 127,001 → 203,868 against 200,000 (102%).
+- **Limit of the proof:** the DB keeps only the latest status, so turns 1 and 2 were not checked by number (the daemon does not persist events). The owner watched the ring during the run.
+- **Found, not caused by this change (Debt):** turn 2 did not resume turn 1's Hermes session. The owner changed the task's permission mode at 15:25:01. `query/setPermissionMode` only updates the registry, so the next `--resume local-dd4998a6…` carried a different permission flag. Hermes started `local-734661f7…` with `history=0` instead of failing, so the daemon's resume-reset notice never fired and history was silently lost.
+- Docs only in this commit; code unchanged since `fca53f67f8` (gates recorded there).
+
+---
+
 ## 2026-11-02 — Hermes context = last API call prompt + model window (`unit-tested`; live run open)
 
 - **Daemon** (`packages/maker-hermes-manager/src/hermes-context.ts`, new): when a turn's `result` arrives, read the last 256 KB of `<turn home>/logs/agent.log`, take the session's last `API call #N: model=… provider=… in=<prompt>` line (Hermes 0.22.5 format; `in=` includes the cached part), and look up `limit.context` for that provider/model in the same home's `models_dev_cache.json` (parsed once per mtime). `hermes-manager.ts` `onHermesEvent` then emits `{type:'hermes-mgr', subtype:'context-usage', promptTokens, model, provider, contextWindow?}` just **before** the `result`. Synchronous read, so the order holds. Missing log or line → no event; never throws. Documented in `protocol.ts`. Bundle version not bumped (additive event; an old daemon just sends none).
