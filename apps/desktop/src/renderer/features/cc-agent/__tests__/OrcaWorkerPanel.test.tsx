@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   createProps: {} as Record<string, unknown>,
   sessionViewProps: null as Record<string, unknown> | null,
   remotePaneProps: null as Record<string, unknown> | null,
+  draftCardProps: null as Record<string, unknown> | null,
   selection: {} as Record<string, unknown>,
   selectionInput: null as Record<string, unknown> | null,
   sessions: [] as Array<{ id: string; agentDeviceId?: string | null; orcaRole?: 'lead' }>,
@@ -73,6 +74,12 @@ vi.mock('@/lib/toast', () => ({ toast: { error: mocks.toastError } }));
 vi.mock('../CCAgentSessionView', () => ({
   CCAgentSessionView: (props: Record<string, unknown>) => {
     mocks.sessionViewProps = props;
+    return null;
+  },
+}));
+vi.mock('../HermesExpertDraftCard', () => ({
+  HermesExpertDraftCard: (props: Record<string, unknown>) => {
+    mocks.draftCardProps = props;
     return null;
   },
 }));
@@ -272,6 +279,21 @@ describe('OrcaWorkerPanel worker on another computer', () => {
       leadSessionId: 'lead-1',
       device: remoteWorker.executionDevice,
     });
+  });
+
+  it('mounts the expert draft card for the shown local Hermes worker (ROADMAP 3.9b2)', () => {
+    const hermesWorker: Record<string, unknown> = { ...remoteWorker, agent: 'hermes', sessionId: 'hermes-w' };
+    delete hermesWorker.executionDevice;
+    mocks.draftCardProps = null;
+    mocks.selection = {
+      workers: [hermesWorker],
+      focusedWorker: hermesWorker,
+      selectedWorkerRecord: hermesWorker,
+      selectedWorkerId: 'w-1',
+      workerSessionId: 'hermes-w',
+    };
+    render(<OrcaWorkerPanel leadSessionId="lead-1" deviceId={null} viewVisible />);
+    expect(mocks.draftCardProps).toEqual({ agentKind: 'hermes', sessionId: 'hermes-w' });
   });
 
   it('keeps local workers on the local task view', () => {

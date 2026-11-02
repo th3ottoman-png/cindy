@@ -18,6 +18,7 @@ import { isSidebarWindow } from '@/lib/sidebarWindow';
 import { CCAgentSessionView } from './CCAgentSessionView';
 import { CreateWorkerPopover } from './CreateWorkerPopover';
 import { EditWorkerPopover } from './EditWorkerPopover';
+import { HermesExpertDraftCard } from './HermesExpertDraftCard';
 import { RemoteWorkerSessionPane } from './RemoteWorkerSessionPane';
 import { WorkerListToolbar } from './RolePillDropdown';
 import { useOrcaWorkerSelection } from './hooks/useOrcaWorkerSelection';
@@ -257,19 +258,27 @@ export function OrcaWorkerPanel({
             chatRealtime={chatRealtime}
           />
         ) : workerSessionId ? (
-          <CCAgentSessionView
-            key={workerSessionId}
-            sessionIdProp={workerSessionId}
-            compact
-            orcaMode
-            compactToolbar
-            viewVisible={viewVisible}
-            chatRealtime={chatRealtime}
-            searchJumpProp={searchJump}
-            onSearchJumpConsumed={onSearchJumpConsumed}
-            navigationMode="sidebar-embedded"
-            sidebarTargetSessionId={leadSessionId}
-          />
+          <>
+            {/* The embedded worker view has no session header, which is where the draft card
+              mounts for the main pane; mount it here so a worker's draft can be approved. */}
+            <HermesExpertDraftCard
+              agentKind={shownWorker?.sessionId === workerSessionId ? shownWorker.agent : ''}
+              sessionId={workerSessionId}
+            />
+            <CCAgentSessionView
+              key={workerSessionId}
+              sessionIdProp={workerSessionId}
+              compact
+              orcaMode
+              compactToolbar
+              viewVisible={viewVisible}
+              chatRealtime={chatRealtime}
+              searchJumpProp={searchJump}
+              onSearchJumpConsumed={onSearchJumpConsumed}
+              navigationMode="sidebar-embedded"
+              sidebarTargetSessionId={leadSessionId}
+            />
+          </>
         ) : (
           <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
             {t('orca.split.waitingForWorker')}
