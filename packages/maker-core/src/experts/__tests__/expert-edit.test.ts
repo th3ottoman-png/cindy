@@ -165,3 +165,20 @@ describe('duplicateExpert', () => {
     expect(fs.readdirSync(root)).toEqual(['code-reviewer']);
   });
 });
+
+describe('readExpertSource memory notes (ROADMAP 3.4b)', () => {
+  it('returns memory.md byte for byte, or null text when there is none; the hash covers expert.md only', () => {
+    const dir = writeExpert('code-reviewer', HAND_WRITTEN);
+    const none = readExpertSource(root, 'code-reviewer');
+    if (!none.ok) throw new Error(none.message);
+    expect(none.notes).toEqual({ file: path.join(dir, 'memory.md'), text: null });
+
+    const notes = '# hand notes\n\n## 2026-11-01T00:00:00.000Z\n\nowner prefers tabs\n';
+    fs.writeFileSync(path.join(dir, 'memory.md'), notes);
+    const some = readExpertSource(root, 'code-reviewer');
+    if (!some.ok) throw new Error(some.message);
+    expect(some.notes.text).toBe(notes);
+    // A memory write must never make an open edit form look stale.
+    expect(some.hash).toBe(none.hash);
+  });
+});

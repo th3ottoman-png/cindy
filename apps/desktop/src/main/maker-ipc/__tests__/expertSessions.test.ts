@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MAKER_INVOKE, MAKER_PUSH } from '../channels';
 import {
+  EXPERT_MEMORY_PREAMBLE_CHARS,
   ExpertSessionStore,
   PENDING_EXPERT_TTL_MS,
   buildExpertPreamble,
@@ -234,5 +235,66 @@ describe('expert draft IPC (ROADMAP 3.8)', () => {
     await expect(wait).resolves.toEqual({ approved: false, reason: 'rejected', note: 'no' });
     expect(broadcast).toHaveBeenLastCalledWith(MAKER_PUSH.EXPERTS_DRAFT_EVENT, expect.objectContaining({ type: 'settled', outcome: 'rejected' }));
     expect(assertTrusted).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('expert memory in sessions (ROADMAP 3.4b)', () => {
+  it('puts the saved notes and the save tool into the first-turn preamble only when memory is on', () => {
+    writeExpert('mem', 'name: Mem\nmemory: true');
+    fs.writeFileSync(path.join(root, 'mem', 'memory.md'), '## 2026-11-01T00:00:00.000Z\n\nowner prefers tabs\n');
+    writeExpert('plain', 'name: Plain');
+    fs.writeFileSync(path.join(root, 'plain', 'memory.md'), 'notes of a memory-off expert\n');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+
+    store.setPending('mem');
+    const withMemory = store.resolveFirstTurnPreamble({ sessionId: 's1', model: 'm' }, anyRoute) ?? '';
+    expect(withMemory).toContain('owner prefers tabs');
+    expect(withMemory).toContain('save_expert_memory');
+    // The notes sit inside the expert block, before the owner's first message.
+    expect(withMemory.indexOf('owner prefers tabs')).toBeLessThan(withMemory.indexOf('[End of expert instructions.'));
+
+    store.setPending('plain');
+    const without = store.resolveFirstTurnPreamble({ sessionId: 's2', model: 'm' }, anyRoute) ?? '';
+    expect(without).not.toContain('notes of a memory-off expert');
+    expect(without).not.toContain('save_expert_memory');
+  });
+
+  it('says when there are no notes yet and keeps only the newest notes within the limit', () => {
+    writeExpert('mem', 'name: Mem\nmemory: true');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    store.setPending('mem');
+    expect(store.resolveFirstTurnPreamble({ sessionId: 's1', model: 'm' }, anyRoute)).toContain('(no notes yet)');
+
+    const filler = 'x'.repeat(EXPERT_MEMORY_PREAMBLE_CHARS);
+    fs.writeFileSync(
+      path.join(root, 'mem', 'memory.md'),
+      `## 2026-01-01T00:00:00.000Z\n\nOLDEST NOTE ${filler}\n\n## 2026-11-01T00:00:00.000Z\n\nNEWEST NOTE\n`,
+    );
+    store.setPending('mem');
+    const cut = store.resolveFirstTurnPreamble({ sessionId: 's2', model: 'm' }, anyRoute) ?? '';
+    expect(cut).toContain('NEWEST NOTE');
+    expect(cut).not.toContain('OLDEST NOTE');
+    expect(cut).toContain('older notes were left out');
+  });
+
+  it('gives a memory target only for a Hermes expert with memory on (pending only when asked)', () => {
+    writeExpert('mem', 'name: Mem\nmemory: true');
+    writeExpert('plain', 'name: Plain');
+    writeExpert('codex-mem', 'name: Codex Mem\nagent: codex\nmemory: true');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+
+    store.setPending('mem');
+    expect(store.expertMemoryTarget('s1')).toBeNull();
+    expect(store.expertMemoryTarget('s1', { includePending: true })).toEqual({ dir: path.join(root, 'mem'), memory: true });
+    store.resolveFirstTurnPreamble({ sessionId: 's1', model: 'm' }, anyRoute);
+    expect(store.expertMemoryTarget('s1')).toEqual({ dir: path.join(root, 'mem'), memory: true });
+
+    store.setPending('plain');
+    store.resolveFirstTurnPreamble({ sessionId: 's2', model: 'm' }, anyRoute);
+    expect(store.expertMemoryTarget('s2')).toBeNull();
+
+    fs.writeFileSync(bindingsFile, JSON.stringify({ version: 1, sessions: { s3: { slug: 'codex-mem', boundAt: 'x' } } }));
+    expect(store.expertMemoryTarget('s3')).toBeNull();
+    expect(store.expertMemoryTarget('nobody')).toBeNull();
   });
 });

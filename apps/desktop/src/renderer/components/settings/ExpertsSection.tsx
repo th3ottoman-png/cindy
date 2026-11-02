@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle, Copy, Pencil, Plus, Users } from 'lucide-react';
 
-import type { ExpertEditExtras, ExpertEditFields } from '@cindy/maker-core/expert-draft';
+import type {
+  ExpertEditExtras,
+  ExpertEditFields,
+  ExpertNotesSource,
+} from '@cindy/maker-core/expert-draft';
 import type { ExpertEntry } from '@cindy/maker-core/experts';
 
 import { Button } from '@/components/ui/button';
@@ -95,6 +99,41 @@ export function decideExternalChange(input: {
 }): 'unchanged' | 'reload' | 'conflict' {
   if (input.diskHash === input.openHash) return 'unchanged';
   return input.dirty ? 'conflict' : 'reload';
+}
+
+/**
+ * The expert's memory.md (ROADMAP 3.4b), read-only. The expert appends through its one tool;
+ * the owner edits the file by hand, so the path is shown and nothing here writes it.
+ */
+export function ExpertMemoryNotes({
+  notes,
+  memory,
+}: {
+  notes: ExpertNotesSource;
+  memory: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1" data-testid="expert-memory-notes">
+      <span className="text-12 font-medium text-[var(--text-secondary)]">Memory notes</span>
+      {notes.text ? (
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-[var(--settings-theme-card-border)] bg-[var(--bg-card)] px-2.5 py-2 font-mono text-11 leading-[1.5] text-[var(--text-primary)]">
+          {notes.text}
+        </pre>
+      ) : (
+        <span className="text-12 text-[var(--text-tertiary)]">
+          {memory
+            ? 'No notes yet. The expert adds them during its sessions.'
+            : 'Memory is off; no notes are kept.'}
+        </span>
+      )}
+      {memory || notes.text ? (
+        <span className="text-11 text-[var(--text-tertiary)]">
+          {`Read-only here. Edit by hand: ${notes.file}`}
+          {memory ? '' : ' (memory is off, so these notes are not used)'}
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 export function ExpertListView({
@@ -199,6 +238,7 @@ type Editing =
       form: ExpertForm;
       dirty: boolean;
       extras: ExpertEditExtras;
+      notes: ExpertNotesSource;
       stale: boolean;
     };
 
@@ -239,6 +279,7 @@ export function ExpertsSection() {
         form: formFromFields(res.fields),
         dirty: false,
         extras: res.extras,
+        notes: res.notes,
         stale: false,
       });
     },
@@ -264,6 +305,7 @@ export function ExpertsSection() {
           baseHash: res.hash,
           form: formFromFields(res.fields),
           extras: res.extras,
+          notes: res.notes,
           stale: false,
         });
         toast.info(`Reloaded ${latest.slug} from disk`);
@@ -272,7 +314,10 @@ export function ExpertsSection() {
         setError(res.message);
       }
     } else if (action === 'conflict') {
-      setEditing({ ...latest, stale: true });
+      setEditing({ ...latest, stale: true, ...(res.ok ? { notes: res.notes } : {}) });
+    } else if (res.ok && res.notes.text !== latest.notes.text) {
+      // A memory note was appended (or hand-edited); expert.md itself is unchanged.
+      setEditing({ ...latest, notes: res.notes });
     }
   }, [api]);
 
@@ -498,6 +543,9 @@ export function ExpertsSection() {
               onChange={(e) => update({ prompt: e.target.value })}
             />
           </Field>
+          {editing.kind === 'edit' ? (
+            <ExpertMemoryNotes notes={editing.notes} memory={editing.form.memory} />
+          ) : null}
           <span className="text-11 text-[var(--text-tertiary)]">
             {editing.kind === 'edit'
               ? `Kept as written in the file: agent ${editing.extras.agent}${

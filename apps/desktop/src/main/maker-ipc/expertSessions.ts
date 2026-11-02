@@ -17,6 +17,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { readExpertMemory, type MemoryTarget } from '@cindy/maker-core/expert-memory';
 import { loadExpert, type Expert } from '@cindy/maker-core/experts';
 
 /** Expert slugs are directory names under the experts root; nothing else is accepted. */
@@ -28,6 +29,12 @@ export function isValidExpertSlug(slug: unknown): slug is string {
 
 /** A pending pick older than this is ignored, so a forgotten pick never captures a later session. */
 export const PENDING_EXPERT_TTL_MS = 30 * 60_000;
+
+/** At most this much of memory.md (the newest part) rides the first turn (ROADMAP 3.4b). */
+export const EXPERT_MEMORY_PREAMBLE_CHARS = 8000;
+
+/** The one memory tool on cindy_experts (expertsMcpServer.ts); named here for the preamble. */
+export const SAVE_EXPERT_MEMORY_TOOL_NAME = 'save_expert_memory';
 
 export interface ExpertSessionBindingView {
   sessionId: string;
@@ -157,6 +164,17 @@ export class ExpertSessionStore {
     return expert?.agent === 'hermes' && expert.tools.includes(tool);
   }
 
+  /**
+   * Where `save_expert_memory` writes for this session (ROADMAP 3.4b): the folder of a loadable
+   * Hermes expert with `memory: true`, else null. `includePending` as in `expertAllowsTool`.
+   */
+  expertMemoryTarget(sessionId: string, opts: { includePending?: boolean } = {}): MemoryTarget | null {
+    const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
+    if (!slug) return null;
+    const expert = loadExpert(path.join(this.opts.rootDir, slug)).expert;
+    return expert?.agent === 'hermes' && expert.memory ? { dir: expert.dir, memory: true } : null;
+  }
+
   /** Experts root (~/.cindy-harness/experts in production). */
   get rootDir(): string {
     return this.opts.rootDir;
@@ -193,7 +211,8 @@ export class ExpertSessionStore {
       const match = matchRoute(expert.model, input.model);
       if (!match.ok) throw new Error(`Expert "${expert.name}": ${match.message}`);
     }
-    return buildExpertPreamble(expert);
+    const memory = expert.memory ? readExpertMemory(expert, { maxChars: EXPERT_MEMORY_PREAMBLE_CHARS }) : undefined;
+    return buildExpertPreamble(expert, memory);
   }
 }
 
@@ -201,13 +220,30 @@ export type ExpertSessionEvent =
   | { type: 'pending'; slug: string | null }
   | { type: 'bound'; sessionId: string; slug: string };
 
-/** The text Hermes receives ahead of the first message. New prompt text for a new feature. */
-export function buildExpertPreamble(expert: Pick<Expert, 'name' | 'prompt'>): string {
+/**
+ * The text Hermes receives ahead of the first message. New prompt text for a new feature.
+ * `memory` (ROADMAP 3.4b) is passed only for an expert with `memory: true`: its saved notes and
+ * how to add one.
+ */
+export function buildExpertPreamble(
+  expert: Pick<Expert, 'name' | 'prompt'>,
+  memory?: { text: string; truncated: boolean },
+): string {
+  const memoryBlock = memory
+    ? [
+        '',
+        '[Your memory: notes saved in earlier sessions as this expert, oldest first. The owner can read and edit them.]',
+        ...(memory.truncated ? ['(older notes were left out)'] : []),
+        memory.text.trim() || '(no notes yet)',
+        `[End of memory. When you learn something worth keeping for later sessions (a preference, a decision, a fact about the work), call the ${SAVE_EXPERT_MEMORY_TOOL_NAME} tool with one short note. Never save secrets.]`,
+      ]
+    : [];
   return [
     `[Cindy expert: ${expert.name}]`,
     'For this whole session, act as the expert described below.',
     '',
     expert.prompt.trim(),
+    ...memoryBlock,
     '',
     '[End of expert instructions. The owner\'s first message follows.]',
   ].join('\n');

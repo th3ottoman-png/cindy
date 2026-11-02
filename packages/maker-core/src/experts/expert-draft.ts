@@ -229,8 +229,23 @@ export interface ExpertEditExtras {
   skills: string[];
 }
 
+/** The expert's memory notes (ROADMAP 3.4b), shown read-only; `text` is null when memory.md does not exist. */
+export interface ExpertNotesSource {
+  file: string;
+  text: string | null;
+}
+
 export type ExpertSourceResult =
-  | { ok: true; slug: string; file: string; markdown: string; hash: string; fields: ExpertEditFields; extras: ExpertEditExtras }
+  | {
+      ok: true;
+      slug: string;
+      file: string;
+      markdown: string;
+      hash: string;
+      fields: ExpertEditFields;
+      extras: ExpertEditExtras;
+      notes: ExpertNotesSource;
+    }
   | { ok: false; reason: 'missing' | 'invalid'; message: string };
 
 export type ExpertSaveResult =
@@ -261,6 +276,13 @@ export function readExpertSource(rootDir: string, slug: string): ExpertSourceRes
   const loaded = loadExpert(path.join(rootDir, slug));
   if (!loaded.expert) return { ok: false, reason: 'invalid', message: loaded.error ?? 'the expert does not load' };
   const e = loaded.expert;
+  const notesFile = path.join(rootDir, slug, 'memory.md');
+  let notesText: string | null = null;
+  try {
+    notesText = fs.readFileSync(notesFile, 'utf8');
+  } catch {
+    notesText = null;
+  }
   return {
     ok: true,
     slug,
@@ -281,6 +303,8 @@ export function readExpertSource(rootDir: string, slug: string): ExpertSourceRes
       tools: e.tools,
       skills: e.skills,
     },
+    // Not part of `hash`: an appended note must not make an open edit form look stale.
+    notes: { file: notesFile, text: notesText },
   };
 }
 

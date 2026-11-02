@@ -53,8 +53,9 @@ export const HERMES_BRIDGE_GATED_SERVERS: readonly string[] = [
 export const HERMES_BRIDGE_COLLAB_SERVERS: readonly string[] = ['cindy_orca'];
 
 /**
- * The expert creator's draft tool (ROADMAP 3.8, ADR 0007). Exposed only to a session started
- * as an expert whose expert.md lists `tools: [draft_expert]`; the tool re-checks on every call.
+ * The expert creator's draft tool (ROADMAP 3.8, ADR 0007) and expert memory (3.4b). Exposed only
+ * to a session started as an expert whose expert.md lists `tools: [draft_expert]` or sets
+ * `memory: true`; each tool re-checks on every call.
  */
 export const HERMES_BRIDGE_EXPERT_SERVERS: readonly string[] = ['cindy_experts'];
 

@@ -2563,11 +2563,12 @@ export function getMaker(): Maker {
       cindyMakeProvider,
     ];
     _mcpProviders.pi = piMcpProviders;
-    // Expert creator (ROADMAP 3.8, ADR 0007): served on the shared bridge for Hermes only.
+    // Expert creator (ROADMAP 3.8, ADR 0007) + expert memory (3.4b): shared bridge, Hermes only.
     setHermesOnlyBridgeProviders([
       createExpertsMcpProvider({
         rootDir: () => getDesktopExpertSessionStore().rootDir,
         sessionMayDraft: (sessionId) => getDesktopExpertSessionStore().expertAllowsTool(sessionId, DRAFT_EXPERT_TOOL),
+        memoryTarget: (sessionId) => getDesktopExpertSessionStore().expertMemoryTarget(sessionId),
         confirm: (input) => getDesktopExpertDraftConfirm().request(input),
       }),
     ]);
@@ -2855,9 +2856,11 @@ export function getMaker(): Maker {
         prepareHermesBridgeSession: createHermesBridgePreparer({
           providers: () => _mcpProviders.pi ?? [],
           logger: desktopMakerLogger,
-          // ROADMAP 3.8: draft_expert only for a session started as an expert creator.
+          // ROADMAP 3.8 / 3.4b: cindy_experts only for a session started as the expert creator
+          // (draft_expert) or as an expert with memory: true (save_expert_memory).
           expertCreator: (sessionId) =>
-            getDesktopExpertSessionStore().expertAllowsTool(sessionId, DRAFT_EXPERT_TOOL, { includePending: true }),
+            getDesktopExpertSessionStore().expertAllowsTool(sessionId, DRAFT_EXPERT_TOOL, { includePending: true })
+            || getDesktopExpertSessionStore().expertMemoryTarget(sessionId, { includePending: true }) !== null,
           resolveShimPath: resolveHermesBridgeShimPath,
           registration: {
             listServers: listHermesMcpServers,

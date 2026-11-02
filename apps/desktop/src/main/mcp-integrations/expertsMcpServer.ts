@@ -7,6 +7,11 @@
  * started as an expert whose expert.md lists `tools: [draft_expert]` (hermesBridgeHost), and
  * every call re-checks that binding here, so a session that reaches the route without it fails
  * closed. Pi never mounts it (piEnvironment); Claude Code and Codex never receive the provider.
+ *
+ * ROADMAP 3.4b: `save_expert_memory` appends one dated note to the session expert's memory.md
+ * (`@cindy/maker-core/expert-memory`: append-only, atomic). Mounted for a Hermes session whose
+ * expert has `memory: true`; every call re-checks that binding. Both tools sit on this one
+ * server, so each refuses a session that may not use it.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -21,13 +26,16 @@ import {
   type ExpertDraft,
   type WriteExpertDraftResult,
 } from '@cindy/maker-core/expert-draft';
+import { appendExpertMemory, type MemoryTarget } from '@cindy/maker-core/expert-memory';
 import { resolveLiziMcpSessionContext, type LiziMcpSessionContext } from '@cindy/mcps';
 import * as path from 'node:path';
 
 import type { ExpertDraftDecision } from '../maker-ipc/expertDraftConfirm.js';
+import { SAVE_EXPERT_MEMORY_TOOL_NAME } from '../maker-ipc/expertSessions.js';
 
 export const CINDY_EXPERTS_MCP_SERVER_NAME = 'cindy_experts';
 export const DRAFT_EXPERT_TOOL = 'draft_expert';
+export const SAVE_EXPERT_MEMORY_TOOL = SAVE_EXPERT_MEMORY_TOOL_NAME;
 
 export interface ExpertsMcpDeps {
   getSessionContext(): Pick<LiziMcpSessionContext, 'agentKind' | 'sessionId'> | undefined;
@@ -35,6 +43,8 @@ export interface ExpertsMcpDeps {
   rootDir(): string;
   /** True when the session is bound to an expert whose tools list `draft_expert`. */
   sessionMayDraft(sessionId: string): boolean;
+  /** The session expert's memory folder when it is a Hermes expert with `memory: true`, else null. */
+  memoryTarget(sessionId: string): MemoryTarget | null;
   confirm(input: { sessionId: string; draft: ExpertDraft; targetDir: string; markdown: string }): Promise<ExpertDraftDecision>;
   write?: (rootDir: string, draft: ExpertDraft) => WriteExpertDraftResult;
 }
@@ -119,8 +129,38 @@ export function createExpertsMcpServer(deps: ExpertsMcpDeps): McpServer {
       });
     },
   );
+  server.tool(
+    SAVE_EXPERT_MEMORY_TOOL,
+    MEMORY_TOOL_DESCRIPTION,
+    { note: z.string().describe('One short note in plain Markdown, at most 4000 characters. No headings, no secrets.') },
+    { readOnlyHint: false, destructiveHint: false },
+    async ({ note }) => {
+      const ctx = deps.getSessionContext();
+      const sessionId = ctx?.sessionId;
+      if (!ctx || ctx.agentKind !== 'hermes' || !sessionId) {
+        return reply({ status: 'refused', errorCode: 'NO_SESSION_CONTEXT', message: 'save_expert_memory only runs inside a Hermes session.' }, true);
+      }
+      const target = deps.memoryTarget(sessionId);
+      if (!target) {
+        return reply({
+          status: 'refused',
+          errorCode: 'NO_EXPERT_MEMORY',
+          message: 'This session was not started as an expert whose expert.md has "memory: true".',
+        }, true);
+      }
+      const res = appendExpertMemory(target, note);
+      if (!res.ok) return reply({ status: 'invalid', reason: res.reason, message: res.message }, true);
+      return reply({ status: 'saved', file: res.path, message: 'Saved. The note will be shown to this expert at the start of its next session.' });
+    },
+  );
   return server;
 }
+
+const MEMORY_TOOL_DESCRIPTION = [
+  'Save one short note to your expert memory (memory.md). Notes are shown to you at the start of',
+  'every later session as this expert, and the owner can read and edit them. Use it for durable',
+  'facts worth keeping: owner preferences, decisions, recurring context. One fact per call.',
+].join(' ');
 
 /** The provider Hermes' shared tool bridge serves; Pi filters it out by name. */
 export function createExpertsMcpProvider(deps: Omit<ExpertsMcpDeps, 'getSessionContext'>): McpProvider {

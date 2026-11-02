@@ -5,6 +5,7 @@ import type { ExpertEntry } from '@cindy/maker-core/experts';
 
 import {
   ExpertListView,
+  ExpertMemoryNotes,
   decideExternalChange,
   fieldsFromForm,
   formFromFields,
@@ -95,5 +96,24 @@ describe('Settings expert editor (ROADMAP 3.3)', () => {
     expect(decideExternalChange({ dirty: false, openHash: 'a', diskHash: 'b' })).toBe('reload');
     expect(decideExternalChange({ dirty: true, openHash: 'a', diskHash: 'b' })).toBe('conflict');
     expect(decideExternalChange({ dirty: true, openHash: 'a', diskHash: null })).toBe('conflict');
+  });
+});
+
+describe('Settings expert editor memory notes (ROADMAP 3.4b)', () => {
+  it('shows memory.md read-only with its path, or says there are no notes', () => {
+    const file = '/home/o/.cindy-harness/experts/mem/memory.md';
+    const some = renderToStaticMarkup(
+      <ExpertMemoryNotes notes={{ file, text: '## 2026-11-01T00:00:00.000Z\n\nowner prefers <tabs>\n' }} memory />,
+    );
+    expect(some).toContain('data-testid="expert-memory-notes"');
+    expect(some).toContain('owner prefers &lt;tabs&gt;');
+    expect(some).toContain(file);
+    expect(some).not.toContain('<textarea');
+
+    const none = renderToStaticMarkup(<ExpertMemoryNotes notes={{ file, text: null }} memory />);
+    expect(none).toContain('No notes yet');
+
+    const off = renderToStaticMarkup(<ExpertMemoryNotes notes={{ file, text: null }} memory={false} />);
+    expect(off).toContain('Memory is off');
   });
 });
