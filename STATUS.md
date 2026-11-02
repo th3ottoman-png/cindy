@@ -10,6 +10,17 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-02 — ROADMAP 3.9b2 live run 1: delegation works, worker draft card missing (fixed, re-run open)
+
+- **Live run (owner, read-only verification here):** Orchestrator lead on `hermes-default`, Full access, collaboration on.
+  - "Review the last commit in this repo for bugs": lead `abc5d247` → worker `6ea3dab1` bound to `code-reviewer` (`expert-sessions.json`), pane labelled "reviewer". The lead's cwd is not a git repo, so it chose `~/Developer/delegate-router` itself. The worker read code and ran that repo's tests; `git status`, log and stash there are unchanged. Report reached the lead. Delegation end to end: yes.
+  - "Write me a Turkish wedding toast": lead `6017cfae` → worker `27e9ab36` bound to `expert-creator`, called `draft_expert` (`turkish-toast-writer`), spun waiting; no card was shown, the 9-min host-confirm timeout rejected it, nothing saved.
+- **Turn cap proven live:** `~/.hermes-cindy/hermes-mgr/sessions.json` has `"maxTurns": 40` on both worker daemon sessions and none on the two lead sessions. The argv path (`--max-turns`) is unit-tested. No log line added: daemon stderr after READY only feeds an in-memory tail (`hermes-manager-client.ts`), so the registry is the evidence.
+- **Cause of the missing card:** `HermesExpertDraftCard` was mounted only in `SessionContentHeader`, which registers for the route-owning session. The Team pane renders a worker as an embedded `CCAgentSessionView` (`navigationMode="sidebar-embedded"`) with no header.
+- **Fix:** `apps/desktop/src/renderer/features/cc-agent/OrcaWorkerPanel.tsx` mounts `HermesExpertDraftCard` beside the embedded local worker (agent kind from the shown worker record; the card renders nothing for non-Hermes). Test first in `OrcaWorkerPanel.test.tsx` (+1, red then green); mutation (agent kind forced empty) caught. Known limit: a draft from a worker that is not the one shown in the Team pane still has no card until it is selected; if the same worker is also open in the main pane, two identical cards stack (either settles it).
+- **Gates (Node 22.23.4):** typecheck, test:runner, check:test-hygiene, test:unit:related all exit 0 (no SIGSEGV this time). An edit hook reformatted unrelated lines of the test file during the run; they were reverted to HEAD formatting before commit (whitespace only), and the file was re-run alone: 20/20. Diff has no `fetch(`, `http` or `~/.hermes`.
+- **Open:** owner re-runs the toast request and approves the card; then 3.9 can be `live-proven`.
+
 ## 2026-11-02 — ROADMAP 3.9b1 orchestrator expert, `list_experts`, worker turn cap `unit-tested`
 
 - **Split:** 3.9b → 3.9b1 (code, this entry) and 3.9b2 (owner's live end-to-end run, open). Design recorded in the ADR 0008 addendum.
