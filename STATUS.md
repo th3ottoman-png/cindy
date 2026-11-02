@@ -20,6 +20,15 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 - **Open:** live run in the dev app (owner turns: Full access → send → Default → send; expect the notice and a new Hermes id).
 - **Noticed, not changed:** the provider-change path (`providerChanged`, ROADMAP 1.8d) also starts fresh without any notice.
 
+## 2026-11-02 — Hermes cache-read pricing fix `live-proven`
+
+- **Setup:** dev DB backed up to `CindyGlobal-dev2-dev/cindy-local-v1.db.bak-2026-11-02-cacheprice` (`.backup`, integrity ok, 453 messages). The old dev app (main checkout, built 14:11, before the fix) was stopped. To keep another session's uncommitted Hermes edits out of the run, the dev app was started from a clean detached worktree at `a7f7c8b25d` (`.claude/worktrees/live-cache-price`, `pnpm install --frozen-lockfile --prefer-offline`, `pnpm dev:desktop:remote -- --isolated=dev`); the built main bundle contained `Math.max(0, tokens.input - tokens.cacheRead)`. The owner sent one tool-using prompt in a new task (`38ee8ede`, `deepseek-v4-pro`); the agent read the results from the DB and logs only.
+- **Hermes `agent.log`, 5 API calls:** `in=` 13449 / 13622 / 13802 / 14015 / 15104 (sum **69,992**), cache 2816 / 13440 / 13696 / 13824 / 14080 (sum **57,856**), out sum **934**.
+- **Stored `turnUsageDetails`:** `inputTokens` **12,136** (= 69,992 − 57,856), `cacheReadTokens` 57,856, `outputTokens` 934, `totalTokens` **70,926** (= every prompt token once + output), `cacheHitRate` 0.827. The old code would have stored `inputTokens` 69,992 and `totalTokens` 127,782. Also seen: `context_tokens` 15,104 = the last call's prompt, window 1,048,576 (the context fix still holds).
+- Docs only in this commit. The worktree and the dev app from it are still running; the old main-checkout dev app was not restarted.
+
+---
+
 ## 2026-11-02 — Hermes `done` usage no longer double-prices cache reads (`unit-tested`)
 
 - **Proven double count:** Hermes `result.tokens.input` is the full prompt with cache reads inside it. Session `506bfaa2` turn 3, `agent.log`: calls `in=9066 cache=8832` + `in=16971 cache=8960` = 26037 in, 17792 cached, which is exactly the stored `turnUsageDetails` (`inputTokens` 26037, `cacheReadTokens` 17792); turn 2 matches the same way (5229 + 8897 = 14126, cache 5120). The `TurnUsageDetails` contract (`apps/desktop/src/shared/turnUsageDetails.ts`) says `inputTokens` is the uncached part, and `conversationUsage.ts` adds `cacheReadTokens` on top and prices it at the cache rate. So every cached token was priced twice (input rate + cache rate), `totalTokens` was 44111 instead of 26319, and the cache hit rate read 41% instead of 68%.
