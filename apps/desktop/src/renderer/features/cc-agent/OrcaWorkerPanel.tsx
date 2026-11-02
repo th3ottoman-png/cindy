@@ -260,11 +260,10 @@ export function OrcaWorkerPanel({
         ) : workerSessionId ? (
           <>
             {/* The embedded worker view has no session header, which is where the draft card
-              mounts for the main pane; mount it here so a worker's draft can be approved. */}
-            <HermesExpertDraftCard
-              agentKind={shownWorker?.sessionId === workerSessionId ? shownWorker.agent : ''}
-              sessionId={workerSessionId}
-            />
+              mounts for the main pane; mount it here so a worker's draft can be approved.
+              Always 'hermes': the worker projection reports Hermes as 'claude-code', and only
+              Hermes sessions can draft, so other workers simply have none. */}
+            <HermesExpertDraftCard agentKind="hermes" sessionId={workerSessionId} />
             <CCAgentSessionView
               key={workerSessionId}
               sessionIdProp={workerSessionId}

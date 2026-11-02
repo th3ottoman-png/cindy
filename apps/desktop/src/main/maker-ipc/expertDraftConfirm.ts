@@ -11,9 +11,14 @@ import { randomUUID } from 'node:crypto';
 
 import type { ExpertDraft } from '@cindy/maker-core/expert-draft';
 
-import { HOST_CONFIRM_TIMEOUT_MS } from './hostConfirmTiming.js';
-
 export const MAX_EXPERT_DRAFT_NOTE_CHARS = 2000;
+
+/**
+ * How long a draft waits for the owner. Shorter than the shared host-confirm timeout because
+ * Hermes 0.22.5 abandons an MCP tool call after 300 s: an answer after that would save the
+ * expert while the drafting agent sees a failure (ROADMAP 3.9b2).
+ */
+export const EXPERT_DRAFT_TIMEOUT_MS = 280_000;
 
 export interface ExpertDraftRequest {
   requestId: string;
@@ -53,7 +58,7 @@ export class ExpertDraftConfirm {
   private readonly now: () => number;
 
   constructor(opts: ExpertDraftConfirmOptions = {}) {
-    this.timeoutMs = opts.timeoutMs ?? HOST_CONFIRM_TIMEOUT_MS;
+    this.timeoutMs = opts.timeoutMs ?? EXPERT_DRAFT_TIMEOUT_MS;
     this.now = opts.now ?? Date.now;
   }
 

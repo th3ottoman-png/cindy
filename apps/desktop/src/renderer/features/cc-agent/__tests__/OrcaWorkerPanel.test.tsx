@@ -282,7 +282,8 @@ describe('OrcaWorkerPanel worker on another computer', () => {
   });
 
   it('mounts the expert draft card for the shown local Hermes worker (ROADMAP 3.9b2)', () => {
-    const hermesWorker: Record<string, unknown> = { ...remoteWorker, agent: 'hermes', sessionId: 'hermes-w' };
+    // The worker projection reports a Hermes worker as 'claude-code' (display kinds only).
+    const hermesWorker: Record<string, unknown> = { ...remoteWorker, agent: 'claude-code', sessionId: 'hermes-w' };
     delete hermesWorker.executionDevice;
     mocks.draftCardProps = null;
     mocks.selection = {

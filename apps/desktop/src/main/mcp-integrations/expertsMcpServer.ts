@@ -66,7 +66,7 @@ function reply(payload: Record<string, unknown>, isError = false) {
 
 const TOOL_DESCRIPTION = [
   'Propose a NEW Cindy expert. The owner sees the full draft on a card and approves or rejects it;',
-  'this call waits for that answer (up to 9 minutes). On approval the expert is saved to',
+  'this call waits for that answer (about 4.5 minutes). On approval the expert is saved to',
   '~/.cindy-harness/experts/<slug>/expert.md and appears in the expert picker. A draft cannot',
   'grant tools and cannot replace an existing expert. On rejection, read the owner\'s note,',
   'ask what to change if it is unclear, and propose again only when the owner wants it.',

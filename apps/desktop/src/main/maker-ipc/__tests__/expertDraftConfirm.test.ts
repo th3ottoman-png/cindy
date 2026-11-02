@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExpertDraft } from '@cindy/maker-core/expert-draft';
 
-import { ExpertDraftConfirm, type ExpertDraftEvent } from '../expertDraftConfirm';
+import { EXPERT_DRAFT_TIMEOUT_MS, ExpertDraftConfirm, type ExpertDraftEvent } from '../expertDraftConfirm';
 
 const draft: ExpertDraft = {
   slug: 'uk-cold-email',
@@ -64,6 +64,15 @@ describe('ExpertDraftConfirm (ROADMAP 3.8)', () => {
     vi.advanceTimersByTime(5000);
     await expect(wait).resolves.toEqual({ approved: false, reason: 'timeout' });
     expect(events.at(-1)).toMatchObject({ type: 'settled', outcome: 'timeout' });
+  });
+
+  it('by default gives up before Hermes cuts the tool call at 300 s (ROADMAP 3.9b2)', async () => {
+    vi.useFakeTimers();
+    const confirm = new ExpertDraftConfirm();
+    const wait = confirm.request(input());
+    vi.advanceTimersByTime(EXPERT_DRAFT_TIMEOUT_MS);
+    await expect(wait).resolves.toEqual({ approved: false, reason: 'timeout' });
+    expect(EXPERT_DRAFT_TIMEOUT_MS).toBeLessThan(300_000);
   });
 
   it('allows one waiting draft per session', async () => {
