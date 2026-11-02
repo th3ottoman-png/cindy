@@ -6296,6 +6296,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         request: import('../main/maker-ipc/expertsHandlers').ExpertSaveRequest,
       ): Promise<import('@cindy/maker-core/expert-draft').ExpertSaveResult> =>
         ipcRenderer.invoke('maker:experts:save', request),
+      handoff: (request: {
+        sessionId: string;
+        slug: string;
+      }): Promise<import('../main/maker-ipc/expertsHandlers').ExpertHandoffResult> =>
+        ipcRenderer.invoke('maker:experts:handoff', request),
     },
     providers: {
       list: (): Promise<import('@cindy/maker-core/providers-file').ProviderFileResult> =>

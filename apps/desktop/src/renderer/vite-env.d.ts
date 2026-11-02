@@ -5550,6 +5550,11 @@ interface ElectronAPI {
       save: (
         request: import('../main/maker-ipc/expertsHandlers').ExpertSaveRequest,
       ) => Promise<import('@cindy/maker-core/expert-draft').ExpertSaveResult>;
+      /** ROADMAP 3.6b: first message for asking an expert about a session; sets the pending pick. */
+      handoff: (request: {
+        sessionId: string;
+        slug: string;
+      }) => Promise<import('../main/maker-ipc/expertsHandlers').ExpertHandoffResult>;
     };
     providers: {
       list: () => Promise<import('@cindy/maker-core/providers-file').ProviderFileResult>;

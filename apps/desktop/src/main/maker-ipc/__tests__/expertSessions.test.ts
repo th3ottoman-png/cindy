@@ -298,3 +298,59 @@ describe('expert memory in sessions (ROADMAP 3.4b)', () => {
     expect(store.expertMemoryTarget('nobody')).toBeNull();
   });
 });
+
+describe('ask-expert handoff IPC (ROADMAP 3.6b)', () => {
+  const source = {
+    title: 'Route planning',
+    agent: 'hermes',
+    model: 'deepseek-v4-pro',
+    rows: [
+      { role: 'user', content: JSON.stringify({ text: 'Plan my sales route for SW1A, E1, N1' }), createdAt: 1 },
+      { role: 'tool_use', content: { toolName: 'read_file', input: { path: '/x' } }, createdAt: 2 },
+      { role: 'tool_result', content: 'PAYLOAD', createdAt: 3 },
+      { role: 'assistant', content: 'Start at E1, then N1, then SW1A.', createdAt: 4 },
+    ],
+  };
+
+  function setup(handoffSource = vi.fn(async (id: string) => (id === 'src' ? source : null))) {
+    writeExpert('code-reviewer', 'name: Code Reviewer');
+    writeExpert('codex-one', 'name: Codex One\nagent: codex');
+    writeExpert('broken', 'agent: hermes');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    const broadcast = vi.fn();
+    const harness = new IpcHarness();
+    handle = registerExpertsHandlers(harness, { rootDir: root, assertTrusted: vi.fn(), broadcast, sessions: store, handoffSource });
+    return { store, broadcast, harness, handoffSource };
+  }
+
+  it('builds the first message from the stored session and makes the expert the pending pick', async () => {
+    const { store, broadcast, harness } = setup();
+    const res = await harness.invoke(MAKER_INVOKE.EXPERTS_HANDOFF, { sessionId: 'src', slug: 'code-reviewer' }) as {
+      ok: true; slug: string; prompt: string; includedMessages: number;
+    };
+    expect(res).toMatchObject({ ok: true, slug: 'code-reviewer', includedMessages: 2 });
+    expect(res.prompt).toContain('"Route planning" (agent hermes, model deepseek-v4-pro)');
+    expect(res.prompt).toContain('Owner: Plan my sales route for SW1A, E1, N1');
+    expect(res.prompt).toContain('Assistant: Start at E1, then N1, then SW1A.\n(tools used: read_file)');
+    expect(res.prompt).not.toContain('PAYLOAD');
+    expect(store.getPending()).toBe('code-reviewer');
+    expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.EXPERTS_SESSION_EVENT, { type: 'pending', slug: 'code-reviewer' });
+  });
+
+  it('refuses without touching the pending pick: bad slug, broken or non-Hermes expert, unknown or empty session', async () => {
+    const empty = { ...source, rows: [{ role: 'tool_result', content: 'x', createdAt: 1 }] };
+    const { store, harness, handoffSource } = setup(vi.fn(async (id: string) => (id === 'src' ? source : id === 'empty' ? empty : null)));
+    const ask = (sessionId: string, slug: string) => harness.invoke(MAKER_INVOKE.EXPERTS_HANDOFF, { sessionId, slug });
+
+    expect(await ask('src', '../x')).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(await ask('src', 'broken')).toMatchObject({ ok: false, reason: 'expert-unavailable' });
+    expect(await ask('src', 'codex-one')).toMatchObject({ ok: false, reason: 'expert-unavailable', message: expect.stringContaining('Hermes') });
+    expect(await ask('src', 'missing')).toMatchObject({ ok: false, reason: 'expert-unavailable' });
+    expect(await ask('nope', 'code-reviewer')).toMatchObject({ ok: false, reason: 'no-session' });
+    expect(await ask('empty', 'code-reviewer')).toMatchObject({ ok: false, reason: 'no-messages' });
+    expect(await ask('', 'code-reviewer')).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(store.getPending()).toBeNull();
+    // The expert is checked before any session data is read.
+    expect(handoffSource.mock.calls.map((c) => c[0])).toEqual(['nope', 'empty']);
+  });
+});

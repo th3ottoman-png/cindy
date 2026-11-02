@@ -8,6 +8,10 @@
  * RPC (`EXPERTS_SAVE`: create / duplicate / edit), all on the 3.8 draft write path in
  * `@cindy/maker-core/expert-draft` (atomic, validated by the loader, never overwrites a hand
  * edit made since the editor read the file).
+ *
+ * ROADMAP 3.6b: `EXPERTS_HANDOFF` turns a stored session into the first message for a NEW
+ * session with a Hermes expert (`buildExpertHandoff`) and makes that expert the pending pick.
+ * It starts nothing: the renderer only prefills the new-task draft, and the owner sends it.
  */
 
 import { readFileSync } from 'node:fs';
@@ -20,10 +24,15 @@ import {
   hashExpertMarkdown,
   type ExpertSaveResult,
 } from '@cindy/maker-core/expert-draft';
-import { loadExperts, watchExperts, type ExpertEntry, type ExpertWatcher } from '@cindy/maker-core/experts';
+import { buildExpertHandoff } from '@cindy/maker-core/expert-handoff';
+import { loadExpert, loadExperts, watchExperts, type ExpertEntry, type ExpertWatcher } from '@cindy/maker-core/experts';
+import * as path from 'node:path';
+
+import type { HandoffSourceMessage } from './agentHandoff.js';
 
 import { MAKER_INVOKE, MAKER_PUSH } from './channels.js';
 import type { ExpertDraftConfirm } from './expertDraftConfirm.js';
+import { toExpertHandoffMessages } from './expertHandoffSource.js';
 import { isValidExpertSlug, type ExpertSessionStore } from './expertSessions.js';
 import type { IpcHandlerRegistry } from './ipcHandlerRegistry.js';
 
@@ -40,6 +49,59 @@ export interface ExpertsHandlerDeps {
   sessions?: ExpertSessionStore;
   /** ROADMAP 3.8: owner approval of expert drafts. Omit to register without it. */
   drafts?: ExpertDraftConfirm;
+  /** ROADMAP 3.6b: a stored session for "Ask expert" (production: DB rows). Needs `sessions`. */
+  handoffSource?: (sessionId: string) => Promise<ExpertHandoffSource | null>;
+}
+
+export interface ExpertHandoffSource {
+  title: string;
+  agent: string;
+  model?: string;
+  rows: HandoffSourceMessage[];
+}
+
+export type ExpertHandoffResult =
+  | { ok: true; slug: string; prompt: string; includedMessages: number; omittedMessages: number; truncated: boolean }
+  | { ok: false; reason: 'invalid' | 'expert-unavailable' | 'no-session' | 'no-messages'; message: string };
+
+async function buildHandoff(
+  deps: ExpertsHandlerDeps,
+  sessions: ExpertSessionStore,
+  source: NonNullable<ExpertsHandlerDeps['handoffSource']>,
+  request: unknown,
+): Promise<ExpertHandoffResult> {
+  const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
+  const sessionId = typeof r.sessionId === 'string' ? r.sessionId : '';
+  if (!sessionId || !isValidExpertSlug(r.slug)) return { ok: false, reason: 'invalid', message: 'invalid session or expert' };
+  const slug = r.slug;
+  // Check the expert before reading any session data.
+  const entry = loadExpert(path.join(deps.rootDir, slug));
+  if (!entry.expert) {
+    return { ok: false, reason: 'expert-unavailable', message: `Expert "${slug}" cannot be loaded: ${entry.error ?? 'unknown error'}` };
+  }
+  if (entry.expert.agent !== 'hermes') {
+    return { ok: false, reason: 'expert-unavailable', message: `Expert "${entry.expert.name}" is set to agent "${entry.expert.agent}"; only Hermes experts can be asked yet.` };
+  }
+  const found = await source(sessionId);
+  if (!found) return { ok: false, reason: 'no-session', message: 'that session was not found' };
+  const handoff = buildExpertHandoff(entry.expert, {
+    title: found.title,
+    agent: found.agent,
+    ...(found.model ? { model: found.model } : {}),
+    messages: toExpertHandoffMessages(found.rows),
+  });
+  if ('error' in handoff) {
+    return { ok: false, reason: handoff.error === 'no-messages' ? 'no-messages' : 'expert-unavailable', message: handoff.message };
+  }
+  sessions.setPending(slug);
+  return {
+    ok: true,
+    slug,
+    prompt: handoff.prompt,
+    includedMessages: handoff.includedMessages,
+    omittedMessages: handoff.omittedMessages,
+    truncated: handoff.truncated,
+  };
 }
 
 /** What the Settings editor sends to `EXPERTS_SAVE`. */
@@ -112,6 +174,13 @@ export function registerExpertsHandlers(
       if (typeof sessionId !== 'string' || !sessionId) return null;
       return sessions.describeBinding(sessionId);
     });
+    const source = deps.handoffSource;
+    if (source) {
+      registry.handle(MAKER_INVOKE.EXPERTS_HANDOFF, (event, request: unknown) => {
+        deps.assertTrusted(event);
+        return buildHandoff(deps, sessions, source, request);
+      });
+    }
   }
   const drafts = deps.drafts;
   const offDraftEvents = drafts?.onChange((event) => deps.broadcast(MAKER_PUSH.EXPERTS_DRAFT_EVENT, event));

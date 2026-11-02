@@ -25558,6 +25558,17 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
     sessions: getDesktopExpertSessionStore(),
     drafts: getDesktopExpertDraftConfirm(),
+    // ROADMAP 3.6b: "Ask expert" reads the stored session (same rows as the engine-switch handoff).
+    handoffSource: async (sessionId) => {
+      const row = await getSessionRowSnapshot(sessionId);
+      if (!row) return null;
+      return {
+        title: row.title ?? '',
+        agent: row.agentKind ?? 'unknown',
+        ...(row.model ? { model: row.model } : {}),
+        rows: await listMessagesForAgentHandoff(sessionId, 400),
+      };
+    },
   });
 
   // ── Providers (ROADMAP 2.1b/2.2b IPC): read-only list + on-demand probe of ~/.cindy-harness/providers.yaml ──
