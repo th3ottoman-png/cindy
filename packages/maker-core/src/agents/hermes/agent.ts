@@ -41,7 +41,7 @@ import { resolveModelRoute } from '../../providers/model-route-resolver.js';
 import { preflightModelRoute } from '../../providers/route-preflight.js';
 
 const HERMES_DEFAULT_MODEL_ID = 'hermes-default';
-/** Advertised window; the daemon does not report a runtime value. */
+/** Fallback window until the daemon reports the model's own (context-usage event). */
 const HERMES_CONTEXT_WINDOW = 200_000;
 /** query/close waits for the daemon's SIGINT→SIGTERM→SIGKILL escalation. */
 const QUERY_CLOSE_TIMEOUT_MS = 10_000;
@@ -360,6 +360,11 @@ export class HermesAgent extends BaseAgent {
     const logger = this.deps.logger;
     const queue = createAsyncQueue<AgentEvent>();
     const usage = { tokenUsage: 0, contextTokens: 0, costUsd: 0 };
+    // The model's window, once a context-usage event reported it (models.dev).
+    let contextWindow = HERMES_CONTEXT_WINDOW;
+    // The current turn's last API call prompt size, from the daemon's
+    // context-usage event; consumed by that turn's result.
+    let turnPromptTokens: number | undefined;
     let hermesSessionId: string | undefined;
     // The model the current turn actually ran on. Hermes reports it in its
     // `system/init` event (per spawned CLI process, so it is exact even when
@@ -408,7 +413,7 @@ export class HermesAgent extends BaseAgent {
     const usageSnapshot = (): UsageSnapshot => ({
       tokenUsage: usage.tokenUsage,
       contextTokens: usage.contextTokens,
-      contextWindow: HERMES_CONTEXT_WINDOW,
+      contextWindow,
       costUsd: usage.costUsd,
     });
 
@@ -473,6 +478,10 @@ export class HermesAgent extends BaseAgent {
           // so the done event can name the model the tokens were spent on.
           // The session id is not touched here: the daemon owns that binding.
           turnModel = normalized.model;
+          return;
+        case 'context-usage':
+          turnPromptTokens = normalized.promptTokens;
+          if (normalized.contextWindow !== undefined) contextWindow = normalized.contextWindow;
           return;
         case 'resume-reset':
           // The daemon already retried this turn against a fresh session after
@@ -548,11 +557,12 @@ export class HermesAgent extends BaseAgent {
             });
           }
           usage.tokenUsage += tokens.input + tokens.output;
-          // Hermes `tokens.input` is the prompt total and already includes the
-          // cache reads/writes; adding them again double-counted (2026-11-02).
-          // It is still a sum over every API call of the session, not the last
-          // prompt size — see ROADMAP §Debt (Hermes contextTokens).
-          usage.contextTokens = tokens.input;
+          // Context = the last API call's prompt (daemon context-usage event).
+          // Without it, fall back to `tokens.input`: a sum over every call of
+          // the session (cache reads included), so it over-reports, which is
+          // the safe direction for the context banner.
+          usage.contextTokens = turnPromptTokens ?? tokens.input;
+          turnPromptTokens = undefined;
           const succeeded = normalized.exitCode === 0;
           // A turn the user stopped reports a failing result (SIGINT → exit
           // code 130); that is the cancellation itself, not a provider fault.
@@ -745,6 +755,7 @@ export class HermesAgent extends BaseAgent {
         // previous turn's model so a turn whose CLI never reached init cannot
         // inherit the last turn's model and be priced against it.
         turnModel = undefined;
+        turnPromptTokens = undefined;
         // Hermes can stay silent through the whole first model call (and tool
         // runs), unlike token-streaming harnesses; announce the turn now so the
         // composer shows a running state instead of a blank transcript.

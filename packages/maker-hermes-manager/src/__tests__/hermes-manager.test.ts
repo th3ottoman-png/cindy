@@ -481,6 +481,67 @@ describe('HermesManager socket integration (fake hermes)', () => {
       .toBe('fake-h-1');
   }, 20_000);
 
+  it('reports the last API call\'s prompt size and the model window before the result', async () => {
+    const h = current!;
+    const home = path.join(h.dir, 'home');
+    fs.writeFileSync(
+      path.join(home, 'models_dev_cache.json'),
+      JSON.stringify({ 'fake-provider': { models: { 'fake-model': { limit: { context: 1_048_576 } } } } }),
+    );
+    process.env.FAKE_AGENT_LOG = '1';
+    try {
+      await h.client.request(METHODS.QUERY_START, {
+        sessionId: 's-ctx',
+        cwd: h.dir,
+        permissionMode: 'bypassPermissions',
+      }, { timeoutMs: 5_000 });
+      await h.client.request(METHODS.QUERY_SEND, { sessionId: 's-ctx', text: 'hello' }, { timeoutMs: 5_000 });
+      await h.collector.waitFor(
+        (n) =>
+          n.method === NOTIFICATIONS.SESSION_CLOSED &&
+          (n.params as SessionClosedNotification).sessionId === 's-ctx',
+      );
+    } finally {
+      delete process.env.FAKE_AGENT_LOG;
+    }
+
+    // Hermes's `result.tokens.input` sums every call of the session; the context
+    // size is the last call's prompt, which Hermes only writes to agent.log.
+    const usage = h.collector.eventsOfType('hermes-mgr').filter(
+      (n) => (n.params as { event: { subtype?: string } }).event.subtype === 'context-usage',
+    );
+    expect(usage).toHaveLength(1);
+    expect((usage[0].params as { event: unknown }).event).toEqual({
+      type: 'hermes-mgr',
+      subtype: 'context-usage',
+      promptTokens: 7300,
+      model: 'fake-model',
+      provider: 'fake-provider',
+      contextWindow: 1_048_576,
+    });
+    const result = h.collector.eventsOfType('result')[0];
+    expect((usage[0].params as { seq: number }).seq).toBeLessThan((result.params as { seq: number }).seq);
+  }, 20_000);
+
+  it('sends no context-usage event when Hermes wrote no API call line', async () => {
+    const h = current!;
+    await h.client.request(METHODS.QUERY_START, {
+      sessionId: 's-noctx',
+      cwd: h.dir,
+      permissionMode: 'bypassPermissions',
+    }, { timeoutMs: 5_000 });
+    await h.client.request(METHODS.QUERY_SEND, { sessionId: 's-noctx', text: 'hello' }, { timeoutMs: 5_000 });
+    await h.collector.waitFor(
+      (n) =>
+        n.method === NOTIFICATIONS.SESSION_CLOSED &&
+        (n.params as SessionClosedNotification).sessionId === 's-noctx',
+    );
+    expect(h.collector.eventsOfType('result')).toHaveLength(1);
+    expect(h.collector.eventsOfType('hermes-mgr').filter(
+      (n) => (n.params as { event: { subtype?: string } }).event.subtype === 'context-usage',
+    )).toHaveLength(0);
+  }, 20_000);
+
   it('does not retry a non-resume failure as a fresh session', async () => {
     const h = current!;
     await h.client.request(METHODS.QUERY_START, {

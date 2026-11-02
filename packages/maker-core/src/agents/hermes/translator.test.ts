@@ -21,6 +21,26 @@ describe('normalizeHermesEvent', () => {
       .toEqual({ kind: 'resume-reset' });
   });
 
+  it('normalizes the daemon context-usage event (last API call prompt + model window)', () => {
+    expect(
+      normalizeHermesEvent({
+        type: 'hermes-mgr',
+        subtype: 'context-usage',
+        promptTokens: 24510,
+        model: 'deepseek-v4-pro',
+        provider: 'deepseek',
+        contextWindow: 1_048_576,
+      }),
+    ).toEqual({ kind: 'context-usage', promptTokens: 24510, contextWindow: 1_048_576 });
+    expect(normalizeHermesEvent({ type: 'hermes-mgr', subtype: 'context-usage', promptTokens: 5 }))
+      .toEqual({ kind: 'context-usage', promptTokens: 5 });
+    // A missing or bad prompt size is not a usage fact.
+    expect(normalizeHermesEvent({ type: 'hermes-mgr', subtype: 'context-usage', contextWindow: 9 }).kind)
+      .toBe('unknown');
+    expect(normalizeHermesEvent({ type: 'hermes-mgr', subtype: 'context-usage', promptTokens: -1 }).kind)
+      .toBe('unknown');
+  });
+
   it('normalizes the CLI init event into the model the run used', () => {
     expect(
       normalizeHermesEvent({

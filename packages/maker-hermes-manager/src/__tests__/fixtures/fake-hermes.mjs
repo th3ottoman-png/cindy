@@ -9,6 +9,7 @@
  *   --session-id <id>            session_id reported by system/init
  *   --record <path>              write the full argv as JSON here (assertions)
  *   --fail-when-resumed          exit 5 if --resume is present
+ *   FAKE_AGENT_LOG=1             (env) happy run appends per-call lines to logs/agent.log
  *
  * `FAKE_RECORD_LOG` appends one JSON line of argv per invocation, so a test can
  * inspect every attempt (e.g. the resume that failed and the fresh retry).
@@ -82,6 +83,17 @@ if (process.env.FAKE_RECORD_TEXT) {
 // Consume stdin (the daemon writes the query then closes it) without parsing.
 process.stdin.resume();
 
+// FAKE_AGENT_LOG: write two per-API-call lines to $HERMES_HOME/logs/agent.log in the
+// real CLI's format (Hermes 0.22.5), as the real CLI does before its `result`.
+function writeAgentLog() {
+  if (!process.env.FAKE_AGENT_LOG || !process.env.HERMES_HOME) return;
+  const dir = `${process.env.HERMES_HOME}/logs`;
+  fs.mkdirSync(dir, { recursive: true });
+  const line = (n, inTokens) =>
+    `2026-11-02 11:51:40,067 INFO [${sessionId}] agent.conversation_loop: API call #${n}: model=fake-model provider=fake-provider in=${inTokens} out=5 total=${inTokens + 5} latency=0.1s cache=0/${inTokens} (0%) id=x\n`;
+  fs.appendFileSync(`${dir}/agent.log`, line(1, 7000) + line(2, 7300));
+}
+
 if (behavior === 'happy') {
   if (flagValue('--fail-when-resumed') && process.argv.includes('--resume')) process.exit(5);
   emit({ type: 'system', subtype: 'init', model: 'fake-model', session_id: initSessionId });
@@ -89,6 +101,7 @@ if (behavior === 'happy') {
   emit({ type: 'text', text: 'world' });
   emit({ type: 'tool_use', name: 'terminal', tool_call_id: 't1', input: { cmd: 'ls' } });
   emit({ type: 'tool_result', name: 'terminal', tool_call_id: 't1', output: 'file.txt', duration_ms: 4, is_error: false });
+  writeAgentLog();
   emit({
     type: 'result',
     session_id: sessionId,

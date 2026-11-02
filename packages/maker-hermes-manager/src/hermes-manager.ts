@@ -27,6 +27,7 @@ import { isValidHermesPluginName, setHermesPluginEnabled } from './hermes-plugin
 import { readFile } from 'node:fs/promises';
 import * as nodePath from 'node:path';
 import { isInvalidResumeFailure, startHermesRun, type HermesRunHandle } from './hermes-run.js';
+import { readTurnContextUsage } from './hermes-context.js';
 import {
   HERMES_MGR_BUNDLE_VERSION,
   METHODS,
@@ -316,11 +317,11 @@ export class HermesManager {
         const held: unknown[] = [];
         let holding = Boolean(resumeHermesSessionId);
         const flushHeld = (): void => {
-          for (const event of held.splice(0)) this.onHermesEvent(rec.sessionId, event);
+          for (const event of held.splice(0)) this.onHermesEvent(rec.sessionId, event, turnHome);
         };
         const onEvent = (event: unknown): void => {
           if (!holding) {
-            this.onHermesEvent(rec.sessionId, event);
+            this.onHermesEvent(rec.sessionId, event, turnHome);
             return;
           }
           held.push(event);
@@ -734,7 +735,7 @@ export class HermesManager {
     return rec;
   }
 
-  private onHermesEvent(sessionId: string, event: unknown): void {
+  private onHermesEvent(sessionId: string, event: unknown, turnHome?: string): void {
     const evt = event as { type?: string; subtype?: string; session_id?: string } | null;
     // Two bind points: lifecycle init on older builds, and the terminal result
     // on current ones (this CLI sends init with an empty session_id and puts
@@ -754,6 +755,13 @@ export class HermesManager {
           hermesSessionId: reportedId,
         });
       }
+    }
+    if (evt?.type === 'result' && turnHome) {
+      // `result.tokens.input` sums every API call of the session; the context
+      // size is the last call's prompt, which Hermes only logs (hermes-context.ts).
+      const hermesSessionId = reportedId || this.registry.get(sessionId)?.hermesSessionId;
+      const usage = hermesSessionId ? readTurnContextUsage(turnHome, hermesSessionId) : null;
+      if (usage) this.emitEvent(sessionId, { type: 'hermes-mgr', subtype: 'context-usage', ...usage });
     }
     this.emitEvent(sessionId, event);
   }

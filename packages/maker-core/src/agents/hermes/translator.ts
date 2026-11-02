@@ -23,6 +23,12 @@ export type NormalizedHermesEvent =
   | { kind: 'session-bound'; hermesSessionId: string }
   | { kind: 'resume-reset'; previousHermesSessionId?: string }
   /**
+   * Daemon-read context size of the turn: the last API call's prompt tokens
+   * (Hermes logs it; `result.tokens.input` is a session-wide sum) and the
+   * model's window when models.dev knows it.
+   */
+  | { kind: 'context-usage'; promptTokens: number; contextWindow?: number }
+  /**
    * `system/init` — the route the CLI actually launched with. It carries the
    * model id the turn ran on, which is the only per-turn model fact Hermes
    * reports (the Cindy-side session model is a sentinel or an override, and
@@ -100,6 +106,17 @@ export function normalizeHermesEvent(event: unknown): NormalizedHermesEvent {
     return {
       kind: 'resume-reset',
       ...(previousHermesSessionId ? { previousHermesSessionId } : {}),
+    };
+  }
+
+  if (evt.type === 'hermes-mgr' && evt.subtype === 'context-usage') {
+    const promptTokens = asFiniteNumber(evt.promptTokens);
+    if (promptTokens === undefined || promptTokens < 0) return { kind: 'unknown', event };
+    const contextWindow = asFiniteNumber(evt.contextWindow);
+    return {
+      kind: 'context-usage',
+      promptTokens,
+      ...(contextWindow !== undefined && contextWindow > 0 ? { contextWindow } : {}),
     };
   }
 

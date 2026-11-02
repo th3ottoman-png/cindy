@@ -1026,6 +1026,58 @@ describe('HermesAgent', () => {
     }
   });
 
+  it('measures context by the last API call prompt and the model window, not the session sum', async () => {
+    // Hermes `result.tokens.input` sums every call of the session (live session
+    // d89db470: 114,012 at turn 3 for a last prompt of 24,510). The daemon's
+    // context-usage event carries the real last prompt and the model's window.
+    const daemon = await startDaemon({ turn: 'manual' });
+    const handle = await start(buildAgent());
+    const pump = createEventPump(handle);
+    try {
+      await handle.send({ type: 'user', content: 'read STATUS.md' });
+      daemon.emit({
+        type: 'hermes-mgr',
+        subtype: 'context-usage',
+        promptTokens: 24510,
+        model: 'deepseek-v4-pro',
+        provider: 'deepseek',
+        contextWindow: 1_048_576,
+      });
+      daemon.emit({
+        type: 'result',
+        session_id: 'hermes-session-1',
+        exit_code: 0,
+        text: 'done',
+        tokens: { input: 114012, output: 764, total: 114776, cache_read: 89856, cache_write: 0 },
+      });
+      daemon.closeSession('completed');
+      await pump.until((event) => event.type === 'done');
+      expect(pump.seen.filter((event) => event.type === 'status').at(-1)?.data).toMatchObject({
+        isRunning: false,
+        contextTokens: 24510,
+        contextWindow: 1_048_576,
+      });
+      expect(handle.getUsageSnapshot()).toMatchObject({ contextTokens: 24510, contextWindow: 1_048_576 });
+
+      // A later turn without the event (log unreadable) falls back to the
+      // over-reporting session sum, never to a stale smaller value; the
+      // model's window stays known.
+      await handle.send({ type: 'user', content: 'again' });
+      daemon.emit({
+        type: 'result',
+        session_id: 'hermes-session-1',
+        exit_code: 0,
+        text: 'done again',
+        tokens: { input: 150000, output: 10, total: 150010, cache_read: 0, cache_write: 0 },
+      });
+      daemon.closeSession('completed');
+      await pump.until((event) => event.type === 'done' && (event.data as { result?: string }).result === 'done again');
+      expect(handle.getUsageSnapshot()).toMatchObject({ contextTokens: 150000, contextWindow: 1_048_576 });
+    } finally {
+      await handle.close();
+    }
+  });
+
   it('surfaces a durable notice when the daemon replaced a lost resume id', async () => {
     const daemon = await startDaemon({ turn: 'manual' });
     const handle = await start(buildAgent());

@@ -10,6 +10,17 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-02 — Hermes context = last API call prompt + model window (`unit-tested`; live run open)
+
+- **Daemon** (`packages/maker-hermes-manager/src/hermes-context.ts`, new): when a turn's `result` arrives, read the last 256 KB of `<turn home>/logs/agent.log`, take the session's last `API call #N: model=… provider=… in=<prompt>` line (Hermes 0.22.5 format; `in=` includes the cached part), and look up `limit.context` for that provider/model in the same home's `models_dev_cache.json` (parsed once per mtime). `hermes-manager.ts` `onHermesEvent` then emits `{type:'hermes-mgr', subtype:'context-usage', promptTokens, model, provider, contextWindow?}` just **before** the `result`. Synchronous read, so the order holds. Missing log or line → no event; never throws. Documented in `protocol.ts`. Bundle version not bumped (additive event; an old daemon just sends none).
+- **Adapter** (`maker-core/src/agents/hermes/translator.ts` + `agent.ts`): new `context-usage` kind; `contextTokens` = that turn's prompt size, `contextWindow` = the model's window once reported (200k only until then). No event → falls back to the session-sum `tokens.input` (over-reports: safe for the banner). Cleared at each send, so a killed turn cannot leak its value.
+- **Tests first** (all failed before the code): `hermes-context.test.ts` +9 (parse, prefix/other-session guard, tail-only read of a 1 MB log, models.dev lookup, missing files); `hermes-manager.test.ts` +2 (fake Hermes writes real-format lines when `FAKE_AGENT_LOG=1` → event values and seq before `result`; no line → no event); `translator.test.ts` +1; `agent.test.ts` +1 (24,510 / 1,048,576 instead of the 114,012 sum; next turn without the event falls back to `input`, window kept). Daemon package 115/115 (11 new), Hermes adapter 52/52 (2 new).
+- **Expected on the d89db470 replay:** ring 13.7k → 17.4k → 24.5k of 1,048,576 (~2%) instead of 68k → 127k → 204k of 200k.
+- **Not done:** live before/after run (needs the dev app restarted from `main` with the rebuilt `dist/hermes-mgr.mjs`; the running dev app is from the old `context-banner-fix` worktree). Not verified: `done` usage double-pricing cache reads (unchanged). Routed endpoints not in models.dev (e.g. `custom` LM Studio) keep 200k.
+- Gates (Node 22.23.4): `pnpm typecheck` and `pnpm test:runner` PASS; `check:test-hygiene` PASS (361 files). `test:unit:related`: every workspace PASS (incl. `maker-core`, `maker-hermes-manager`) except `apps/desktop`, red on 1 assertion in `botSkillRuntimeProjection.test.ts` ("hand edits", untouched skills code; 3/3 alone). A full desktop rerun then hit the known SIGSEGV (Debt), so the desktop gate was run in the Debt's 8-shard form: 8/8 green, shards 1 and 7 after one SIGSEGV rerun each. **Surprising:** that skills test is a new load flake (added to Debt).
+
+---
+
 ## 2026-11-02 — Hermes `contextTokens` inflation: cause found; double count fixed (`unit-tested`)
 
 - **Cause (proven, two parts).** Hermes's `result.tokens.input` is (a) the prompt total, already *including* cache reads, and (b) **session-cumulative over every API call** (each resumed `hermes chat` reloads the session totals). `agent.ts` set `contextTokens = input + cache_read + cache_write`, so it summed every call's prompt and then added the cache reads a second time.
