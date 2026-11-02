@@ -346,3 +346,34 @@ describe('create_worker tool', () => {
     expect(createWorker).not.toHaveBeenCalled();
   });
 });
+
+describe('create_worker tool: Hermes expert workers (ROADMAP 3.9a, ADR 0008)', () => {
+  it('passes agent hermes and the expert slug to the host', async () => {
+    const { registry, createWorker } = setup();
+    const result = await registry.call('create_worker', {
+      role: 'reviewer', agent: 'hermes', expert: 'code-reviewer', label: 'review', initial_task: 'Review this.',
+    });
+    expect(result.isError).toBeUndefined();
+    expect(createWorker).toHaveBeenCalledWith(expect.objectContaining({ agent: 'hermes', expert: 'code-reviewer' }));
+    expect(parse(result)).toMatchObject({ agent: 'hermes', expert: 'code-reviewer' });
+  });
+
+  it('refuses an expert on a non-Hermes worker before the host is called', async () => {
+    const { registry, createWorker } = setup();
+    const result = await registry.call('create_worker', {
+      role: 'reviewer', agent: 'codex', expert: 'code-reviewer', label: 'review',
+    });
+    expect(result.isError).toBe(true);
+    expect(parse(result)).toMatchObject({ ok: false, errorCode: 'INVALID_PARAMS' });
+    expect(createWorker).not.toHaveBeenCalled();
+  });
+
+  it('rejects a slug that is not a plain folder name', async () => {
+    const { registry, createWorker } = setup();
+    const result = await registry.call('create_worker', {
+      role: 'reviewer', agent: 'hermes', expert: '../escape', label: 'review',
+    });
+    expect(result.isError).toBe(true);
+    expect(createWorker).not.toHaveBeenCalled();
+  });
+});

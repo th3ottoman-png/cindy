@@ -53,6 +53,12 @@ export const HERMES_BRIDGE_GATED_SERVERS: readonly string[] = [
 export const HERMES_BRIDGE_COLLAB_SERVERS: readonly string[] = ['cindy_orca'];
 
 /**
+ * Worker-side Orca tools (send_to_lead, ...) for a Hermes Orca worker (ROADMAP 3.9a, ADR 0008).
+ * A worker gets these instead of the team server, so it can never start workers itself (depth 1).
+ */
+export const HERMES_BRIDGE_WORKER_SERVERS: readonly string[] = ['orca_worker_bridge'];
+
+/**
  * The expert creator's draft tool (ROADMAP 3.8, ADR 0007) and expert memory (3.4b). Exposed only
  * to a session started as an expert whose expert.md lists `tools: [draft_expert]` or sets
  * `memory: true`; each tool re-checks on every call.
@@ -72,12 +78,13 @@ export function selectHermesBridgeServers(
   optedInGated: ReadonlySet<string> = new Set(),
   collabEnabled = false,
   expertCreator = false,
+  orcaWorker = false,
 ): string[] {
   const running = new Set(available);
   return [
     ...HERMES_BRIDGE_SAFE_SERVERS,
     ...HERMES_BRIDGE_GATED_SERVERS.filter((name) => optedInGated.has(name)),
-    ...(collabEnabled ? HERMES_BRIDGE_COLLAB_SERVERS : []),
+    ...(collabEnabled ? (orcaWorker ? HERMES_BRIDGE_WORKER_SERVERS : HERMES_BRIDGE_COLLAB_SERVERS) : []),
     ...(expertCreator ? HERMES_BRIDGE_EXPERT_SERVERS : []),
   ].filter((name) => running.has(name));
 }
@@ -157,6 +164,7 @@ export async function syncHermesShimRegistrations(
     ...HERMES_BRIDGE_SAFE_SERVERS,
     ...HERMES_BRIDGE_GATED_SERVERS,
     ...HERMES_BRIDGE_COLLAB_SERVERS,
+    ...HERMES_BRIDGE_WORKER_SERVERS,
     ...HERMES_BRIDGE_EXPERT_SERVERS,
   ]) {
     if (exposed.includes(name)) continue;
@@ -227,18 +235,18 @@ export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
           deps.globalCollabEnabled?.() ?? registry.isEnabled('collab'),
         ),
         deps.expertCreator?.(info.sessionId) ?? false,
+        info.vendorOptions?.orcaRole === 'worker',
       );
       // config.yaml is shared by every Hermes session (each session home copies it per turn), so
       // it lists every server any session may use: per-session lists here would let one session's
       // start remove another running session's tools (found live in 3.8). Each session is limited
       // by its mounts below instead: the bridge refuses an unmounted server at connect, the shim
       // exits, and Hermes lists no tools for it.
-      const registered = selectHermesBridgeServers(
-        lease.serverNames,
-        deps.optedInGatedServers?.() ?? new Set(),
-        true,
-        true,
-      );
+      const registered = [
+        ...selectHermesBridgeServers(lease.serverNames, deps.optedInGatedServers?.() ?? new Set(), true, true),
+        ...selectHermesBridgeServers(lease.serverNames, new Set(), true, false, true)
+          .filter((name) => HERMES_BRIDGE_WORKER_SERVERS.includes(name)),
+      ];
       await syncHermesShimRegistrations(deps.registration, shimPath, registered);
 
       // Freeze the per-project policy now (Pi does the same): later Settings

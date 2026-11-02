@@ -354,3 +354,37 @@ describe('ask-expert handoff IPC (ROADMAP 3.6b)', () => {
     expect(handoffSource.mock.calls.map((c) => c[0])).toEqual(['nope', 'empty']);
   });
 });
+
+describe('Orca worker as an expert (ROADMAP 3.9a, ADR 0008)', () => {
+  it('checks a worker expert: loadable Hermes only, with its model route', () => {
+    writeExpert('code-reviewer', 'name: Code Reviewer\nagent: hermes\nmodel: deepseek-route');
+    writeExpert('plain', 'name: Plain\nagent: hermes');
+    writeExpert('codex-one', 'name: Codex One\nagent: codex');
+    writeExpert('broken', 'name: [unclosed');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    expect(store.checkWorkerExpert('code-reviewer')).toEqual({ ok: true, model: 'deepseek-route' });
+    expect(store.checkWorkerExpert('plain')).toEqual({ ok: true });
+    expect(store.checkWorkerExpert('codex-one')).toMatchObject({ ok: false, message: expect.stringContaining('hermes') });
+    expect(store.checkWorkerExpert('broken')).toMatchObject({ ok: false });
+    expect(store.checkWorkerExpert('missing')).toMatchObject({ ok: false });
+    expect(store.checkWorkerExpert('../x')).toMatchObject({ ok: false });
+  });
+
+  it('binds a worker session directly, without touching the pending pick', () => {
+    writeExpert('code-reviewer', 'name: Code Reviewer\nagent: hermes');
+    writeExpert('research-analyst', 'name: Research Analyst\nagent: hermes');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    store.setPending('research-analyst');
+    const events: unknown[] = [];
+    store.onChange((e) => events.push(e));
+
+    store.bindSession('worker-1', 'code-reviewer');
+    expect(events).toEqual([{ type: 'bound', sessionId: 'worker-1', slug: 'code-reviewer' }]);
+    expect(store.getPending()).toBe('research-analyst');
+    expect(new ExpertSessionStore({ rootDir: root, bindingsFile }).getBoundSlug('worker-1')).toBe('code-reviewer');
+    const preamble = store.resolveFirstTurnPreamble({ sessionId: 'worker-1', model: 'hermes-default' }, anyRoute);
+    expect(preamble).toContain('[Cindy expert: Code Reviewer]');
+    expect(store.getPending()).toBe('research-analyst');
+    expect(() => store.bindSession('worker-2', '../escape')).toThrow();
+  });
+});

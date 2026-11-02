@@ -137,6 +137,32 @@ export class ExpertSessionStore {
     this.emit({ type: 'bound', sessionId, slug });
   }
 
+  /**
+   * Bind a session to an expert directly (ROADMAP 3.9a, ADR 0008): an Orca worker started as an
+   * expert is bound right after it is created, before its first turn. The pending pick is untouched.
+   */
+  bindSession(sessionId: string, slug: string): void {
+    if (!isValidExpertSlug(slug)) throw new Error(`invalid expert "${String(slug)}"`);
+    this.bind(sessionId, slug);
+  }
+
+  /**
+   * Whether an Orca worker can start as this expert (ROADMAP 3.9a): it must load and be a Hermes
+   * expert. Returns its model route so the worker session is created on it.
+   */
+  checkWorkerExpert(slug: string): { ok: true; model?: string } | { ok: false; message: string } {
+    if (!isValidExpertSlug(slug)) return { ok: false, message: `invalid expert "${String(slug)}"` };
+    const dir = path.join(this.opts.rootDir, slug);
+    const entry = loadExpert(dir);
+    if (!entry.expert) {
+      return { ok: false, message: `Expert "${slug}" cannot be loaded: ${entry.error ?? 'unknown error'} (${path.join(dir, 'expert.md')}).` };
+    }
+    if (entry.expert.agent !== 'hermes') {
+      return { ok: false, message: `Expert "${entry.expert.name}" is set to agent "${entry.expert.agent}"; only hermes experts can be started as workers.` };
+    }
+    return entry.expert.model ? { ok: true, model: entry.expert.model } : { ok: true };
+  }
+
   describeBinding(sessionId: string): ExpertSessionBindingView | null {
     const slug = this.getBoundSlug(sessionId);
     if (!slug) return null;

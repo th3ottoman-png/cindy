@@ -16056,6 +16056,9 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   }
 
   const orcaWorkerCreationService = createOrcaWorkerCreationService({
+    // ROADMAP 3.9a (ADR 0008): Hermes Orca workers started as a file-backed expert.
+    resolveHermesWorkerExpert: (slug) => getDesktopExpertSessionStore().checkWorkerExpert(slug),
+    bindWorkerExpert: (sessionId, slug) => getDesktopExpertSessionStore().bindSession(sessionId, slug),
     withLeadSendLock: withSendToSessionLock,
     getActiveTeamByLead,
     listWorkersByLead,

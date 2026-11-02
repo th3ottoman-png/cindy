@@ -290,3 +290,23 @@ describe('create_workers tool', () => {
     expect(createWorker).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('create_workers tool: Hermes expert workers (ROADMAP 3.9a, ADR 0008)', () => {
+  it('passes each worker expert through and refuses an expert on a non-Hermes worker', async () => {
+    const createWorker = vi.fn<CreateWorkerDeps['createWorker']>(async () => created(1, 4));
+    const registry = setup(createWorker);
+    const ok = await registry.call('create_workers', {
+      workers: [{ ...worker(1), agent: 'hermes', expert: 'code-reviewer' }, worker(2)],
+    });
+    expect(ok.isError).toBeUndefined();
+    expect(createWorker).toHaveBeenNthCalledWith(1, expect.objectContaining({ agent: 'hermes', expert: 'code-reviewer' }));
+    expect(createWorker.mock.calls[1]?.[0]).not.toHaveProperty('expert');
+
+    createWorker.mockClear();
+    const bad = await registry.call('create_workers', {
+      workers: [worker(1), { ...worker(2), expert: 'code-reviewer' }],
+    });
+    expect(bad.isError).toBe(true);
+    expect(createWorker).not.toHaveBeenCalled();
+  });
+});

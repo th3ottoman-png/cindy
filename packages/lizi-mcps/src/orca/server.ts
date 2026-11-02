@@ -101,7 +101,9 @@ export interface OrcaMcpDeps {
   createWorker: (params: {
     leadSessionId: string;
     role: string;
-    agent: ControlWorkerAgent;
+    /** `hermes` + `expert`: ROADMAP 3.9a, ADR 0008. */
+    agent: ControlWorkerAgent | 'hermes';
+    expert?: string;
     model?: string;
     providerId?: string;
     effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';

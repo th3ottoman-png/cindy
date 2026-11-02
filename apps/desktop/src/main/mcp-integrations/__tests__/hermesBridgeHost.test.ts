@@ -8,6 +8,7 @@ import type { Logger, McpProvider } from '@cindy/maker-core';
 import { withMcpRouteIdentity } from '../codexHttpBridge.js';
 import {
   HERMES_BRIDGE_COLLAB_SERVERS,
+  HERMES_BRIDGE_WORKER_SERVERS,
   HERMES_BRIDGE_EXPERT_SERVERS,
   HERMES_BRIDGE_GATED_SERVERS,
   HERMES_BRIDGE_SAFE_SERVERS,
@@ -73,6 +74,14 @@ describe('hermes bridge exposure policy', () => {
     // The worker-side bridge is not exposed to Hermes in 3.7a.
     expect(selectHermesBridgeServers([...all, 'orca_worker_bridge'], new Set(), true)).not.toContain('orca_worker_bridge');
     expect(selectHermesBridgeServers(['cindy_docs'], new Set(), true)).toEqual(['cindy_docs']);
+  });
+
+  it('gives a Hermes worker the worker bridge and never the team server (depth 1, ADR 0008)', () => {
+    const all = [...HERMES_BRIDGE_SAFE_SERVERS, ...HERMES_BRIDGE_COLLAB_SERVERS, ...HERMES_BRIDGE_WORKER_SERVERS];
+    expect(HERMES_BRIDGE_WORKER_SERVERS).toEqual(['orca_worker_bridge']);
+    expect(selectHermesBridgeServers(all, new Set(), true, false, true)).toEqual(['cindy_docs', 'orca_worker_bridge']);
+    expect(selectHermesBridgeServers(all, new Set(), false, false, true)).toEqual(['cindy_docs']);
+    expect(selectHermesBridgeServers(all, new Set(), true, false, false)).toEqual(['cindy_docs', 'cindy_orca']);
   });
 
   it('adds the expert creator server only for an expert-creator session (3.8)', () => {

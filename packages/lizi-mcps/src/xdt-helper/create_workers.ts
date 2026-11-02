@@ -12,6 +12,7 @@ import type { XdtHelperToolRegistry } from '../lizi_xdtHelperToolRegistry.js';
 import { okPayload, errorPayload } from './_payload.js';
 import {
   createWorkerSpecSchema,
+  expertRequiresHermes,
   toHostAgentDeviceId,
   toWorkerLimitPayload,
   type CreateWorkerDeps,
@@ -35,6 +36,10 @@ const workersSchema = z
         });
       }
       labels.add(canonical);
+      const expertError = expertRequiresHermes(worker);
+      if (expertError) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [index, 'expert'], message: expertError });
+      }
     });
   });
 
@@ -152,6 +157,7 @@ export function registerCreateWorkersTool(
           leadSessionId: ctx.sessionId,
           role: worker.role,
           agent: worker.agent,
+          ...(worker.expert !== undefined ? { expert: worker.expert } : {}),
           model: worker.model,
           providerId: worker.provider_id,
           effort: worker.effort,

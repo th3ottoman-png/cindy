@@ -3910,3 +3910,104 @@ describe('local Worker worktree ownership', () => {
     expect(deps.reserveWorkerCreation).not.toHaveBeenCalled();
   });
 });
+
+describe('Hermes worker started as an expert (ROADMAP 3.9a, ADR 0008)', () => {
+  function hermesDeps(overrides: Partial<OrcaWorkerCreationDeps> = {}) {
+    const resolveHermesWorkerExpert = vi.fn((slug: string) => (
+      slug === 'code-reviewer'
+        ? { ok: true as const, model: 'hermes-default' }
+        : slug === 'routed'
+          ? { ok: true as const, model: 'deepseek-route' }
+          : slug === 'plain'
+            ? { ok: true as const }
+            : { ok: false as const, message: `Expert "${slug}" cannot be loaded` }
+    ));
+    const made = createDeps({ resolveHermesWorkerExpert, ...overrides });
+    const bindWorkerExpert = vi.fn((sessionId: string, slug: string) => {
+      made.calls.push(`bindWorkerExpert:${sessionId}:${slug}`);
+    });
+    made.deps.bindWorkerExpert = overrides.bindWorkerExpert ?? bindWorkerExpert;
+    return { ...made, resolveHermesWorkerExpert, bindWorkerExpert };
+  }
+  const base = { teamId: 'team-1', leadSessionId: 'lead-1', role: 'reviewer', agent: 'hermes' as const, label: 'review', workerPermissionMode: 'bypassPermissions' as const };
+
+  it('checks the expert first, skips provider routing, and binds the worker before it is recorded', async () => {
+    const { deps, calls, resolveHermesWorkerExpert, bindWorkerExpert } = hermesDeps();
+    const service = createOrcaWorkerCreationService(deps);
+    const result = await service.createWorkerInTeam({ ...base, expert: 'code-reviewer' });
+
+    expect(result).toMatchObject({ ok: true, workerSessionId: WORKER_SESSION_ID,
+      resolved: { agent: 'hermes', model: 'hermes-default', providerId: null } });
+    expect(resolveHermesWorkerExpert).toHaveBeenCalledWith('code-reviewer');
+    expect(deps.getProviderRoutingContext).not.toHaveBeenCalled();
+    expect(deps.bootstrapSession).toHaveBeenCalledWith(expect.objectContaining({
+      agentKind: 'hermes', model: 'hermes-default', orcaRole: 'worker',
+      vendorOptions: expect.objectContaining({ orcaRole: 'worker', orcaLeadSessionId: 'lead-1' }),
+    }));
+    expect(bindWorkerExpert).toHaveBeenCalledWith(WORKER_SESSION_ID, 'code-reviewer');
+    expect(calls.indexOf(`bindWorkerExpert:${WORKER_SESSION_ID}:code-reviewer`))
+      .toBeLessThan(calls.indexOf('addOrUpdateWorker:worker-1'));
+    expect(calls.indexOf(`bootstrapSession:${WORKER_SESSION_ID}`))
+      .toBeLessThan(calls.indexOf(`bindWorkerExpert:${WORKER_SESSION_ID}:code-reviewer`));
+    expect(deps.releaseWorkerCreationReservation).toHaveBeenCalledWith('worker-1');
+  });
+
+  it('takes the model from the argument, else the expert route, else hermes-default', async () => {
+    const explicit = hermesDeps();
+    await createOrcaWorkerCreationService(explicit.deps).createWorkerInTeam({ ...base, expert: 'routed', model: 'other-route' });
+    expect(explicit.deps.bootstrapSession).toHaveBeenCalledWith(expect.objectContaining({ model: 'other-route' }));
+
+    const routed = hermesDeps();
+    await createOrcaWorkerCreationService(routed.deps).createWorkerInTeam({ ...base, expert: 'routed' });
+    expect(routed.deps.bootstrapSession).toHaveBeenCalledWith(expect.objectContaining({ model: 'deepseek-route' }));
+
+    const plain = hermesDeps();
+    await createOrcaWorkerCreationService(plain.deps).createWorkerInTeam({ ...base, expert: 'plain' });
+    expect(plain.deps.bootstrapSession).toHaveBeenCalledWith(expect.objectContaining({ model: 'hermes-default' }));
+
+    const noExpert = hermesDeps();
+    const result = await createOrcaWorkerCreationService(noExpert.deps).createWorkerInTeam(base);
+    expect(result.ok).toBe(true);
+    expect(noExpert.resolveHermesWorkerExpert).not.toHaveBeenCalled();
+    expect(noExpert.bindWorkerExpert).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on an expert that does not load, before any slot or session', async () => {
+    const { deps } = hermesDeps();
+    const result = await createOrcaWorkerCreationService(deps).createWorkerInTeam({ ...base, expert: 'missing' });
+    expect(result).toMatchObject({ ok: false, errorCode: 'INVALID_PARAMS', message: expect.stringContaining('missing') });
+    expect(deps.reserveWorkerCreation).not.toHaveBeenCalled();
+    expect(deps.bootstrapSession).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['execution device', { executionDeviceId: 'device-2' }],
+    ['agent device', { agentDeviceId: 'share:s1' }],
+    ['new worktree', { worktree: {} }],
+  ])('refuses a Hermes worker on a %s', async (_name, extra) => {
+    const { deps } = hermesDeps();
+    const result = await createOrcaWorkerCreationService(deps).createWorkerInTeam({ ...base, expert: 'code-reviewer', ...extra });
+    expect(result).toMatchObject({ ok: false, errorCode: 'INVALID_PARAMS' });
+    expect(deps.bootstrapSession).not.toHaveBeenCalled();
+  });
+
+  it('refuses an expert on a non-Hermes worker, and a Hermes worker when the host has no expert support', async () => {
+    const codex = hermesDeps();
+    const result = await createOrcaWorkerCreationService(codex.deps).createWorkerInTeam({ ...base, agent: 'codex', expert: 'code-reviewer' });
+    expect(result).toMatchObject({ ok: false, errorCode: 'INVALID_PARAMS' });
+    expect(codex.deps.bootstrapSession).not.toHaveBeenCalled();
+
+    const unsupported = createDeps();
+    const none = await unsupported.service.createWorkerInTeam(base);
+    expect(none).toMatchObject({ ok: false, errorCode: 'INVALID_PARAMS' });
+    expect(unsupported.deps.bootstrapSession).not.toHaveBeenCalled();
+  });
+
+  it('closes and archives the worker session when the expert cannot be bound', async () => {
+    const { deps } = hermesDeps({ bindWorkerExpert: vi.fn(() => { throw new Error('disk full'); }) });
+    const result = await createOrcaWorkerCreationService(deps).createWorkerInTeam({ ...base, expert: 'code-reviewer' });
+    expect(result).toMatchObject({ ok: false, errorCode: 'INTERNAL' });
+    expect(deps.archiveWorkerSession).toHaveBeenCalledWith(WORKER_SESSION_ID);
+    expect(deps.addOrUpdateWorker).not.toHaveBeenCalled();
+  });
+});

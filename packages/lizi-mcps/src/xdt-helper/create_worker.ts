@@ -10,6 +10,15 @@ import type { ControlDispatchOutcome, ControlResult, ControlWorkerAgent } from '
 import { okPayload, errorPayload } from './_payload.js';
 
 const WORKER_LABEL_PATTERN = /^[a-z0-9_-]+$/i;
+/** Same rule as the desktop expert store: a plain folder name (ROADMAP 3.9a). */
+const EXPERT_SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+/** `expert` starts a Hermes worker as a Cindy expert; other agents have no experts (ADR 0008). */
+export function expertRequiresHermes(spec: { agent: string; expert?: string }): string | null {
+  return spec.expert !== undefined && spec.agent !== 'hermes'
+    ? `expert "${spec.expert}" needs agent "hermes"; Cindy experts run on Hermes only.`
+    : null;
+}
 
 /** Worker 数量闸的结构化快照；批量编排据此生成稳定汇总。 */
 export interface WorkerLimitSnapshot {
@@ -67,7 +76,8 @@ export interface CreateWorkerDeps {
   createWorker: (params: {
     leadSessionId: string;
     role: string;
-    agent: ControlWorkerAgent;
+    /** `hermes` only for create_worker / create_workers (ROADMAP 3.9a); other tools keep ControlWorkerAgent. */
+    agent: ControlWorkerAgent | 'hermes';
     model?: string;
     providerId?: string;
     effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
@@ -78,6 +88,8 @@ export interface CreateWorkerDeps {
     executionDeviceId?: string;
     /** Worker 的 Agent 所在位置：null = 任务所在电脑；省略 = 跟 Lead。 */
     agentDeviceId?: string | null;
+    /** Hermes workers only: the expert slug the worker session starts as (ROADMAP 3.9a, ADR 0008). */
+    expert?: string;
     initialTask?: string;
     initialTaskImages?: string[];
   }) => Promise<CreateWorkerControlResult>;
@@ -117,8 +129,14 @@ export const createWorkerSpecSchema = z.object({
     .max(32)
     .describe('worker 角色: developer / reviewer / tester / merger 或自定义 string'),
   agent: z
-    .enum(['claude-code', 'codex', 'pi'])
+    .enum(['claude-code', 'codex', 'pi', 'hermes'])
     .describe('worker agent 类型'),
+  expert: z
+    .string()
+    .regex(EXPERT_SLUG_PATTERN)
+    .refine((value) => !value.includes('..'))
+    .optional()
+    .describe('Optional, Hermes workers only: the slug of a Cindy expert (folder name under the experts root) the worker starts as. Refused for other agents.'),
   model: z
     .string()
     .optional()
@@ -188,7 +206,8 @@ const DESCRIPTION = [
   '',
   '参数:',
   '- role: worker 角色 (developer / reviewer / tester / merger 或自定义 string)',
-  '- agent: worker agent 类型 (codex / claude-code / pi)',
+  '- agent: worker agent 类型 (codex / claude-code / pi / hermes)',
+  '- expert: optional, Hermes workers only. The slug of a Cindy expert; the worker starts as that expert (its prompt, model route and memory). Local only: no execution_device_id, agent_device_id or new_worktree.',
   '- model: 可选, worker 使用的模型 id; 不传走 host 端默认 fallback',
   '- provider_id: 可选, 模型来源 provider id。优先使用 list_available_models 对应模型返回的 provider_id；显式传入后 host 会严格校验该来源已连接且提供所选模型。',
   '- effort: 可选, reasoning/thinking 强度 (low / medium / high / xhigh / max / ultra)。Codex: 映射 OpenAI reasoning effort(max/ultra 仅部分模型如 GPT-5.6 Sol 支持); Claude Code: 映射 extended thinking token 预算(无 ultra,自动降级为 max)。显式传入时必须匹配所选 model 能力；当前 worker 模型都不把 minimal 作为可选思考档。',
@@ -223,7 +242,7 @@ export function registerCreateWorkerTool(
     category: 'control',
     description: DESCRIPTION,
     inputShape: createWorkerSpecSchema.shape,
-    handler: async ({ role, agent, model, provider_id, effort, fast, label, initial_task, images, working_dir, new_worktree, execution_device_id, agent_device_id }) => {
+    handler: async ({ role, agent, expert, model, provider_id, effort, fast, label, initial_task, images, working_dir, new_worktree, execution_device_id, agent_device_id }) => {
       const ctx = deps.getSessionContext?.() ?? deps;
       if (!ctx.sessionId) {
         return errorPayload('LEAD_NOT_SUPPORTED', '当前 session 类型不支持作为 Lead。');
@@ -234,10 +253,13 @@ export function registerCreateWorkerTool(
           'create_worker 是 Orca Lead 创建 worker session 的入口,不是 subagent 入口。若用户明确要求 subagent / 子代理,请使用你自己的原生 subagent 机制(如 Codex 的 spawn_agent、Claude Code 的 Task/Agent 工具),不要使用 Orca create_worker / start_team。没有原生 subagent 机制时如实告知用户,Orca worker 不是它的替代品。',
         );
       }
+      const expertError = expertRequiresHermes({ agent, expert });
+      if (expertError) return errorPayload('INVALID_PARAMS', expertError);
       const result = await deps.createWorker({
         leadSessionId: ctx.sessionId,
         role,
         agent,
+        ...(expert !== undefined ? { expert } : {}),
         model,
         providerId: provider_id,
         effort,
@@ -265,6 +287,7 @@ export function registerCreateWorkerTool(
         ...(result.worktree ? { worktree: result.worktree } : {}),
         role,
         agent,
+        ...(expert !== undefined ? { expert } : {}),
         label,
         ...(result.dispatched !== undefined ? { dispatched: result.dispatched } : {}),
         ...(result.dispatchOutcome ? { dispatch_outcome: result.dispatchOutcome } : {}),

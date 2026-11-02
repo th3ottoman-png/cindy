@@ -9,6 +9,7 @@ import { isSubscriptionDirectModel } from '../../shared/subscriptionModels.js';
 import type { DispatchWorkerTaskResult, OrcaWorkerEffort, OrcaWorkerStatus } from './orcaTeamService.js';
 import type { MakerSessionCreateOpts } from './sessionRequest.js';
 import type { OrcaRemoteWorkerProxySessionSeed } from '../localDb/client/tx/types.js';
+import { createHermesWorkerInTeam } from './orcaHermesWorker.js';
 import {
   resolveOrcaWorkerPermissionMode,
   type OrcaWorkerPermissionMode,
@@ -258,6 +259,8 @@ export interface OrcaWorkerCreateParams {
    * 电脑的设备 id 或分享来的供应商(`share:<id>`)。SSH Lead 与运行设备 Worker 只接受 undefined / null。
    */
   agentDeviceId?: string | null;
+  /** Hermes workers only: start the worker as this Cindy expert (ROADMAP 3.9a, ADR 0008). */
+  expert?: string;
 }
 
 /** 运行设备已建好任务；代理数据随后与 Worker 路由一起提交。 */
@@ -412,6 +415,10 @@ export interface OrcaWorkerCreationDeps {
   }): Promise<void>;
   /** 创建失败时回收：通知运行设备结束协同并归档本机代理行。 */
   discardRemoteWorker?(input: { proxySessionId: string; deviceId: string; remoteSessionId: string }): Promise<void>;
+  /** ROADMAP 3.9a: can a Hermes worker start as this expert (loadable, agent hermes), and on which route. Absent = no Hermes workers. */
+  resolveHermesWorkerExpert?(slug: string): { ok: true; model?: string } | { ok: false; message: string };
+  /** ROADMAP 3.9a: bind the new worker session to its expert before its first turn. */
+  bindWorkerExpert?(sessionId: string, slug: string): void;
 }
 
 /** Orca worker 创建服务，只负责创建既有 team 下的新 worker，不负责 team lifecycle。 */
@@ -1032,6 +1039,9 @@ export function createOrcaWorkerCreationService(deps: OrcaWorkerCreationDeps): O
     const label = normalizeOrcaWorkerLabel(params.label);
     if (!label.ok) return { ok: false, errorCode: 'INVALID_PARAMS', message: label.message };
     params = { ...params, label: label.value };
+    if (params.expert !== undefined && params.agent !== 'hermes') {
+      return { ok: false, errorCode: 'INVALID_PARAMS', message: `expert "${params.expert}" needs agent "hermes"; Cindy experts run on Hermes only.` };
+    }
     const validatePlan = async (workingDir?: string, route?: Parameters<OrcaWorkerCreationPlanValidator>[2]) => {
       await assertCurrent?.();
       // Host validation runs the captured source check before its final synchronous
@@ -1059,6 +1069,20 @@ export function createOrcaWorkerCreationService(deps: OrcaWorkerCreationDeps): O
     const lead = await deps.getLeadSessionRow(params.leadSessionId);
     if (!lead) {
       return { ok: false, errorCode: 'NOT_FOUND', message: `lead session ${params.leadSessionId} not found` };
+    }
+    // ROADMAP 3.9a (ADR 0008): Hermes has no providers here; its own branch keeps this path untouched.
+    if (params.agent === 'hermes') {
+      return createHermesWorkerInTeam({
+        deps, params, role: role.value, label: label.value, lead, settings, validatePlan, assertCurrent, onCreated,
+        shared: {
+          leaseMs: ORCA_WORKER_CREATION_RESERVATION_LEASE_MS,
+          title: orcaWorkerTitle,
+          limitSnapshot,
+          cleanup: cleanupBootstrappedWorkerSession,
+          toInternalFailure,
+          isLabelConstraintError: isWorkerLabelConstraintError,
+        },
+      });
     }
     if (params.worktree !== undefined && (!params.worktree || typeof params.worktree !== 'object'
       || Array.isArray(params.worktree) || lead.remoteHostId || params.executionDeviceId !== undefined
