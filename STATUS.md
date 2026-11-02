@@ -10,6 +10,29 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-02 — Debt: context banner over-report `live-proven`; ROADMAP 3.10 added
+
+- **First live check failed for a setup reason, not the fix:** the owner's screenshot showed "Context is 857% full" against a 100% ring (session `1894523c`, `deepseek-v4-pro`). The running dev app had been started at 11:01 from the main checkout on `main` (`7bea0c25`, process cwd `Cindy/apps/desktop`), which lacks the fix: 280,693 tokens / 32,768 (`chat.default` → `ollama-local`) = 857%. The dev DB row had no provider and a 200,000 window, so the fixed code cannot reach 32,768 for it.
+- **Live run** (dev app restarted from this worktree, `--isolated=dev`; driven by the agent with computer use, read-only prompts; owner approved the result): new Hermes task `d89db470` with `deepseek-v4-pro` picked directly. Turn 1: 68,400 / 200,000, ring 34%, no banner (old code: ~209%). Turn 2 (read 2 files): 127,001, ring 64%, no banner. Turn 3 (read 150 lines): 203,868, ring 100%, banner "Context is 102% full (0 tokens left)". Session `1894523c` now shows 138% instead of 857%. Label: `live-proven`. No user state was written (DB read with `sqlite3 -readonly`).
+- **Not observed:** a banner between 80% and 99% (64% → 102% in one turn). Known gap stands: the ring caps at 100%, the banner does not.
+- **Surprising, not fixed:** turn 3 read 150 lines yet `contextTokens` grew by ~77k, and Hermes answered normally at "102%". Either Hermes's `contextTokens` sums every model call in the tool loop, or `deepseek-v4-pro`'s real window is larger than `HERMES_CONTEXT_WINDOW` (200k). Both would make ring and banner read high together. Worth its own session.
+- **ROADMAP 3.10 added** (owner, 2026-11-02): "Ask before acting", from the `885ab7a2` session where the agent started building after being asked only for options. Not built.
+- **Gates** (Node 22.23.4, docs-only change on top of `f4c63c6534`): `pnpm typecheck` exit 0, `pnpm test:runner` exit 0, `pnpm check:test-hygiene` PASS (361 files). Desktop unit not rerun (no code change since the 8/8 run); `pnpm test:unit:related` not run.
+
+---
+
+## 2026-11-02 — Debt: context banner over-report for routed API models (`unit-tested`)
+
+- **Cause:** 368/60 ≈ 266/43 ≈ 6.1 = 200k / 32k. The footer ring measures `agentStatus.contextTokens` against `agentStatus.contextWindow` (200k for Hermes). The banner used the same tokens but, for a model providers.yaml does not describe (`deepseek-v4-pro`), fell back to the `chat.default` route's 32k whenever `session.contextWindow` was not yet persisted. Once it was persisted the two agreed (the owner's 88% vs 87%).
+- **Fix** (`apps/desktop/src/renderer/features/cc-agent/SessionContextGuardBanner.tsx`): removed the `chat.default` fallback (unknown limit → no banner, fail open); `resolveSessionContextLength` takes `runtimeContextWindow` (live `agentStatus.contextWindow`) ahead of the persisted window; `resolveSessionUsedTokens` takes the live `agentStatus.contextTokens` first (a Hermes turn total sums every model call in the tool loop). The component subscribes to the chat store for these two numbers, also when the messages come from a display snapshot, and skips re-renders when they do not change. providers.yaml-described models (session provider, routing.yaml, online probe) keep their configured limit.
+- **Tests** (`apps/desktop/src/renderer/__tests__/sessionContextGuardBanner.test.tsx`): +2 (routed API model at 120k against 200k is `ok`, no window → undefined; runtime tokens beat turn totals); the 2.2b-5 offline-endpoint assertion now expects `undefined` instead of the borrowed 32k. 3 failed before the fix. Mutations caught: restore a 32k fallback (2 fail), ignore runtime tokens (2 fail), ignore runtime window (1 fails).
+- **Summarise button:** `lmstudio-local/qwen3-8b` comes from the `summary` rule in `routing.yaml` (the 2.5 design: "routed summariser model"), not from the session route. No change.
+- **Gates** (Node 22.23.4): `pnpm typecheck` exit 0, `pnpm test:runner` exit 0, `pnpm check:test-hygiene` PASS; the touched test file 8/8. Desktop unit 8/8 shards PASS on this branch (same Mac). Shard 4 first failed: 4 Pi search tests hit `apps/ripgrep-bin/darwin-arm64/rg ENOENT` (generated binary, not in git, missing in a fresh worktree) plus a SIGSEGV; after copying `rg` from the main checkout it passed. Note: the owner's first shard run was in the main checkout on `main`, so it did not test this change. A formatter hook reformatted the whole test file once; that sweep was reverted so the diff holds only the new tests.
+- **Worktree note:** a fresh worktree has no per-package `node_modules` links (`Cannot find package '@cindy/model-providers'`); `pnpm install --frozen-lockfile --offline --ignore-scripts` fixed it in 4 s. It also lacks `apps/ripgrep-bin/darwin-arm64/rg`; copy it from the main checkout before running desktop unit.
+- **Open:** `live-proven` after the owner's check (Hermes task on `deepseek-v4-pro`, banner vs footer). The banner is unclamped while the footer ring caps at 100%, so above 100% they can still read differently.
+
+---
+
 ## 2026-11-02 — 3.8b `live-proven` (owner): switch-task check and Reject pass; 3.8 ✅
 
 - Setup: PR #8 was already merged by the owner (09:46, head `ebd8ea0a`). Dev app restarted with `pnpm dev:desktop:remote -- --isolated=dev`. Surprising: plain `pnpm dev:desktop` / `dev:desktop:remote` open the production `CindyGlobal` profile (empty 4 KB DB) and stop on "Local data can't be opened" (`MIGRATE_FAILED`, dev builds refuse to migrate the production profile). The owner's data lives in `CindyGlobal-dev2-dev`, reached only with `--isolated=dev`. Nothing was written to either profile.
