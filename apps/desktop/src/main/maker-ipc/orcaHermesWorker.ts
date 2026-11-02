@@ -170,14 +170,17 @@ export async function createHermesWorkerInTeam(
     let sessionId: string;
     try {
       await assertCurrent?.();
+      // Bound before bootstrap starts the Hermes agent: its tool bridge reads the binding at start
+      // (cindy_experts for an Expert Creator or memory expert, ROADMAP 3.9b), and the first turn
+      // (the initial task) then starts as the expert. A failed bootstrap leaves an inert binding
+      // for a session id that never existed.
+      if (params.expert !== undefined) deps.bindWorkerExpert(workerSessionId, params.expert);
       sessionId = (await deps.bootstrapSession(workerOpts)).session.id;
     } catch (err) {
       return shared.toInternalFailure(err);
     }
 
     try {
-      // Bound before the worker is recorded, so its first turn (the initial task) starts as the expert.
-      if (params.expert !== undefined) deps.bindWorkerExpert(sessionId, params.expert);
       if (
         !(await deps.renewWorkerCreationReservation(workerId, shared.leaseMs).catch(() => false))
       ) {

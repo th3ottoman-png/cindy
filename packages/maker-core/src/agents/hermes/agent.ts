@@ -45,6 +45,12 @@ const HERMES_DEFAULT_MODEL_ID = 'hermes-default';
 const HERMES_CONTEXT_WINDOW = 200_000;
 /** query/close waits for the daemon's SIGINT→SIGTERM→SIGKILL escalation. */
 const QUERY_CLOSE_TIMEOUT_MS = 10_000;
+/**
+ * Turn cap for a delegated job (ADR 0005, ROADMAP 3.9b): every run of an Orca worker session
+ * gets `--max-turns` with this many tool-calling iterations. Leads and solo sessions keep the
+ * Hermes home default.
+ */
+export const HERMES_ORCA_WORKER_MAX_TURNS = 40;
 
 function unsupported(): { supported: false; reason: 'not-implemented' } {
   return { supported: false, reason: 'not-implemented' };
@@ -295,6 +301,7 @@ export class HermesAgent extends BaseAgent {
           ...(targetBaseUrl ? { baseUrl: targetBaseUrl } : {}),
           ...(targetApiKey ? { apiKey: targetApiKey } : {}),
           ...(permissionMode ? { permissionMode } : {}),
+          ...(opts.vendorOptions?.orcaRole === 'worker' ? { maxTurns: HERMES_ORCA_WORKER_MAX_TURNS } : {}),
           // Provider keys ride per-session env (the daemon's own env is
           // deliberately secret-free). Hermes reads provider credentials from
           // env; without this a DeepSeek-direct home cannot authenticate.

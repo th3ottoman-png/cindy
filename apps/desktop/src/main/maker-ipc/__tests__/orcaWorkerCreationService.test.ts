@@ -3931,7 +3931,7 @@ describe('Hermes worker started as an expert (ROADMAP 3.9a, ADR 0008)', () => {
   }
   const base = { teamId: 'team-1', leadSessionId: 'lead-1', role: 'reviewer', agent: 'hermes' as const, label: 'review', workerPermissionMode: 'bypassPermissions' as const };
 
-  it('checks the expert first, skips provider routing, and binds the worker before it is recorded', async () => {
+  it('checks the expert first, skips provider routing, and binds the worker before its agent starts', async () => {
     const { deps, calls, resolveHermesWorkerExpert, bindWorkerExpert } = hermesDeps();
     const service = createOrcaWorkerCreationService(deps);
     const result = await service.createWorkerInTeam({ ...base, expert: 'code-reviewer' });
@@ -3947,8 +3947,10 @@ describe('Hermes worker started as an expert (ROADMAP 3.9a, ADR 0008)', () => {
     expect(bindWorkerExpert).toHaveBeenCalledWith(WORKER_SESSION_ID, 'code-reviewer');
     expect(calls.indexOf(`bindWorkerExpert:${WORKER_SESSION_ID}:code-reviewer`))
       .toBeLessThan(calls.indexOf('addOrUpdateWorker:worker-1'));
-    expect(calls.indexOf(`bootstrapSession:${WORKER_SESSION_ID}`))
-      .toBeLessThan(calls.indexOf(`bindWorkerExpert:${WORKER_SESSION_ID}:code-reviewer`));
+    // 3.9b: bootstrap starts the Hermes agent, whose tool bridge reads the binding
+    // (e.g. draft_expert for an Expert Creator worker), so the bind must come first.
+    expect(calls.indexOf(`bindWorkerExpert:${WORKER_SESSION_ID}:code-reviewer`))
+      .toBeLessThan(calls.indexOf(`bootstrapSession:${WORKER_SESSION_ID}`));
     expect(deps.releaseWorkerCreationReservation).toHaveBeenCalledWith('worker-1');
   });
 
@@ -4003,11 +4005,12 @@ describe('Hermes worker started as an expert (ROADMAP 3.9a, ADR 0008)', () => {
     expect(unsupported.deps.bootstrapSession).not.toHaveBeenCalled();
   });
 
-  it('closes and archives the worker session when the expert cannot be bound', async () => {
+  it('starts no worker session and frees the slot when the expert cannot be bound', async () => {
     const { deps } = hermesDeps({ bindWorkerExpert: vi.fn(() => { throw new Error('disk full'); }) });
     const result = await createOrcaWorkerCreationService(deps).createWorkerInTeam({ ...base, expert: 'code-reviewer' });
     expect(result).toMatchObject({ ok: false, errorCode: 'INTERNAL' });
-    expect(deps.archiveWorkerSession).toHaveBeenCalledWith(WORKER_SESSION_ID);
+    expect(deps.bootstrapSession).not.toHaveBeenCalled();
     expect(deps.addOrUpdateWorker).not.toHaveBeenCalled();
+    expect(deps.releaseWorkerCreationReservation).toHaveBeenCalledWith('worker-1');
   });
 });

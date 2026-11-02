@@ -301,7 +301,7 @@ import {
   invalidatePiEnvironment,
   setHermesOnlyBridgeProviders,
 } from '../mcp-integrations/piEnvironment.js';
-import { createExpertsMcpProvider, DRAFT_EXPERT_TOOL } from '../mcp-integrations/expertsMcpServer.js';
+import { createExpertsMcpProvider, DRAFT_EXPERT_TOOL, LIST_EXPERTS_TOOL } from '../mcp-integrations/expertsMcpServer.js';
 import { getDesktopExpertDraftConfirm } from '../maker-ipc/expertDraftConfirm.js';
 import { readContactsSettings } from './contacts-settings-store.js';
 import { captureKnownFileBefore, noteOpaqueTurnChange } from '../turn-change-set/store.js';
@@ -2568,6 +2568,7 @@ export function getMaker(): Maker {
       createExpertsMcpProvider({
         rootDir: () => getDesktopExpertSessionStore().rootDir,
         sessionMayDraft: (sessionId) => getDesktopExpertSessionStore().expertAllowsTool(sessionId, DRAFT_EXPERT_TOOL),
+        sessionMayList: (sessionId) => getDesktopExpertSessionStore().expertAllowsTool(sessionId, LIST_EXPERTS_TOOL),
         memoryTarget: (sessionId) => getDesktopExpertSessionStore().expertMemoryTarget(sessionId),
         confirm: (input) => getDesktopExpertDraftConfirm().request(input),
       }),
@@ -2856,10 +2857,11 @@ export function getMaker(): Maker {
         prepareHermesBridgeSession: createHermesBridgePreparer({
           providers: () => _mcpProviders.pi ?? [],
           logger: desktopMakerLogger,
-          // ROADMAP 3.8 / 3.4b: cindy_experts only for a session started as the expert creator
-          // (draft_expert) or as an expert with memory: true (save_expert_memory).
+          // ROADMAP 3.8 / 3.4b / 3.9b: cindy_experts only for a session started as the expert creator
+          // (draft_expert), the orchestrator (list_experts) or an expert with memory: true (save_expert_memory).
           expertCreator: (sessionId) =>
             getDesktopExpertSessionStore().expertAllowsTool(sessionId, DRAFT_EXPERT_TOOL, { includePending: true })
+            || getDesktopExpertSessionStore().expertAllowsTool(sessionId, LIST_EXPERTS_TOOL, { includePending: true })
             || getDesktopExpertSessionStore().expertMemoryTarget(sessionId, { includePending: true }) !== null,
           resolveShimPath: resolveHermesBridgeShimPath,
           registration: {

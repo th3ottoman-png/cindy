@@ -224,7 +224,43 @@ describe('HermesManager socket integration (fake hermes)', () => {
     expect(argv).not.toContain('--yolo');
     expect(argv[argv.indexOf('-m') + 1]).toBe('fake/default-model');
     expect(argv[argv.indexOf('--provider') + 1]).toBe('fake-provider');
+    expect(argv).not.toContain('--max-turns');
   }, 20_000);
+
+  it('applies the session turn cap to every run as --max-turns (ROADMAP 3.9b)', async () => {
+    const h = current!;
+    await h.client.request(METHODS.QUERY_START, {
+      sessionId: 'cap',
+      cwd: h.dir,
+      permissionMode: 'bypassPermissions',
+      maxTurns: 40,
+    }, { timeoutMs: 5_000 });
+    const rec = recordPath(h.dir, 'cap-turn1');
+    process.env.FAKE_RECORD = rec;
+    try {
+      await h.client.request(METHODS.QUERY_SEND, { sessionId: 'cap', text: 'job' }, { timeoutMs: 5_000 });
+      await h.collector.waitFor(
+        (n) =>
+          n.method === NOTIFICATIONS.SESSION_CLOSED &&
+          (n.params as SessionClosedNotification).sessionId === 'cap',
+      );
+    } finally {
+      delete process.env.FAKE_RECORD;
+    }
+    const argv = JSON.parse(fs.readFileSync(rec, 'utf8')) as string[];
+    expect(argv[argv.indexOf('--max-turns') + 1]).toBe('40');
+  }, 20_000);
+
+  it('refuses a turn cap that is not a positive integer (ROADMAP 3.9b)', async () => {
+    const h = current!;
+    for (const [i, bad] of [0, -1, 1.5, '40', 100_000].entries()) {
+      await expect(h.client.request(METHODS.QUERY_START, {
+        sessionId: `bad-cap-${i}`,
+        cwd: h.dir,
+        maxTurns: bad,
+      }, { timeoutMs: 5_000 })).rejects.toMatchObject({ rpcError: { code: 'INVALID_PARAMS' } });
+    }
+  });
 
   // Runs one turn for `sessionId` and returns every fake-Hermes invocation it made
   // (argv + query text): a model switch is a `/model` run followed by the real turn.

@@ -42,3 +42,18 @@ ADR 0005 has the orchestrator delegate each job to an expert as an Orca worker. 
 - Hermes workers cost what their route costs; the owner picks the route in the expert file.
 - Upstream changes are limited to the schema enum/field, the type, a pass-through, and one branch
   line in `createWorkerInTeam`; the provider logic is not edited.
+
+## Addendum — 3.9b (2026-11-02)
+
+- **Listing experts.** `list_experts` on `cindy_experts` (read-only): loadable Hermes experts with
+  slug, name, description, model, memory, tags; other agents and broken folders under `unavailable`
+  with the reason. Mounted only for a session whose expert lists `tools: [list_experts]`, re-checked
+  per call. Starter expert `docs/experts-examples/orchestrator/`.
+- **Turn cap.** Every run of a Hermes session with `orcaRole: worker` gets `--max-turns 40`
+  (`HERMES_ORCA_WORKER_MAX_TURNS`, maker-core Hermes agent; the daemon stores `maxTurns` from
+  `query/start`, 1–1000, and passes it on each run). Hermes 0.22.5 counts tool-calling iterations
+  per conversation turn. Leads and solo sessions keep the Hermes home default (150). Fixed, not per
+  expert, until a run shows a need.
+- **Bind order fix.** The worker is bound to its expert before `bootstrapSession`, because bootstrap
+  starts the Hermes agent and its tool bridge reads the binding then (an Expert Creator worker needs
+  `draft_expert`). A failed bootstrap leaves an inert binding to an id that never existed.

@@ -12,6 +12,10 @@
  * (`@cindy/maker-core/expert-memory`: append-only, atomic). Mounted for a Hermes session whose
  * expert has `memory: true`; every call re-checks that binding. Both tools sit on this one
  * server, so each refuses a session that may not use it.
+ *
+ * ROADMAP 3.9b (ADR 0008): `list_experts` is the orchestrator's read-only view of the experts
+ * it can delegate to (loadable Hermes experts; the rest listed as unavailable with the reason).
+ * Mounted for a Hermes session whose expert lists `tools: [list_experts]`; re-checked per call.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -27,6 +31,7 @@ import {
   type WriteExpertDraftResult,
 } from '@cindy/maker-core/expert-draft';
 import { appendExpertMemory, type MemoryTarget } from '@cindy/maker-core/expert-memory';
+import { loadExperts } from '@cindy/maker-core/experts';
 import { resolveLiziMcpSessionContext, type LiziMcpSessionContext } from '@cindy/mcps';
 import * as path from 'node:path';
 
@@ -36,6 +41,7 @@ import { SAVE_EXPERT_MEMORY_TOOL_NAME } from '../maker-ipc/expertSessions.js';
 export const CINDY_EXPERTS_MCP_SERVER_NAME = 'cindy_experts';
 export const DRAFT_EXPERT_TOOL = 'draft_expert';
 export const SAVE_EXPERT_MEMORY_TOOL = SAVE_EXPERT_MEMORY_TOOL_NAME;
+export const LIST_EXPERTS_TOOL = 'list_experts';
 
 export interface ExpertsMcpDeps {
   getSessionContext(): Pick<LiziMcpSessionContext, 'agentKind' | 'sessionId'> | undefined;
@@ -43,6 +49,8 @@ export interface ExpertsMcpDeps {
   rootDir(): string;
   /** True when the session is bound to an expert whose tools list `draft_expert`. */
   sessionMayDraft(sessionId: string): boolean;
+  /** True when the session is bound to an expert whose tools list `list_experts`. */
+  sessionMayList(sessionId: string): boolean;
   /** The session expert's memory folder when it is a Hermes expert with `memory: true`, else null. */
   memoryTarget(sessionId: string): MemoryTarget | null;
   confirm(input: { sessionId: string; draft: ExpertDraft; targetDir: string; markdown: string }): Promise<ExpertDraftDecision>;
@@ -153,8 +161,54 @@ export function createExpertsMcpServer(deps: ExpertsMcpDeps): McpServer {
       return reply({ status: 'saved', file: res.path, message: 'Saved. The note will be shown to this expert at the start of its next session.' });
     },
   );
+  server.tool(
+    LIST_EXPERTS_TOOL,
+    LIST_TOOL_DESCRIPTION,
+    {},
+    { readOnlyHint: true, destructiveHint: false },
+    async () => {
+      const ctx = deps.getSessionContext();
+      const sessionId = ctx?.sessionId;
+      if (!ctx || ctx.agentKind !== 'hermes' || !sessionId) {
+        return reply({ status: 'refused', errorCode: 'NO_SESSION_CONTEXT', message: 'list_experts only runs inside a Hermes session.' }, true);
+      }
+      if (!deps.sessionMayList(sessionId)) {
+        return reply({
+          status: 'refused',
+          errorCode: 'NOT_ORCHESTRATOR',
+          message: 'This session was not started as an expert whose expert.md lists "tools: [list_experts]".',
+        }, true);
+      }
+      const experts: Array<Record<string, unknown>> = [];
+      const unavailable: Array<{ slug: string; reason: string }> = [];
+      for (const entry of loadExperts(deps.rootDir())) {
+        const expert = entry.expert;
+        if (!expert) {
+          unavailable.push({ slug: entry.slug, reason: entry.error ?? 'could not be loaded' });
+        } else if (expert.agent !== 'hermes') {
+          unavailable.push({ slug: entry.slug, reason: `agent is ${expert.agent}; only Hermes experts can run as workers` });
+        } else {
+          experts.push({
+            slug: expert.slug,
+            name: expert.name,
+            description: expert.description,
+            ...(expert.model ? { model: expert.model } : {}),
+            memory: expert.memory,
+            tags: expert.tags,
+          });
+        }
+      }
+      return reply({ status: 'ok', experts, unavailable });
+    },
+  );
   return server;
 }
+
+const LIST_TOOL_DESCRIPTION = [
+  'List the Cindy experts you can delegate a job to. Each entry has the slug to pass as',
+  '`expert` to create_worker (with agent "hermes"), its name, what it does, its model route and',
+  'whether it keeps memory notes. Experts that cannot run as workers are listed with the reason.',
+].join(' ');
 
 const MEMORY_TOOL_DESCRIPTION = [
   'Save one short note to your expert memory (memory.md). Notes are shown to you at the start of',

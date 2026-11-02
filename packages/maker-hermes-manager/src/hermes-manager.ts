@@ -84,6 +84,13 @@ function rpcError(code: string, message: string): Error {
   return Object.assign(new Error(message), { code });
 }
 
+/** Upper bound for a session's `--max-turns`; Hermes' own home default is 150. */
+const MAX_TURNS_LIMIT = 1000;
+
+function isValidMaxTurns(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_TURNS_LIMIT;
+}
+
 export class HermesManager {
   readonly server: ManagerServer;
   private readonly registry: SessionRegistry;
@@ -213,6 +220,9 @@ export class HermesManager {
       if (typeof p?.cwd !== 'string' || !p.cwd) {
         throw rpcError('INVALID_PARAMS', 'cwd is required');
       }
+      if (p.maxTurns !== undefined && !isValidMaxTurns(p.maxTurns)) {
+        throw rpcError('INVALID_PARAMS', `maxTurns must be an integer from 1 to ${MAX_TURNS_LIMIT}`);
+      }
       const created = this.registry.create({
         sessionId: p.sessionId,
         cwd: p.cwd,
@@ -223,6 +233,7 @@ export class HermesManager {
         ...(p.apiKey ? { apiKey: p.apiKey } : {}),
         ...(p.permissionMode ? { permissionMode: p.permissionMode } : {}),
         ...(p.systemPromptPreamble ? { preamble: p.systemPromptPreamble } : {}),
+        ...(p.maxTurns !== undefined ? { maxTurns: p.maxTurns } : {}),
       });
       if (!created) {
         throw rpcError('SESSION_ALREADY_EXISTS', `session ${p.sessionId} already exists`);
@@ -308,6 +319,7 @@ export class HermesManager {
         text: p.text,
         ...(preamble ? { preamble } : {}),
         ...(rec.permissionMode ? { permissionMode: rec.permissionMode } : {}),
+        ...(rec.maxTurns !== undefined ? { maxTurns: rec.maxTurns } : {}),
         ...(this.hermesExtraArgs ? { extraArgs: this.hermesExtraArgs } : {}),
         env: this.sessionEnv.get(rec.sessionId),
       };

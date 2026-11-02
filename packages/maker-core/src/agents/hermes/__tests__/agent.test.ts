@@ -23,7 +23,7 @@ import {
 import type { Logger } from '../../../interfaces/logger.js';
 import { NotSupportedError } from '../../../types/capabilities.js';
 import type { AgentEvent } from '../../../types/events.js';
-import { HermesAgent } from '../agent.js';
+import { HERMES_ORCA_WORKER_MAX_TURNS, HermesAgent } from '../agent.js';
 import { HermesProtocolMismatchError } from '../protocol.js';
 
 const noopLogger: Logger = {
@@ -583,6 +583,22 @@ describe('HermesAgent', () => {
       delete process.env.DEEPSEEK_API_KEY;
       await handle.close();
     }
+  });
+
+  it('caps every run of an Orca worker session with maxTurns, and only a worker (ROADMAP 3.9b)', async () => {
+    const daemon = await startDaemon();
+    const agent = buildAgent();
+    for (const vendorOptions of [{ orcaRole: 'worker' }, { orcaRole: 'lead' }, undefined]) {
+      const handle = await agent.startSession({
+        sessionId: 'business-1',
+        workingDir: workDir,
+        model: 'hermes-default',
+        ...(vendorOptions ? { vendorOptions } : {}),
+      });
+      await handle.close();
+    }
+    expect(daemon.startParams.map((p) => p.maxTurns)).toEqual([HERMES_ORCA_WORKER_MAX_TURNS, undefined, undefined]);
+    expect(HERMES_ORCA_WORKER_MAX_TURNS).toBe(40);
   });
 
   it('registers the bridge identity with the Cindy session id, rides its env, and disposes on close', async () => {

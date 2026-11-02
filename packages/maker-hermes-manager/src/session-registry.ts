@@ -43,6 +43,8 @@ export interface HermesSessionRecord {
   appliedModel?: string;
   /** Cindy context preamble; consumed by the daemon on the session's first turn. */
   preamble?: string;
+  /** Per-run tool-calling cap (`--max-turns`), set at query/start (ROADMAP 3.9b). */
+  maxTurns?: number;
   lastSeq: number;
   startedAt: string;
   lastEventAt: string | null;

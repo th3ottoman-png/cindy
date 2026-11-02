@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadExperts } from '@cindy/maker-core/experts';
 
 import type { ExpertDraftDecision } from '../../maker-ipc/expertDraftConfirm';
-import { createExpertsMcpServer, DRAFT_EXPERT_TOOL, SAVE_EXPERT_MEMORY_TOOL, type ExpertsMcpDeps } from '../expertsMcpServer';
+import { createExpertsMcpServer, DRAFT_EXPERT_TOOL, LIST_EXPERTS_TOOL, SAVE_EXPERT_MEMORY_TOOL, type ExpertsMcpDeps } from '../expertsMcpServer';
 
 let root: string;
 beforeEach(() => {
@@ -32,6 +32,7 @@ function deps(over: Partial<ExpertsMcpDeps> = {}): ExpertsMcpDeps & { confirm: R
     getSessionContext: () => ({ agentKind: 'hermes', sessionId: 's1' }),
     rootDir: () => root,
     sessionMayDraft: (id) => id === 's1',
+    sessionMayList: (id) => id === 's1',
     memoryTarget: () => null,
     confirm,
     ...over,
@@ -159,5 +160,45 @@ describe('cindy_experts save_expert_memory (ROADMAP 3.4b)', () => {
     const d = memDeps({ sessionMayDraft: () => false });
     const res = await call(d);
     expect(res).toMatchObject({ isError: true, body: { errorCode: 'NOT_EXPERT_CREATOR' } });
+  });
+});
+
+describe('cindy_experts list_experts (ROADMAP 3.9b)', () => {
+  function writeExpert(slug: string, frontmatter: string, body = 'You do one job well.') {
+    fs.mkdirSync(path.join(root, slug));
+    fs.writeFileSync(path.join(root, slug, 'expert.md'), `---\n${frontmatter}\n---\n${body}\n`);
+  }
+
+  it('lists loadable Hermes experts a worker can start as, and why the others cannot', async () => {
+    writeExpert('code-reviewer', 'name: Code Reviewer\ndescription: Reviews diffs.\nagent: hermes\nmodel: hermes-default\ntags: [code]');
+    writeExpert('notes', 'name: Notes\ndescription: Keeps notes.\nagent: hermes\nmemory: true');
+    writeExpert('codex-helper', 'name: Codex Helper\ndescription: Codex only.\nagent: codex');
+    fs.mkdirSync(path.join(root, 'broken'));
+    fs.writeFileSync(path.join(root, 'broken', 'expert.md'), 'no frontmatter');
+
+    const res = await call(deps(), {}, LIST_EXPERTS_TOOL);
+    expect(res.isError).toBe(false);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.experts).toEqual([
+      { slug: 'code-reviewer', name: 'Code Reviewer', description: 'Reviews diffs.', model: 'hermes-default', memory: false, tags: ['code'] },
+      { slug: 'notes', name: 'Notes', description: 'Keeps notes.', memory: true, tags: [] },
+    ]);
+    expect(res.body.unavailable).toEqual([
+      { slug: 'broken', reason: expect.any(String) },
+      { slug: 'codex-helper', reason: 'agent is codex; only Hermes experts can run as workers' },
+    ]);
+  });
+
+  it('refuses a session whose expert does not list list_experts', async () => {
+    writeExpert('code-reviewer', 'name: Code Reviewer\ndescription: Reviews diffs.\nagent: hermes');
+    const res = await call(deps({ sessionMayList: () => false }), {}, LIST_EXPERTS_TOOL);
+    expect(res.isError).toBe(true);
+    expect(res.body).toMatchObject({ status: 'refused', errorCode: 'NOT_ORCHESTRATOR' });
+    expect(res.body).not.toHaveProperty('experts');
+  });
+
+  it('refuses outside a Hermes session', async () => {
+    const res = await call(deps({ getSessionContext: () => ({ agentKind: 'codex', sessionId: 's1' }) }), {}, LIST_EXPERTS_TOOL);
+    expect(res.body).toMatchObject({ status: 'refused', errorCode: 'NO_SESSION_CONTEXT' });
   });
 });
