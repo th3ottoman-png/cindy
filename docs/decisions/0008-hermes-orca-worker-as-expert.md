@@ -57,3 +57,7 @@ ADR 0005 has the orchestrator delegate each job to an expert as an Orca worker. 
 - **Bind order fix.** The worker is bound to its expert before `bootstrapSession`, because bootstrap
   starts the Hermes agent and its tool bridge reads the binding then (an Expert Creator worker needs
   `draft_expert`). A failed bootstrap leaves an inert binding to an id that never existed.
+- **Draft wait (3.9b2).** `draft_expert` waits 280 s for the owner (`EXPERT_DRAFT_TIMEOUT_MS`), not
+  the 9-minute host-confirm timeout in ADR 0007: Hermes 0.22.5 abandons an MCP tool call after
+  300 s, so a later answer would save the expert while the agent saw a failure. The Team pane
+  mounts the draft card for the shown worker, since an embedded worker view has no session header.

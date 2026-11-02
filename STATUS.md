@@ -10,6 +10,15 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-02 — ROADMAP 3.9b2 live run 2: card still hidden, Hermes 300 s tool limit (both fixed, re-run open)
+
+- **Live run 2 (owner, verified read-only):** lead `f3f3b817` (Orchestrator) → worker `3fdf130f` bound to `expert-creator`, `maxTurns: 40` in the daemon registry. From the Cindy DB (`messages`, read-only): `draft_expert` called 21:48:40 (`occasion-speech-writer`); at 21:53:40 the tool result was "MCP call timed out after 300.0s (configured timeout: 300.0s)"; a retry was refused "a draft from this session is already waiting for the owner" (so the draft was pending in main); the worker reported "pending, not saved" to the lead, which correctly held. Nothing saved.
+- **Why my 3.9b2 fix did nothing:** `renderer/features/cc-agent/hooks/workerProjectionStore.ts:190` maps a Hermes session to `agent: 'claude-code'` (display kinds only), so the Team pane passed `'claude-code'` and the card's Hermes gate rendered nothing. The unit test used a fake `agent: 'hermes'` record the real projection never produces — a test built on an assumption, not the real shape.
+- **Fixes:** `OrcaWorkerPanel.tsx` passes `agentKind="hermes"` to the card (only Hermes sessions can draft, so other workers have no pending draft; costs one `listDrafts` IPC per shown worker); test now uses `'claude-code'`. `maker-ipc/expertDraftConfirm.ts`: `EXPERT_DRAFT_TIMEOUT_MS = 280_000` is the default wait (was the shared 9-min host-confirm timeout); `expertsMcpServer.ts` tool text "about 4.5 minutes". The Hermes per-server MCP timeout key could not be checked: its source lives under `~/.hermes`, which this repo must not read; the 300 s figure is from the live error text. ADR 0008 addendum notes the change from ADR 0007's 9 minutes.
+- **Tests first:** `expertDraftConfirm.test.ts` +1 (default wait settles as timeout and is < 300 s; red: timed out at 5 s under fake timers), `OrcaWorkerPanel.test.tsx` changed to the real shape (red: got `'claude-code'`). Affected files 48/48.
+- **Gates (Node 22.23.4):** typecheck, test:runner, check:test-hygiene, test:unit:related all exit 0. The edit hook reformatted 4 whole files during the run again; each was rebuilt from HEAD plus only these hunks (whitespace-only difference), then the 4 affected test files re-run (48/48) and typecheck re-run (exit 0). Proposed rule change: the post-edit formatter hook should not reformat untouched lines in this repo. Diff has no `fetch(`, `http` or `~/.hermes`.
+- **Open:** owner re-runs the toast request and approves within ~4.5 min.
+
 ## 2026-11-02 — ROADMAP 3.9b2 live run 1: delegation works, worker draft card missing (fixed, re-run open)
 
 - **Live run (owner, read-only verification here):** Orchestrator lead on `hermes-default`, Full access, collaboration on.
