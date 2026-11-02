@@ -10,6 +10,17 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-02 — Debt: context banner over-report `live-proven`; ROADMAP 3.10 added
+
+- **First live check failed for a setup reason, not the fix:** the owner's screenshot showed "Context is 857% full" against a 100% ring (session `1894523c`, `deepseek-v4-pro`). The running dev app had been started at 11:01 from the main checkout on `main` (`7bea0c25`, process cwd `Cindy/apps/desktop`), which lacks the fix: 280,693 tokens / 32,768 (`chat.default` → `ollama-local`) = 857%. The dev DB row had no provider and a 200,000 window, so the fixed code cannot reach 32,768 for it.
+- **Live run** (dev app restarted from this worktree, `--isolated=dev`; driven by the agent with computer use, read-only prompts; owner approved the result): new Hermes task `d89db470` with `deepseek-v4-pro` picked directly. Turn 1: 68,400 / 200,000, ring 34%, no banner (old code: ~209%). Turn 2 (read 2 files): 127,001, ring 64%, no banner. Turn 3 (read 150 lines): 203,868, ring 100%, banner "Context is 102% full (0 tokens left)". Session `1894523c` now shows 138% instead of 857%. Label: `live-proven`. No user state was written (DB read with `sqlite3 -readonly`).
+- **Not observed:** a banner between 80% and 99% (64% → 102% in one turn). Known gap stands: the ring caps at 100%, the banner does not.
+- **Surprising, not fixed:** turn 3 read 150 lines yet `contextTokens` grew by ~77k, and Hermes answered normally at "102%". Either Hermes's `contextTokens` sums every model call in the tool loop, or `deepseek-v4-pro`'s real window is larger than `HERMES_CONTEXT_WINDOW` (200k). Both would make ring and banner read high together. Worth its own session.
+- **ROADMAP 3.10 added** (owner, 2026-11-02): "Ask before acting", from the `885ab7a2` session where the agent started building after being asked only for options. Not built.
+- **Gates** (Node 22.23.4, docs-only change on top of `f4c63c6534`): `pnpm typecheck` exit 0, `pnpm test:runner` exit 0, `pnpm check:test-hygiene` PASS (361 files). Desktop unit not rerun (no code change since the 8/8 run); `pnpm test:unit:related` not run.
+
+---
+
 ## 2026-11-02 — Debt: context banner over-report for routed API models (`unit-tested`)
 
 - **Cause:** 368/60 ≈ 266/43 ≈ 6.1 = 200k / 32k. The footer ring measures `agentStatus.contextTokens` against `agentStatus.contextWindow` (200k for Hermes). The banner used the same tokens but, for a model providers.yaml does not describe (`deepseek-v4-pro`), fell back to the `chat.default` route's 32k whenever `session.contextWindow` was not yet persisted. Once it was persisted the two agreed (the owner's 88% vs 87%).
