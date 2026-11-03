@@ -48,3 +48,12 @@ its Hermes session, and the starter expert `options-first` is the Options-first 
 file-backed expert binding (chosen before the first turn, kept in `expert-sessions.json`, shown in the
 header) and keeps decisions 1–6. A locked session gets no Cindy bridge at all (no facade was needed
 for 3.10). "Go ahead" (decision 5) is ROADMAP 3.10c; until then the expert points to Ask expert (3.6b).
+
+## Implementation note — 3.10d (2026-11-03)
+
+Decision 7 is built as its own MCP server `cindy_project_reader` (`read_project_file`,
+`search_project`), not as a widening of the Cindy bridge. A locked session still gets no bridge unless
+its expert opts in with `tools: [read_project_file, search_project]`; then it mounts only this server.
+Reads are limited to the task folder's real path, and secrets, binaries and symlink escapes are
+refused. The first Consequence ("cannot read project files until D lands") no longer applies to
+experts that opt in. Live-proven in ROADMAP 3.10d.
