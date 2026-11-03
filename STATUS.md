@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-03 — ROADMAP 1.9b session cost/usage panel `live-proven` (1.9b done)
+
+- **Gap found:** 1.9b-1/-2/-3 were all built, but the connected `SessionUsagePanel` never passed `localProviders` to `buildConversationUsageFromStoredTurns`. So every LM Studio/Ollama turn read "unpriced", was listed under "Unpriced:" and dragged a mixed conversation to "partial", which goes against 1.9a's rule (a local turn is tokens only). `providers.yaml` entries already carry `local: true` for loopback hosts.
+- **Change, commit `089d4ae459`:** `apps/desktop/src/renderer/features/cc-agent/SessionUsagePanel.tsx`: new pure `localProviderIdsFromProvidersFile()`; the panel calls `window.electronAPI.maker.providers.list()` (existing IPC, no new outbound call) and passes the local ids. An unreadable file leaves local turns unpriced, never priced.
+- **Tests first:** +2 in `apps/desktop/src/renderer/__tests__/sessionUsagePanel.test.tsx` (red: 2 failed, then 6/6). Mutations: dropping the `local` filter failed the filter test; always returning `[]` failed both.
+- **Gates (Node 22.23.4):** typecheck, test:runner, check:test-hygiene, test:unit:related all exit 0 (the related tier ran `apps/desktop unit` in full, PASS 494 s). Desktop 8 shards: all green; shards 5/6/7 hit the known threads SIGSEGV on the first run, and shard 6 hit one unrelated flake on rerun (`readSheetProcessPackaging.test.ts`, a JSON parse error in a spawned node probe) before passing.
+- **Live (owner, read-only DB check):** new Gemma chat `efbaddd0` ("hi"): chip `14.6k tok · local`, "Cost: local (tokens only)", row `lmstudio-local/google/gemma-4-2…` · local, no Unpriced line; DB `turnUsageDetails` in 14,627 / out 6 / total 14,633, provider `lmstudio-local`. Deepseek chat `cc11ccec`: chip `34.5k tok · $0.0074`, no "(partial)"; hand math 17,172 × 0.30 + 1,809 × 1.20 + 15,488 × 0.006 per Mtok = $0.0074.
+- **Surprise:** the owner had deleted every earlier LM Studio chat (`status = deleted`), so the before/after had to use a new chat.
+- **Open:** nothing for 1.9b. Old Hermes rows stored before 1.9b-3c still carry the wrong `deepseek/` provider on Gemma turns; there is no backfill (by design).
+
+---
+
 ## 2026-11-03 — ROADMAP 3.10d read-only project reader `live-proven`
 
 - **Change, commit `789966b803`:** new `apps/desktop/src/main/mcp-integrations/projectReaderMcpServer.ts` (server `cindy_project_reader`: `read_project_file`, `search_project`; read-only, limited to the session's realpath'd `workingDir`; refuses `OUTSIDE_PROJECT` incl. through symlinks, `SECRET_FILE` (.env, keys, .npmrc, .netrc), `BINARY_FILE`, `NOT_A_FILE`, `NOT_FOUND`, `TOO_LARGE` (2 MB); search is plain text and skips .git, node_modules, .build, venvs and symlinks; every call re-checks `sessionMayRead`; non-Hermes, remote or folderless sessions refused). `hermesBridgeHost.ts`: `HERMES_BRIDGE_READER_SERVERS` + dep `projectReader`; a locked session without the opt-in still gets no bridge, with it only `cindy_project_reader`; the reader is always in the config.yaml registration and removal lists. `maker-host/index.ts`: provider added to the Hermes-only list; opt-in via `expertAllowsTool(..., {includePending:true})`. Pi already filters Hermes-only providers (`piEnvironment.ts:233`). `options-first/expert.md`: `tools: [read_project_file, search_project]` and new prompt text that it can read the project read-only. Installed copy updated after backup `~/.cindy-harness/{experts,expert-sessions.json}.bak-2026-11-03-3.10d`.
