@@ -354,7 +354,9 @@ export interface HermesQueryEventNotification {
    * `{ type: 'hermes-mgr', subtype: 'resume-reset', previousHermesSessionId, reason? }`
    * (`reason: 'permission-mode-changed'` when the daemon started fresh on purpose), or
    * `{ type: 'hermes-mgr', subtype: 'context-usage', promptTokens, model?, provider?, contextWindow? }`
-   * (sent just before `result`: the turn's last API call prompt size, see hermes-context.ts).
+   * (sent just before `result`: the turn's last API call prompt size, see hermes-context.ts), or
+   * `{ type: 'hermes-mgr', subtype: 'compression', phase: 'started'|'done', id, preTokens?, postTokens? }`
+   * (Hermes's own mid-turn compression, read from agent.log while the turn runs; ADR 0010).
    */
   event: unknown;
 }

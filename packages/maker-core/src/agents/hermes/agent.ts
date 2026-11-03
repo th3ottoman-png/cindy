@@ -505,6 +505,29 @@ export class HermesAgent extends BaseAgent {
           turnPromptTokens = normalized.promptTokens;
           if (normalized.contextWindow !== undefined) contextWindow = normalized.contextWindow;
           return;
+        case 'compression':
+          // Hermes compresses the context on its own mid-turn (ROADMAP 1.11, ADR 0010):
+          // say so while it summarizes, then mark the boundary in the chat.
+          if (normalized.phase === 'started') {
+            queue.push({
+              type: 'status',
+              data: { status: 'Compacting context…', ...usageSnapshot(), isRunning: true },
+              source: 'hermes',
+            });
+            return;
+          }
+          if (normalized.postTokens !== undefined) usage.contextTokens = normalized.postTokens;
+          queue.push({
+            type: 'compact_boundary',
+            data: {
+              boundaryId: `hermes-compression:${normalized.id}`,
+              trigger: 'auto',
+              ...(normalized.preTokens !== undefined ? { preTokens: normalized.preTokens } : {}),
+              ...(normalized.postTokens !== undefined ? { postTokens: normalized.postTokens } : {}),
+            },
+            source: 'hermes',
+          });
+          return;
         case 'resume-reset':
           // The daemon started this turn on a fresh session: the stored id vanished
           // from the Hermes home, or the permission flag changed (Hermes keeps

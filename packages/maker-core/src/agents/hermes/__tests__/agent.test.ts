@@ -1345,4 +1345,42 @@ describe('HermesAgent', () => {
       await handle.close();
     }
   });
+
+  it('shows a Hermes auto-compression as a Compacting status, then a compact divider (ROADMAP 1.11)', async () => {
+    // Hermes compresses mid-turn and only logs it; the daemon turns the agent.log
+    // lines into hermes-mgr/compression events (ADR 0010).
+    const daemon = await startDaemon({ turn: 'manual' });
+    const handle = await start(buildAgent());
+    const pump = createEventPump(handle);
+    try {
+      await handle.send({ type: 'user', content: 'read the big files' });
+      daemon.emit({ type: 'hermes-mgr', subtype: 'compression', phase: 'started', id: 'c1', preTokens: 56110 });
+      await pump.until((event) => event.type === 'status'
+        && (event.data as { status?: string }).status === 'Compacting context…');
+      expect(pump.seen.filter((event) => event.type === 'status').at(-1)?.data).toMatchObject({ isRunning: true });
+      daemon.emit({
+        type: 'hermes-mgr', subtype: 'compression', phase: 'done', id: 'c1', preTokens: 56110, postTokens: 42244,
+      });
+      await pump.until((event) => event.type === 'compact_boundary');
+      expect(pump.seen.find((event) => event.type === 'compact_boundary')?.data).toEqual({
+        boundaryId: 'hermes-compression:c1',
+        trigger: 'auto',
+        preTokens: 56110,
+        postTokens: 42244,
+      });
+      expect(handle.getUsageSnapshot()).toMatchObject({ contextTokens: 42244 });
+      daemon.emit({
+        type: 'result',
+        session_id: 'hermes-session-1',
+        exit_code: 0,
+        text: 'done',
+        tokens: { input: 99000, output: 10, total: 99010, cache_read: 0, cache_write: 0 },
+      });
+      daemon.closeSession('completed');
+      await pump.until((event) => event.type === 'done');
+      expect(pump.seen.filter((event) => event.type === 'compact_boundary')).toHaveLength(1);
+    } finally {
+      await handle.close();
+    }
+  });
 });

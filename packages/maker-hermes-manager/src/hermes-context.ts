@@ -126,3 +126,122 @@ export function readTurnContextUsage(home: string, hermesSessionId: string): Her
     : undefined;
   return { ...call, ...(contextWindow !== undefined ? { contextWindow } : {}) };
 }
+
+// ── Auto compression (ROADMAP 1.11, ADR 0010) ───────────────────────────────
+//
+// Hermes compresses a long context on its own, mid-turn, and only logs it:
+//
+//   … INFO agent.conversation_compression: context compression started: session=<id> messages=57 tokens=~56,110 …
+//   … INFO agent.conversation_compression: context compression done: session=<id> messages=57->29 rough_tokens=~42,244 …
+//
+// Nothing reaches stream-json, so the daemon follows agent.log while a turn runs.
+
+export interface HermesCompressionLine {
+  phase: 'started' | 'done';
+  /** `<session>@<log timestamp>`: stable across re-reads of the same line. */
+  id: string;
+  tokens: number;
+}
+
+export interface HermesCompressionEvent {
+  phase: 'started' | 'done';
+  id: string;
+  /** Context size before compressing (from the `started` line). */
+  preTokens?: number;
+  /** Estimated size after (from the `done` line). */
+  postTokens?: number;
+}
+
+const COMPRESSION_LINE = /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3}) .*agent\.conversation_compression: context compression (started|done): session=(\S+) .*?(?:^|\s)(?:tokens|rough_tokens)=~?([\d,]+)/;
+
+/**
+ * One compression line, or null. With no `hermesSessionId` (a fresh session whose
+ * id is not bound yet) any session matches: each Cindy session has its own home.
+ */
+export function parseCompressionLine(line: string, hermesSessionId?: string): HermesCompressionLine | null {
+  const match = COMPRESSION_LINE.exec(line);
+  if (!match) return null;
+  const [, at, phase, session, rawTokens] = match;
+  if (hermesSessionId && session !== hermesSessionId) return null;
+  const tokens = Number(rawTokens.replace(/,/g, ''));
+  if (!Number.isFinite(tokens)) return null;
+  return { phase: phase as 'started' | 'done', id: `${session}@${at}`, tokens };
+}
+
+export interface CompressionWatcher {
+  /** Compression events in lines appended since the last poll (or since creation). */
+  poll(hermesSessionId?: string): HermesCompressionEvent[];
+}
+
+/**
+ * Follows `<home>/logs/agent.log` from its size at creation. Best effort: a
+ * missing or unreadable log yields no events, never a throw.
+ */
+export function createCompressionWatcher(home: string): CompressionWatcher {
+  const file = nodePath.join(home, 'logs', 'agent.log');
+  const sizeOf = (): number | null => {
+    try {
+      return fs.statSync(file).size;
+    } catch {
+      return null;
+    }
+  };
+  let offset = sizeOf() ?? 0;
+  let partial = '';
+  let startedTokens: number | undefined;
+
+  const readNew = (): string => {
+    const size = sizeOf();
+    if (size === null) return '';
+    if (size < offset) {
+      // Rotated or truncated: start over on the new file.
+      offset = 0;
+      partial = '';
+    }
+    if (size === offset) return '';
+    let from = offset;
+    if (size - from > LOG_TAIL_BYTES) {
+      from = size - LOG_TAIL_BYTES;
+      partial = '';
+    }
+    let fd: number | undefined;
+    try {
+      fd = fs.openSync(file, 'r');
+      const buffer = Buffer.alloc(size - from);
+      fs.readSync(fd, buffer, 0, buffer.length, from);
+      offset = size;
+      return buffer.toString('utf8');
+    } catch {
+      return '';
+    } finally {
+      if (fd !== undefined) fs.closeSync(fd);
+    }
+  };
+
+  return {
+    poll(hermesSessionId?: string): HermesCompressionEvent[] {
+      const text = partial + readNew();
+      const end = text.lastIndexOf('\n');
+      partial = end < 0 ? text : text.slice(end + 1);
+      if (end < 0) return [];
+      const events: HermesCompressionEvent[] = [];
+      for (const line of text.slice(0, end).split('\n')) {
+        const parsed = parseCompressionLine(line, hermesSessionId);
+        if (!parsed) continue;
+        if (parsed.phase === 'started') {
+          startedTokens = parsed.tokens;
+          events.push({ phase: 'started', id: parsed.id, preTokens: parsed.tokens });
+        } else {
+          events.push({
+            phase: 'done',
+            id: parsed.id,
+            ...(startedTokens !== undefined ? { preTokens: startedTokens } : {}),
+            postTokens: parsed.tokens,
+          });
+          startedTokens = undefined;
+        }
+      }
+      return events;
+    },
+  };
+}

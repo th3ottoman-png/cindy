@@ -177,3 +177,21 @@ describe('parseSessionIdFromStderr', () => {
     expect(parseSessionIdFromStderr('no trailer here')).toBeUndefined();
   });
 });
+
+describe('normalizeHermesEvent compression (ROADMAP 1.11)', () => {
+  it('normalizes the daemon compression events read from agent.log', () => {
+    expect(normalizeHermesEvent({
+      type: 'hermes-mgr', subtype: 'compression', phase: 'started', id: 'c1', preTokens: 56110,
+    })).toEqual({ kind: 'compression', phase: 'started', id: 'c1', preTokens: 56110 });
+    expect(normalizeHermesEvent({
+      type: 'hermes-mgr', subtype: 'compression', phase: 'done', id: 'c1', preTokens: 56110, postTokens: 42244,
+    })).toEqual({ kind: 'compression', phase: 'done', id: 'c1', preTokens: 56110, postTokens: 42244 });
+    // A done line without the started line still marks the boundary.
+    expect(normalizeHermesEvent({ type: 'hermes-mgr', subtype: 'compression', phase: 'done', id: 'c2', postTokens: 9 }))
+      .toEqual({ kind: 'compression', phase: 'done', id: 'c2', postTokens: 9 });
+    // No id or an unknown phase is not a compression fact.
+    expect(normalizeHermesEvent({ type: 'hermes-mgr', subtype: 'compression', phase: 'done' }).kind).toBe('unknown');
+    expect(normalizeHermesEvent({ type: 'hermes-mgr', subtype: 'compression', phase: 'x', id: 'c3' }).kind)
+      .toBe('unknown');
+  });
+});

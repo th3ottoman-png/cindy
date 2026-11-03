@@ -32,7 +32,7 @@ import {
   startHermesRun,
   type HermesRunHandle,
 } from './hermes-run.js';
-import { readTurnContextUsage } from './hermes-context.js';
+import { createCompressionWatcher, readTurnContextUsage, type CompressionWatcher } from './hermes-context.js';
 import {
   HERMES_MGR_BUNDLE_VERSION,
   METHODS,
@@ -78,7 +78,12 @@ export interface HermesManagerOptions {
 interface RunningTurn {
   handle: HermesRunHandle;
   killed: boolean;
+  /** Follows the turn home's agent.log for Hermes's own mid-turn compression (ADR 0010). */
+  compression?: CompressionWatcher;
 }
+
+/** Hermes logs nothing on stream-json while it summarizes (20–40 s live), so poll the log. */
+const COMPRESSION_POLL_MS = 1_000;
 
 function rpcError(code: string, message: string): Error {
   return Object.assign(new Error(message), { code });
@@ -387,6 +392,8 @@ export class HermesManager {
             appliedModel: routeModel,
           });
         }
+        // Created before the spawn: only lines this run writes are reported.
+        const compression = createCompressionWatcher(turnHome);
         const run = startHermesRun(
           {
             ...baseSpec,
@@ -398,11 +405,16 @@ export class HermesManager {
           },
           onEvent,
         );
-        const turn: RunningTurn = { handle: run, killed: false };
+        const turn: RunningTurn = { handle: run, killed: false, compression };
         this.running.set(rec.sessionId, turn);
         this.registry.update(rec.sessionId, { running: true });
+        const compressionTimer = setInterval(() => {
+          if (this.running.get(rec.sessionId) === turn) this.emitCompression(rec.sessionId, compression);
+        }, COMPRESSION_POLL_MS);
+        compressionTimer.unref?.();
 
         void run.result.then((res) => {
+          clearInterval(compressionTimer);
           // A fallback turn replaces this record; only the live turn settles.
           if (this.running.get(rec.sessionId) !== turn) return;
           if (
@@ -812,6 +824,9 @@ export class HermesManager {
         });
       }
     }
+    // A compression logged before this event belongs before it in the stream.
+    const compression = this.running.get(sessionId)?.compression;
+    if (compression) this.emitCompression(sessionId, compression);
     if (evt?.type === 'result' && turnHome) {
       // `result.tokens.input` sums every API call of the session; the context
       // size is the last call's prompt, which Hermes only logs (hermes-context.ts).
@@ -820,6 +835,13 @@ export class HermesManager {
       if (usage) this.emitEvent(sessionId, { type: 'hermes-mgr', subtype: 'context-usage', ...usage });
     }
     this.emitEvent(sessionId, event);
+  }
+
+  private emitCompression(sessionId: string, watcher: CompressionWatcher): void {
+    const hermesSessionId = this.registry.get(sessionId)?.hermesSessionId;
+    for (const compression of watcher.poll(hermesSessionId)) {
+      this.emitEvent(sessionId, { type: 'hermes-mgr', subtype: 'compression', ...compression });
+    }
   }
 
   private emitEvent(sessionId: string, event: unknown): void {

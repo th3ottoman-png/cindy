@@ -5,7 +5,9 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  createCompressionWatcher,
   lookupModelsDevContextWindow,
+  parseCompressionLine,
   parseLastApiCall,
   readTurnContextUsage,
 } from '../hermes-context.js';
@@ -101,5 +103,77 @@ describe('readTurnContextUsage', () => {
   it('returns null when the log is missing, without throwing', () => {
     expect(readTurnContextUsage(home, SID)).toBeNull();
     expect(readTurnContextUsage(path.join(home, 'missing'), SID)).toBeNull();
+  });
+});
+
+// Hermes 0.22.5 compression lines (format observed live 2026-11-03 in a Cindy session home).
+const started = (sid: string, at: string, tokens: string): string =>
+  `2026-11-03 ${at} INFO agent.conversation_compression: context compression started: session=${sid} messages=57 tokens=~${tokens} model=deepseek-flash focus=None`;
+const done = (sid: string, at: string, tokens: string): string =>
+  `2026-11-03 ${at} INFO agent.conversation_compression: context compression done: session=${sid} messages=79->29 rough_tokens=~${tokens} awaiting_real_usage=true`;
+
+describe('parseCompressionLine (ROADMAP 1.11)', () => {
+  it('reads the phase, a stable id and the token count of a compression line', () => {
+    expect(parseCompressionLine(started(SID, '09:35:56,138', '57,437'), SID))
+      .toEqual({ phase: 'started', id: `${SID}@2026-11-03 09:35:56,138`, tokens: 57437 });
+    expect(parseCompressionLine(done(SID, '09:36:36,350', '35,694'), SID))
+      .toEqual({ phase: 'done', id: `${SID}@2026-11-03 09:36:36,350`, tokens: 35694 });
+  });
+
+  it('ignores other sessions, a prefix id, telemetry and refusal lines', () => {
+    expect(parseCompressionLine(started(OTHER, '09:35:56,138', '57,437'), SID)).toBeNull();
+    expect(parseCompressionLine(done(`${SID}x`, '09:36:36,350', '35,694'), SID)).toBeNull();
+    expect(parseCompressionLine('2026-11-03 12:53:23,171 INFO agent.conversation_compression: context compression attempt telemetry: {"commit_status":"aborted"}', SID)).toBeNull();
+    expect(parseCompressionLine(`2026-11-03 12:53:23,170 WARNING agent.conversation_compression: Compression refused: compressed transcript would be larger than the original (session=${SID}, ~73,940 -> ~74,293 tokens)`, SID)).toBeNull();
+  });
+
+  it('accepts any session while the Hermes session id is not known yet (fresh session)', () => {
+    expect(parseCompressionLine(done(OTHER, '09:36:36,350', '1,000'))?.tokens).toBe(1000);
+  });
+});
+
+describe('createCompressionWatcher (ROADMAP 1.11)', () => {
+  let home = '';
+  let log = '';
+  beforeEach(() => {
+    home = fs.mkdtempSync(path.join(os.tmpdir(), 'hermes-cmp-'));
+    fs.mkdirSync(path.join(home, 'logs'));
+    log = path.join(home, 'logs', 'agent.log');
+  });
+  afterEach(() => {
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+
+  it('reports only lines written after it was created, and pairs done with its started size', () => {
+    fs.writeFileSync(log, `${started(SID, '09:00:00,000', '50,000')}\n${done(SID, '09:00:10,000', '20,000')}\n`);
+    const watcher = createCompressionWatcher(home);
+    expect(watcher.poll(SID)).toEqual([]);
+    fs.appendFileSync(log, `${call(SID, 1, 56000)}\n${started(SID, '09:32:02,349', '56,110')}\n`);
+    expect(watcher.poll(SID)).toEqual([
+      { phase: 'started', id: `${SID}@2026-11-03 09:32:02,349`, preTokens: 56110 },
+    ]);
+    fs.appendFileSync(log, `${done(SID, '09:32:22,636', '42,244')}\n`);
+    expect(watcher.poll(SID)).toEqual([
+      { phase: 'done', id: `${SID}@2026-11-03 09:32:22,636`, preTokens: 56110, postTokens: 42244 },
+    ]);
+    expect(watcher.poll(SID)).toEqual([]);
+  });
+
+  it('waits for a line to be complete before reading it', () => {
+    const watcher = createCompressionWatcher(home);
+    const line = done(SID, '09:36:36,350', '35,694');
+    fs.appendFileSync(log, line.slice(0, 40));
+    expect(watcher.poll(SID)).toEqual([]);
+    fs.appendFileSync(log, `${line.slice(40)}\n`);
+    expect(watcher.poll(SID)).toEqual([
+      { phase: 'done', id: `${SID}@2026-11-03 09:36:36,350`, postTokens: 35694 },
+    ]);
+  });
+
+  it('starts from an empty log when the file appears later, and never throws on a missing home', () => {
+    const watcher = createCompressionWatcher(home);
+    fs.writeFileSync(log, `${started(SID, '10:00:00,000', '9,000')}\n`);
+    expect(watcher.poll(SID)).toHaveLength(1);
+    expect(createCompressionWatcher(path.join(home, 'missing')).poll(SID)).toEqual([]);
   });
 });

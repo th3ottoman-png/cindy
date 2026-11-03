@@ -30,6 +30,11 @@ export type NormalizedHermesEvent =
    */
   | { kind: 'context-usage'; promptTokens: number; contextWindow?: number }
   /**
+   * Hermes's own mid-turn context compression, read by the daemon from agent.log
+   * (Hermes reports nothing on stream-json; ADR 0010). `id` is stable per log line.
+   */
+  | { kind: 'compression'; phase: 'started' | 'done'; id: string; preTokens?: number; postTokens?: number }
+  /**
    * `system/init` — the route the CLI actually launched with. It carries the
    * model id the turn ran on, which is the only per-turn model fact Hermes
    * reports (the Cindy-side session model is a sentinel or an override, and
@@ -119,6 +124,21 @@ export function normalizeHermesEvent(event: unknown): NormalizedHermesEvent {
       kind: 'context-usage',
       promptTokens,
       ...(contextWindow !== undefined && contextWindow > 0 ? { contextWindow } : {}),
+    };
+  }
+
+  if (evt.type === 'hermes-mgr' && evt.subtype === 'compression') {
+    const id = asNonEmptyString(evt.id);
+    const phase = evt.phase === 'started' || evt.phase === 'done' ? evt.phase : undefined;
+    if (!id || !phase) return { kind: 'unknown', event };
+    const preTokens = asFiniteNumber(evt.preTokens);
+    const postTokens = asFiniteNumber(evt.postTokens);
+    return {
+      kind: 'compression',
+      phase,
+      id,
+      ...(preTokens !== undefined ? { preTokens } : {}),
+      ...(postTokens !== undefined ? { postTokens } : {}),
     };
   }
 

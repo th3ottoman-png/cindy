@@ -5,7 +5,7 @@
  * stream-json session on stdout.
  *
  * Fixture flags (scan-only, values may appear anywhere):
- *   --behavior happy|slow|fail|missing-session|permission-scoped   script (default happy)
+ *   --behavior happy|slow|fail|missing-session|permission-scoped|compress   script (default happy)
  *   --session-id <id>            session_id reported by system/init
  *   --record <path>              write the full argv as JSON here (assertions)
  *   --fail-when-resumed          exit 5 if --resume is present
@@ -154,6 +154,32 @@ if (behavior === 'happy') {
     duration_ms: 11,
   });
   process.exit(0);
+} else if (behavior === 'compress') {
+  // Mirrors Hermes 0.22.5 (probe 2026-11-03): after a tool call the run compresses
+  // before its next API call. Compression is only logged to agent.log (nothing on
+  // stream-json), and the summary call takes a while between the two lines.
+  const log = `${process.env.HERMES_HOME}/logs/agent.log`;
+  fs.mkdirSync(`${process.env.HERMES_HOME}/logs`, { recursive: true });
+  const compressLine = (phase, at, field, tokens) =>
+    `2026-11-03 ${at} INFO agent.conversation_compression: context compression ${phase}: session=${sessionId} messages=${phase === 'started' ? '57' : '57->29'} ${field}=~${tokens} model=fake-model\n`;
+  emit({ type: 'system', subtype: 'init', model: 'fake-model', session_id: initSessionId });
+  emit({ type: 'tool_use', name: 'read_file', tool_call_id: 't1', input: { path: 'big.txt' } });
+  emit({ type: 'tool_result', name: 'read_file', tool_call_id: 't1', output: 'lots', duration_ms: 4, is_error: false });
+  // The started line comes after the last stream event, so only a live log watch sees it in time.
+  setTimeout(() => fs.appendFileSync(log, compressLine('started', '09:32:02,349', 'tokens', '56,110')), 300);
+  setTimeout(() => {
+    fs.appendFileSync(log, compressLine('done', '09:32:22,636', 'rough_tokens', '42,244'));
+    emit({ type: 'text', text: 'after compression' });
+    emit({
+      type: 'result',
+      session_id: sessionId,
+      exit_code: 0,
+      text: 'after compression',
+      tokens: { input: 98000, output: 5, total: 98005, cache_read: 0, cache_write: 0 },
+      duration_ms: 1600,
+    });
+    process.exit(0);
+  }, 1_900);
 } else if (behavior === 'missing-session') {
   // Mirrors the real CLI: `--resume <unknown>` emits init with an empty
   // session_id and a failed result carrying the lookup error, then exits 1.

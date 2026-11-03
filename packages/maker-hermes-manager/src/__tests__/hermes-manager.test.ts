@@ -1040,4 +1040,47 @@ describe('HermesManager socket integration (fake hermes)', () => {
       bad.dispose();
     }
   }, 20_000);
+
+  it('turns a mid-turn Hermes compression into live compression events (ROADMAP 1.11)', async () => {
+    const h = current!;
+    process.env.FAKE_BEHAVIOR = 'compress';
+    try {
+      await h.client.request(METHODS.QUERY_START, {
+        sessionId: 's-cmp',
+        cwd: h.dir,
+        permissionMode: 'bypassPermissions',
+      }, { timeoutMs: 5_000 });
+      await h.client.request(METHODS.QUERY_SEND, { sessionId: 's-cmp', text: 'read it' }, { timeoutMs: 5_000 });
+      await h.collector.waitFor(
+        (n) =>
+          n.method === NOTIFICATIONS.SESSION_CLOSED &&
+          (n.params as SessionClosedNotification).sessionId === 's-cmp',
+      );
+    } finally {
+      delete process.env.FAKE_BEHAVIOR;
+    }
+
+    type Note = { seq: number; ts: string; event: Record<string, unknown> };
+    const compression = h.collector.eventsOfType('hermes-mgr')
+      .map((n) => n.params as Note)
+      .filter((p) => p.event.subtype === 'compression');
+    expect(compression.map((p) => p.event)).toEqual([
+      { type: 'hermes-mgr', subtype: 'compression', phase: 'started', id: 'fake-h-1@2026-11-03 09:32:02,349', preTokens: 56110 },
+      {
+        type: 'hermes-mgr',
+        subtype: 'compression',
+        phase: 'done',
+        id: 'fake-h-1@2026-11-03 09:32:22,636',
+        preTokens: 56110,
+        postTokens: 42244,
+      },
+    ]);
+    // "started" is seen while Hermes is still summarizing (no stream event comes
+    // then), so the screen can say so; "done" lands before the text written after it.
+    expect(Date.parse(compression[1].ts) - Date.parse(compression[0].ts)).toBeGreaterThanOrEqual(500);
+    const after = h.collector.eventsOfType('text')
+      .map((n) => n.params as Note)
+      .find((p) => p.event.text === 'after compression');
+    expect(compression[1].seq).toBeLessThan(after!.seq);
+  }, 20_000);
 });
