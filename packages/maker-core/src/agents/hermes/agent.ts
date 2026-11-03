@@ -52,6 +52,16 @@ const QUERY_CLOSE_TIMEOUT_MS = 10_000;
  */
 export const HERMES_ORCA_WORKER_MAX_TURNS = 40;
 
+/** The stored chat line for a Hermes auto-compression (ROADMAP 1.11). */
+function compressionNotice(preTokens?: number, postTokens?: number): string {
+  const k = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+  if (preTokens !== undefined && postTokens !== undefined) {
+    return `Context compressed automatically: ${k(preTokens)} → ${k(postTokens)} tokens.`;
+  }
+  if (postTokens !== undefined) return `Context compressed automatically: now about ${k(postTokens)} tokens.`;
+  return 'Context compressed automatically.';
+}
+
 function unsupported(): { supported: false; reason: 'not-implemented' } {
   return { supported: false, reason: 'not-implemented' };
 }
@@ -526,6 +536,14 @@ export class HermesAgent extends BaseAgent {
               ...(normalized.postTokens !== undefined ? { postTokens: normalized.postTokens } : {}),
             },
             source: 'hermes',
+          });
+          // The divider above is local-only and did not show for Hermes live; this
+          // one-liner is stored with the chat, like the resume-reset notice.
+          queue.push({
+            type: 'text',
+            data: { text: compressionNotice(normalized.preTokens, normalized.postTokens), isFinal: true },
+            source: 'hermes',
+            standaloneText: true,
           });
           return;
         case 'resume-reset':

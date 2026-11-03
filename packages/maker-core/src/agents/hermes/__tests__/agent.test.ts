@@ -1369,6 +1369,14 @@ describe('HermesAgent', () => {
         postTokens: 42244,
       });
       expect(handle.getUsageSnapshot()).toMatchObject({ contextTokens: 42244 });
+      // The durable one-liner: stored with the chat, so it survives a reload (live run 2026-11-03:
+      // the local-only divider never showed for Hermes).
+      await pump.until((event) => event.type === 'text'
+        && (event as { standaloneText?: boolean }).standaloneText === true);
+      expect(pump.seen.filter((event) => event.type === 'text'
+        && (event as { standaloneText?: boolean }).standaloneText === true).map((event) => event.data)).toEqual([
+        { text: 'Context compressed automatically: 56.1k → 42.2k tokens.', isFinal: true },
+      ]);
       daemon.emit({
         type: 'result',
         session_id: 'hermes-session-1',
