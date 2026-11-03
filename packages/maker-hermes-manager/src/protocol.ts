@@ -32,8 +32,10 @@ export const PROTOCOL_VERSION = 1 as const;
  * hermes-mgr bundle version — manual bump on substantive daemon changes.
  * Desktop uses this (not a content hash) to decide remote-style upgrades, so
  * unrelated tooling changes must not touch it.
+ *
+ * 0.3.0: add config/setLocalContextWindows (1.12b).
  */
-export const HERMES_MGR_BUNDLE_VERSION = '0.2.0' as const;
+export const HERMES_MGR_BUNDLE_VERSION = '0.3.0' as const;
 
 export type RpcId = number;
 
@@ -111,6 +113,7 @@ export const METHODS = {
   CONFIG_LIST_MCP_SERVERS: 'config/listMcpServers',
   CONFIG_SET_MCP_SERVER: 'config/setMcpServer',
   CONFIG_REMOVE_MCP_SERVER: 'config/removeMcpServer',
+  CONFIG_SET_LOCAL_CONTEXT_WINDOWS: 'config/setLocalContextWindows',
   CONFIG_SET_PLUGIN_ENABLED: 'config/setPluginEnabled',
 } as const;
 
@@ -313,6 +316,30 @@ export interface ConfigRemoveMcpServerParams {
 
 export interface ConfigRemoveMcpServerResult {
   servers: Record<string, HermesMcpServerConfig>;
+}
+
+/**
+ * One local endpoint's declared context window, written as a `custom_providers`
+ * list entry in config.yaml. Hermes matches entries by normalized `base_url`,
+ * so `baseUrl` must be the exact URL the turn spawns with (the daemon
+ * normalizes it like the route resolver: trailing slashes stripped, `/v1`
+ * ensured).
+ */
+export interface HermesLocalContextWindowEntry {
+  name: string;
+  baseUrl: string;
+  contextLength: number;
+}
+
+export interface ConfigSetLocalContextWindowsParams {
+  entries: HermesLocalContextWindowEntry[];
+}
+
+export interface ConfigSetLocalContextWindowsResult {
+  /** True when the global `model.ollama_num_ctx` key was present and removed. */
+  removedOllamaNumCtx: boolean;
+  /** All custom_providers entries as re-parsed from the written file. */
+  providers: HermesLocalContextWindowEntry[];
 }
 
 /* ============================== Server → Client request shapes ============================== */

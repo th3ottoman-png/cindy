@@ -88,7 +88,7 @@ SQLite (Cindy DB)             ~/.hermes-cindy  (isolated Hermes home)
 |---|---|
 | `packages/maker-hermes-manager/src/hermes-manager.ts` | RPC handlers, session registry, per-turn retry on stale resume id |
 | `packages/maker-hermes-manager/src/hermes-run.ts` | Builds argv, spawns one `hermes chat` per turn |
-| `packages/maker-hermes-manager/src/hermes-config.ts` | Line-based read/write of `config.yaml` (model route, `mcp_servers:`) preserving comments |
+| `packages/maker-hermes-manager/src/hermes-config.ts` | Line-based read/write of `config.yaml` (model route, `mcp_servers:`, local `custom_providers` context windows) preserving comments. `config/setLocalContextWindows` (bundle 0.3.0) removes the global `model.ollama_num_ctx` and upserts per-endpoint `custom_providers` entries matched by normalized base_url (ROADMAP 1.12b) |
 | `packages/maker-hermes-manager/src/hermes-models.ts` | Reads home `.env` key, queries `GET <base_url>/models` |
 | `packages/maker-hermes-manager/src/protocol.ts` | RPC method/shape definitions — read before adding an RPC |
 | `packages/maker-hermes-manager/src/__tests__/fixtures/fake-hermes.mjs` | Test double; **only** Hermes binary tests may spawn |

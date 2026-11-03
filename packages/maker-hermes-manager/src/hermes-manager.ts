@@ -16,6 +16,7 @@ import {
   readHermesMcpServers,
   writeHermesMcpServer,
   removeHermesMcpServer,
+  writeHermesLocalContextWindows,
 } from './hermes-config.js';
 import { fetchProviderModels, hermesHomeApiKey, parseHermesDotEnv } from './hermes-models.js';
 import {
@@ -37,6 +38,8 @@ import {
   HERMES_MGR_BUNDLE_VERSION,
   METHODS,
   NOTIFICATIONS,
+  type ConfigSetLocalContextWindowsParams,
+  type HermesLocalContextWindowEntry,
   type HermesQueryEventNotification,
   type HermesQueryStartParams,
   type HermesQuerySendParams,
@@ -649,6 +652,38 @@ export class HermesManager {
       return {
         servers: await removeHermesMcpServer(this.hermesHome, name),
       };
+    });
+
+    s.setHandler(METHODS.CONFIG_SET_LOCAL_CONTEXT_WINDOWS, async (raw) => {
+      // 1.12b: replace the global model.ollama_num_ctx clamp with per-endpoint
+      // custom_providers context windows (removes the key + upserts entries in
+      // one atomic write).
+      const p = raw as ConfigSetLocalContextWindowsParams;
+      const list: unknown[] = Array.isArray(p?.entries) ? p.entries : [];
+      if (list.length === 0) {
+        throw rpcError('INVALID_PARAMS', 'at least one entry is required');
+      }
+      const entries: HermesLocalContextWindowEntry[] = [];
+      for (const item of list) {
+        const rec = (item ?? {}) as { name?: unknown; baseUrl?: unknown; contextLength?: unknown };
+        const name = typeof rec.name === 'string' ? rec.name.trim() : '';
+        const baseUrl = typeof rec.baseUrl === 'string' ? rec.baseUrl.trim() : '';
+        const contextLength = rec.contextLength;
+        if (
+          !name ||
+          !/^https?:\/\//.test(baseUrl) ||
+          typeof contextLength !== 'number' ||
+          !Number.isInteger(contextLength) ||
+          contextLength <= 0
+        ) {
+          throw rpcError(
+            'INVALID_PARAMS',
+            'each entry needs a name, an http(s) baseUrl and a positive integer contextLength',
+          );
+        }
+        entries.push({ name, baseUrl, contextLength });
+      }
+      return await writeHermesLocalContextWindows(this.hermesHome, entries);
     });
 
     s.setHandler(METHODS.CONFIG_SET_PLUGIN_ENABLED, async (raw) => {

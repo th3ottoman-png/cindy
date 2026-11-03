@@ -24,9 +24,10 @@
  * missing it is appended.
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
-import type { HermesMcpServerConfig } from './protocol.js';
+import type { HermesLocalContextWindowEntry, HermesMcpServerConfig } from './protocol.js';
 
 export interface HermesDefaultRoute {
   model?: string;
@@ -516,4 +517,283 @@ export async function removeHermesMcpServer(
   const next = lines.join('\n');
   await writeFile(configPath, next, 'utf8');
   return parseHermesMcpServers(next);
+}
+
+/* ===== Local endpoint context windows (custom_providers) ===== */
+
+/** Same normalization as the route resolver: strip trailing slashes, ensure `/v1`. */
+function normalizeLocalBaseUrl(url: string): string {
+  const trimmed = url.trim().replace(/\/+$/, '');
+  return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`;
+}
+
+/** Temp-file-then-rename in the same directory (AGENTS.md §4 atomic writes). */
+async function writeFileAtomic(configPath: string, text: string): Promise<void> {
+  const tmp = path.join(
+    path.dirname(configPath),
+    `.config.yaml.${randomBytes(6).toString('hex')}.tmp`,
+  );
+  await writeFile(tmp, text, 'utf8');
+  await rename(tmp, configPath);
+}
+
+interface CustomProvidersBlock {
+  /** Index of the `custom_providers:` line, or -1 when absent. */
+  start: number;
+  /** First line index past the block (only meaningful when start !== -1). */
+  end: number;
+}
+
+function findCustomProvidersBlock(lines: string[]): CustomProvidersBlock {
+  const start = lines.findIndex((line) => /^custom_providers\s*:(\s|#|$)/.test(line));
+  if (start === -1) return { start: -1, end: -1 };
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (!line.trim() || line.trimStart().startsWith('#')) continue;
+    if (line.length - line.trimStart().length === 0) {
+      end = i;
+      break;
+    }
+  }
+  return { start, end };
+}
+
+/**
+ * Parse the top-level `custom_providers:` list of a Hermes config.yaml body.
+ * Only complete entries (base_url + integer context_length) are returned;
+ * entry-level keys deeper than the item's own indent (e.g. a `models:`
+ * override block) are ignored.
+ */
+export function parseHermesCustomProviders(
+  configYaml: string,
+): HermesLocalContextWindowEntry[] {
+  const lines = configYaml.split(/\r?\n/);
+  const { start, end } = findCustomProvidersBlock(lines);
+  if (start === -1) return [];
+
+  const entries: HermesLocalContextWindowEntry[] = [];
+  let current: { name: string; baseUrl: string; contextLength: number | null } | null = null;
+  let itemIndent: number | null = null;
+
+  const flush = (): void => {
+    if (current && current.baseUrl && current.contextLength !== null) {
+      entries.push({
+        name: current.name,
+        baseUrl: current.baseUrl,
+        contextLength: current.contextLength,
+      });
+    }
+    current = null;
+  };
+
+  const readKey = (content: string): void => {
+    if (!current) return;
+    const match = /^([A-Za-z0-9_]+)\s*:\s*(.*)$/.exec(content);
+    if (!match) return;
+    const [, key, rawValue] = match;
+    const value = unquote(rawValue!);
+    if (key === 'name') current.name = value;
+    else if (key === 'base_url') current.baseUrl = value;
+    else if (key === 'context_length') {
+      const n = Number(value);
+      if (Number.isInteger(n) && n > 0) current.contextLength = n;
+    }
+  };
+
+  for (let i = start + 1; i < end; i++) {
+    const line = lines[i]!;
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const indent = line.length - line.trimStart().length;
+    const itemMatch = /^(\s*)-\s*(.*)$/.exec(line);
+    if (itemMatch && (itemIndent === null || indent <= itemIndent)) {
+      flush();
+      itemIndent = itemMatch[1]!.length;
+      current = { name: '', baseUrl: '', contextLength: null };
+      readKey(itemMatch[2]!);
+      continue;
+    }
+    // Continuation line: entry-level keys sit at itemIndent + 2; anything
+    // deeper belongs to a nested block (e.g. per-model overrides).
+    if (current && itemIndent !== null && indent <= itemIndent + 2) {
+      readKey(trimmed);
+    }
+  }
+  flush();
+  return entries;
+}
+
+function serializeCustomProviderLines(
+  entry: HermesLocalContextWindowEntry,
+  itemIndent: string,
+): string[] {
+  return [
+    `${itemIndent}- name: ${yamlScalar(entry.name)}`,
+    `${itemIndent}  base_url: ${yamlScalar(entry.baseUrl)}`,
+    `${itemIndent}  context_length: ${entry.contextLength}`,
+  ];
+}
+
+/**
+ * Replace the global `model.ollama_num_ctx` clamp with per-endpoint context
+ * windows (1.12b). Removes the key from the top-level `model:` block and
+ * upserts one `custom_providers` list entry per local endpoint, matched by
+ * normalized base_url. Other keys, other entries, comments and unrelated
+ * blocks are preserved byte-for-byte. The whole change lands in one atomic
+ * write; the result is re-parsed from the final text.
+ *
+ * Throws when an existing `custom_providers` block is not a YAML list — that
+ * shape is a config error Hermes itself rejects, and merging into it would
+ * corrupt the file.
+ */
+export async function writeHermesLocalContextWindows(
+  hermesHome: string,
+  entries: HermesLocalContextWindowEntry[],
+): Promise<{ removedOllamaNumCtx: boolean; providers: HermesLocalContextWindowEntry[] }> {
+  const configPath = path.join(hermesHome, 'config.yaml');
+  let yaml = '';
+  try {
+    yaml = await readFile(configPath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+  }
+
+  const incoming = entries.map((entry) => ({
+    name: entry.name,
+    baseUrl: normalizeLocalBaseUrl(entry.baseUrl),
+    contextLength: entry.contextLength,
+  }));
+  const incomingByUrl = new Map(incoming.map((entry) => [entry.baseUrl, entry]));
+
+  const lines = yaml.split(/\r?\n/);
+
+  // 1. Drop the global clamp from the top-level model: block.
+  let removedOllamaNumCtx = false;
+  const modelStart = lines.findIndex((line) => /^model\s*:(\s|#|$)/.test(line));
+  if (modelStart !== -1) {
+    for (let i = modelStart + 1; i < lines.length; i++) {
+      const line = lines[i]!;
+      if (!line.trim() || line.trimStart().startsWith('#')) continue;
+      const indent = line.length - line.trimStart().length;
+      if (indent === 0) break;
+      if (/^\s*ollama_num_ctx\s*:/.test(line)) {
+        lines.splice(i, 1);
+        removedOllamaNumCtx = true;
+        i -= 1; // re-check the line that shifted into this slot
+      }
+    }
+  }
+
+  // 2. Upsert the custom_providers list.
+  const block = findCustomProvidersBlock(lines);
+  if (block.start === -1) {
+    while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+    const appended = ['', 'custom_providers:'];
+    for (const entry of incoming) appended.push(...serializeCustomProviderLines(entry, '  '));
+    const next = lines.concat(appended).join('\n') + '\n';
+    await writeFileAtomic(configPath, next);
+    return { removedOllamaNumCtx, providers: parseHermesCustomProviders(next) };
+  }
+
+  // An inline `[]` is an empty list; any other inline value is not a list.
+  const headerMatch = /^custom_providers\s*:\s*(.*?)\s*(?:#.*)?$/.exec(lines[block.start]!);
+  const inlineValue = headerMatch?.[1] ?? '';
+  if (inlineValue === '[]') {
+    lines[block.start] = 'custom_providers:';
+  } else if (inlineValue) {
+    throw new Error('custom_providers block is not a list; refusing to edit');
+  }
+
+  // Pass 1: scan the block and collect list items without mutating anything.
+  // Every content line must belong to a list item — a mapping-shaped block is
+  // a config error, fail closed.
+  interface ScannedItem {
+    baseUrl: string;
+    baseUrlLine: number;
+    baseUrlIndent: number;
+    isHeaderLine: boolean;
+    contextLengthLine: number;
+  }
+  const items: ScannedItem[] = [];
+  let itemIndent: number | null = null;
+  let currentItem: ScannedItem | null = null;
+  let detectedItemIndent = '  ';
+
+  for (let i = block.start + 1; i < block.end; i++) {
+    const line = lines[i]!;
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const indent = line.length - line.trimStart().length;
+    const itemMatch = /^(\s*)-\s*(.*)$/.exec(line);
+    if (itemMatch && (itemIndent === null || indent <= itemIndent)) {
+      itemIndent = itemMatch[1]!.length;
+      detectedItemIndent = itemMatch[1]!;
+      currentItem = {
+        baseUrl: '',
+        baseUrlLine: -1,
+        baseUrlIndent: 0,
+        isHeaderLine: false,
+        contextLengthLine: -1,
+      };
+      items.push(currentItem);
+      const keyMatch = /^([A-Za-z0-9_]+)\s*:\s*(.*)$/.exec(itemMatch[2]!);
+      if (keyMatch?.[1] === 'base_url') {
+        currentItem.baseUrl = normalizeLocalBaseUrl(unquote(keyMatch[2]!));
+        currentItem.baseUrlLine = i;
+        currentItem.baseUrlIndent = indent;
+        currentItem.isHeaderLine = true;
+      }
+      continue;
+    }
+    if (itemIndent === null) {
+      throw new Error('custom_providers block is not a list; refusing to edit');
+    }
+    if (!currentItem) continue;
+    const keyMatch = /^([A-Za-z0-9_]+)\s*:\s*(.*)$/.exec(trimmed);
+    if (!keyMatch) continue;
+    if (keyMatch[1] === 'base_url' && currentItem.baseUrlLine === -1) {
+      currentItem.baseUrl = normalizeLocalBaseUrl(unquote(keyMatch[2]!));
+      currentItem.baseUrlLine = i;
+      currentItem.baseUrlIndent = indent;
+    } else if (
+      keyMatch[1] === 'context_length' &&
+      currentItem.contextLengthLine === -1 &&
+      currentItem.baseUrlLine !== -1 &&
+      indent <= currentItem.baseUrlIndent + 2
+    ) {
+      currentItem.contextLengthLine = i;
+    }
+  }
+
+  // Pass 2: mutate from the bottom up so earlier line indices stay valid.
+  const handledUrls = new Set<string>();
+  let insertDelta = 0;
+  for (const item of [...items].reverse()) {
+    const incomingEntry = incomingByUrl.get(item.baseUrl);
+    if (!incomingEntry) continue;
+    handledUrls.add(item.baseUrl);
+    const rendered = `context_length: ${incomingEntry.contextLength}`;
+    if (item.contextLengthLine !== -1) {
+      const indent = lines[item.contextLengthLine]!.match(/^\s*/)![0];
+      lines[item.contextLengthLine] = `${indent}${rendered}`;
+    } else {
+      const indent = ' '.repeat(
+        item.isHeaderLine ? item.baseUrlIndent + 2 : item.baseUrlIndent,
+      );
+      lines.splice(item.baseUrlLine + 1, 0, `${indent}${rendered}`);
+      insertDelta += 1;
+    }
+  }
+
+  const pendingAppends = incoming
+    .filter((entry) => !handledUrls.has(entry.baseUrl))
+    .flatMap((entry) => serializeCustomProviderLines(entry, detectedItemIndent));
+  if (pendingAppends.length) {
+    lines.splice(block.end + insertDelta, 0, ...pendingAppends);
+  }
+
+  const next = lines.join('\n');
+  await writeFileAtomic(configPath, next);
+  return { removedOllamaNumCtx, providers: parseHermesCustomProviders(next) };
 }
