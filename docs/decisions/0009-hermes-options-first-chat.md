@@ -40,3 +40,11 @@ read with write. `--safe-mode` disables MCP entirely, so Cindy tools exist only 
 - Existing agents' system prompts are not edited; any Options-first instruction is new feature text.
 - Depends on the exact `-t` behavior of Hermes 0.22.5; record it in `HANDOVER.md` §Versions with a
   runtime warning on mismatch when built.
+
+## Implementation note (2026-11-03)
+
+Built as an **expert lock**, not a new chat kind: an expert's `expert.md` frontmatter `toolsets:` locks
+its Hermes session, and the starter expert `options-first` is the Options-first chat. This reuses the
+file-backed expert binding (chosen before the first turn, kept in `expert-sessions.json`, shown in the
+header) and keeps decisions 1–6. A locked session gets no Cindy bridge at all (no facade was needed
+for 3.10). "Go ahead" (decision 5) is ROADMAP 3.10c; until then the expert points to Ask expert (3.6b).
