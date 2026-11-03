@@ -2877,6 +2877,10 @@ export function getMaker(): Maker {
             input,
             createRouteMatcher((model) => resolveModelRoute(model)),
           ),
+        // ROADMAP 3.10 (ADR 0009): an expert's `toolsets:` locks the Hermes session (`-t`) and
+        // keeps Cindy tools off. The pending pick only applies to a session starting fresh.
+        resolveHermesToolsets: ({ sessionId, fresh }) =>
+          getDesktopExpertSessionStore().expertToolsets(sessionId, { includePending: fresh }),
         // Orca (ROADMAP 3.7a): Hermes has no system-prompt slot, so the lead/worker
         // instructions Cindy gives Claude Code/Codex/Pi ride the next Hermes turn.
         resolveHermesOrcaPreamble: ({ sessionId, vendorOptions }) =>

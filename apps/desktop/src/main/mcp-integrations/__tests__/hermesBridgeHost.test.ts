@@ -407,6 +407,34 @@ describe('createHermesBridgePreparer (real bridge, stub providers)', () => {
     expect(await readHermesBridgeRuntimeFile(runtimeFile)).toBeNull();
   });
 
+  it('gives a toolsets-locked session no Cindy tools, even on full access (ROADMAP 3.10)', async () => {
+    let touched = false;
+    const prepare = createHermesBridgePreparer({
+      providers: () => [stubProvider('cindy_docs', 'docs-ok')],
+      logger: noopLogger(),
+      runtimeFile,
+      resolveShimPath: () => SHIM,
+      registration: {
+        listServers: async () => {
+          touched = true;
+          return {};
+        },
+        setServer: async () => undefined,
+        removeServer: async () => undefined,
+      },
+    });
+    // `hermes chat -t` does not scope MCP servers, so the bridge is the lock for Cindy tools:
+    // no identity means each shim refuses every call.
+    expect(await prepare({
+      sessionId: 'sess-L',
+      workingDir: dir,
+      permissionMode: 'bypassPermissions',
+      toolsets: ['web', 'clarify'],
+    })).toBeNull();
+    expect(touched).toBe(false);
+    expect(await readHermesBridgeRuntimeFile(runtimeFile)).toBeNull();
+  });
+
   it('fails open (null) without a shim bundle, and registers nothing', async () => {
     let touched = false;
     const prepare = createHermesBridgePreparer({

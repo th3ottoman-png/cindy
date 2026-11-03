@@ -198,6 +198,8 @@ type PrepareInfo = {
   permissionMode?: string;
   /** Session vendorOptions at start (Orca role when resuming a lead/worker). */
   vendorOptions?: Record<string, unknown>;
+  /** The session's toolsets lock (ROADMAP 3.10). */
+  toolsets?: string[];
 };
 
 /**
@@ -216,6 +218,9 @@ export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
 
   return async (info: PrepareInfo): Promise<HermesBridgeSession | null> => {
     if (info.permissionMode !== HERMES_BRIDGE_PERMISSION_MODE) return null;
+    // `hermes chat -t` does not scope MCP servers (0.22.5), so a locked session gets no bridge
+    // identity: every shim then refuses every call (ROADMAP 3.10, ADR 0009).
+    if (info.toolsets?.length) return null;
     const shimPath = deps.resolveShimPath();
     if (!shimPath) {
       log.warn('hermes bridge shim bundle not found; Hermes runs without Cindy tools');

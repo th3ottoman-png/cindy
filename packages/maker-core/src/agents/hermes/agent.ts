@@ -245,6 +245,19 @@ export class HermesAgent extends BaseAgent {
 
     const sessionId = randomUUID();
     const requestedPermissionMode: PermissionMode = opts.permissionMode ?? 'default';
+    // Only a non-empty native id is resumable; an empty string is the documented
+    // "start fresh" recovery path (Maker persists handle.id as sdk_session_id).
+    const requestedResumeId = opts.resumeSessionId?.trim();
+    // The expert's toolsets lock (ROADMAP 3.10). Fixed at start: Hermes refuses a resume whose
+    // -t differs from the launch, so a lock that cannot be resolved refuses the start.
+    let toolsets: string[] | null = null;
+    if (this.deps.resolveHermesToolsets && opts.sessionId) {
+      try {
+        toolsets = this.deps.resolveHermesToolsets({ sessionId: opts.sessionId, fresh: !requestedResumeId });
+      } catch (error) {
+        throw new AgentStartupStoppedError(error);
+      }
+    }
     // Provider credentials from this process' env (desktop main inherits the
     // user shell). Keys travel the local socket per session and are never
     // persisted by the daemon.
@@ -265,6 +278,7 @@ export class HermesAgent extends BaseAgent {
           workingDir: opts.workingDir,
           permissionMode: requestedPermissionMode,
           ...(opts.vendorOptions ? { vendorOptions: { ...opts.vendorOptions } } : {}),
+          ...(toolsets ? { toolsets } : {}),
         });
       } catch (error) {
         this.deps.logger.warn('hermes bridge session prep failed, continuing without cindy tools', {
@@ -273,9 +287,6 @@ export class HermesAgent extends BaseAgent {
       }
     }
     const sessionEnv = { ...providerEnv, ...(bridgeSession?.env ?? {}) };
-    // Only a non-empty native id is resumable; an empty string is the documented
-    // "start fresh" recovery path (Maker persists handle.id as sdk_session_id).
-    const requestedResumeId = opts.resumeSessionId?.trim();
     let transport: HermesTransport | undefined;
 
     try {
@@ -302,6 +313,7 @@ export class HermesAgent extends BaseAgent {
           ...(targetApiKey ? { apiKey: targetApiKey } : {}),
           ...(permissionMode ? { permissionMode } : {}),
           ...(opts.vendorOptions?.orcaRole === 'worker' ? { maxTurns: HERMES_ORCA_WORKER_MAX_TURNS } : {}),
+          ...(toolsets ? { toolsets } : {}),
           // Provider keys ride per-session env (the daemon's own env is
           // deliberately secret-free). Hermes reads provider credentials from
           // env; without this a DeepSeek-direct home cannot authenticate.
@@ -320,6 +332,7 @@ export class HermesAgent extends BaseAgent {
         ...(bridgeSession?.setVendorOptions ? { setBridgeVendorOptions: bridgeSession.setVendorOptions } : {}),
         model: opts.model,
         permissionMode: requestedPermissionMode,
+        ...(toolsets ? { toolsets } : {}),
         transport,
         ...(bridgeSession ? { disposeBridgeSession: bridgeSession.dispose } : {}),
       });
@@ -362,6 +375,8 @@ export class HermesAgent extends BaseAgent {
     vendorOptions?: Record<string, unknown>;
     /** Pushes a vendorOptions patch into the Cindy tool bridge identity. */
     setBridgeVendorOptions?: (patch: Record<string, unknown>) => void;
+    /** The toolsets lock this session launched with (ROADMAP 3.10). */
+    toolsets?: string[];
   }): AgentSessionHandle {
     const { sessionId, transport } = input;
     const logger = this.deps.logger;
@@ -753,7 +768,11 @@ export class HermesAgent extends BaseAgent {
         if (!preflight.ok) throw new Error(preflight.message);
         turnProviderId = resolveModelRoute(currentModel)?.providerId;
         const expertPreamble = expertPreamblePending && input.cindySessionId && resolveExpertPreamble
-          ? await resolveExpertPreamble({ sessionId: input.cindySessionId, model: currentModel })
+          ? await resolveExpertPreamble({
+            sessionId: input.cindySessionId,
+            model: currentModel,
+            ...(input.toolsets ? { toolsets: input.toolsets } : {}),
+          })
           : null;
         const orcaPreamble = orcaPreambleFor();
         const orcaPreambleToSend = orcaPreamble && orcaPreamble !== lastSentOrcaPreamble ? orcaPreamble : null;

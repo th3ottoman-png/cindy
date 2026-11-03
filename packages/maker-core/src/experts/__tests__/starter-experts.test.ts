@@ -10,7 +10,7 @@ const EXAMPLES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 describe('docs/experts-examples', () => {
   it('ships the starter experts and every one loads cleanly', () => {
     const entries = loadExperts(EXAMPLES);
-    expect(entries.map((e) => e.slug)).toEqual(['code-reviewer', 'expert-creator', 'orchestrator', 'prompt-engineer', 'repo-explainer', 'research-analyst']);
+    expect(entries.map((e) => e.slug)).toEqual(['code-reviewer', 'expert-creator', 'options-first', 'orchestrator', 'prompt-engineer', 'repo-explainer', 'research-analyst']);
     for (const entry of entries) {
       expect(entry.error, entry.slug).toBeUndefined();
       expect(entry.expert!.agent).toBe('hermes');
@@ -32,6 +32,13 @@ describe('docs/experts-examples', () => {
     for (const needle of ['list_experts', 'create_worker', '`agent`: `"hermes"`', '`expert`', 'expert-creator', 'Depth one', '`worker_permission_mode`: `"bypassPermissions"`']) {
       expect(prompt, needle).toContain(needle);
     }
+  });
+
+  it('only Options first is locked, to toolsets that cannot write, run or act (ROADMAP 3.10)', () => {
+    const locked = loadExperts(EXAMPLES).filter((e) => e.expert?.toolsets);
+    expect(locked.map((e) => [e.slug, e.expert!.toolsets])).toEqual([['options-first', ['session_search', 'todo', 'web']]]);
+    const prompt = locked[0]!.expert!.prompt;
+    for (const needle of ['options', 'stop', 'Ask expert', 'cannot read']) expect(prompt, needle).toContain(needle);
   });
 
   it('only the research analyst keeps memory notes', () => {

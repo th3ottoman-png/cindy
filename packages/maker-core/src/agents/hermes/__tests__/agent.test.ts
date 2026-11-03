@@ -601,6 +601,46 @@ describe('HermesAgent', () => {
     expect(HERMES_ORCA_WORKER_MAX_TURNS).toBe(40);
   });
 
+  it('locks a session to its expert toolsets on query/start, the bridge and the first turn (ROADMAP 3.10)', async () => {
+    const daemon = await startDaemon();
+    const bridgeInfo: Array<{ toolsets?: string[] }> = [];
+    const asked: Array<{ toolsets?: string[] }> = [];
+    const agent = buildAgent({
+      deps: {
+        resolveHermesToolsets: ({ sessionId }) => (sessionId === 'business-1' ? ['web', 'clarify'] : null),
+        prepareHermesBridgeSession: async (info) => {
+          bridgeInfo.push({ ...(info.toolsets ? { toolsets: info.toolsets } : {}) });
+          return null;
+        },
+        resolveHermesExpertPreamble: async (input) => {
+          asked.push({ ...(input.toolsets ? { toolsets: input.toolsets } : {}) });
+          return 'EXPERT';
+        },
+      },
+    });
+    const handle = await start(agent);
+    try {
+      await handle.send({ type: 'user', content: 'options please' });
+      expect((daemon.startParams[0] as { toolsets?: string[] }).toolsets).toEqual(['web', 'clarify']);
+      expect(bridgeInfo).toEqual([{ toolsets: ['web', 'clarify'] }]);
+      expect(asked).toEqual([{ toolsets: ['web', 'clarify'] }]);
+    } finally {
+      await handle.close();
+    }
+    const plain = await agent.startSession({ sessionId: 'business-2', workingDir: workDir, model: 'hermes-default' });
+    await plain.close();
+    expect(daemon.startParams[1]).not.toHaveProperty('toolsets');
+  });
+
+  it('refuses to start when the toolsets lock cannot be resolved (ROADMAP 3.10)', async () => {
+    const daemon = await startDaemon();
+    const agent = buildAgent({
+      deps: { resolveHermesToolsets: () => { throw new Error('expert file unreadable'); } },
+    });
+    await expect(start(agent)).rejects.toThrow(/expert file unreadable/);
+    expect(daemon.startParams).toHaveLength(0);
+  });
+
   it('registers the bridge identity with the Cindy session id, rides its env, and disposes on close', async () => {
     const daemon = await startDaemon();
     const calls: Array<{ sessionId: string; workingDir: string; permissionMode?: string }> = [];

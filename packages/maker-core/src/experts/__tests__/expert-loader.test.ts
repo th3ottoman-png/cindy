@@ -73,6 +73,14 @@ describe('loadExpert', () => {
     expect(expert).toMatchObject({ agent: 'hermes', memory: false, tools: [], skills: [], tags: [], description: '' });
     expect(expert!.model).toBeUndefined();
     expect(expert!.toolsFile).toBeUndefined();
+    // No `toolsets:` line means no lock: the session keeps Hermes' own tools.
+    expect(expert!.toolsets).toBeUndefined();
+  });
+
+  it('reads a toolsets lock as plain toolset names (ROADMAP 3.10)', () => {
+    const { expert, error } = loadExpert(writeExpert('advisor', '---\nname: Advisor\ntoolsets: [web, clarify]\n---\nList options.\n'));
+    expect(error).toBeUndefined();
+    expect(expert!.toolsets).toEqual(['web', 'clarify']);
   });
 
   it.each([
@@ -83,6 +91,11 @@ describe('loadExpert', () => {
     ['bad temperature', '---\nname: X\ntemperature: 9\n---\nbody', '"temperature"'],
     ['non-list tools', '---\nname: X\ntools: grep\n---\nbody', '"tools" must be a list'],
     ['non-boolean memory', '---\nname: X\nmemory: yes please\n---\nbody', '"memory"'],
+    // A lock that cannot be applied must refuse the expert, never run it unlocked (ROADMAP 3.10).
+    ['empty toolsets', '---\nname: X\ntoolsets: []\n---\nbody', '"toolsets"'],
+    ['non-list toolsets', '---\nname: X\ntoolsets: web\n---\nbody', '"toolsets"'],
+    ['tool-level toolsets', '---\nname: X\ntoolsets: ["file:read_file"]\n---\nbody', '"toolsets"'],
+    ['repeated toolsets', '---\nname: X\ntoolsets: [web, web]\n---\nbody', '"toolsets"'],
     ['empty prompt', '---\nname: X\n---\n\n', 'no system prompt'],
   ])('reports %s as an error, never throws', (_label, md, fragment) => {
     const dir = md === null ? path.join(root, 'bad') : writeExpert('bad', md);

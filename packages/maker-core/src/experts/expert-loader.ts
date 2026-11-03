@@ -25,6 +25,11 @@ export interface Expert {
   model?: string;
   temperature?: number;
   tools: string[];
+  /**
+   * Built-in Hermes toolsets the session is locked to (`hermes chat -t`), for the session's whole
+   * life (ROADMAP 3.10). Absent means no lock.
+   */
+  toolsets?: string[];
   skills: string[];
   memory: boolean;
   tags: string[];
@@ -54,6 +59,20 @@ function optionalStringList(data: Record<string, unknown>, key: string): string[
   if (v === undefined || v === null) return [];
   if (!isStringArray(v)) throw new Error(`"${key}" must be a list of non-empty strings`);
   return v.map((x) => x.trim());
+}
+
+/** Plain built-in toolset names only: Hermes refuses tool-level `-t` values (0.22.5). */
+const TOOLSET_NAME = /^[a-z][a-z0-9_]*$/;
+
+/** `toolsets:` is a lock, so a value that cannot be applied as written refuses the expert. */
+function optionalToolsets(data: Record<string, unknown>): string[] | undefined {
+  const v = data.toolsets;
+  if (v === undefined || v === null) return undefined;
+  if (!Array.isArray(v) || v.length === 0 ||
+    !v.every((x) => typeof x === 'string' && TOOLSET_NAME.test(x)) || new Set(v).size !== v.length) {
+    throw new Error('"toolsets" must be a non-empty list of distinct toolset names (e.g. [web, clarify])');
+  }
+  return v as string[];
 }
 
 function exists(p: string): boolean {
@@ -122,6 +141,8 @@ export function loadExpert(dir: string): ExpertEntry {
       throw new Error('"memory" must be true or false');
     }
 
+    const toolsets = optionalToolsets(data);
+
     const prompt = parsed.content.trim();
     if (!prompt) throw new Error('expert.md has no system prompt body');
 
@@ -136,6 +157,7 @@ export function loadExpert(dir: string): ExpertEntry {
       ...(typeof data.model === 'string' ? { model: data.model.trim() } : {}),
       ...(temperature !== undefined ? { temperature } : {}),
       tools: optionalStringList(data, 'tools'),
+      ...(toolsets ? { toolsets } : {}),
       skills: optionalStringList(data, 'skills'),
       memory: data.memory === true,
       tags: optionalStringList(data, 'tags'),

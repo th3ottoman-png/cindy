@@ -115,6 +115,8 @@ export interface HermesQueryStartParams {
   permissionMode?: HermesPermissionMode;
   systemPromptPreamble?: string;
   maxTurns?: number;
+  /** Built-in Hermes toolsets for every run (`-t`), fixed for the session's life (ROADMAP 3.10). */
+  toolsets?: string[];
   runBudgetSeconds?: number;
 }
 

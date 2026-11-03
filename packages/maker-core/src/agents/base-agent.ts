@@ -764,7 +764,16 @@ export interface AgentDeps {
   resolveHermesExpertPreamble?: (input: {
     sessionId: string;
     model: string;
+    /** The toolsets lock the session launched with (ROADMAP 3.10); the expert's must match. */
+    toolsets?: string[];
   }) => Promise<string | null>;
+
+  /**
+   * Hermes-only (ROADMAP 3.10): the built-in toolsets lock for this Cindy session (its expert's
+   * `toolsets:`), or null for none. `fresh` is true for a session that starts a new Hermes
+   * session, the only case where a pending expert pick applies. Throws to refuse the start.
+   */
+  resolveHermesToolsets?: (input: { sessionId: string; fresh: boolean }) => string[] | null;
 
   /**
    * Hermes-only: registers this Cindy session with the tool bridge and returns
@@ -779,6 +788,8 @@ export interface AgentDeps {
     permissionMode?: PermissionMode;
     /** Session vendorOptions at start (Orca role/team ids when resuming a lead, ROADMAP 3.7a). */
     vendorOptions?: Record<string, unknown>;
+    /** The session's toolsets lock (ROADMAP 3.10): a locked session gets no Cindy tools. */
+    toolsets?: string[];
   }) => Promise<{
     env: Record<string, string>;
     dispose: () => void;

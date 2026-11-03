@@ -211,8 +211,24 @@ export class ExpertSessionStore {
    * Binds a pending pick to this session first. Throws (fails closed) when a bound expert cannot
    * be applied as written.
    */
+  /**
+   * The built-in toolsets lock (`toolsets:`) of the session's Hermes expert, or null for none
+   * (ROADMAP 3.10). `includePending` as in `expertAllowsTool`. Throws when the expert cannot be
+   * loaded, so a lock that might apply is never skipped.
+   */
+  expertToolsets(sessionId: string, opts: { includePending?: boolean } = {}): string[] | null {
+    const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
+    if (!slug) return null;
+    const dir = path.join(this.opts.rootDir, slug);
+    const entry = loadExpert(dir);
+    if (!entry.expert) {
+      throw new Error(`Expert "${slug}" cannot be loaded: ${entry.error ?? 'unknown error'}. Fix ${path.join(dir, 'expert.md')} and start again.`);
+    }
+    return entry.expert.agent === 'hermes' ? entry.expert.toolsets ?? null : null;
+  }
+
   resolveFirstTurnPreamble(
-    input: { sessionId: string; model: string },
+    input: { sessionId: string; model: string; toolsets?: string[] },
     matchRoute: RouteMatcher,
   ): string | null {
     let slug = this.getBoundSlug(input.sessionId);
@@ -236,6 +252,13 @@ export class ExpertSessionStore {
     if (expert.model) {
       const match = matchRoute(expert.model, input.model);
       if (!match.ok) throw new Error(`Expert "${expert.name}": ${match.message}`);
+    }
+    // The lock is applied when the session starts; an expert picked or edited after that must
+    // not run with other tools than it declares (ROADMAP 3.10).
+    const want = [...(expert.toolsets ?? [])].sort().join(',');
+    const have = [...(input.toolsets ?? [])].sort().join(',');
+    if (want !== have) {
+      throw new Error(`Expert "${expert.name}" locks this chat to toolsets [${want || 'none'}], but the chat started with [${have || 'none'}]. Start a new chat with the expert picked first.`);
     }
     const memory = expert.memory ? readExpertMemory(expert, { maxChars: EXPERT_MEMORY_PREAMBLE_CHARS }) : undefined;
     return buildExpertPreamble(expert, memory);

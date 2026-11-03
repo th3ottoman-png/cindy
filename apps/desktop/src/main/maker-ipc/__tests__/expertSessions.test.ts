@@ -277,6 +277,36 @@ describe('expert memory in sessions (ROADMAP 3.4b)', () => {
     expect(cut).toContain('older notes were left out');
   });
 
+  it('gives the toolsets lock of the bound expert, or the pending pick when asked (ROADMAP 3.10)', () => {
+    writeExpert('advisor', 'name: Advisor\nagent: hermes\ntoolsets: [web, clarify]');
+    writeExpert('code-reviewer', 'name: Code Reviewer\nagent: hermes');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    expect(store.expertToolsets('fresh')).toBeNull();
+    store.setPending('advisor');
+    expect(store.expertToolsets('fresh')).toBeNull();
+    expect(store.expertToolsets('fresh', { includePending: true })).toEqual(['web', 'clarify']);
+    store.bindSession('bound', 'advisor');
+    expect(store.expertToolsets('bound')).toEqual(['web', 'clarify']);
+    store.bindSession('plain', 'code-reviewer');
+    expect(store.expertToolsets('plain')).toBeNull();
+  });
+
+  it('refuses a first turn whose launch lock differs from the expert lock, in either direction (ROADMAP 3.10)', () => {
+    writeExpert('advisor', 'name: Advisor\nagent: hermes\ntoolsets: [web, clarify]');
+    writeExpert('code-reviewer', 'name: Code Reviewer\nagent: hermes');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    // Picked after the session started unlocked: the lock was never applied, so no turn may run.
+    store.bindSession('late', 'advisor');
+    expect(() => store.resolveFirstTurnPreamble({ sessionId: 'late', model: 'm' }, anyRoute))
+      .toThrow(/locks this chat/);
+    store.bindSession('loose', 'code-reviewer');
+    expect(() => store.resolveFirstTurnPreamble({ sessionId: 'loose', model: 'm', toolsets: ['web'] }, anyRoute))
+      .toThrow(/locks this chat|toolsets/);
+    store.bindSession('ok', 'advisor');
+    expect(store.resolveFirstTurnPreamble({ sessionId: 'ok', model: 'm', toolsets: ['clarify', 'web'] }, anyRoute))
+      .toContain('[Cindy expert: Advisor]');
+  });
+
   it('gives a memory target only for a Hermes expert with memory on (pending only when asked)', () => {
     writeExpert('mem', 'name: Mem\nmemory: true');
     writeExpert('plain', 'name: Plain');
