@@ -10,6 +10,14 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-03 — Debt: `start_team` `auto` breaks Hermes workers, fixed `unit-tested`
+
+- **Owner's pick** (one question): fix this 3.9 Debt row before 3.10. Required: refuse `auto` for Hermes up front, test first, orchestrator prompt names the mode.
+- **Change:** `apps/desktop/src/main/maker-ipc/orcaStartTeamPermissionGate.ts`: optional dep `isHermesLead`; when it is true and the effective mode (argument, else the creation pref) is `auto`, return `INVALID_PARAMS` `HERMES_LEAD_AUTO_REFUSAL` ("…Call start_team again with worker_permission_mode: \"bypassPermissions\" (Full access). No team was started.") before the Full-access confirmation or any team. `register.ts` `startOrcaTeamForCaller` passes `maker.getSession(id)?.agentKind === 'hermes'`. `orcaHermesWorker.ts`: `createHermesWorkerInTeam` refuses an `auto` mode before the expert check, binding or slot (covers a non-Hermes lead in an Auto team; no inert binding). `docs/experts-examples/orchestrator/expert.md` step 3 names `worker_permission_mode`: `"bypassPermissions"`. Not mapped to another mode: Auto has no Hermes equivalent, and silently granting Full access would be a hidden escalation.
+- **Tests first (red shown, then green):** `orcaStartTeamPermissionGate.test.ts` +4 (3 refusal cases, 1 pass-through for Hermes `bypassPermissions` and a non-Hermes lead on Auto); `orcaWorkerCreationService.test.ts` +1; `starter-experts.test.ts` +1 needle. Mutations (`'auto'` → `'never'` in each refusal) caught: 3 and 1 failures. `pluginStartTeamAdmission.test.ts` evaluates `register.ts` source slices; its third fixture lacked a `maker` binding (43 cases red), now bound like the second fixture's (`getSession: () => null`).
+- **Gates (Node 22.23.4):** on the final tree typecheck, test:runner, check:test-hygiene and test:unit:related all exit 0; the desktop tier in 8 shards also green (shards 2 and 7 hit the known threads SIGSEGV and passed on rerun). An earlier related run crashed on the same SIGSEGV. The formatter hook reformatted `orcaWorkerCreationService.test.ts` (4,648 lines); rebuilt from HEAD plus only the new test. Diff has no `fetch(`, `http` or `~/.hermes`.
+- **Open:** live proof (dev app restart, then a Hermes lead asked to `start_team` with `auto` should get the refusal). The `list_experts` stdio-loss Debt row and 3.4b's `draft_expert` listing are untouched.
+
 ## 2026-11-03 — ROADMAP 3.9b2 live run 3 `live-proven` (3.9 done)
 
 - **Live run (owner; verified read-only from `expert-sessions.json`, `~/.hermes-cindy/hermes-mgr/sessions.json`, the Cindy DB `messages`/`orca_workers`, and the experts folder):** "Write me a Turkish wedding toast" in an Orchestrator task (`hermes-default`, Full access, collaboration on).
