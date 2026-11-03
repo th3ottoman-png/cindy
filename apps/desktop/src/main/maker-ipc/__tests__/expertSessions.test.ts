@@ -457,7 +457,7 @@ describe('"Go ahead" IPC (ROADMAP 3.10c)', () => {
       ok: true; prompt: string; workingDir: string | null; permissionMode: string | null;
     };
     expect(res).toMatchObject({ ok: true, workingDir: '/projects/modoki', permissionMode: 'bypassPermissions' });
-    expect(res.prompt).toMatch(/carry out the option the owner picked/i);
+    expect(res.prompt.startsWith('Option picked: \n')).toBe(true);
     expect(res.prompt).toContain('Owner: Option 1, go ahead');
     expect(store.getPending()).toBeNull();
   });

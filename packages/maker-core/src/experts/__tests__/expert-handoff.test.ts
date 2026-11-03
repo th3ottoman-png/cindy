@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ExportSession } from '../../export/session-markdown';
-import { buildExpertHandoff, buildGoAheadHandoff, DEFAULT_HANDOFF_QUESTION } from '../expert-handoff';
+import { buildExpertHandoff, buildGoAheadHandoff, DEFAULT_HANDOFF_QUESTION, GO_AHEAD_PICK_LABEL } from '../expert-handoff';
 
 const EXPERT = { slug: 'reviewer', name: 'Code Reviewer' };
 const SESSION: ExportSession = {
@@ -90,7 +90,10 @@ describe('buildGoAheadHandoff (ROADMAP 3.10c)', () => {
     if ('error' in r) throw new Error(r.message);
     expect(r).toMatchObject({ includedMessages: 3, omittedMessages: 0, truncated: false });
     expect(r.prompt).toContain('Source session: "Suggest tasks" (agent hermes, model hermes-default)');
-    expect(r.prompt).toMatch(/carry out the option the owner picked/i);
+    expect(r.prompt.startsWith(`${GO_AHEAD_PICK_LABEL} \n`)).toBe(true);
+    expect(r.prompt).toMatch(/carry out the option named on the "Option picked:" line/i);
+    expect(r.prompt).toMatch(/if that line is empty or unclear, ask .* and stop/i);
+    expect(r.prompt).toMatch(/do not use the clarify tool/i);
     expect(r.prompt).toMatch(/could not read files or run commands/i);
     expect(r.prompt).not.toContain('wants your take');
     expect(r.prompt).not.toContain('You have no tools');

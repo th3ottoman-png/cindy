@@ -109,10 +109,15 @@ export function buildExpertHandoff(
 
 export type GoAheadHandoff = Omit<ExpertHandoff, 'expertSlug'>;
 
+/** First line of a "Go ahead" draft; the owner writes the picked option after it before sending. */
+export const GO_AHEAD_PICK_LABEL = 'Option picked:';
+
 /**
  * "Go ahead" (ROADMAP 3.10c): the first message for a NEW plain task (no expert) that carries
  * out the option the owner picked in a locked Options first chat. Same excerpt rules as
- * `buildExpertHandoff`; it only drafts text and starts nothing.
+ * `buildExpertHandoff`; it only drafts text and starts nothing. The draft opens with an empty
+ * "Option picked:" line for the owner to fill in, because Hermes's `clarify` gets no answer in a
+ * Cindy run (live 2026-11-03: the agent then picked an option itself and wrote files).
  */
 export function buildGoAheadHandoff(
   session: Pick<ExportSession, 'title' | 'agent' | 'model' | 'messages'>,
@@ -126,7 +131,9 @@ export function buildGoAheadHandoff(
     sourceLine(session),
     `That chat could not read files or run commands, so check the project yourself before you change anything.`,
   ];
-  const request = `Carry out the option the owner picked in the excerpt below. If it is not clear which option was picked, ask before you start.`;
-  const prompt = [...header, '', `Owner's request: ${request}`, '', excerpt.heading, '', excerpt.body, '', '--- End of excerpt ---'].join('\n');
+  const request =
+    `Carry out the option named on the "${GO_AHEAD_PICK_LABEL}" line at the top. ` +
+    `If that line is empty or unclear, ask in your reply which option to do and stop: do not use the clarify tool, and change nothing until the owner answers.`;
+  const prompt = [`${GO_AHEAD_PICK_LABEL} `, '', ...header, '', `Owner's request: ${request}`, '', excerpt.heading, '', excerpt.body, '', '--- End of excerpt ---'].join('\n');
   return { prompt, includedMessages: excerpt.includedMessages, omittedMessages: excerpt.omittedMessages, truncated: excerpt.truncated };
 }
