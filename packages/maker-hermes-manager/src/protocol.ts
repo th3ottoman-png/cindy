@@ -188,6 +188,11 @@ export interface HermesQueryStartParams {
   systemPromptPreamble?: string;
   /** Hard cap on agent turns for each spawned run (`--max-turns`). */
   maxTurns?: number;
+  /**
+   * Built-in Hermes toolsets for every spawned run (`-t`), fixed for the session's life:
+   * Hermes refuses a resume whose `-t` differs from the launch (ROADMAP 3.10, 0.22.5).
+   */
+  toolsets?: string[];
   /** Wall-clock budget per spawned run in seconds (`--run-budget`). */
   runBudgetSeconds?: number;
 }

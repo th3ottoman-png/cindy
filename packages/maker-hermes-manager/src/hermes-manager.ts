@@ -91,6 +91,15 @@ function isValidMaxTurns(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_TURNS_LIMIT;
 }
 
+/** Plain built-in toolset names only: Hermes refuses tool-level `-t` values (0.22.5). */
+const TOOLSET_NAME = /^[a-z][a-z0-9_]*$/;
+
+function isValidToolsets(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length > 0 &&
+    value.every((name) => typeof name === 'string' && TOOLSET_NAME.test(name)) &&
+    new Set(value).size === value.length;
+}
+
 export class HermesManager {
   readonly server: ManagerServer;
   private readonly registry: SessionRegistry;
@@ -223,6 +232,9 @@ export class HermesManager {
       if (p.maxTurns !== undefined && !isValidMaxTurns(p.maxTurns)) {
         throw rpcError('INVALID_PARAMS', `maxTurns must be an integer from 1 to ${MAX_TURNS_LIMIT}`);
       }
+      if (p.toolsets !== undefined && !isValidToolsets(p.toolsets)) {
+        throw rpcError('INVALID_PARAMS', 'toolsets must be a non-empty list of distinct toolset names');
+      }
       const created = this.registry.create({
         sessionId: p.sessionId,
         cwd: p.cwd,
@@ -234,6 +246,7 @@ export class HermesManager {
         ...(p.permissionMode ? { permissionMode: p.permissionMode } : {}),
         ...(p.systemPromptPreamble ? { preamble: p.systemPromptPreamble } : {}),
         ...(p.maxTurns !== undefined ? { maxTurns: p.maxTurns } : {}),
+        ...(p.toolsets ? { toolsets: [...p.toolsets] } : {}),
       });
       if (!created) {
         throw rpcError('SESSION_ALREADY_EXISTS', `session ${p.sessionId} already exists`);
@@ -320,6 +333,7 @@ export class HermesManager {
         ...(preamble ? { preamble } : {}),
         ...(rec.permissionMode ? { permissionMode: rec.permissionMode } : {}),
         ...(rec.maxTurns !== undefined ? { maxTurns: rec.maxTurns } : {}),
+        ...(rec.toolsets ? { toolsets: rec.toolsets } : {}),
         ...(this.hermesExtraArgs ? { extraArgs: this.hermesExtraArgs } : {}),
         env: this.sessionEnv.get(rec.sessionId),
       };

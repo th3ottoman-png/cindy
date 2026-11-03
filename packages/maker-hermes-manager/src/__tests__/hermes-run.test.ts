@@ -16,6 +16,15 @@ describe('buildHermesArgs', () => {
     expect(buildHermesArgs({ ...base, resumeHermesSessionId: '' }))
       .not.toContain('--resume');
   });
+
+  it('passes toolsets as one sorted -t value, and no -t without them (ROADMAP 3.10)', () => {
+    const base = { hermesBin: 'hermes', hermesHome: '/tmp/home', cwd: '/tmp', text: 'hi' };
+    // Hermes compares the -t string of a resume with the launch exactly, so order must be stable.
+    const args = buildHermesArgs({ ...base, toolsets: ['web', 'clarify'] });
+    expect(args[args.indexOf('-t') + 1]).toBe('clarify,web');
+    expect(buildHermesArgs(base)).not.toContain('-t');
+    expect(buildHermesArgs({ ...base, toolsets: [] })).not.toContain('-t');
+  });
 });
 
 describe('isInvalidResumeFailure', () => {

@@ -25,6 +25,8 @@ export interface HermesSpawnSpec {
   apiKey?: string;
   permissionMode?: HermesPermissionMode;
   maxTurns?: number;
+  /** Built-in toolsets (`-t`); passed sorted so a resume repeats the launch value exactly. */
+  toolsets?: string[];
   runBudgetSeconds?: number;
   /**
    * Argv inserted between the binary and the `chat` subcommand — for wrapper
@@ -98,6 +100,7 @@ export function buildHermesArgs(spec: HermesSpawnSpec): string[] {
   if (spec.baseUrl) args.push('--base-url', spec.baseUrl);
   if (spec.apiKey) args.push('--api-key', spec.apiKey);
   if (spec.maxTurns !== undefined) args.push('--max-turns', String(spec.maxTurns));
+  if (spec.toolsets?.length) args.push('-t', [...spec.toolsets].sort().join(','));
   args.push(...permissionModeToFlags(spec.permissionMode));
   return args;
 }

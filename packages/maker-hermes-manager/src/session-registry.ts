@@ -45,6 +45,8 @@ export interface HermesSessionRecord {
   preamble?: string;
   /** Per-run tool-calling cap (`--max-turns`), set at query/start (ROADMAP 3.9b). */
   maxTurns?: number;
+  /** Built-in toolsets for every run (`-t`), set at query/start (ROADMAP 3.10). */
+  toolsets?: string[];
   lastSeq: number;
   startedAt: string;
   lastEventAt: string | null;

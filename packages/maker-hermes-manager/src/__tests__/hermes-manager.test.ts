@@ -251,6 +251,46 @@ describe('HermesManager socket integration (fake hermes)', () => {
     expect(argv[argv.indexOf('--max-turns') + 1]).toBe('40');
   }, 20_000);
 
+  it('passes the session toolsets as the same -t on the first turn and on resume (ROADMAP 3.10)', async () => {
+    const h = current!;
+    await h.client.request(METHODS.QUERY_START, {
+      sessionId: 'locked',
+      cwd: h.dir,
+      permissionMode: 'bypassPermissions',
+      toolsets: ['web', 'clarify'],
+    }, { timeoutMs: 5_000 });
+    const argvs: string[][] = [];
+    for (const turn of [1, 2]) {
+      const rec = recordPath(h.dir, `locked-turn${turn}`);
+      process.env.FAKE_RECORD = rec;
+      try {
+        await h.client.request(METHODS.QUERY_SEND, { sessionId: 'locked', text: `turn ${turn}` }, { timeoutMs: 5_000 });
+        await h.collector.waitFor(
+          (n) =>
+            n.method === NOTIFICATIONS.SESSION_CLOSED &&
+            (n.params as SessionClosedNotification).sessionId === 'locked' &&
+            h.collector.closedEvents().filter((c) => c.sessionId === 'locked').length >= turn,
+        );
+      } finally {
+        delete process.env.FAKE_RECORD;
+      }
+      argvs.push(JSON.parse(fs.readFileSync(rec, 'utf8')) as string[]);
+    }
+    expect(argvs[1]).toContain('--resume');
+    for (const argv of argvs) expect(argv[argv.indexOf('-t') + 1]).toBe('clarify,web');
+  }, 20_000);
+
+  it('refuses toolsets that are not a non-empty list of plain toolset names (ROADMAP 3.10)', async () => {
+    const h = current!;
+    for (const [i, bad] of [[], 'web', ['Web'], ['web,file'], ['web', 'web'], [1], ['file:read_file']].entries()) {
+      await expect(h.client.request(METHODS.QUERY_START, {
+        sessionId: `bad-tools-${i}`,
+        cwd: h.dir,
+        toolsets: bad,
+      }, { timeoutMs: 5_000 })).rejects.toMatchObject({ rpcError: { code: 'INVALID_PARAMS' } });
+    }
+  });
+
   it('refuses a turn cap that is not a positive integer (ROADMAP 3.9b)', async () => {
     const h = current!;
     for (const [i, bad] of [0, -1, 1.5, '40', 100_000].entries()) {
