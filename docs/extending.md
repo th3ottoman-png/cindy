@@ -78,8 +78,9 @@ Worked example: [`examples/extending/plugins/hello/`](examples/extending/plugins
 that throws, hangs (5 s default) or has a bad manifest is reported and skipped; whatever it had
 registered is removed; other plugins load normally. A plugin can be disabled without deleting it.
 
-**Limit:** nothing in the app calls the plugin loader at startup yet (ROADMAP 4.2b), and nothing reads
-`kind: 'tool'` off the registry, so today this proves the mechanism, not a tool an agent can call.
+**Limit:** plugins load at app startup and can be toggled in Settings → General → Plugins (ROADMAP
+4.2b, state in `~/.cindy-harness/plugins.json`), but nothing reads `kind: 'tool'` off the registry
+yet, so today this proves the mechanism, not a tool an agent can call.
 Tools that agents *do* see today reach Hermes through the MCP bridge (see
 [`decisions/0003-hermes-cindy-tool-exposure.md`](decisions/0003-hermes-cindy-tool-exposure.md)).
 

@@ -46,6 +46,11 @@ export interface LoadPluginsOptions {
 
 const NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
+/** Directory-name rule, shared with the persisted toggle state (4.2b). */
+export function isValidPluginName(name: string): boolean {
+  return NAME.test(name);
+}
+
 // A native `import()` that bundlers and vite-node leave alone: plugin files live outside the
 // bundle, so the host's module graph must not try to resolve or rewrite them.
 const nativeImport = new Function('url', 'return import(url)') as (url: string) => Promise<unknown>;
@@ -150,7 +155,7 @@ export async function loadPlugins(opts: LoadPluginsOptions): Promise<PluginRepor
   const reports: PluginReport[] = [];
   for (const name of names) {
     const dir = path.join(opts.root, name);
-    if (!NAME.test(name)) {
+    if (!isValidPluginName(name)) {
       reports.push({ name, status: 'invalid', error: 'directory name must be lowercase letters, digits, ".", "_" or "-"', registered: 0 });
       continue;
     }

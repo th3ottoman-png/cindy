@@ -5560,6 +5560,18 @@ interface ElectronAPI {
         sessionId: string;
       }) => Promise<import('../main/maker-ipc/expertsHandlers').GoAheadResult>;
     };
+    extPlugins: {
+      /** ROADMAP 4.2b: local extension plugins (~/.cindy-harness/plugins) with their load state. */
+      list: () => Promise<import('../main/maker-ipc/extensionPlugins').ExtensionPluginListView>;
+      /** Enable/disable one plugin; persists in plugins.json and applies at once. */
+      setEnabled: (
+        name: string,
+        enabled: boolean,
+      ) => Promise<import('../main/maker-ipc/extensionPlugins').ExtensionPluginListView>;
+      onChanged: (
+        cb: (view: import('../main/maker-ipc/extensionPlugins').ExtensionPluginListView) => void,
+      ) => () => void;
+    };
     providers: {
       list: () => Promise<import('@cindy/maker-core/providers-file').ProviderFileResult>;
       discover: () => Promise<import('@cindy/maker-core/providers-discovery').EndpointProbe[]>;

@@ -20,6 +20,7 @@
     "./extensions": "./src/extensions/registry.ts",
     "./adapter-extensions": "./src/agents/adapter-extensions.ts",
     "./plugins": "./src/plugins/plugin-loader.ts",
+    "./plugin-state": "./src/plugins/plugin-state.ts",
     "./skills": "./src/skills/skill-manager.ts",
     "./mcp-catalog": "./src/mcp/mcp-catalog.ts",
     "./expert-memory": "./src/experts/expert-memory.ts",

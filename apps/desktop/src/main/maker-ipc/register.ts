@@ -910,6 +910,10 @@ import {
 } from './sessionReferenceResolver.js';
 import { registerAndroidAutomationHandlers } from './androidHandlers.js';
 import { registerExpertsHandlers } from './expertsHandlers.js';
+import {
+  createDesktopExtensionPluginsHost,
+  registerExtensionPluginsHandlers,
+} from './extensionPlugins.js';
 import { getDesktopExpertSessionStore } from './expertSessions.js';
 import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
@@ -25575,6 +25579,21 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         rows: await listMessagesForAgentHandoff(sessionId, 400),
       };
     },
+  });
+
+  // ── Local extension plugins (ROADMAP 4.2b): load ~/.cindy-harness/plugins at startup ──
+  const extensionPlugins = createDesktopExtensionPluginsHost({
+    rootDir: path.join(os.homedir(), '.cindy-harness', 'plugins'),
+    stateFile: path.join(os.homedir(), '.cindy-harness', 'plugins.json'),
+  });
+  void extensionPlugins.start().then(
+    () => log.info('ext-plugins: startup load finished'),
+    (error) => log.warn('ext-plugins: startup load failed', error),
+  );
+  registerExtensionPluginsHandlers(createElectronIpcHandlerRegistry(), {
+    host: extensionPlugins,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
   });
 
   // ── Providers (ROADMAP 2.1b/2.2b IPC): read-only list + on-demand probe of ~/.cindy-harness/providers.yaml ──

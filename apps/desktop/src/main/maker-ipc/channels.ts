@@ -39,6 +39,10 @@ export const MAKER_INVOKE = {
   /** ROADMAP 3.6b: build an ask-expert first message from a stored session; sets the pending pick. */
   EXPERTS_HANDOFF: 'maker:experts:handoff',
   EXPERTS_GO_AHEAD: 'maker:experts:go-ahead',
+  /** ROADMAP 4.2b: list local extension plugins (~/.cindy-harness/plugins) with their load state. */
+  EXT_PLUGINS_LIST: 'maker:ext-plugins:list',
+  /** ROADMAP 4.2b: enable/disable one plugin; persists in plugins.json and applies at once. */
+  EXT_PLUGINS_SET_ENABLED: 'maker:ext-plugins:set-enabled',
   /** ROADMAP 2.1b: providers.yaml entries plus file issues (read-only). */
   PROVIDERS_LIST: 'maker:providers:list',
   /** ROADMAP 2.2b: probe each providers.yaml endpoint for online/offline and models. */
@@ -974,6 +978,8 @@ export const MAKER_PUSH = {
   EXPERTS_SESSION_EVENT: 'maker:experts:session-event',
   /** ROADMAP 3.8: an expert draft is waiting, or was approved / rejected / timed out. */
   EXPERTS_DRAFT_EVENT: 'maker:experts:draft-event',
+  /** ROADMAP 4.2b: a plugin toggle was applied; payload is the fresh plugin list. */
+  EXT_PLUGINS_CHANGED: 'maker:ext-plugins:changed',
   TURN_CHANGE_SET_UPDATED: 'maker:turn-change-set:updated',
   STATUS_CHANGED: 'maker:status-changed',
   /** 用户从独立 Computer Use 授权引导浮窗主动取消。 */

@@ -55,6 +55,7 @@ import { SessionImportSection } from './SessionImportSection';
 import { AgentResourceSection } from './AgentResourceSection';
 import { HermesSection } from './HermesSection';
 import { ExpertsSection } from './ExpertsSection';
+import { PluginsSection } from './PluginsSection';
 import { PiPackagesSection } from './PiPackagesSection';
 import { CollaborationSection } from './CollaborationSection';
 import { BuiltinToolsSection } from './BuiltinToolsSection';
@@ -449,6 +450,11 @@ export function SettingsView() {
                     {/* Experts editor (ROADMAP 3.3) */}
                     <section id="settings-experts" className="py-[18px]" aria-label="Experts">
                       <ExpertsSection />
+                    </section>
+
+                    {/* Local extension plugins (ROADMAP 4.2b) */}
+                    <section id="settings-plugins" className="py-[18px]" aria-label="Plugins">
+                      <PluginsSection />
                     </section>
 
                     {/* Section — Experimental (py 18). */}
