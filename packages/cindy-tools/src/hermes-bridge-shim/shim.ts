@@ -14,7 +14,10 @@
 import { readFile } from 'node:fs/promises';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {
+  StreamableHTTPClientTransport,
+  StreamableHTTPError,
+} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
@@ -90,6 +93,16 @@ export async function createBridgeShim(opts: BridgeShimOptions): Promise<BridgeS
       }),
     );
   } catch (error) {
+    // 403: the bridge does not mount this server for this session (config.yaml lists every
+    // server for every session). Stay up with no tools instead of exiting: Hermes retries a
+    // failed spawn, and its orphan sweep before each retry kills the sibling shims it started
+    // in the same instant (their first tool call then fails, ROADMAP §Debt 2026-11-03).
+    if (error instanceof StreamableHTTPError && error.code === 403) {
+      return createRefusingShim(
+        opts.serverName,
+        `${opts.serverName} is not mounted for this session: ${error.message}`,
+      );
+    }
     throw new BridgeShimError(
       `bridge connection failed (stale token or Cindy not running): ${
         error instanceof Error ? error.message : String(error)
@@ -113,6 +126,25 @@ export async function createBridgeShim(opts: BridgeShimOptions): Promise<BridgeS
     close: async () => {
       await server.close().catch(() => undefined);
       await client.close().catch(() => undefined);
+    },
+  };
+}
+
+/** Fails closed without exiting: lists no tools, refuses every call with `message`. */
+export function createRefusingShim(serverName: string, message: string): BridgeShim {
+  const server = new Server(
+    { name: `cindy-bridge-${serverName}`, version: '0.0.0' },
+    { capabilities: { tools: {} } },
+  );
+  server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [] }));
+  server.setRequestHandler(CallToolRequestSchema, () => ({
+    isError: true,
+    content: [{ type: 'text' as const, text: message }],
+  }));
+  return {
+    server,
+    close: async () => {
+      await server.close().catch(() => undefined);
     },
   };
 }

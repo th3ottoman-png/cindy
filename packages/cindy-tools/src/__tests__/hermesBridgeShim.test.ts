@@ -36,6 +36,12 @@ async function startStub(): Promise<Stub> {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     const session = url.searchParams.get('session');
+    // Same refusal as the desktop bridge for a server this session's mounts exclude.
+    if (req.headers.authorization === `Bearer ${TOKEN}` && session === SESSION && url.pathname === '/mcp/cindy_unmounted') {
+      res.statusCode = 403;
+      res.end('MCP server is not mounted for this Session');
+      return;
+    }
     if (req.headers.authorization !== `Bearer ${TOKEN}` || session !== SESSION || url.pathname !== '/mcp/cindy_stub') {
       res.statusCode = 401;
       res.end();
@@ -132,6 +138,42 @@ describe('hermes bridge shim', () => {
     ).rejects.toThrow(/bridge connection failed/);
   });
 
+  // A shim that exits at startup makes Hermes retry it, and each retry's orphan sweep kills the
+  // sibling shims spawned in the same instant (first `list_experts` call failed, §Debt 2026-11-03).
+  it('stays up with no tools when the bridge refuses the server for this session', async () => {
+    const shim = await createBridgeShim({ runtimeFile, sessionId: SESSION, serverName: 'cindy_unmounted' });
+    const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
+    await shim.server.connect(serverSide);
+    const client = new Client({ name: 'hermes', version: '1' });
+    await client.connect(clientSide);
+
+    expect((await client.listTools()).tools).toEqual([]);
+    const refused = await client.callTool({ name: 'echo', arguments: { text: 'hi' } });
+    expect(refused.isError).toBe(true);
+    expect(refused.content).toEqual([{ type: 'text', text: expect.stringMatching(/not mounted/) }]);
+
+    await client.close();
+    await shim.close();
+  });
+
+  it('the bundle keeps running over stdio when the server is not mounted', async () => {
+    const bundle = await buildShim(path.join(dir, 'hermes-bridge-shim.mjs'));
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [bundle, '--server', 'cindy_unmounted', '--runtime-file', runtimeFile],
+      env: { PATH: process.env.PATH ?? '', CINDY_BRIDGE_SESSION: SESSION },
+      stderr: 'pipe',
+    });
+    let closed = false;
+    const client = new Client({ name: 'hermes', version: '1' });
+    client.onclose = () => { closed = true; };
+    await client.connect(transport);
+    expect((await client.listTools()).tools).toEqual([]);
+    expect((await client.callTool({ name: 'echo', arguments: {} })).isError).toBe(true);
+    expect(closed).toBe(false);
+    await client.close();
+  }, 30_000);
+
   it('works as the esbuild bundle over real stdio, reading the session from env', async () => {
     const bundle = await buildShim(path.join(dir, 'hermes-bridge-shim.mjs'));
     const transport = new StdioClientTransport({
@@ -147,18 +189,32 @@ describe('hermes bridge shim', () => {
     await client.close();
   }, 30_000);
 
-  it('the bundle exits non-zero when the session env is missing or un-interpolated', async () => {
+  // Every startup failure must leave the shim up (no tools, calls refused), never exit: an exit
+  // starts Hermes' retry + orphan sweep that kills the sibling shims (§Debt 2026-11-03).
+  it('the bundle stays up refusing every call on any startup failure', async () => {
     const bundle = await buildShim(path.join(dir, 'hermes-bridge-shim.mjs'));
-    for (const value of [undefined, '${CINDY_BRIDGE_SESSION}']) {
+    const cases: Array<{ name: string; session?: string; prepare?: () => Promise<void> }> = [
+      { name: 'session env missing' },
+      { name: 'session env un-interpolated', session: '${CINDY_BRIDGE_SESSION}' },
+      { name: 'runtime file missing', session: SESSION, prepare: () => rm(runtimeFile, { force: true }) },
+      { name: 'no entry for this session', session: SESSION, prepare: () => writeRuntime({ other: TOKEN }) },
+      { name: 'stale token', session: SESSION, prepare: () => writeRuntime({ [SESSION]: 'stale-token' }) },
+      { name: 'bridge gone', session: SESSION, prepare: () => writeRuntime({ [SESSION]: TOKEN }, 1) },
+    ];
+    for (const c of cases) {
+      await c.prepare?.();
       const transport = new StdioClientTransport({
         command: process.execPath,
         args: [bundle, '--server', 'cindy_stub', '--runtime-file', runtimeFile],
-        env: { PATH: process.env.PATH ?? '', ...(value ? { CINDY_BRIDGE_SESSION: value } : {}) },
+        env: { PATH: process.env.PATH ?? '', ...(c.session ? { CINDY_BRIDGE_SESSION: c.session } : {}) },
         stderr: 'pipe',
       });
       const client = new Client({ name: 'hermes', version: '1' });
-      await expect(client.connect(transport)).rejects.toThrow();
-      await client.close().catch(() => undefined);
+      await client.connect(transport);
+      expect((await client.listTools()).tools, c.name).toEqual([]);
+      const refused = await client.callTool({ name: 'echo', arguments: { text: 'x' } });
+      expect(refused.isError, c.name).toBe(true);
+      await client.close();
     }
   }, 30_000);
 });

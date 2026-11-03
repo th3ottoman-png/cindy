@@ -12,7 +12,7 @@ import path from 'node:path';
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-import { BridgeShimError, createBridgeShim } from './shim.js';
+import { BridgeShimError, createBridgeShim, createRefusingShim, type BridgeShim } from './shim.js';
 
 const SESSION_ENV = 'CINDY_BRIDGE_SESSION';
 
@@ -32,12 +32,21 @@ function parseArgs(argv: string[]): { serverName: string; runtimeFile: string } 
 
 async function main(): Promise<void> {
   const { serverName, runtimeFile } = parseArgs(process.argv.slice(2));
-  const sessionId = process.env[SESSION_ENV];
-  // An unset var or an un-interpolated "${...}" literal both mean no identity.
-  if (!sessionId || sessionId.startsWith('${')) {
-    throw new BridgeShimError(`${SESSION_ENV} is not set`);
+  let shim: BridgeShim;
+  try {
+    const sessionId = process.env[SESSION_ENV];
+    // An unset var or an un-interpolated "${...}" literal both mean no identity.
+    if (!sessionId || sessionId.startsWith('${')) {
+      throw new BridgeShimError(`${SESSION_ENV} is not set`);
+    }
+    shim = await createBridgeShim({ runtimeFile, sessionId, serverName });
+  } catch (error) {
+    // Fail closed without exiting: a shim that exits at startup makes Hermes retry it, and its
+    // orphan sweep before each retry kills the sibling shims (ROADMAP §Debt 2026-11-03).
+    const reason = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`cindy-hermes-bridge-shim: ${reason}\n`);
+    shim = createRefusingShim(serverName, `Cindy tools unavailable for ${serverName}: ${reason}`);
   }
-  const shim = await createBridgeShim({ runtimeFile, sessionId, serverName });
   await shim.server.connect(new StdioServerTransport());
   process.stdin.on('close', () => {
     void shim.close().finally(() => process.exit(0));
