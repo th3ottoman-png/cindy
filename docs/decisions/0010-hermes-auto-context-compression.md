@@ -17,7 +17,7 @@ The row picked 80% of the model window. A probe on Hermes 0.22.5 (throwaway home
   `compression.threshold` value: 0.25, 0.6, 0.8 and 0.9, and `threshold_tokens`, all gave 54,400 for a
   64k summary window. Real Cindy sessions compressed at 55,705 (85% of 65,536) while the context ring
   showed a 1,048,576 window.
-- It only fires before a second API call in the same run. Cindy runs one `hermes chat` per turn, and the
+- *(Corrected 2026-11-03, see Addendum: wrong for a warm gateway.)* It only fires before a second API call in the same run. Cindy runs one `hermes chat` per turn, and the
   preflight check of a new run is "not anchored on real usage", so a turn with no tool call never
   compresses (Hermes falls back to compressing on a context-length error).
 - It emits nothing on stream-json. Only `logs/agent.log` has `context compression started: session=…
@@ -40,3 +40,24 @@ The row picked 80% of the model window. A probe on Hermes 0.22.5 (throwaway home
 - Depends on two `agent.log` line formats; re-verify on every Hermes upgrade (HANDOVER §Versions).
 - The divider is not stored in the DB (same as Claude's); it is gone after an app reload. Amended 2026-11-03: a stored chat line "Context compressed automatically: A → B tokens." was added (commit `0814d080fd`), so the marker survives a reload.
 - The context ring still divides by the main model's window, so it can read low when Hermes compresses.
+
+## Addendum 2026-11-03 — plain turns do compress (1.11b probe)
+
+Second probe, Hermes v0.22.5 public source plus a throwaway home with a local stub model (prompt tokens =
+request chars / 4; no `~/.hermes*` read). The gateway runs a **"Session hygiene"** check at the start of
+every turn: when the last real prompt is at or over the limit (`85% of 65,536 = 55,705`) it compresses in
+place before the model call, same session id, and logs the same `context compression started/done` lines.
+Three plain chats (no tool calls) compressed this way: 57,326 → ~25k, 59,927 → ~16k, 64,419 → ~16k.
+The first probe saw nothing because its chat had too few messages: everything was protected
+("Compression made no progress"), which the first try of this probe also hit.
+
+Gap: the count lives in the gateway process. A client-started gateway exits after 600 s idle
+(`gateway.unmanaged_idle_exit_seconds`); after a restart the first turn goes out uncompressed once
+(64,419 tokens in the probe) and the turn after it compresses. A context-length error still triggers
+Hermes's reactive compression.
+
+Decision: **1.11b needs no Cindy compressor.** The 1.11a log watcher already matches the hygiene lines, so
+the notice shows for plain turns too. Not done: keeping the gateway warm (`unmanaged_idle_exit_seconds: 0`)
+to close the restart gap. It would keep a ~300 MB process alive after Cindy quits; build only if asked.
+
+Live proof (Cindy task `21da34cf`, STATUS 2026-11-03): a plain turn compressed 58.3k → 46.5k before the model call (turn-start preflight, anchored), the notice showed and survived a reload. Live run 1 also showed the failure mode: a few huge messages leave nothing compressible, and a turn over Hermes's 65,536 window is refused and Hermes resets its session.
