@@ -10,6 +10,33 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-03 — Handover to the next agent (owner away until after Thursday)
+
+- **Files:** `docs/handoff/2026-11-03-handover.md` (full handover: exact stopping point, the linked session, the next task, open work, gotchas) and `docs/handoff/2026-11-03-new-agent-prompt.md` (copy-paste prompt for the next agent). The owner chose the folder, the names and `main`.
+- **Stopping point:** 1.11a and 1.11b `live-proven`; 1.12a cause `live-proven`; **1.12b fix open**, waiting on the owner's choice between the two options in the 1.12a entry below.
+- **Linked session still working at handover time:** "Hermes caps deepseek-flash at 65,536 tokens", `local_b3392dcf-4e4b-4407-8c25-e6545b96bad1` (proposal `task_e600138e`), same checkout, not stopped (owner's instruction). Its uncommitted ROADMAP row 1.12 and STATUS entry 1.12a went into the handover commit unchanged.
+- **Not committed (owner's choice):** untracked `.kimi-code/`, `.serena/`, `.specify/`, `.workbuddy-ai/`, `apps/desktop/src/renderer/__tests__/tmp-probe/`.
+- **Gates (Node 22.23.4):** typecheck, test:runner, check:test-hygiene, test:unit:related all exit 0 (no desktop SIGSEGV this run).
+
+---
+
+## 2026-11-03 — ROADMAP 1.12a: why Hermes caps every model at 65,536 tokens (cause `live-proven`, fix open)
+
+- **Cause:** `model.ollama_num_ctx: 65536` in `~/.hermes-cindy/config.yaml` (added 2026-11-01 for 2.2b-2; copied into session homes). Hermes v0.22.5 (public tag, read in the scratchpad; the daily Hermes home not read) `agent/agent_init.py` runs `_configure_ollama_num_ctx` → `_enforce_minimum_context` → `_clamp_compressor_to_ollama_num_ctx`. The override is taken on any endpoint, and the clamp (`agent/agent_init_ollama.py`) lowers the compressor window to it with **no local-endpoint check**; the 64k floor counts it only for local endpoints. So deepseek-flash (warmed at 1,048,576) gets a 65,536 compressor window, threshold 85% = 55,705, and the "could not bring this session under 65,536" refusal.
+- **Probe (throwaway `HERMES_HOME`s A–E in the scratchpad, Node stubs on 127.0.0.1:18771 advertising 1,048,576 and :18772 advertising 32,768, real `hermes chat --format stream-json`):**
+  - A (1M stub + key): `Model context warmed: stub -> 1048576 tokens (detected)` then `Compressor window clamped to Ollama num_ctx: 1048576 -> 65536`. A ~87k turn went out (first-turn preflight deferred); the next `--resume` turn was refused "~87,565 tokens vs 65,536 … provider call was not sent", then `Auto-resetting session … after compression exhaustion`. Same failure as 1.11b live run 1.
+  - B (1M stub, no key): no clamp line; the same two turns both answered, the second at 175,091 prompt tokens.
+  - C (32k stub, no key): refused at start, "below the minimum 64,000". So small local servers do need something.
+  - D (32k stub + key): starts; the compressor stays at 32,768 (the clamp only lowers).
+  - E (32k stub, no global key, `custom_providers: [{name, base_url: <stub>, context_length: 65536}]`): starts, `warmed: stub -> 65536 tokens (config)`. A per-endpoint window can replace the global key.
+  - Stubs and the probe gateways (killed by pid after checking each one's `HERMES_HOME`) were stopped afterwards.
+- **Real logs (read only, `~/.hermes-cindy`):** 43 log files hold the clamp line: 34× `1048576 -> 65536`, 5× `262144 -> 65536`, 4× `100517 -> 65536`, 1× `256000`, 1× `500000`. So every model, including Gemma on LM Studio (262k), runs at 65,536.
+- **Not changed:** no daemon config RPC can remove `model.ollama_num_ctx` or write `custom_providers` (existing: default route, MCP servers, plugins), and AGENTS.md §3 forbids hand edits. Config untouched, so no backup was needed.
+- **Recommendation for the owner (pick one; 1.12b):** (1) add a daemon RPC that removes the global key and writes a `custom_providers` entry with `context_length` per local endpoint (LM Studio `127.0.0.1:1234`, Ollama `127.0.0.1:11434`), as probe E shows. Caveat: that window counts as the model's real window, so it must not exceed what the local server is loaded with. Or (2) have the daemon write `ollama_num_ctx` only into session homes whose route is local. With either, deepseek-flash compresses at ~85% of ~1M instead of 55,705.
+- **Gates:** docs-only diff (ROADMAP, STATUS).
+
+---
+
 ## 2026-11-03 — ROADMAP 1.11b plain-turn compression `live-proven` (no code)
 
 - **Owner asked to build 1.11b.** Before building a Cindy compressor I re-checked ADR 0010's claim that a plain turn never compresses.
