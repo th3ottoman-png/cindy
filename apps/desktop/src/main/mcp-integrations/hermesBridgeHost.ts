@@ -65,6 +65,13 @@ export const HERMES_BRIDGE_WORKER_SERVERS: readonly string[] = ['orca_worker_bri
  */
 export const HERMES_BRIDGE_EXPERT_SERVERS: readonly string[] = ['cindy_experts'];
 
+/**
+ * Read-only project reader (ROADMAP 3.10d, ADR 0009 §7). Mounted ALONE for a session locked by
+ * its expert's `toolsets:` whose expert.md lists `read_project_file` or `search_project`; never
+ * for an unlocked session, whose own file tools already read the project.
+ */
+export const HERMES_BRIDGE_READER_SERVERS: readonly string[] = ['cindy_project_reader'];
+
 /** Marker used to recognise (and only ever touch) shim entries we wrote. */
 const SHIM_BUNDLE_BASENAME = 'hermes-bridge-shim.mjs';
 
@@ -166,6 +173,7 @@ export async function syncHermesShimRegistrations(
     ...HERMES_BRIDGE_COLLAB_SERVERS,
     ...HERMES_BRIDGE_WORKER_SERVERS,
     ...HERMES_BRIDGE_EXPERT_SERVERS,
+    ...HERMES_BRIDGE_READER_SERVERS,
   ]) {
     if (exposed.includes(name)) continue;
     if (isOurShimEntry(current[name])) {
@@ -186,6 +194,8 @@ export interface HermesBridgeHostDeps {
   globalCollabEnabled?: () => boolean;
   /** ROADMAP 3.8: the session (or the pending pick, for a fresh one) is an expert creator. */
   expertCreator?: (sessionId: string) => boolean;
+  /** ROADMAP 3.10d: the locked session's expert (or the pending pick) opts into the project reader. */
+  projectReader?: (sessionId: string) => boolean;
   /** Null when the bundle is not built/shipped → Hermes runs without Cindy tools. */
   resolveShimPath: () => string | null;
   registration: HermesShimRegistrationDeps;
@@ -219,8 +229,10 @@ export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
   return async (info: PrepareInfo): Promise<HermesBridgeSession | null> => {
     if (info.permissionMode !== HERMES_BRIDGE_PERMISSION_MODE) return null;
     // `hermes chat -t` does not scope MCP servers (0.22.5), so a locked session gets no bridge
-    // identity: every shim then refuses every call (ROADMAP 3.10, ADR 0009).
-    if (info.toolsets?.length) return null;
+    // identity, and every shim then refuses every call (ROADMAP 3.10, ADR 0009), unless its
+    // expert opts into the read-only project reader, which is then the ONLY server mounted (3.10d).
+    const locked = Boolean(info.toolsets?.length);
+    if (locked && !(deps.projectReader?.(info.sessionId) ?? false)) return null;
     const shimPath = deps.resolveShimPath();
     if (!shimPath) {
       log.warn('hermes bridge shim bundle not found; Hermes runs without Cindy tools');
@@ -231,17 +243,19 @@ export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
     try {
       const registry = createPluginRegistry();
       const disabledPluginIds = registry.getDisabledRuntimePluginIds(info.workingDir);
-      const exposed = selectHermesBridgeServers(
-        lease.serverNames,
-        deps.optedInGatedServers?.() ?? new Set(),
-        isHermesCollabEnabled(
-          info.vendorOptions,
-          disabledPluginIds,
-          deps.globalCollabEnabled?.() ?? registry.isEnabled('collab'),
-        ),
-        deps.expertCreator?.(info.sessionId) ?? false,
-        info.vendorOptions?.orcaRole === 'worker',
-      );
+      const exposed = locked
+        ? HERMES_BRIDGE_READER_SERVERS.filter((name) => lease.serverNames.includes(name))
+        : selectHermesBridgeServers(
+            lease.serverNames,
+            deps.optedInGatedServers?.() ?? new Set(),
+            isHermesCollabEnabled(
+              info.vendorOptions,
+              disabledPluginIds,
+              deps.globalCollabEnabled?.() ?? registry.isEnabled('collab'),
+            ),
+            deps.expertCreator?.(info.sessionId) ?? false,
+            info.vendorOptions?.orcaRole === 'worker',
+          );
       // config.yaml is shared by every Hermes session (each session home copies it per turn), so
       // it lists every server any session may use: per-session lists here would let one session's
       // start remove another running session's tools (found live in 3.8). Each session is limited
@@ -251,6 +265,7 @@ export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
         ...selectHermesBridgeServers(lease.serverNames, deps.optedInGatedServers?.() ?? new Set(), true, true),
         ...selectHermesBridgeServers(lease.serverNames, new Set(), true, false, true)
           .filter((name) => HERMES_BRIDGE_WORKER_SERVERS.includes(name)),
+        ...HERMES_BRIDGE_READER_SERVERS.filter((name) => lease.serverNames.includes(name)),
       ];
       await syncHermesShimRegistrations(deps.registration, shimPath, registered);
 

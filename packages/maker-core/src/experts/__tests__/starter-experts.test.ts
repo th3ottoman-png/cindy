@@ -19,10 +19,11 @@ describe('docs/experts-examples', () => {
     }
   });
 
-  it('only the expert creator (draft_expert, 3.8) and the orchestrator (list_experts, 3.9b) list tools', () => {
+  it('only the expert creator (draft_expert, 3.8), Options first (project reader, 3.10d) and the orchestrator (list_experts, 3.9b) list tools', () => {
     const withTools = loadExperts(EXAMPLES).filter((e) => (e.expert?.tools.length ?? 0) > 0);
     expect(withTools.map((e) => [e.slug, e.expert!.tools])).toEqual([
       ['expert-creator', ['draft_expert']],
+      ['options-first', ['read_project_file', 'search_project']],
       ['orchestrator', ['list_experts']],
     ]);
   });
@@ -38,7 +39,9 @@ describe('docs/experts-examples', () => {
     const locked = loadExperts(EXAMPLES).filter((e) => e.expert?.toolsets);
     expect(locked.map((e) => [e.slug, e.expert!.toolsets])).toEqual([['options-first', ['session_search', 'todo', 'web']]]);
     const prompt = locked[0]!.expert!.prompt;
-    for (const needle of ['options', 'stop', 'Ask expert', 'Go ahead', 'cannot read']) expect(prompt, needle).toContain(needle);
+    for (const needle of ['options', 'stop', 'Ask expert', 'Go ahead', 'read_project_file', 'search_project', 'cannot write']) expect(prompt, needle).toContain(needle);
+    // ROADMAP 3.10d: the read-only project reader is the only Cindy tool it opts into.
+    expect(locked[0]!.expert!.tools.sort()).toEqual(['read_project_file', 'search_project']);
   });
 
   it('only the research analyst keeps memory notes', () => {

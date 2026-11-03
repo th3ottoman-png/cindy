@@ -302,6 +302,11 @@ import {
   setHermesOnlyBridgeProviders,
 } from '../mcp-integrations/piEnvironment.js';
 import { createExpertsMcpProvider, DRAFT_EXPERT_TOOL, LIST_EXPERTS_TOOL } from '../mcp-integrations/expertsMcpServer.js';
+import {
+  createProjectReaderMcpProvider,
+  READ_PROJECT_FILE_TOOL,
+  SEARCH_PROJECT_TOOL,
+} from '../mcp-integrations/projectReaderMcpServer.js';
 import { getDesktopExpertDraftConfirm } from '../maker-ipc/expertDraftConfirm.js';
 import { readContactsSettings } from './contacts-settings-store.js';
 import { captureKnownFileBefore, noteOpaqueTurnChange } from '../turn-change-set/store.js';
@@ -2572,6 +2577,10 @@ export function getMaker(): Maker {
         memoryTarget: (sessionId) => getDesktopExpertSessionStore().expertMemoryTarget(sessionId),
         confirm: (input) => getDesktopExpertDraftConfirm().request(input),
       }),
+      // ROADMAP 3.10d: read-only project reader for a locked expert that lists its tools.
+      createProjectReaderMcpProvider({
+        sessionMayRead: (sessionId, tool) => getDesktopExpertSessionStore().expertAllowsTool(sessionId, tool),
+      }),
     ]);
     // 用户自定义 MCP:三个 agent 都必须注册其实际持有的数组引用，再统一做初始 refresh。
     // localDb onReady 可能在 Maker 构造前就已触发（此时 registry 无数组，refresh 空跑）；
@@ -2863,6 +2872,10 @@ export function getMaker(): Maker {
             getDesktopExpertSessionStore().expertAllowsTool(sessionId, DRAFT_EXPERT_TOOL, { includePending: true })
             || getDesktopExpertSessionStore().expertAllowsTool(sessionId, LIST_EXPERTS_TOOL, { includePending: true })
             || getDesktopExpertSessionStore().expertMemoryTarget(sessionId, { includePending: true }) !== null,
+          // ROADMAP 3.10d: a locked session gets only cindy_project_reader, and only when its expert lists it.
+          projectReader: (sessionId) =>
+            getDesktopExpertSessionStore().expertAllowsTool(sessionId, READ_PROJECT_FILE_TOOL, { includePending: true })
+            || getDesktopExpertSessionStore().expertAllowsTool(sessionId, SEARCH_PROJECT_TOOL, { includePending: true }),
           resolveShimPath: resolveHermesBridgeShimPath,
           registration: {
             listServers: listHermesMcpServers,

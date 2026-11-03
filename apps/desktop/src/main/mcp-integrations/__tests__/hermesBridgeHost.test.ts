@@ -435,6 +435,50 @@ describe('createHermesBridgePreparer (real bridge, stub providers)', () => {
     expect(await readHermesBridgeRuntimeFile(runtimeFile)).toBeNull();
   });
 
+  it('mounts only the read-only project reader for a locked session whose expert opts in (ROADMAP 3.10d)', async () => {
+    setHermesOnlyBridgeProviders([
+      stubProvider('cindy_experts', 'experts-ok'),
+      stubProvider('cindy_project_reader', 'reader-ok'),
+    ]);
+    const config: Record<string, HermesShimServerConfig> = {};
+    const prepare = createHermesBridgePreparer({
+      providers: () => [stubProvider('cindy_docs', 'docs-ok'), stubProvider('cindy_browser', 'browser-ok')],
+      logger: noopLogger(),
+      runtimeFile,
+      resolveShimPath: () => SHIM,
+      optedInGatedServers: () => new Set(['cindy_browser']),
+      globalCollabEnabled: () => true,
+      expertCreator: () => true,
+      projectReader: (id) => id === 'sess-R',
+      registration: {
+        listServers: async () => ({ ...config }),
+        setServer: async (name, server) => {
+          config[name] = server;
+        },
+        removeServer: async (name) => {
+          delete config[name];
+        },
+      },
+    });
+    const locked = { workingDir: dir, permissionMode: 'bypassPermissions', toolsets: ['web'] };
+    // Locked without the opt-in: still no Cindy tools at all (3.10).
+    expect(await prepare({ sessionId: 'sess-L', ...locked })).toBeNull();
+
+    const reader = await prepare({ sessionId: 'sess-R', ...locked });
+    expect(reader).not.toBeNull();
+    expect(Object.keys(config)).toContain('cindy_project_reader');
+    expect((await callTool('cindy_project_reader', 'sess-R')).body).toContain('reader-ok');
+    for (const other of ['cindy_docs', 'cindy_browser', 'cindy_experts']) {
+      const refused = await callTool(other, 'sess-R');
+      expect(refused.status, other).toBe(403);
+    }
+    // An unlocked session never gets the reader (its own file tools already read the project).
+    const plain = await prepare({ sessionId: 'sess-R2', workingDir: dir, permissionMode: 'bypassPermissions' });
+    expect((await callTool('cindy_project_reader', 'sess-R2')).status).toBe(403);
+    plain!.dispose();
+    reader!.dispose();
+  });
+
   it('fails open (null) without a shim bundle, and registers nothing', async () => {
     let touched = false;
     const prepare = createHermesBridgePreparer({
