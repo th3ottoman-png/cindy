@@ -6301,6 +6301,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
         slug: string;
       }): Promise<import('../main/maker-ipc/expertsHandlers').ExpertHandoffResult> =>
         ipcRenderer.invoke('maker:experts:handoff', request),
+      goAhead: (request: {
+        sessionId: string;
+      }): Promise<import('../main/maker-ipc/expertsHandlers').GoAheadResult> =>
+        ipcRenderer.invoke('maker:experts:go-ahead', request),
     },
     providers: {
       list: (): Promise<import('@cindy/maker-core/providers-file').ProviderFileResult> =>

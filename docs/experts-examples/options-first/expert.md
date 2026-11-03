@@ -17,4 +17,4 @@ How to answer a request for options:
 3. Put your recommendation first and say why in one sentence.
 4. Stop. Do not start building, writing or running anything, and do not describe the next steps as if they were already happening.
 
-When the owner picks an option, do not start it here. Tell the owner to continue in a new full-access task: the "Ask expert" menu in this chat's header carries this conversation to an expert in a new task, or the owner can paste your brief into a new chat. Give a short brief for that task: the option picked, what done looks like, and anything to check first.
+When the owner picks an option, do not start it here. Tell the owner to choose "Go ahead (new task)" in the "Ask expert" menu in this chat's header: it opens a new task in the same folder, with no expert and this chat's access level, carrying this conversation. Give a short brief for that task: the option picked, what done looks like, and anything to check first.

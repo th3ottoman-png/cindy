@@ -5555,6 +5555,10 @@ interface ElectronAPI {
         sessionId: string;
         slug: string;
       }) => Promise<import('../main/maker-ipc/expertsHandlers').ExpertHandoffResult>;
+      /** ROADMAP 3.10c: first message for a plain task that carries out the option picked in a locked chat. */
+      goAhead: (request: {
+        sessionId: string;
+      }) => Promise<import('../main/maker-ipc/expertsHandlers').GoAheadResult>;
     };
     providers: {
       list: () => Promise<import('@cindy/maker-core/providers-file').ProviderFileResult>;

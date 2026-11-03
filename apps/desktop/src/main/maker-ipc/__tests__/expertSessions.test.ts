@@ -418,3 +418,59 @@ describe('Orca worker as an expert (ROADMAP 3.9a, ADR 0008)', () => {
     expect(() => store.bindSession('worker-2', '../escape')).toThrow();
   });
 });
+
+describe('"Go ahead" IPC (ROADMAP 3.10c)', () => {
+  const source = {
+    title: 'Suggest tasks',
+    agent: 'hermes',
+    model: 'hermes-default',
+    workingDir: '/projects/modoki',
+    permissionMode: 'bypassPermissions',
+    rows: [
+      { role: 'user', content: JSON.stringify({ text: 'Suggest ways to save time' }), createdAt: 1 },
+      { role: 'assistant', content: 'Option 1: a CSV normalizer.', createdAt: 2 },
+      { role: 'user', content: JSON.stringify({ text: 'Option 1, go ahead' }), createdAt: 3 },
+    ],
+  };
+
+  function setup(handoffSource = vi.fn(async (id: string) => (id === 'src' || id === 'plain' ? source : null))) {
+    writeExpert('options-first', 'name: Options First\ntoolsets: [web]');
+    writeExpert('code-reviewer', 'name: Code Reviewer');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    store.bindSession('src', 'options-first');
+    store.bindSession('plain', 'code-reviewer');
+    const harness = new IpcHarness();
+    handle = registerExpertsHandlers(harness, { rootDir: root, assertTrusted: vi.fn(), broadcast: vi.fn(), sessions: store, handoffSource });
+    return { store, harness, handoffSource };
+  }
+
+  it('shows the lock in the binding view so the header can offer Go ahead', () => {
+    const { store } = setup();
+    expect(store.describeBinding('src')).toMatchObject({ slug: 'options-first', toolsets: ['web'] });
+    expect(store.describeBinding('plain')).not.toHaveProperty('toolsets');
+  });
+
+  it('builds a plain-task prompt from a locked session, keeps its folder and access, and clears the pending pick', async () => {
+    const { store, harness } = setup();
+    store.setPending('code-reviewer');
+    const res = await harness.invoke(MAKER_INVOKE.EXPERTS_GO_AHEAD, { sessionId: 'src' }) as {
+      ok: true; prompt: string; workingDir: string | null; permissionMode: string | null;
+    };
+    expect(res).toMatchObject({ ok: true, workingDir: '/projects/modoki', permissionMode: 'bypassPermissions' });
+    expect(res.prompt).toMatch(/carry out the option the owner picked/i);
+    expect(res.prompt).toContain('Owner: Option 1, go ahead');
+    expect(store.getPending()).toBeNull();
+  });
+
+  it('refuses an unlocked or unknown session without reading it or touching the pending pick', async () => {
+    const { store, harness, handoffSource } = setup();
+    store.setPending('code-reviewer');
+    const go = (sessionId: unknown) => harness.invoke(MAKER_INVOKE.EXPERTS_GO_AHEAD, { sessionId });
+    expect(await go('plain')).toMatchObject({ ok: false, reason: 'not-locked' });
+    expect(await go('unbound')).toMatchObject({ ok: false, reason: 'not-locked' });
+    expect(await go('')).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(await go(42)).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(handoffSource).not.toHaveBeenCalled();
+    expect(store.getPending()).toBe('code-reviewer');
+  });
+});

@@ -38,6 +38,7 @@ export const MAKER_INVOKE = {
   EXPERTS_SAVE: 'maker:experts:save',
   /** ROADMAP 3.6b: build an ask-expert first message from a stored session; sets the pending pick. */
   EXPERTS_HANDOFF: 'maker:experts:handoff',
+  EXPERTS_GO_AHEAD: 'maker:experts:go-ahead',
   /** ROADMAP 2.1b: providers.yaml entries plus file issues (read-only). */
   PROVIDERS_LIST: 'maker:providers:list',
   /** ROADMAP 2.2b: probe each providers.yaml endpoint for online/offline and models. */

@@ -45,6 +45,8 @@ export interface ExpertSessionBindingView {
   model?: string;
   /** Present when the bound expert no longer loads. */
   error?: string;
+  /** The expert's built-in toolsets lock (ROADMAP 3.10); present only for a locked Hermes expert. */
+  toolsets?: string[];
 }
 
 interface BindingsFile {
@@ -174,6 +176,7 @@ export class ExpertSessionStore {
       dir,
       ...(entry.expert ? { name: entry.expert.name } : {}),
       ...(entry.expert?.model ? { model: entry.expert.model } : {}),
+      ...(entry.expert?.agent === 'hermes' && entry.expert.toolsets ? { toolsets: [...entry.expert.toolsets] } : {}),
       ...(entry.error ? { error: entry.error } : {}),
     };
   }

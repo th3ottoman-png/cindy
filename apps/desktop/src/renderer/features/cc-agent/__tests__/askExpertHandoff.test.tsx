@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const saveDraft = vi.fn();
 const resetDraftWorkspaceTargets = vi.fn();
 const switchVendor = vi.fn();
+const patchDraft = vi.fn();
+const patchVendorPrefsPreservingModelChoice = vi.fn();
 
 vi.mock('@/lib/composerDraftStore', () => ({
   saveDraft: (...args: unknown[]) => saveDraft(...args),
@@ -13,16 +15,20 @@ vi.mock('@/lib/composerDraftStore', () => ({
 vi.mock('@/state/newMakerDraft', () => ({
   resetDraftWorkspaceTargets: () => resetDraftWorkspaceTargets(),
   switchVendor: (v: unknown) => switchVendor(v),
+  patchDraft: (p: unknown) => patchDraft(p),
+  patchVendorPrefsPreservingModelChoice: (v: unknown, p: unknown) => patchVendorPrefsPreservingModelChoice(v, p),
 }));
 
-const { prefillExpertHandoffDraft } = await import('../lib/startExpertHandoff');
-const { AskExpertMenuView } = await import('../AskExpertMenu');
+const { prefillExpertHandoffDraft, prefillGoAheadDraft } = await import('../lib/startExpertHandoff');
+const { AskExpertMenuView, GO_AHEAD_VALUE } = await import('../AskExpertMenu');
 
 describe('Ask expert (ROADMAP 3.6b)', () => {
   beforeEach(() => {
     saveDraft.mockClear();
     resetDraftWorkspaceTargets.mockClear();
     switchVendor.mockClear();
+    patchDraft.mockClear();
+    patchVendorPrefsPreservingModelChoice.mockClear();
   });
 
   it('prefills a clean Hermes new-task draft with the handoff text and sends nothing', () => {
@@ -56,5 +62,40 @@ describe('Ask expert (ROADMAP 3.6b)', () => {
 
   it('renders nothing when there is no Hermes expert to ask', () => {
     expect(renderToStaticMarkup(<AskExpertMenuView entries={[]} busy={false} onPick={() => undefined} />)).toBe('');
+  });
+});
+
+describe('"Go ahead" (ROADMAP 3.10c)', () => {
+  beforeEach(() => {
+    saveDraft.mockClear();
+    resetDraftWorkspaceTargets.mockClear();
+    switchVendor.mockClear();
+    patchDraft.mockClear();
+    patchVendorPrefsPreservingModelChoice.mockClear();
+  });
+
+  it('prefills a Hermes draft in the source folder with the source access level, and sends nothing', () => {
+    prefillGoAheadDraft('Carry out the option…', { workingDir: '/projects/modoki', permissionMode: 'bypassPermissions' });
+    expect(saveDraft).toHaveBeenCalledWith('__new_maker_draft__', { text: { type: 'doc', plain: 'Carry out the option…' }, attachments: [] });
+    expect(resetDraftWorkspaceTargets).toHaveBeenCalledTimes(1);
+    expect(patchDraft).toHaveBeenCalledWith({ workingDir: '/projects/modoki' });
+    expect(resetDraftWorkspaceTargets.mock.invocationCallOrder[0]).toBeLessThan(patchDraft.mock.invocationCallOrder[0]);
+    expect(switchVendor).toHaveBeenCalledWith('hermes');
+    expect(patchVendorPrefsPreservingModelChoice).toHaveBeenCalledWith('hermes', { permissionMode: 'bypassPermissions' });
+  });
+
+  it('leaves folder and access alone when the source has none or an unknown access value', () => {
+    prefillGoAheadDraft('x', { workingDir: null, permissionMode: 'something-else' });
+    expect(resetDraftWorkspaceTargets).toHaveBeenCalledTimes(1);
+    expect(patchDraft).not.toHaveBeenCalled();
+    expect(patchVendorPrefsPreservingModelChoice).not.toHaveBeenCalled();
+  });
+
+  it('offers Go ahead first in a locked chat, even with no expert to ask', () => {
+    const html = renderToStaticMarkup(<AskExpertMenuView entries={[]} goAhead busy={false} onPick={() => undefined} />);
+    expect(html).toContain(`value="${GO_AHEAD_VALUE}"`);
+    expect(html).toContain('Go ahead');
+    const plain = renderToStaticMarkup(<AskExpertMenuView entries={[]} busy={false} onPick={() => undefined} />);
+    expect(plain).toBe('');
   });
 });

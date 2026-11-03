@@ -10,7 +10,12 @@
 
 import { NEW_MAKER_DRAFT_KEY } from '@/features/cc-agent/newMakerDraftKeys';
 import { plainTextToTiptapDoc, saveDraft } from '@/lib/composerDraftStore';
-import { resetDraftWorkspaceTargets, switchVendor } from '@/state/newMakerDraft';
+import {
+  patchDraft,
+  patchVendorPrefsPreservingModelChoice,
+  resetDraftWorkspaceTargets,
+  switchVendor,
+} from '@/state/newMakerDraft';
 
 export function prefillExpertHandoffDraft(prompt: string): void {
   saveDraft(NEW_MAKER_DRAFT_KEY, {
@@ -19,4 +24,29 @@ export function prefillExpertHandoffDraft(prompt: string): void {
   });
   resetDraftWorkspaceTargets();
   switchVendor('hermes');
+}
+
+/** The two access levels a Hermes task has: Ask (default) and Full access. */
+const HERMES_PERMISSION_MODES = new Set(['default', 'bypassPermissions']);
+
+/**
+ * "Go ahead" (ROADMAP 3.10c): prefill a plain Hermes task (no expert) that carries out the
+ * option the owner picked in a locked chat. Unlike the expert handoff it keeps the source
+ * task's folder and access level, because this task is meant to do the work there. Nothing is
+ * sent; the owner sees the folder and access level in the composer before sending.
+ */
+export function prefillGoAheadDraft(
+  prompt: string,
+  source: { workingDir: string | null; permissionMode: string | null },
+): void {
+  saveDraft(NEW_MAKER_DRAFT_KEY, {
+    text: plainTextToTiptapDoc(prompt),
+    attachments: [],
+  });
+  resetDraftWorkspaceTargets();
+  if (source.workingDir) patchDraft({ workingDir: source.workingDir });
+  switchVendor('hermes');
+  if (source.permissionMode && HERMES_PERMISSION_MODES.has(source.permissionMode)) {
+    patchVendorPrefsPreservingModelChoice('hermes', { permissionMode: source.permissionMode });
+  }
 }

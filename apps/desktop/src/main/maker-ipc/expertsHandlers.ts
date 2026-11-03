@@ -12,6 +12,10 @@
  * ROADMAP 3.6b: `EXPERTS_HANDOFF` turns a stored session into the first message for a NEW
  * session with a Hermes expert (`buildExpertHandoff`) and makes that expert the pending pick.
  * It starts nothing: the renderer only prefills the new-task draft, and the owner sends it.
+ *
+ * ROADMAP 3.10c: `EXPERTS_GO_AHEAD` does the same for a session locked by its expert's
+ * `toolsets:` (Options first), but for a plain task with no expert: it clears the pending pick
+ * and returns the source folder and access level so the new task can act on the picked option.
  */
 
 import { readFileSync } from 'node:fs';
@@ -24,7 +28,7 @@ import {
   hashExpertMarkdown,
   type ExpertSaveResult,
 } from '@cindy/maker-core/expert-draft';
-import { buildExpertHandoff } from '@cindy/maker-core/expert-handoff';
+import { buildExpertHandoff, buildGoAheadHandoff } from '@cindy/maker-core/expert-handoff';
 import { loadExpert, loadExperts, watchExperts, type ExpertEntry, type ExpertWatcher } from '@cindy/maker-core/experts';
 import * as path from 'node:path';
 
@@ -57,6 +61,9 @@ export interface ExpertHandoffSource {
   title: string;
   agent: string;
   model?: string;
+  /** ROADMAP 3.10c: where the source task ran and its access level, for "Go ahead". */
+  workingDir?: string | null;
+  permissionMode?: string | null;
   rows: HandoffSourceMessage[];
 }
 
@@ -98,6 +105,58 @@ async function buildHandoff(
     ok: true,
     slug,
     prompt: handoff.prompt,
+    includedMessages: handoff.includedMessages,
+    omittedMessages: handoff.omittedMessages,
+    truncated: handoff.truncated,
+  };
+}
+
+export type GoAheadResult =
+  | {
+      ok: true;
+      prompt: string;
+      workingDir: string | null;
+      permissionMode: string | null;
+      includedMessages: number;
+      omittedMessages: number;
+      truncated: boolean;
+    }
+  | { ok: false; reason: 'invalid' | 'not-locked' | 'no-session' | 'no-messages'; message: string };
+
+async function buildGoAhead(
+  sessions: ExpertSessionStore,
+  source: NonNullable<ExpertsHandlerDeps['handoffSource']>,
+  request: unknown,
+): Promise<GoAheadResult> {
+  const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
+  const sessionId = typeof r.sessionId === 'string' ? r.sessionId : '';
+  if (!sessionId) return { ok: false, reason: 'invalid', message: 'invalid session' };
+  // Only a chat locked by its expert offers "Go ahead"; check that before reading any session data.
+  let toolsets: string[] | null;
+  try {
+    toolsets = sessions.expertToolsets(sessionId);
+  } catch (error) {
+    return { ok: false, reason: 'not-locked', message: error instanceof Error ? error.message : String(error) };
+  }
+  if (!toolsets || toolsets.length === 0) {
+    return { ok: false, reason: 'not-locked', message: 'Go ahead is only offered in a chat locked by its expert (for example Options first).' };
+  }
+  const found = await source(sessionId);
+  if (!found) return { ok: false, reason: 'no-session', message: 'that session was not found' };
+  const handoff = buildGoAheadHandoff({
+    title: found.title,
+    agent: found.agent,
+    ...(found.model ? { model: found.model } : {}),
+    messages: toExpertHandoffMessages(found.rows),
+  });
+  if ('error' in handoff) return { ok: false, reason: 'no-messages', message: handoff.message };
+  // The new task has no expert: drop any pending pick so its first send binds nothing.
+  sessions.setPending(null);
+  return {
+    ok: true,
+    prompt: handoff.prompt,
+    workingDir: found.workingDir ?? null,
+    permissionMode: found.permissionMode ?? null,
     includedMessages: handoff.includedMessages,
     omittedMessages: handoff.omittedMessages,
     truncated: handoff.truncated,
@@ -179,6 +238,10 @@ export function registerExpertsHandlers(
       registry.handle(MAKER_INVOKE.EXPERTS_HANDOFF, (event, request: unknown) => {
         deps.assertTrusted(event);
         return buildHandoff(deps, sessions, source, request);
+      });
+      registry.handle(MAKER_INVOKE.EXPERTS_GO_AHEAD, (event, request: unknown) => {
+        deps.assertTrusted(event);
+        return buildGoAhead(sessions, source, request);
       });
     }
   }

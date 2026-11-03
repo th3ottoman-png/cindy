@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ExportSession } from '../../export/session-markdown';
-import { buildExpertHandoff, DEFAULT_HANDOFF_QUESTION } from '../expert-handoff';
+import { buildExpertHandoff, buildGoAheadHandoff, DEFAULT_HANDOFF_QUESTION } from '../expert-handoff';
 
 const EXPERT = { slug: 'reviewer', name: 'Code Reviewer' };
 const SESSION: ExportSession = {
@@ -70,5 +70,41 @@ describe('buildExpertHandoff', () => {
   it('refuses an empty source session and an unloaded expert instead of producing a prompt', () => {
     expect(buildExpertHandoff(EXPERT, { ...SESSION, messages: [{ role: 'assistant', text: '  ' }] })).toMatchObject({ error: 'no-messages' });
     expect(buildExpertHandoff({ slug: '', name: '' }, SESSION)).toMatchObject({ error: 'expert-unavailable' });
+  });
+});
+
+describe('buildGoAheadHandoff (ROADMAP 3.10c)', () => {
+  const PICKED: ExportSession = {
+    title: 'Suggest tasks',
+    agent: 'hermes',
+    model: 'hermes-default',
+    messages: [
+      { role: 'user', text: 'Suggest ways to save time here.' },
+      { role: 'assistant', text: 'Option 1: a CSV normalizer. Option 2: a lint script.', toolCalls: [{ name: 'web_search', input: { q: 'x' }, output: 'SECRET-PAYLOAD-LINE' }] },
+      { role: 'user', text: 'Option 1, go ahead and do it' },
+    ],
+  };
+
+  it('asks the new task to carry out the picked option, with the conversation and no expert framing', () => {
+    const r = buildGoAheadHandoff(PICKED);
+    if ('error' in r) throw new Error(r.message);
+    expect(r).toMatchObject({ includedMessages: 3, omittedMessages: 0, truncated: false });
+    expect(r.prompt).toContain('Source session: "Suggest tasks" (agent hermes, model hermes-default)');
+    expect(r.prompt).toMatch(/carry out the option the owner picked/i);
+    expect(r.prompt).toMatch(/could not read files or run commands/i);
+    expect(r.prompt).not.toContain('wants your take');
+    expect(r.prompt).not.toContain('You have no tools');
+    expect(r.prompt.indexOf('Owner: Suggest ways')).toBeLessThan(r.prompt.indexOf('Owner: Option 1, go ahead and do it'));
+    expect(r.prompt).toContain('(tools used: web_search)');
+    expect(r.prompt).not.toContain('SECRET-PAYLOAD-LINE');
+  });
+
+  it('keeps the newest messages within the budget and refuses an empty session', () => {
+    const messages = Array.from({ length: 10 }, (_, i) => ({ role: 'user' as const, text: `message-${i} ${'x'.repeat(100)}` }));
+    const r = buildGoAheadHandoff({ ...PICKED, messages }, { maxChars: 350 });
+    if ('error' in r) throw new Error(r.message);
+    expect(r.prompt).toContain('message-9');
+    expect(r.prompt).not.toContain('message-0');
+    expect(buildGoAheadHandoff({ ...PICKED, messages: [{ role: 'assistant', text: ' ' }] })).toMatchObject({ error: 'no-messages' });
   });
 });

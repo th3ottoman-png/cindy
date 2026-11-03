@@ -38,7 +38,7 @@ describe('docs/experts-examples', () => {
     const locked = loadExperts(EXAMPLES).filter((e) => e.expert?.toolsets);
     expect(locked.map((e) => [e.slug, e.expert!.toolsets])).toEqual([['options-first', ['session_search', 'todo', 'web']]]);
     const prompt = locked[0]!.expert!.prompt;
-    for (const needle of ['options', 'stop', 'Ask expert', 'cannot read']) expect(prompt, needle).toContain(needle);
+    for (const needle of ['options', 'stop', 'Ask expert', 'Go ahead', 'cannot read']) expect(prompt, needle).toContain(needle);
   });
 
   it('only the research analyst keeps memory notes', () => {

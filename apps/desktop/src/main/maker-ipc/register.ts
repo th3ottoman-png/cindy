@@ -25570,6 +25570,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         title: row.title ?? '',
         agent: row.agentKind ?? 'unknown',
         ...(row.model ? { model: row.model } : {}),
+        workingDir: row.workingDir,
+        permissionMode: row.permissionMode ?? null,
         rows: await listMessagesForAgentHandoff(sessionId, 400),
       };
     },

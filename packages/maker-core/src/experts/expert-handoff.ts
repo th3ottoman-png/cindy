@@ -48,14 +48,17 @@ function renderMessage(m: ExportSession['messages'][number], maxMessageChars: nu
   return { text: `${ROLE_LABEL[m.role]}: ${body.text}${toolLine}`, cut: body.cut };
 }
 
-export function buildExpertHandoff(
-  expert: Pick<Expert, 'slug' | 'name'>,
-  session: Pick<ExportSession, 'title' | 'agent' | 'model' | 'messages'>,
-  opts: BuildHandoffOptions = {},
-): BuildHandoffResult {
-  if (!expert.slug || !expert.name) return { error: 'expert-unavailable', message: 'the target expert did not load' };
-  const rendered = session.messages.map((m) => renderMessage(m, opts.maxMessageChars ?? 2000)).filter((r) => r.text !== '');
-  if (rendered.length === 0) return { error: 'no-messages', message: 'the source session has nothing to hand off' };
+interface Excerpt {
+  heading: string;
+  body: string;
+  includedMessages: number;
+  omittedMessages: number;
+  truncated: boolean;
+}
+
+function buildExcerpt(messages: ExportSession['messages'], opts: BuildHandoffOptions): Excerpt | null {
+  const rendered = messages.map((m) => renderMessage(m, opts.maxMessageChars ?? 2000)).filter((r) => r.text !== '');
+  if (rendered.length === 0) return null;
 
   const budget = opts.maxChars ?? 12000;
   const kept: string[] = [];
@@ -70,16 +73,60 @@ export function buildExpertHandoff(
     cutAny = cutAny || entry.cut;
   }
   const omitted = rendered.length - kept.length;
+  const heading =
+    omitted > 0 ? `--- Conversation excerpt (newest ${kept.length} messages; ${omitted} older omitted) ---` : '--- Conversation excerpt ---';
+  return { heading, body: kept.join('\n\n'), includedMessages: kept.length, omittedMessages: omitted, truncated: omitted > 0 || cutAny };
+}
+
+function sourceLine(session: Pick<ExportSession, 'title' | 'agent' | 'model'>): string {
+  return `Source session: "${session.title.replace(/\s+/g, ' ').trim() || 'Untitled'}" (agent ${session.agent}${session.model ? `, model ${session.model}` : ''}).`;
+}
+
+export function buildExpertHandoff(
+  expert: Pick<Expert, 'slug' | 'name'>,
+  session: Pick<ExportSession, 'title' | 'agent' | 'model' | 'messages'>,
+  opts: BuildHandoffOptions = {},
+): BuildHandoffResult {
+  if (!expert.slug || !expert.name) return { error: 'expert-unavailable', message: 'the target expert did not load' };
+  const excerpt = buildExcerpt(session.messages, opts);
+  if (!excerpt) return { error: 'no-messages', message: 'the source session has nothing to hand off' };
 
   const header = [
     `The owner wants your take on a conversation from another session.`,
-    `Source session: "${session.title.replace(/\s+/g, ' ').trim() || 'Untitled'}" (agent ${session.agent}${session.model ? `, model ${session.model}` : ''}).`,
+    sourceLine(session),
     `You have no tools or files from that session; only the excerpt below.`,
   ];
   const question = (opts.question ?? '').trim() || DEFAULT_HANDOFF_QUESTION;
-  const excerptHeading =
-    omitted > 0 ? `--- Conversation excerpt (newest ${kept.length} messages; ${omitted} older omitted) ---` : '--- Conversation excerpt ---';
+  const prompt = [...header, '', `Owner's question: ${question}`, '', excerpt.heading, '', excerpt.body, '', '--- End of excerpt ---'].join('\n');
+  return {
+    expertSlug: expert.slug,
+    prompt,
+    includedMessages: excerpt.includedMessages,
+    omittedMessages: excerpt.omittedMessages,
+    truncated: excerpt.truncated,
+  };
+}
 
-  const prompt = [...header, '', `Owner's question: ${question}`, '', excerptHeading, '', kept.join('\n\n'), '', '--- End of excerpt ---'].join('\n');
-  return { expertSlug: expert.slug, prompt, includedMessages: kept.length, omittedMessages: omitted, truncated: omitted > 0 || cutAny };
+export type GoAheadHandoff = Omit<ExpertHandoff, 'expertSlug'>;
+
+/**
+ * "Go ahead" (ROADMAP 3.10c): the first message for a NEW plain task (no expert) that carries
+ * out the option the owner picked in a locked Options first chat. Same excerpt rules as
+ * `buildExpertHandoff`; it only drafts text and starts nothing.
+ */
+export function buildGoAheadHandoff(
+  session: Pick<ExportSession, 'title' | 'agent' | 'model' | 'messages'>,
+  opts: Omit<BuildHandoffOptions, 'question'> = {},
+): GoAheadHandoff | { error: 'no-messages'; message: string } {
+  const excerpt = buildExcerpt(session.messages, opts);
+  if (!excerpt) return { error: 'no-messages', message: 'the source session has nothing to hand off' };
+
+  const header = [
+    `The owner picked an option in an Options first chat and wants it done in this task.`,
+    sourceLine(session),
+    `That chat could not read files or run commands, so check the project yourself before you change anything.`,
+  ];
+  const request = `Carry out the option the owner picked in the excerpt below. If it is not clear which option was picked, ask before you start.`;
+  const prompt = [...header, '', `Owner's request: ${request}`, '', excerpt.heading, '', excerpt.body, '', '--- End of excerpt ---'].join('\n');
+  return { prompt, includedMessages: excerpt.includedMessages, omittedMessages: excerpt.omittedMessages, truncated: excerpt.truncated };
 }
