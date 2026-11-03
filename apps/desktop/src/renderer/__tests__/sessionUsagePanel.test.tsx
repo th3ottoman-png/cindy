@@ -9,6 +9,7 @@ import { buildTurnUsageDetails } from '../../shared/turnUsageDetails';
 import {
   extractStoredTurnsFromMessages,
   formatSessionUsageCost,
+  localProviderIdsFromProvidersFile,
   SessionUsagePanelView,
   type MessageWithTurnUsage,
 } from '../features/cc-agent/SessionUsagePanel';
@@ -142,5 +143,56 @@ describe('SessionUsagePanel (ROADMAP 1.9b-3)', () => {
     expect(html).toContain('lmstudio-local/qwen3-8b');
     expect(html).not.toContain('$');
     expect(formatSessionUsageCost(summary.cost, summary.currency, summary.costStatus)).toBeNull();
+  });
+});
+
+describe('SessionUsagePanel local endpoints (ROADMAP 1.9b)', () => {
+  const providersFile = {
+    providers: [
+      { id: 'lmstudio-local', kind: 'openai-compatible', baseUrl: 'http://127.0.0.1:1234/v1', capabilities: {}, local: true },
+      { id: 'openrouter-byok', kind: 'openai-compatible', baseUrl: 'https://openrouter.ai/api/v1', keyEnv: 'OPENROUTER_API_KEY', capabilities: {}, local: false },
+    ],
+    issues: [],
+  } as unknown as Parameters<typeof localProviderIdsFromProvidersFile>[0];
+
+  it('takes only the providers.yaml entries marked local', () => {
+    expect(localProviderIdsFromProvidersFile(providersFile)).toEqual(['lmstudio-local']);
+    expect(localProviderIdsFromProvidersFile(null)).toEqual([]);
+    expect(localProviderIdsFromProvidersFile({ providers: 'bad' } as never)).toEqual([]);
+  });
+
+  it('shows a local turn as tokens only, so a priced cloud turn beside it stays complete', () => {
+    const messages: MessageWithTurnUsage[] = [
+      {
+        role: 'assistant',
+        turnUsageDetails: buildTurnUsageDetails({
+          inputTokens: 10_000,
+          outputTokens: 1_000,
+          cacheReadTokens: 5_000,
+          model: 'deepseek-flash',
+          provider: 'deepseek',
+        })!,
+      },
+      {
+        role: 'assistant',
+        turnUsageDetails: buildTurnUsageDetails({
+          inputTokens: 12_000,
+          outputTokens: 2_000,
+          model: 'google/gemma-4-26b-a4b-qat',
+          provider: 'lmstudio-local',
+        })!,
+      },
+    ];
+    const summary = buildConversationUsageFromStoredTurns(extractStoredTurnsFromMessages(messages), {
+      referencePricing: REFERENCE_PRICING,
+      localProviders: localProviderIdsFromProvidersFile(providersFile),
+    });
+    expect(summary.costStatus).toBe('complete');
+    expect(summary.unpricedModels).toEqual([]);
+    const html = renderToStaticMarkup(<SessionUsagePanelView summary={summary} />);
+    expect(html).toContain('lmstudio-local/google/gemma-4-26b-a4b-qat');
+    expect(html).toContain('14.0k tok · local');
+    expect(html).not.toContain('(partial)');
+    expect(html).not.toContain('Unpriced:');
   });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ProviderFileResult } from '@cindy/maker-core/providers-file';
 import {
   type SessionUsageCostStatus,
   type SessionUsageSummary,
@@ -25,8 +26,7 @@ export function formatCurrencyAmount(amount: number, currency: string): string {
   const abs = Math.abs(amount);
   const decimals = abs > 0 && abs < 0.01 ? 4 : abs < 1 ? 4 : 2;
   const fixed = amount.toFixed(decimals);
-  const trimmed =
-    decimals > 2 ? fixed.replace(/(\.\d{2,}?)0+$/, '$1') : fixed;
+  const trimmed = decimals > 2 ? fixed.replace(/(\.\d{2,}?)0+$/, '$1') : fixed;
   return `${symbol}${trimmed}`;
 }
 
@@ -58,6 +58,16 @@ export function extractStoredTurnsFromMessages(
   return turns;
 }
 
+/** providers.yaml ids on this machine (loopback). Their turns are tokens only, never priced. */
+export function localProviderIdsFromProvidersFile(
+  result: ProviderFileResult | null | undefined,
+): string[] {
+  if (!result || !Array.isArray(result.providers)) return [];
+  return result.providers
+    .filter((entry) => entry?.local === true && typeof entry.id === 'string')
+    .map((entry) => entry.id);
+}
+
 /**
  * Pure per-conversation usage and cost panel view (ROADMAP 1.9b-3).
  */
@@ -66,13 +76,8 @@ export function SessionUsagePanelView({ summary }: { summary: SessionUsageSummar
     return null;
   }
 
-  const costLabel = formatSessionUsageCost(
-    summary.cost,
-    summary.currency,
-    summary.costStatus,
-  );
-  const allLocal =
-    summary.models.length > 0 && summary.models.every((entry) => entry.local);
+  const costLabel = formatSessionUsageCost(summary.cost, summary.currency, summary.costStatus);
+  const allLocal = summary.models.length > 0 && summary.models.every((entry) => entry.local);
   const unpricedSet = new Set(summary.unpricedModels);
 
   return (
@@ -148,9 +153,7 @@ export function SessionUsagePanelView({ summary }: { summary: SessionUsageSummar
                 data-testid="session-usage-model-row"
                 className="flex items-baseline justify-between gap-3"
               >
-                <span className="min-w-0 truncate text-[var(--text-primary)]">
-                  {label}
-                </span>
+                <span className="min-w-0 truncate text-[var(--text-primary)]">{label}</span>
                 <span className="shrink-0 text-[var(--text-secondary)]">
                   {formatCompactTokens(row.totalTokens)} tok · {rowCost}
                 </span>
@@ -217,6 +220,21 @@ export function SessionUsagePanel({
     return makerChatStore.subscribe(sessionId, update);
   }, [displaySnapshot, sessionId]);
 
+  // An unreadable providers.yaml leaves local turns unpriced, never priced.
+  const [localProviders, setLocalProviders] = useState<readonly string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    window.electronAPI.maker.providers
+      .list()
+      .then((result) => {
+        if (!cancelled) setLocalProviders(localProviderIdsFromProvidersFile(result));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
   const gatewayPricing = useGatewayModelPricing();
   const referencePricing = useReferenceModelPricing();
   const messages = displaySnapshot ? displaySnapshot.messages : storeMessages;
@@ -229,8 +247,17 @@ export function SessionUsagePanel({
       defaultModel,
       defaultProvider,
       agent: toPricingAgentKind(agentKind),
+      localProviders,
     });
-  }, [agentKind, defaultModel, defaultProvider, gatewayPricing, messages, referencePricing]);
+  }, [
+    agentKind,
+    defaultModel,
+    defaultProvider,
+    gatewayPricing,
+    localProviders,
+    messages,
+    referencePricing,
+  ]);
 
   return <SessionUsagePanelView summary={summary} />;
 }
