@@ -49,6 +49,7 @@ import {
   ClaudeCodeAgent,
   CodexAgent,
   HermesAgent,
+  createAdapterAgent,
   configureDefaultImageResizer,
   type AgentKind,
   type AuthAdapter,
@@ -1435,7 +1436,7 @@ export function getMaker(): Maker {
       readMaxConcurrent: () => readAgentResourceSettings().maxConcurrentCommands,
       log: desktopMakerLogger.child('command-gate'),
     });
-    const claudeAgent = new ClaudeCodeAgent({
+    const claudeAgent = createAdapterAgent('claude-code', {
       resolveSessionEnvironment: resolveCompanionRuntimeEnvironment,
       getDisabledSkillPaths: readDisabledSkillPaths,
       getManagedSkills: listCindyManagedSkills,
@@ -1765,7 +1766,7 @@ export function getMaker(): Maker {
       return codexSmartSubagentRoutingSignature(candidates, getActiveCatalogRevision())
         ?? 'default';
     };
-    const codexAgent = new CodexAgent({
+    const codexAgent = createAdapterAgent('codex', {
       resolveSessionEnvironment: resolveCompanionRuntimeEnvironment,
       getDisabledSkillPaths: readDisabledSkillPaths,
       getManagedSkills: listCindyManagedSkills,
@@ -2858,7 +2859,7 @@ export function getMaker(): Maker {
         }
         return null;
       }
-      return new HermesAgent({
+      return createAdapterAgent('hermes', {
         binaryPath: bundlePath,
         resolveHermesManagerSocketPath: () => hermesManagerSocketPath(),
         // Cindy tools inside Hermes (1.5b-3): per-session bridge identity + frozen

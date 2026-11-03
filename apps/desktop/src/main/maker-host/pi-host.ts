@@ -41,6 +41,7 @@ import { inputHandoffTaskShellEnv } from '../input-handoff/askpass/index.js';
 import {
   PiAgent,
   PiNativeProviderProxyNotReadyError,
+  createAdapterAgent,
   type AgentDeps,
   type AuthAdapter,
   type AuthState,
@@ -1925,7 +1926,7 @@ export function buildPiAgent(opts: BuildPiAgentOpts): PiAgent | null {
     return null;
   }
   log.info('pi agent enabled', { binaryPath });
-  return new PiAgent({
+  return createAdapterAgent('pi', {
     resolveSessionEnvironment: resolveCompanionRuntimeEnvironment,
     getDisabledSkillPaths: readDisabledSkillPaths,
     // 上游拒收可选请求字段（如 prompt_cache_retention / prompt_cache_key）后学到的 per-model

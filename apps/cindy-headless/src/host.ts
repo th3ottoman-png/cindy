@@ -2,7 +2,7 @@ import { access, appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promi
 import os from 'node:os';
 import path from 'node:path';
 import { createMemoryMcpProvider } from './memory-provider.js';
-import { ClaudeCodeAgent, CodexAgent, PiAgent, Maker, MakerMemoryManager, isTerminalTurnEvent, type AgentEvent, type AgentKind, type AgentRuntimeConfig, type AuthAdapter, type BaseAgent, type Logger, type McpProvider, type UserMessage } from '@cindy/maker-core';
+import { createAdapterAgent, Maker, MakerMemoryManager, isTerminalTurnEvent, type AgentEvent, type AgentKind, type AgentRuntimeConfig, type AuthAdapter, type BaseAgent, type Logger, type McpProvider, type UserMessage } from '@cindy/maker-core';
 import { startCodexMemoryBridge, type CodexMemoryBridge } from './codex-memory-bridge.js';
 import { sha256, type HeadlessProfile, type ResolvedProfile } from './profile.js';
 import { readProjectContext } from './project-context.js';
@@ -211,9 +211,9 @@ function createHeadlessMaker(resolved: ResolvedProfile, stateDir: string, workin
   let bridgePromise: Promise<CodexMemoryBridge> | undefined;
   let agent: BaseAgent;
   if (profile.agentBackend === 'claude-code') {
-    agent = new ClaudeCodeAgent({ auth: claudeAuth(), runtimeConfig, binaryPath: profile.agentBinaryPath, logger, mcpProviders, makerMemory, capabilityAdditions, resolveModelContextLimit });
+    agent = createAdapterAgent('claude-code', { auth: claudeAuth(), runtimeConfig, binaryPath: profile.agentBinaryPath, logger, mcpProviders, makerMemory, capabilityAdditions, resolveModelContextLimit });
   } else if (profile.agentBackend === 'codex') {
-    agent = new CodexAgent({
+    agent = createAdapterAgent('codex', {
       auth: codexAuth(stateDir),
       runtimeConfig,
       binaryPath: profile.agentBinaryPath,
@@ -241,7 +241,7 @@ function createHeadlessMaker(resolved: ResolvedProfile, stateDir: string, workin
       },
     });
   } else {
-    agent = new PiAgent({
+    agent = createAdapterAgent('pi', {
       auth: piAuth(profile),
       runtimeConfig,
       binaryPath: profile.agentBinaryPath,

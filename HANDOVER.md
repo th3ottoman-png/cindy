@@ -93,6 +93,7 @@ SQLite (Cindy DB)             ~/.hermes-cindy  (isolated Hermes home)
 | `packages/maker-hermes-manager/src/protocol.ts` | RPC method/shape definitions — read before adding an RPC |
 | `packages/maker-hermes-manager/src/__tests__/fixtures/fake-hermes.mjs` | Test double; **only** Hermes binary tests may spawn |
 | `packages/maker-core/src/agents/hermes/` | Adapter (`agent.ts`), event translator, transport, protocol mirror |
+| `packages/maker-core/src/agents/adapter-extensions.ts` | Registers the four built-in adapters in the 4.1a extension registry; production sites build them via `createAdapterAgent` (typed) — untyped `createRegisteredAdapterAgent` is reserved for the 4.2 plugin loader (ROADMAP 4.1b; do not re-merge the two, see the module header) |
 | `apps/desktop/src/main/maker-host/hermes-manager-client.ts` | Desktop side of the daemon; `getHermesHomeStatus`, MCP helpers |
 | `apps/desktop/src/main/maker-ipc/channels.ts`, `register.ts` | IPC channel names and handlers |
 | `apps/desktop/src/renderer/components/settings/HermesSection.tsx` | Settings card: home, route, plugins, skills, MCP servers |

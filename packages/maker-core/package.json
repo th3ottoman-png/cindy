@@ -18,6 +18,7 @@
     "./providers-file": "./src/providers/providers-file.ts",
     "./providers-discovery": "./src/providers/discovery.ts",
     "./extensions": "./src/extensions/registry.ts",
+    "./adapter-extensions": "./src/agents/adapter-extensions.ts",
     "./plugins": "./src/plugins/plugin-loader.ts",
     "./skills": "./src/skills/skill-manager.ts",
     "./mcp-catalog": "./src/mcp/mcp-catalog.ts",
