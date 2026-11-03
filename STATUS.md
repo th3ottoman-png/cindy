@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-03 — ROADMAP 3.10 design probe: per-turn tool lock not possible in Hermes 0.22.5 (nothing built)
+
+- **Owner's pick** (one question): built-in "Options first" mode, a per-session toggle that blocks write and run tools until the owner picks. Cindy cannot gate Hermes tool calls itself (`packages/maker-core/src/agents/hermes/agent.ts:416`: no approval requests in v1), so the only code-level lock is `hermes chat -t/--toolsets`.
+- **Probe (free, no model call, no `~/.hermes*` touched):** throwaway `HERMES_HOME` in the scratchpad, Hermes v0.22.5, a local stub OpenAI-compatible server (`--provider custom --base-url http://127.0.0.1:18765/v1`) that logged each request's `tools` and messages, and a stub stdio MCP server `probe` in the throwaway `config.yaml`. Gateway stopped and stubs killed afterwards.
+  - Resume with a different `-t` is refused, exit 2: "Resume retains gateway session policy; creation overrides are unsupported on resume. -t/--toolsets differs from this session's launch". So toolsets are fixed when the Hermes session is created; a per-turn lock in an existing chat needs a fresh session (history lost, like the permission-mode reset).
+  - A new session with `-t` is restricted: `--yolo -t web` exposed only `web_search`, `web_extract` and the lazy meta-tools `tool_search`/`tool_call`/`tool_describe`. Correctly shaped `tool_call {calls:[write_file, terminal]}` → "'terminal' is not available in this execution context"; no file created. Control (same stub script, `--yolo`, no `-t`) reached `terminal`. `--safe-mode -t web` exposed no tools at all.
+  - MCP servers are **not** scoped by `-t`: under `-t web`, `tool_search` still listed `available_sources: [probe]`. Cindy-owned MCP tools (`cindy_orca` `start_team` etc.) would stay callable unless Cindy's bridge refuses them.
+  - Tool-level `-t` values (`read_file,search_files`, `file:read_file`, `web,probe:probe_tool`) → `invalid_params`. `file` bundles `read_file` with `write_file`/`patch`, so a write-locked session cannot read project files either.
+- **Open:** 3.10 needs a revised design pick from the owner (per-turn lock as chosen is not buildable on 0.22.5). Side session for the `list_experts` stdio-loss Debt row was still running, nothing committed.
+
 ## 2026-11-03 — Debt: `start_team` `auto` breaks Hermes workers, fixed, `live-proven`
 
 - **Live check (owner, dev app restarted on `--isolated=dev`, verified read-only from the Cindy DB):** backups first: `~/.cindy-harness/experts.bak-2026-11-03-auto`, `~/.cindy-harness/expert-sessions.json.bak-2026-11-03-auto`. New Hermes task `18ee2959` (`hermes-default`, Full access, collaboration on), prompt "Call start_team with worker_permission_mode auto and tell me the exact result". 01:52:30 `mcp__cindy_orca__start_team {"worker_permission_mode":"auto"}` → `{"ok":false,"errorCode":"INTERNAL","data":{"hint":"Hermes workers cannot run in Auto mode. Call start_team again with worker_permission_mode: \"bypassPermissions\" (Full access). No team was started."}}`; the lead quoted it and offered the `bypassPermissions` retry. `orca_teams` and `orca_workers`: 0 rows for that lead. No Full-access prompt shown.
