@@ -10,6 +10,19 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-03 — ROADMAP 1.11a auto context compression shown in the chat `live-proven`
+
+- **Design (ADR 0010):** use Hermes 0.22.5's own compressor and its limit (~85% of the summary model window); no second compressor, Hermes config and prompts untouched. Hermes logs compression only to `logs/agent.log`.
+- **Change 1, commit `0d0f0f437c`:** `packages/maker-hermes-manager/src/{hermes-context,hermes-manager,protocol}.ts`: while a turn runs the daemon follows the turn home's `agent.log` from the turn-start offset and emits `hermes-mgr/compression` (`started`/`done`); `packages/maker-core/src/agents/hermes/{agent,translator}.ts` show "Compacting context…" then the `compact_boundary` divider. Fixture `fake-hermes.mjs` writes the two log lines; tests in `hermes-context.test.ts`, `hermes-manager.test.ts`, `agent.test.ts`, `translator.test.ts`.
+- **Live run 1 (failed in part):** Hermes compressed 113,424 → ~25,897 tokens and the status showed, but the local-only divider did not.
+- **Change 2, commit `0814d080fd`:** `packages/maker-core/src/agents/hermes/agent.ts` also emits a `standaloneText` notice "Context compressed automatically: A → B tokens.", persisted like the resume-reset notice (+1 test in `agent.test.ts`).
+- **Gates (Node 22.23.4):** typecheck, test:runner, check:test-hygiene, test:unit:related (incl. desktop) all exit 0 before the push of `0814d080fd`. Docs commit: typecheck, test:runner, hygiene exit 0; `test:unit:related` green except the known desktop threads SIGSEGV, desktop tier rerun in 8 shards: 8/8 green first try.
+- **Live run 2 (owner; verified read-only from `~/Library/Application Support/CindyGlobal-dev2-dev/cindy-local-v1.db`):** Hermes task `7ea2e78c` (`hermes-default`, Full access, Cindy folder). Turn 1 (read STATUS.md in chunks, count `## 2026-` lines) stored two lines: 15:00:32 "Context compressed automatically: 71.6k → 20.9k tokens." and 15:01:00 "… 56.9k → 28.5k tokens."; answer 134 (checked: `grep -c` = 134). Turn 2 named the top entry at line 13 (correct); turn 3 gave the ROADMAP title (correct). The owner reported the run complete after the reload step; the lines are stored as `messages` rows, so they reload with the chat. Session row: `context_tokens` 37,936.
+- **Surprise:** one long tool turn compressed twice. The context ring still divides by the main model's 1,048,576 window (ADR 0010 consequence), so it reads low.
+- **Open:** 1.11b (compress a plain turn at a Cindy limit) is not built and waits for the owner. `apps/desktop/src/renderer/__tests__/tmp-probe/hermesCompactProbe.test.ts` is an untracked leftover from the probe; not committed, not deleted.
+
+---
+
 ## 2026-11-03 — ROADMAP 1.9b session cost/usage panel `live-proven` (1.9b done)
 
 - **Gap found:** 1.9b-1/-2/-3 were all built, but the connected `SessionUsagePanel` never passed `localProviders` to `buildConversationUsageFromStoredTurns`. So every LM Studio/Ollama turn read "unpriced", was listed under "Unpriced:" and dragged a mixed conversation to "partial", which goes against 1.9a's rule (a local turn is tokens only). `providers.yaml` entries already carry `local: true` for loopback hosts.

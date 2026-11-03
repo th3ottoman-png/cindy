@@ -38,5 +38,5 @@ The row picked 80% of the model window. A probe on Hermes 0.22.5 (throwaway home
 ## Consequences
 
 - Depends on two `agent.log` line formats; re-verify on every Hermes upgrade (HANDOVER §Versions).
-- The divider is not stored in the DB (same as Claude's); it is gone after an app reload.
+- The divider is not stored in the DB (same as Claude's); it is gone after an app reload. Amended 2026-11-03: a stored chat line "Context compressed automatically: A → B tokens." was added (commit `0814d080fd`), so the marker survives a reload.
 - The context ring still divides by the main model's window, so it can read low when Hermes compresses.
