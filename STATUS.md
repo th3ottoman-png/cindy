@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-03 — ROADMAP 3.9b2 live run 3 `live-proven` (3.9 done)
+
+- **Live run (owner; verified read-only from `expert-sessions.json`, `~/.hermes-cindy/hermes-mgr/sessions.json`, the Cindy DB `messages`/`orca_workers`, and the experts folder):** "Write me a Turkish wedding toast" in an Orchestrator task (`hermes-default`, Full access, collaboration on).
+  - 00:19:51 lead `fe26174e` `list_experts` → "lost its stdio subprocess"; retry 00:19:55 → ok. Lead decided no expert fits.
+  - 00:20:00 `start_team` with `worker_permission_mode: auto`; 00:20:17 `create_worker agent: hermes, expert: expert-creator` → INTERNAL "Capability 'permissionMode:auto' not supported"; inert binding `511fd31e` left (no daemon session, no messages), as ADR 0008 allows. Lead re-ran `start_team` with `bypassPermissions` and created worker `3415a38f` (expert-creator, `maxTurns: 40`).
+  - 00:21:07 `draft_expert` (`tr-celebration-speech`); the card appeared in the Team pane, owner approved; 00:21:16 result `saved`, file on disk. Worker reported to the lead.
+  - 00:21:29 lead created worker `3327d91a` bound to `tr-celebration-speech` (`maxTurns: 40`); 00:22:35 it reported three Turkish toasts (130–136 words) to the lead, plus a typo correction; 00:22:38 the lead gave them to the owner.
+- **Result:** both acceptance requests now delegated end to end (code review in run 1, new expert + toast here), every session visible, cap on every worker. Row 3.9 ✅ `live-proven`.
+- **Follow-ups (ROADMAP §Debt):** the `list_experts` stdio-loss on the first call; `start_team` `auto` mode breaking Hermes workers. Still open from 3.4b: `draft_expert` listed to memory-only experts.
+
 ## 2026-11-02 — ROADMAP 3.9b2 live run 2: card still hidden, Hermes 300 s tool limit (both fixed, re-run open)
 
 - **Live run 2 (owner, verified read-only):** lead `f3f3b817` (Orchestrator) → worker `3fdf130f` bound to `expert-creator`, `maxTurns: 40` in the daemon registry. From the Cindy DB (`messages`, read-only): `draft_expert` called 21:48:40 (`occasion-speech-writer`); at 21:53:40 the tool result was "MCP call timed out after 300.0s (configured timeout: 300.0s)"; a retry was refused "a draft from this session is already waiting for the owner" (so the draft was pending in main); the worker reported "pending, not saved" to the lead, which correctly held. Nothing saved.
