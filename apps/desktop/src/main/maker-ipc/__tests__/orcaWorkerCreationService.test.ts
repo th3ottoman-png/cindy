@@ -3974,6 +3974,22 @@ describe('Hermes worker started as an expert (ROADMAP 3.9a, ADR 0008)', () => {
     expect(noExpert.bindWorkerExpert).not.toHaveBeenCalled();
   });
 
+  it('refuses an Auto Hermes worker before the expert is checked or bound (3.9 Debt)', async () => {
+    const { deps, resolveHermesWorkerExpert, bindWorkerExpert } = hermesDeps();
+    const result = await createOrcaWorkerCreationService(deps).createWorkerInTeam({
+      ...base, expert: 'code-reviewer', workerPermissionMode: 'auto',
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      errorCode: 'INVALID_PARAMS',
+      message: expect.stringContaining('bypassPermissions'),
+    });
+    expect(resolveHermesWorkerExpert).not.toHaveBeenCalled();
+    expect(bindWorkerExpert).not.toHaveBeenCalled();
+    expect(deps.reserveWorkerCreation).not.toHaveBeenCalled();
+    expect(deps.bootstrapSession).not.toHaveBeenCalled();
+  });
+
   it('fails closed on an expert that does not load, before any slot or session', async () => {
     const { deps } = hermesDeps();
     const result = await createOrcaWorkerCreationService(deps).createWorkerInTeam({ ...base, expert: 'missing' });

@@ -168,7 +168,7 @@ describe('plugin team activation uses the native lifecycle compensation', () => 
       isPluginTaskAuthorized: () => authorized, readPluginTaskConfig: () => ({ ...cfg }),
       assertLeadCollabProjectEnabled: async () => {}, getWorkerPermissionModeFromCreationPrefs: () => 'auto',
       startOrcaTeamWithPermissionGate, orcaWorkerPermissionConfirmBridge: { request: vi.fn() }, t: (key: string) => key,
-      orcaLifecycleService: createOrcaLifecycleService(deps) };
+      maker: { getSession: () => null }, orcaLifecycleService: createOrcaLifecycleService(deps) };
     const run = new Function(...Object.keys(callbacks), wired)(...Object.values(callbacks));
     const operation = run('plugin', { kind: 'startTeam', taskId: 'task' });
     if (change === 'healthy') {

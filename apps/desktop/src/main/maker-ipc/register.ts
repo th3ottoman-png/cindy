@@ -14244,6 +14244,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
           { leadSessionId, workerPermissionMode },
           {
             getCurrentWorkerPermissionMode: getWorkerPermissionModeFromCreationPrefs,
+            isHermesLead: (sessionId) => maker.getSession(sessionId)?.agentKind === 'hermes',
             requestFullAccessConfirmation: (sessionId) =>
               orcaWorkerPermissionConfirmBridge.request(sessionId, {
                 title: t('newChat.chatInput.fullAccessConfirmation.title'),

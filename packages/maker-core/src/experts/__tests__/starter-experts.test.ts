@@ -29,7 +29,7 @@ describe('docs/experts-examples', () => {
 
   it('the orchestrator delegates only through Hermes workers started as experts (ROADMAP 3.9b)', () => {
     const prompt = loadExperts(EXAMPLES).find((e) => e.slug === 'orchestrator')!.expert!.prompt;
-    for (const needle of ['list_experts', 'create_worker', '`agent`: `"hermes"`', '`expert`', 'expert-creator', 'Depth one']) {
+    for (const needle of ['list_experts', 'create_worker', '`agent`: `"hermes"`', '`expert`', 'expert-creator', 'Depth one', '`worker_permission_mode`: `"bypassPermissions"`']) {
       expect(prompt, needle).toContain(needle);
     }
   });

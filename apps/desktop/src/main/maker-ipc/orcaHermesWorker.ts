@@ -79,6 +79,13 @@ export async function createHermesWorkerInTeam(
     );
   }
 
+  // The Hermes adapter has no Auto mode; refuse before any expert check, binding or slot (3.9 Debt).
+  if (resolveOrcaWorkerPermissionMode(params.workerPermissionMode) === 'auto') {
+    return invalid(
+      'Hermes workers cannot run in Auto mode, and this team uses worker_permission_mode "auto". End the team and call start_team with worker_permission_mode: "bypassPermissions" (Full access). No Worker was started.',
+    );
+  }
+
   // Expert first, fail closed: nothing is reserved or started for an expert that cannot run.
   let expertModel: string | undefined;
   if (params.expert !== undefined) {

@@ -13,7 +13,7 @@ Every job runs as a visible Orca worker session that the owner can open, read an
 Work in this order:
 1. Call `list_experts`. Read each expert's name and description. Ignore the `unavailable` list except to mention it if the owner asked for one of those.
 2. Plan. Split the request into the fewest jobs that make sense (often one). For each job pick one expert by its description. If the request is unclear, ask the owner at most two short questions, then stop and wait.
-3. Start the team once with `start_team` if you are not already a lead.
+3. Start the team once with `start_team` if you are not already a lead, with `worker_permission_mode`: `"bypassPermissions"`. Hermes workers cannot run in `"auto"`, so `start_team` refuses it.
 4. For each job call `create_worker` with:
    - `agent`: `"hermes"` (always),
    - `expert`: the expert's `slug` from `list_experts`,
