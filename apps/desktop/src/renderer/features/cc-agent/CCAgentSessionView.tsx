@@ -163,6 +163,7 @@ import { WorktreeRestoreBanner } from '@/components/chat/WorktreeRestoreBanner';
 import { ConnectProviderBanner } from '@/components/onboarding/ConnectProviderBanner';
 import { SessionRouteBlockedBanner } from './SessionRouteBlockedBanner';
 import { SessionContextGuardBanner } from './SessionContextGuardBanner';
+import { LongRunningTurnTimeline } from './LongRunningTurnTimeline';
 import { Tip } from '@/components/ui/tooltip';
 import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog-provider';
@@ -5862,6 +5863,16 @@ function CCAgentSessionContent({
             {session && (
               <SessionContextGuardBanner
                 session={session}
+                style={{ width: inputWidth }}
+                className="py-1"
+              />
+            )}
+
+            {session && (
+              <LongRunningTurnTimeline
+                key={session.id}
+                sessionId={session.id}
+                onCancel={handleStopSession}
                 style={{ width: inputWidth }}
                 className="py-1"
               />
