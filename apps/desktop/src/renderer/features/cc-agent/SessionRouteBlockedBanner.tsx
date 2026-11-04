@@ -156,22 +156,31 @@ export function SessionRouteBlockedBanner({
   sessionId,
   agentKind,
   sessionModel,
+  onModelChange,
   style,
   className,
 }: {
   sessionId: string;
   agentKind: string;
   sessionModel?: string | null;
+  onModelChange?: (model: string) => void;
   style?: React.CSSProperties;
   className?: string;
 }) {
   const [health, setHealth] = useState<RouteHealth | null>(null);
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
   const [switchingRoute, setSwitchingRoute] = useState<string | null>(null);
+  const [optimisticModel, setOptimisticModel] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const evaluationSeq = useRef(0);
 
-  const evaluate = useCallback(async () => {
+  useEffect(() => {
+    setOptimisticModel(null);
+  }, [sessionModel]);
+
+  const effectiveSessionModel = optimisticModel ?? sessionModel;
+
+  const evaluate = useCallback(async (targetModel?: string | null) => {
     const seq = ++evaluationSeq.current;
     const clear = () => {
       if (seq === evaluationSeq.current) setHealth(null);
@@ -192,7 +201,7 @@ export function SessionRouteBlockedBanner({
         api.discover(),
       ]);
       const next = assessSessionRouteHealth({
-        sessionModel,
+        sessionModel: targetModel !== undefined ? targetModel : effectiveSessionModel,
         agentKind,
         routing: routingRes,
         providers: providersRes.providers ?? [],
@@ -203,7 +212,7 @@ export function SessionRouteBlockedBanner({
     } catch {
       clear();
     }
-  }, [agentKind, sessionModel]);
+  }, [agentKind, effectiveSessionModel]);
 
   const requestEvaluation = useCallback(() => setRevision((n) => n + 1), []);
 
@@ -255,16 +264,18 @@ export function SessionRouteBlockedBanner({
           model: alt.model,
           providerId: alt.provider,
         });
-        await evaluate();
+        setOptimisticModel(alt.model);
+        onModelChange?.(alt.model);
+        await evaluate(alt.model);
       } finally {
         setSwitchingRoute(null);
       }
     },
-    [evaluate, sessionId],
+    [evaluate, onModelChange, sessionId],
   );
 
   if (agentKind !== 'hermes' || !health || health.ok) return null;
-  const currentKey = `${sessionId}:${sessionModel ?? ''}:${health.reason}:${health.message}`;
+  const currentKey = `${sessionId}:${effectiveSessionModel ?? ''}:${health.reason}:${health.message}`;
   if (dismissedKey === currentKey) return null;
 
   return (

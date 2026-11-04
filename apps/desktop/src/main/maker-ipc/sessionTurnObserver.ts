@@ -49,7 +49,7 @@ export function installSessionTurnObserver(deps: InstallSessionTurnObserverDeps,
       // 同一账号付费，门禁照常执行。
       const chargedToShareHost = isProviderShareAgentDeviceId(session.agentDeviceId);
       const model = session.model;
-      if (model) {
+      if (model && session.agentKind !== 'hermes') {
         const verdict = await verdictForModelRoute(
           session.agentKind,
           model,

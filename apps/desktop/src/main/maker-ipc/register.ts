@@ -8777,6 +8777,9 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     providerId: string | null,
     remoteHostId?: string | null,
   ): Promise<string | undefined> {
+    if (agent === 'hermes') {
+      return undefined;
+    }
     if (agent === 'codex' && remoteHostId) {
       assertSshCodexModel(await readSshCodexModelList({ id: remoteHostId }, listSshCodexProviders), model, providerId);
       return undefined;

@@ -686,4 +686,10 @@ describe('materializeExclusiveProviderRoute', () => {
       degraded: true,
     });
   });
+
+  it('hermes agent passes checkModelRoute unconditionally', () => {
+    expect(checkModelRoute([], 'hermes', 'any-model', 'lmstudio-local')).toEqual({
+      kind: 'pass',
+    });
+  });
 });

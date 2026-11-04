@@ -19,6 +19,11 @@ import {
   routeHealthTriggerSignature,
 } from '@/features/cc-agent/SessionRouteBlockedBanner';
 import { makerChatStore } from '@/lib/makerChatStore';
+import * as sessionService from '@/lib/sessionService';
+
+vi.mock('@/lib/sessionService', () => ({
+  update: vi.fn(async () => ({})),
+}));
 
 vi.mock('@/components/ui/tooltip', () => ({
   Tip: ({ children }: { children: React.ReactNode }) => children,
@@ -99,6 +104,7 @@ beforeEach(() => {
     writable: true,
     value: {
       maker: {
+        setModel: vi.fn(async () => ({ deferred: false })),
         providers: {
           list: async () => ({ providers }),
           getRouting: async () => routing,
@@ -201,6 +207,44 @@ describe('SessionRouteBlockedBanner re-evaluation (2.4b)', () => {
       window.dispatchEvent(new Event('focus'));
     });
     await flush();
+    expect(banner(view.container)).toBeNull();
+  });
+
+  it('switches model, notifies onModelChange, and clears banner when an alternative is clicked', async () => {
+    const onModelChange = vi.fn();
+    probes = onlineProbes;
+    const view = render(
+      <SessionRouteBlockedBanner
+        sessionId="session-1"
+        agentKind="hermes"
+        sessionModel="llama3.2"
+        onModelChange={onModelChange}
+      />,
+    );
+    await flush();
+
+    const shown = banner(view.container);
+    expect(shown).not.toBeNull();
+    const gemmaBtn = view.container.querySelector(
+      '[data-testid="use-route-alternative-gemma-local"]',
+    ) as HTMLButtonElement | null;
+    expect(gemmaBtn).not.toBeNull();
+
+    await act(async () => {
+      gemmaBtn?.click();
+    });
+    await flush();
+
+    expect(window.electronAPI.maker.setModel).toHaveBeenCalledWith(
+      'session-1',
+      GEMMA,
+      'lmstudio-local',
+    );
+    expect(sessionService.update).toHaveBeenCalledWith('session-1', {
+      model: GEMMA,
+      providerId: 'lmstudio-local',
+    });
+    expect(onModelChange).toHaveBeenCalledWith(GEMMA);
     expect(banner(view.container)).toBeNull();
   });
 });

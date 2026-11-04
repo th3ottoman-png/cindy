@@ -2184,6 +2184,7 @@ export function ChatInput({
     !!sessionId &&
     !catalogDeviceId &&
     !preserveSshCodexRoute &&
+    currentModelAgentKind !== 'hermes' &&
     isSelectedSourceDisconnected({
       providers,
       agent: currentModelAgentKind,

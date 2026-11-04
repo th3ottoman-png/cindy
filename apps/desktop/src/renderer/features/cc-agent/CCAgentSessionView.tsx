@@ -5855,6 +5855,7 @@ function CCAgentSessionContent({
                 sessionId={session.id}
                 agentKind={session.agentKind}
                 sessionModel={session.model}
+                onModelChange={handleModelDidChange}
                 style={{ width: inputWidth }}
                 className="py-1"
               />

@@ -10,6 +10,36 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-04 — 2.4b: one-click alternative routes live proof (`live-proven`)
+
+- **What:** Live proof of one-click alternative route buttons in `SessionRouteBlockedBanner` when a session route is blocked by an offline provider. The safety rule and banner re-evaluation were already proven; this closes the remaining UI half of ROADMAP 2.4b.
+- **Files:**
+  - `apps/desktop/src/renderer/features/cc-agent/SessionRouteBlockedBanner.tsx`: Added `onModelChange` callback prop, `optimisticModel` state, target model evaluation support, and banner key updated to use effective session model.
+  - `apps/desktop/src/renderer/features/cc-agent/CCAgentSessionView.tsx`: Passed `handleModelDidChange` to `SessionRouteBlockedBanner`.
+  - `apps/desktop/src/renderer/components/new-chat/ChatInput.tsx`: Excluded `agentKind === 'hermes'` from `selectedSourceDisconnected` check so Hermes local providers (`lmstudio-local`) do not falsely disable the Send button.
+  - `apps/desktop/src/main/maker-host/model-route-guard.ts`: Excluded Hermes from `checkModelRoute` so local Hermes providers pass without requiring cloud provider registration.
+  - `apps/desktop/src/main/maker-ipc/sessionTurnObserver.ts`: Excluded Hermes from `verdictForModelRoute` check in `beforeProviderStart` so sends on local routes are not rejected with `explicit-source-unavailable`.
+  - `apps/desktop/src/main/maker-ipc/register.ts`: Excluded Hermes from `assertModelRouteUsable` check.
+  - `apps/desktop/src/main/maker-host/__tests__/model-route-guard.test.ts`: Added unit test confirming Hermes passes `checkModelRoute`.
+  - `apps/desktop/src/renderer/__tests__/sessionRouteBlockedBannerReevaluation.test.tsx`: Added unit test confirming clicking an alternative button switches the model, triggers `onModelChange`, and clears the banner.
+  - `ROADMAP.md`: Updated row 2.4 and Debt entry with `live-proven` details.
+  - `STATUS.md`: This entry.
+- **Surprises and root causes:**
+  - `ChatInput.tsx` checked `selectedSourceDisconnected` against the upstream cloud provider registry. Because Hermes providers (`lmstudio-local`) do not exist in the upstream cloud provider list, the Send button became disabled with `send-disabled`.
+  - In `apps/desktop/src/main/maker-ipc/sessionTurnObserver.ts`, `verdictForModelRoute` was called on every turn before provider start. Because `model-route-guard.ts` only knew about upstream cloud providers, setting an explicit local provider like `lmstudio-local` caused it to reject the send with `[INVALID_PARAMS] provider "lmstudio-local" is unavailable; select an available provider before sending`. Excluding Hermes in `model-route-guard.ts`, `sessionTurnObserver.ts`, and `register.ts` resolved this without altering cloud provider behaviour.
+- **Live proof (`/tmp/cindy-24b-live.log`, CDP 9222, target `#/cc-agent/ef62593b-1c5f-49f1-ae32-dd25180d3b58`):**
+  - Dev app running on pid 22859, CDP port 9222, Vite port 5175.
+  - Session route set to offline `llama3.2` on `ollama-local` (port 11434 offline).
+  - `SessionRouteBlockedBanner` rendered immediately: `Route "ollama-offline": "ollama-local" is offline (fetch failed)`, description `Automatic fallback is disabled (no silent fallback to another or paid provider).`, and two healthy alternative buttons (`use-route-alternative-gemma-local` and `use-route-alternative-local-small`). Saved to `/tmp/cindy-24b-banner.png`.
+  - Clicked `Use local-small (lmstudio-local/qwen3-8b) (local) instead`: banner cleared immediately on poll 1, session switched to `qwen3-8b` / `lmstudio-local`, and optimistic model updated.
+  - Sent prompt: `Reply with the single exact token PONG_24B_CONFIRMED and nothing else.`
+  - Hermes executed the turn on LM Studio `qwen3-8b` and replied `PONG_24B_CONFIRMED`.
+  - Completion screenshot saved to `/tmp/cindy-24b-done.png`.
+- **Verification:** Unit tests in `sessionRouteBlockedBannerReevaluation.test.tsx` (4 tests) and `model-route-guard.test.ts` (35 tests) pass. All 4 gates green under Node 22.23.4 in a canonical real Terminal session with `NODE_OPTIONS=[]` and `PS_PROBE=1 /sbin/launchd`: `pnpm typecheck` `RC=0`; `pnpm test:runner` `RC=0`; `pnpm check:test-hygiene` `RC=0`; non-desktop unit `NONDESKTOP_RC=0`; desktop shards 1..8 all `RC=0` in a single run (evidence in `/tmp/cindy-gates-24b.log`).
+- **Still open:** The owner's 4.5 done-test; 3.2b schema product decision; 5.1b, 5.2b, 5.4b; 3.7.
+
+---
+
 ## 2026-11-04 — End-of-day handoff (docs only)
 
 - **What:** the owner asked for a handoff, an update of everything stale, and a takeover prompt. The morning handover still named `74dd93d594` as the stopping point and listed 4.5, 2.4b-live and 5.3b as open work. All three are now closed, so that list was misleading. This session writes a new end-of-day handover and marks every older handover file as historical.

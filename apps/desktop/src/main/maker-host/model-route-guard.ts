@@ -382,6 +382,9 @@ export function checkModelRoute(
   providerId: string | null,
   options: ModelRouteGuardOptions = {},
 ): ModelRouteVerdict {
+  if (agent === 'hermes') {
+    return { kind: 'pass' };
+  }
   return applyExclusiveRoute(
     views,
     agent,
