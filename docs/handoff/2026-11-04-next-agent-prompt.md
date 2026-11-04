@@ -1,5 +1,9 @@
 # Prompt for the next agent (copy everything below the line)
 
+> **Superseded 2026-11-04 (end of day).** Use
+> [`2026-11-04-eod-next-agent-prompt.md`](2026-11-04-eod-next-agent-prompt.md) instead. This
+> prompt names the wrong stopping point and the wrong next tasks. Kept for history only.
+
 ---
 
 You are taking over the Cindy project from another agent. Continue from the exact stopping

@@ -1,5 +1,7 @@
 # Handoff: 2026-11-02, from a cloud session to a local Claude session on the owner's laptop
 
+> **Historical snapshot.** Current handover: [`2026-11-04-eod-handover.md`](2026-11-04-eod-handover.md).
+
 Read `AGENTS.md` first (hard rules), then `ROADMAP.md` Phase 3 and the top `STATUS.md` entries. This file only says where things stand and what to do next.
 
 ## Where we are

@@ -1,5 +1,8 @@
 # Prompt for the new agent (copy everything below the line)
 
+> **Superseded.** Use [`2026-11-04-eod-next-agent-prompt.md`](2026-11-04-eod-next-agent-prompt.md).
+> Kept for history.
+
 ---
 
 You are taking over the Cindy project from another agent. The owner is away until after Thursday

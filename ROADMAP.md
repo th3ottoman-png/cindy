@@ -3,6 +3,10 @@
 **Single source of truth for task status.** If `STATUS.md` or `HANDOVER.md` disagree with this
 file, this file wins and the other must be corrected.
 
+**Current handover (2026-11-04, end of day):** `docs/handoff/2026-11-04-eod-handover.md` with the
+matching `docs/handoff/2026-11-04-eod-next-agent-prompt.md`. A newer handover supersedes older
+ones; all earlier files in `docs/handoff/` are historical.
+
 ## Goal
 
 A desktop harness the owner uses every day for coding and research, running local LLMs and API
