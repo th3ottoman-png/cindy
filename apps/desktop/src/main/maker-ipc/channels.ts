@@ -49,6 +49,16 @@ export const MAKER_INVOKE = {
   MCP_CATALOG_SET_ENABLED: 'maker:mcp-catalog:set-enabled',
   /** ROADMAP 4.3b: on-demand liveness probe for one http entry; never runs on list. */
   MCP_CATALOG_CHECK_HEALTH: 'maker:mcp-catalog:check-health',
+  /** ROADMAP 4.4b: installed Hermes-home skills (enabled + disabled roots). */
+  SKILLS_LIST: 'maker:skills:list',
+  /** ROADMAP 4.4b: static scan of a local folder or git URL (clone is the only outbound call). */
+  SKILLS_SCAN: 'maker:skills:scan',
+  /** ROADMAP 4.4b: install after the scan report was shown; HIGH findings need acknowledgement. */
+  SKILLS_INSTALL: 'maker:skills:install',
+  /** ROADMAP 4.4b: move a skill between the skills root and the disabled root. */
+  SKILLS_SET_ENABLED: 'maker:skills:set-enabled',
+  /** ROADMAP 4.4b: remove an installed (non-builtin) skill folder for good. */
+  SKILLS_UNINSTALL: 'maker:skills:uninstall',
   /** ROADMAP 2.1b: providers.yaml entries plus file issues (read-only). */
   PROVIDERS_LIST: 'maker:providers:list',
   /** ROADMAP 2.2b: probe each providers.yaml endpoint for online/offline and models. */
@@ -988,6 +998,8 @@ export const MAKER_PUSH = {
   EXT_PLUGINS_CHANGED: 'maker:ext-plugins:changed',
   /** ROADMAP 4.3b: a catalog toggle or health probe finished; no payload — the renderer refetches. */
   MCP_CATALOG_CHANGED: 'maker:mcp-catalog:changed',
+  /** ROADMAP 4.4b: a skill install/toggle/uninstall finished; no payload — the renderer refetches. */
+  SKILLS_CHANGED: 'maker:skills:changed',
   TURN_CHANGE_SET_UPDATED: 'maker:turn-change-set:updated',
   STATUS_CHANGED: 'maker:status-changed',
   /** 用户从独立 Computer Use 授权引导浮窗主动取消。 */

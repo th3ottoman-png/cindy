@@ -5585,6 +5585,31 @@ interface ElectronAPI {
       /** Fires after a toggle or probe; no payload — refetch the list. */
       onChanged: (cb: () => void) => () => void;
     };
+    skills: {
+      /** ROADMAP 4.4b: Hermes skills under ~/.hermes-cindy with enabled state. */
+      list: () => Promise<import('../main/maker-ipc/skills').SkillsView>;
+      /** Scan a local folder or git URL; report must be shown before install. */
+      scan: (
+        request: import('../main/maker-ipc/skills').SkillScanRequest,
+      ) => Promise<import('../main/maker-ipc/skills').SkillScanResponse>;
+      /** Install a previously scanned local path or prepared git clone. */
+      install: (
+        request: import('../main/maker-ipc/skills').SkillInstallRequest,
+      ) => Promise<import('@cindy/maker-core/skills').InstallSkillResult>;
+      /** Enable/disable one skill (move between skills/ and skills-disabled/). */
+      setEnabled: (request: {
+        category: string;
+        name: string;
+        enabled: boolean;
+      }) => Promise<import('../main/maker-ipc/skills').SkillsView>;
+      /** Remove one installed skill folder. */
+      uninstall: (request: {
+        category: string;
+        name: string;
+      }) => Promise<import('../main/maker-ipc/skills').SkillsView>;
+      /** Fires after install/toggle/uninstall; no payload — refetch the list. */
+      onChanged: (cb: () => void) => () => void;
+    };
     providers: {
       list: () => Promise<import('@cindy/maker-core/providers-file').ProviderFileResult>;
       discover: () => Promise<import('@cindy/maker-core/providers-discovery').EndpointProbe[]>;

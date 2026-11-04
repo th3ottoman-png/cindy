@@ -916,6 +916,8 @@ import {
 } from './extensionPlugins.js';
 import { registerMcpCatalogHandlers } from './mcpCatalog.js';
 import { createDesktopMcpCatalogHost } from './mcpCatalogDesktop.js';
+import { registerSkillsHandlers } from './skills.js';
+import { createDesktopSkillsHost } from './skillsDesktop.js';
 import { getDesktopExpertSessionStore } from './expertSessions.js';
 import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
@@ -25601,6 +25603,13 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   // ── Unified MCP server catalog (ROADMAP 4.3b): Hermes mcp_servers + lizi builtins ──
   registerMcpCatalogHandlers(createElectronIpcHandlerRegistry(), {
     host: createDesktopMcpCatalogHost(),
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
+  });
+
+  // ── Skills manager (ROADMAP 4.4b): Hermes-home skills, scan-report-first install ──
+  registerSkillsHandlers(createElectronIpcHandlerRegistry(), {
+    host: createDesktopSkillsHost(),
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
     broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
   });

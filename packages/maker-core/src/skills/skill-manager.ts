@@ -196,6 +196,114 @@ export interface InstallSkillOptions {
   acknowledgeHigh?: boolean;
 }
 
+// ── Enable / disable / uninstall (ROADMAP 4.4b) ─────────────────────────────
+//
+// Hermes 0.22.5 has no skill off-switch — probed against a scratch home: no `skills
+// disable` CLI subcommand, no `config.yaml` key, no `state.db` table; a `.disabled/`
+// category inside the skills root is still loaded (dot-dirs are treated as categories)
+// and `enabled: false` frontmatter is ignored. So disable = move the skill folder out of
+// the skills root into a sibling `disabledRoot` Hermes never scans; enable = move it back.
+// Both are plain renames on the same volume: reversible, file-backed, human-editable.
+
+export interface ListedSkill extends InstalledSkill {
+  enabled: boolean;
+}
+
+/** Union of `<skillsRoot>` (enabled) and `<disabledRoot>` (disabled), sorted. */
+export function listSkillsWithState(skillsRoot: string, disabledRoot: string): ListedSkill[] {
+  const enabled = listInstalledSkills(skillsRoot).map((s) => ({ ...s, enabled: true }));
+  const disabled = listInstalledSkills(disabledRoot).map((s) => ({ ...s, enabled: false }));
+  return [...enabled, ...disabled].sort((a, b) => `${a.category}/${a.name}`.localeCompare(`${b.category}/${b.name}`));
+}
+
+function validSlug(value: string): boolean {
+  return NAME_RE.test(value);
+}
+
+export type SetSkillEnabledResult =
+  | { ok: true; enabled: boolean; dir: string }
+  | { ok: false; reason: 'bad-name' | 'not-found' | 'target-exists' | 'not-a-directory'; message: string };
+
+/** Move `<category>/<name>` between the two roots. Never overwrites an existing target. */
+export function setSkillEnabled(opts: {
+  skillsRoot: string;
+  disabledRoot: string;
+  category: string;
+  name: string;
+  enabled: boolean;
+}): SetSkillEnabledResult {
+  const { skillsRoot, disabledRoot, category, name, enabled } = opts;
+  if (!validSlug(category) || !validSlug(name)) {
+    return { ok: false, reason: 'bad-name', message: `category and name must be plain slugs (got "${category}/${name}")` };
+  }
+  const fromRoot = enabled ? disabledRoot : skillsRoot;
+  const toRoot = enabled ? skillsRoot : disabledRoot;
+  const source = path.join(fromRoot, category, name);
+  const target = path.join(toRoot, category, name);
+
+  let stat: fs.Stats;
+  try {
+    stat = fs.lstatSync(source);
+  } catch {
+    return { ok: false, reason: 'not-found', message: `${source} does not exist` };
+  }
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    return { ok: false, reason: 'not-a-directory', message: `${source} is not a plain skill folder` };
+  }
+  if (fs.existsSync(target)) {
+    return { ok: false, reason: 'target-exists', message: `${target} already exists; remove it first (never overwritten)` };
+  }
+
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.renameSync(source, target);
+  return { ok: true, enabled, dir: target };
+}
+
+export type UninstallSkillResult =
+  | { ok: true; dir: string }
+  | { ok: false; reason: 'bad-name' | 'not-found' | 'not-a-directory'; message: string };
+
+/**
+ * Remove `<root>/<category>/<name>` for good. `root` may be the skills root or the
+ * disabled root. Refuses symlinks and non-directories; slugs cannot escape the root
+ * (NAME_RE rejects leading dots and slashes).
+ */
+export function uninstallSkill(opts: { root: string; category: string; name: string }): UninstallSkillResult {
+  const { root, category, name } = opts;
+  if (!validSlug(category) || !validSlug(name)) {
+    return { ok: false, reason: 'bad-name', message: `category and name must be plain slugs (got "${category}/${name}")` };
+  }
+  const dir = path.join(root, category, name);
+  let stat: fs.Stats;
+  try {
+    stat = fs.lstatSync(dir);
+  } catch {
+    return { ok: false, reason: 'not-found', message: `${dir} does not exist` };
+  }
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    return { ok: false, reason: 'not-a-directory', message: `${dir} is not a plain skill folder` };
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+  return { ok: true, dir };
+}
+
+/** Skill names in the Hermes bundled manifest (`<skillsRoot>/.bundled_manifest`, lines `name:hash`). */
+export function readBundledSkillNames(skillsRoot: string): Set<string> {
+  const out = new Set<string>();
+  let text: string;
+  try {
+    text = fs.readFileSync(path.join(skillsRoot, '.bundled_manifest'), 'utf8');
+  } catch {
+    return out;
+  }
+  for (const line of text.split('\n')) {
+    const i = line.indexOf(':');
+    const name = (i === -1 ? line : line.slice(0, i)).trim();
+    if (name) out.add(name);
+  }
+  return out;
+}
+
 export type InstallSkillResult =
   | { installed: true; dir: string; report: SkillScanReport }
   | { installed: false; reason: 'invalid' | 'blocked' | 'needs-acknowledgement' | 'exists' | 'bad-category'; message: string; report: SkillScanReport };

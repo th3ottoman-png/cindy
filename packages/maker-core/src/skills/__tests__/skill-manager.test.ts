@@ -4,7 +4,15 @@ import * as path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { installSkill, listInstalledSkills, scanSkill } from '../skill-manager';
+import {
+  installSkill,
+  listInstalledSkills,
+  listSkillsWithState,
+  readBundledSkillNames,
+  scanSkill,
+  setSkillEnabled,
+  uninstallSkill,
+} from '../skill-manager';
 
 let tmp: string;
 beforeEach(() => {
@@ -129,5 +137,97 @@ describe('listInstalledSkills', () => {
     expect(listInstalledSkills(path.join(tmp, 'none'))).toEqual([]);
     fs.mkdirSync(path.join(skillsRoot(), 'cat', 'broken'), { recursive: true });
     expect(listInstalledSkills(skillsRoot())).toEqual([]);
+  });
+});
+
+describe('setSkillEnabled (4.4b)', () => {
+  const disabledRoot = (): string => path.join(tmp, 'skills-disabled');
+  function installed(name: string, category = 'community', root = skillsRoot()): string {
+    const dir = path.join(root, category, name);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'SKILL.md'), `---\nname: ${name}\n---\nBody\n`);
+    return dir;
+  }
+
+  it('disable moves the folder out of the skills root; enable moves it back', () => {
+    installed('one');
+    const off = setSkillEnabled({ skillsRoot: skillsRoot(), disabledRoot: disabledRoot(), category: 'community', name: 'one', enabled: false });
+    expect(off).toMatchObject({ ok: true, enabled: false });
+    expect(fs.existsSync(path.join(skillsRoot(), 'community', 'one'))).toBe(false);
+    expect(fs.existsSync(path.join(disabledRoot(), 'community', 'one', 'SKILL.md'))).toBe(true);
+
+    const on = setSkillEnabled({ skillsRoot: skillsRoot(), disabledRoot: disabledRoot(), category: 'community', name: 'one', enabled: true });
+    expect(on).toMatchObject({ ok: true, enabled: true });
+    expect(fs.existsSync(path.join(skillsRoot(), 'community', 'one', 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(disabledRoot(), 'community', 'one'))).toBe(false);
+  });
+
+  it('refuses a missing source and a slug with a leading dot or slash', () => {
+    expect(setSkillEnabled({ skillsRoot: skillsRoot(), disabledRoot: disabledRoot(), category: 'community', name: 'ghost', enabled: false }).reason).toBe('not-found');
+    installed('one');
+    expect(setSkillEnabled({ skillsRoot: skillsRoot(), disabledRoot: disabledRoot(), category: '..', name: 'one', enabled: false }).reason).toBe('bad-name');
+    expect(setSkillEnabled({ skillsRoot: skillsRoot(), disabledRoot: disabledRoot(), category: 'community', name: 'a/b', enabled: false }).reason).toBe('bad-name');
+  });
+
+  it('never overwrites an existing target', () => {
+    installed('one');
+    installed('one', 'community', disabledRoot());
+    const r = setSkillEnabled({ skillsRoot: skillsRoot(), disabledRoot: disabledRoot(), category: 'community', name: 'one', enabled: false });
+    expect(r.reason).toBe('target-exists');
+    expect(fs.existsSync(path.join(skillsRoot(), 'community', 'one', 'SKILL.md'))).toBe(true);
+  });
+
+  it('refuses a symlinked source folder', () => {
+    installed('real');
+    fs.mkdirSync(path.join(skillsRoot(), 'community'), { recursive: true });
+    fs.symlinkSync(path.join(skillsRoot(), 'community', 'real'), path.join(skillsRoot(), 'community', 'link'), 'dir');
+    const r = setSkillEnabled({ skillsRoot: skillsRoot(), disabledRoot: disabledRoot(), category: 'community', name: 'link', enabled: false });
+    expect(r.reason).toBe('not-a-directory');
+  });
+});
+
+describe('uninstallSkill (4.4b)', () => {
+  it('removes the folder and reports the removed dir', () => {
+    const dir = skill('gone');
+    const root = path.join(tmp, 'root');
+    const target = path.join(root, 'community', 'gone');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.cpSync(dir, target, { recursive: true });
+    const r = uninstallSkill({ root, category: 'community', name: 'gone' });
+    expect(r).toMatchObject({ ok: true, dir: target });
+    expect(fs.existsSync(target)).toBe(false);
+  });
+
+  it('refuses missing, slugs with traversal, and symlinked folders', () => {
+    const root = path.join(tmp, 'root');
+    expect(uninstallSkill({ root, category: 'community', name: 'ghost' }).reason).toBe('not-found');
+    expect(uninstallSkill({ root, category: '../..', name: 'x' }).reason).toBe('bad-name');
+    const real = skill('real2');
+    const target = path.join(root, 'community', 'real2');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.cpSync(real, target, { recursive: true });
+    fs.symlinkSync(target, path.join(root, 'community', 'link'), 'dir');
+    expect(uninstallSkill({ root, category: 'community', name: 'link' }).reason).toBe('not-a-directory');
+    expect(fs.existsSync(path.join(target, 'SKILL.md'))).toBe(true);
+  });
+});
+
+describe('listSkillsWithState + readBundledSkillNames (4.4b)', () => {
+  it('marks skills from the disabled root as disabled, sorted by category/name', () => {
+    const a = skill('alpha');
+    const b = skill('beta');
+    fs.mkdirSync(skillsRoot(), { recursive: true });
+    fs.cpSync(a, path.join(skillsRoot(), 'community', 'alpha'), { recursive: true });
+    fs.mkdirSync(path.join(tmp, 'skills-disabled', 'community'), { recursive: true });
+    fs.cpSync(b, path.join(tmp, 'skills-disabled', 'community', 'beta'), { recursive: true });
+    const list = listSkillsWithState(skillsRoot(), path.join(tmp, 'skills-disabled'));
+    expect(list.map((s) => `${s.category}/${s.name}:${s.enabled}`)).toEqual(['community/alpha:true', 'community/beta:false']);
+  });
+
+  it('parses the bundled manifest, tolerating a missing file', () => {
+    fs.mkdirSync(skillsRoot(), { recursive: true });
+    fs.writeFileSync(path.join(skillsRoot(), '.bundled_manifest'), 'apple-notes:abc\n\ngithub:def\n');
+    expect([...readBundledSkillNames(skillsRoot())].sort()).toEqual(['apple-notes', 'github']);
+    expect(readBundledSkillNames(path.join(tmp, 'nope')).size).toBe(0);
   });
 });
