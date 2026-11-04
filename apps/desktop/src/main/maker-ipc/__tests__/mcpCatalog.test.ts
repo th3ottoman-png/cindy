@@ -1,5 +1,10 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
+import { loadExpertToolsFile } from '@cindy/maker-core/expert-tools';
 import type { McpServerConfig } from '@cindy/maker-core/mcp-catalog';
 
 import { MAKER_INVOKE, MAKER_PUSH } from '../channels';
@@ -143,6 +148,76 @@ describe('mcp catalog host (ROADMAP 4.3b)', () => {
     expect(await host.checkHealth('lizi/docs')).toEqual({ id: 'lizi/docs', status: 'ok' });
     await expect(host.checkHealth('nope/x')).rejects.toThrow('unknown MCP server id');
   });
+
+  describe('addToExpert (ROADMAP 4.3)', () => {
+    function makeExpert(root: string, slug: string, agent = 'hermes') {
+      const dir = path.join(root, slug);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(
+        path.join(dir, 'expert.md'),
+        `---\nname: ${slug}\nagent: ${agent}\ndescription: test expert\n---\nPrompt\n`,
+        'utf8',
+      );
+      return dir;
+    }
+
+    it('adds an MCP server to an expert tools.yaml, creating file if missing', async () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cindy-test-experts-'));
+      try {
+        makeExpert(root, 'reviewer');
+        const host = createMcpCatalogHost(deps({ expertsRootDir: root }));
+
+        const res = await host.addToExpert('hermes/shim', 'reviewer');
+        expect(res).toEqual({ ok: true, slug: 'reviewer', serverName: 'shim' });
+
+        const policy = loadExpertToolsFile(path.join(root, 'reviewer', 'tools.yaml')).policy;
+        expect(policy.mcpServers?.allow).toEqual(['shim']);
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it('appends to existing allow and strips from deny if present', async () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cindy-test-experts-'));
+      try {
+        const dir = makeExpert(root, 'reviewer');
+        fs.writeFileSync(
+          path.join(dir, 'tools.yaml'),
+          'mcp_servers:\n  allow:\n    - existing_srv\n  deny:\n    - docs\n',
+          'utf8',
+        );
+        const host = createMcpCatalogHost(deps({ expertsRootDir: root }));
+
+        const res = await host.addToExpert('lizi/docs', 'reviewer');
+        expect(res).toEqual({ ok: true, slug: 'reviewer', serverName: 'docs' });
+
+        const policy = loadExpertToolsFile(path.join(root, 'reviewer', 'tools.yaml')).policy;
+        expect(policy.mcpServers?.allow).toEqual(['existing_srv', 'docs']);
+        expect(policy.mcpServers?.deny).toBeUndefined();
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it('refuses invalid slug, unknown server, non-Hermes expert, or invalid tools.yaml', async () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cindy-test-experts-'));
+      try {
+        makeExpert(root, 'codex-bot', 'codex');
+        const brokenDir = makeExpert(root, 'broken-tools');
+        fs.writeFileSync(path.join(brokenDir, 'tools.yaml'), 'tools: [invalid yaml', 'utf8');
+
+        const host = createMcpCatalogHost(deps({ expertsRootDir: root }));
+
+        await expect(host.addToExpert('hermes/shim', '')).rejects.toThrow('invalid expert slug');
+        await expect(host.addToExpert('hermes/unknown', 'reviewer')).rejects.toThrow('unknown MCP server id');
+        await expect(host.addToExpert('hermes/shim', 'nonexistent')).rejects.toThrow('expert.md is missing');
+        await expect(host.addToExpert('hermes/shim', 'codex-bot')).rejects.toThrow('not a hermes agent');
+        await expect(host.addToExpert('hermes/shim', 'broken-tools')).rejects.toThrow('tools.yaml');
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    });
+  });
 });
 
 describe('mcp catalog IPC (ROADMAP 4.3b)', () => {
@@ -153,10 +228,11 @@ describe('mcp catalog IPC (ROADMAP 4.3b)', () => {
       list: vi.fn(async () => freshView),
       setEnabled: vi.fn(async () => freshView),
       checkHealth: vi.fn(async () => ({ id: 'hermes/remote', status: 'ok' as const })),
+      addToExpert: vi.fn(async () => ({ ok: true as const, slug: 'reviewer', serverName: 'shim' })),
     };
   }
 
-  it('all three channels require a trusted sender; an untrusted call never reaches the host', async () => {
+  it('all four channels require a trusted sender; an untrusted call never reaches the host', async () => {
     const host = hostStub();
     const harness = new IpcHarness();
     registerMcpCatalogHandlers(harness, {
@@ -170,9 +246,11 @@ describe('mcp catalog IPC (ROADMAP 4.3b)', () => {
     await expect(harness.invoke(MAKER_INVOKE.MCP_CATALOG_LIST)).rejects.toThrow('untrusted sender');
     await expect(harness.invoke(MAKER_INVOKE.MCP_CATALOG_SET_ENABLED, { id: 'a', enabled: false })).rejects.toThrow('untrusted sender');
     await expect(harness.invoke(MAKER_INVOKE.MCP_CATALOG_CHECK_HEALTH, { id: 'a' })).rejects.toThrow('untrusted sender');
+    await expect(harness.invoke(MAKER_INVOKE.MCP_CATALOG_ADD_TO_EXPERT, { id: 'a', slug: 'reviewer' })).rejects.toThrow('untrusted sender');
     expect(host.list).not.toHaveBeenCalled();
     expect(host.setEnabled).not.toHaveBeenCalled();
     expect(host.checkHealth).not.toHaveBeenCalled();
+    expect(host.addToExpert).not.toHaveBeenCalled();
   });
 
   it('set-enabled forwards the payload, returns the fresh view and broadcasts changed', async () => {
@@ -200,6 +278,22 @@ describe('mcp catalog IPC (ROADMAP 4.3b)', () => {
 
     expect(host.checkHealth).toHaveBeenCalledWith('hermes/remote');
     expect(result).toEqual({ id: 'hermes/remote', status: 'ok' });
+    expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.MCP_CATALOG_CHANGED);
+  });
+
+  it('add-to-expert forwards payload, returns result and broadcasts EXPERTS_CHANGED and MCP_CATALOG_CHANGED', async () => {
+    const host = hostStub();
+    const broadcast = vi.fn();
+    const assertTrusted = vi.fn();
+    const harness = new IpcHarness();
+    registerMcpCatalogHandlers(harness, { host, assertTrusted, broadcast });
+
+    const result = await harness.invoke(MAKER_INVOKE.MCP_CATALOG_ADD_TO_EXPERT, { id: 'hermes/shim', slug: 'reviewer' });
+
+    expect(assertTrusted).toHaveBeenCalledOnce();
+    expect(host.addToExpert).toHaveBeenCalledWith('hermes/shim', 'reviewer');
+    expect(result).toEqual({ ok: true, slug: 'reviewer', serverName: 'shim' });
+    expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.EXPERTS_CHANGED);
     expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.MCP_CATALOG_CHANGED);
   });
 });

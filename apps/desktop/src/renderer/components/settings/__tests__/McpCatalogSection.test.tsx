@@ -86,4 +86,37 @@ describe('Settings MCP catalog (ROADMAP 4.3b)', () => {
   it('testid suffixes are sanitized', () => {
     expect(mcpCatalogTestIdSuffix('hermes/a b/c_d')).toBe('hermes-a-b-c-d');
   });
+
+  it('renders "Add to expert" dropdown when onAddToExpert is provided', () => {
+    const html = render([row('hermes/shim')], {
+      onAddToExpert: () => undefined,
+      expertOptions: [
+        { slug: 'reviewer', name: 'Code Reviewer' },
+        { slug: 'researcher', name: 'Deep Researcher' },
+      ],
+    });
+    expect(html).toContain('data-testid="mcp-catalog-add-expert-hermes-shim"');
+    expect(html).toContain('Add to expert…');
+    expect(html).toContain('Code Reviewer');
+    expect(html).toContain('Deep Researcher');
+  });
+
+  it('"Add to expert" dropdown is disabled with "No experts" when options are empty', () => {
+    const html = render([row('hermes/shim')], {
+      onAddToExpert: () => undefined,
+      expertOptions: [],
+    });
+    expect(html).toContain('data-testid="mcp-catalog-add-expert-hermes-shim"');
+    expect(html).toContain('No experts');
+    expect(html).toContain('disabled=""');
+  });
+
+  it('"Add to expert" dropdown is disabled when addingToExpert matches entry id', () => {
+    const html = render([row('hermes/shim')], {
+      onAddToExpert: () => undefined,
+      addingToExpert: 'hermes/shim',
+      expertOptions: [{ slug: 'reviewer', name: 'Code Reviewer' }],
+    });
+    expect(html).toMatch(/disabled=""[^>]*data-testid="mcp-catalog-add-expert-hermes-shim"/);
+  });
 });

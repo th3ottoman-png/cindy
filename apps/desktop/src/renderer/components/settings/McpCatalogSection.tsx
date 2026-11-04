@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plug, RefreshCw } from 'lucide-react';
 
+import type { ExpertEntry } from '@cindy/maker-core/experts';
 import type { McpHealthStatus } from '@cindy/maker-core/mcp-catalog';
 
 import { Switch } from '@/components/ui/switch';
@@ -62,9 +63,23 @@ export interface McpCatalogListViewProps {
   checking: string | null;
   onToggle: (id: string, enabled: boolean) => void;
   onCheck: (id: string) => void;
+  /** Hermes experts available to add servers to. */
+  expertOptions?: readonly { slug: string; name: string }[];
+  /** Entry id whose "add to expert" is in flight. */
+  addingToExpert?: string | null;
+  onAddToExpert?: (id: string, slug: string) => void;
 }
 
-export function McpCatalogListView({ entries, pending, checking, onToggle, onCheck }: McpCatalogListViewProps) {
+export function McpCatalogListView({
+  entries,
+  pending,
+  checking,
+  onToggle,
+  onCheck,
+  expertOptions,
+  addingToExpert,
+  onAddToExpert,
+}: McpCatalogListViewProps) {
   return (
     <div className={SETTINGS_CARD_CLASS}>
       {entries.length === 0 ? (
@@ -105,6 +120,28 @@ export function McpCatalogListView({ entries, pending, checking, onToggle, onChe
                   </span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {onAddToExpert ? (
+                    <select
+                      aria-label={`Add ${entry.name} to expert`}
+                      className="h-7 max-w-[9rem] truncate rounded-md border border-[var(--border-subtle)] bg-transparent px-1.5 text-11 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-50"
+                      value=""
+                      disabled={addingToExpert === entry.id || !expertOptions || expertOptions.length === 0}
+                      onChange={(e) => {
+                        const slug = e.target.value;
+                        if (slug) onAddToExpert(entry.id, slug);
+                      }}
+                      data-testid={`mcp-catalog-add-expert-${suffix}`}
+                    >
+                      <option value="" disabled>
+                        {!expertOptions || expertOptions.length === 0 ? 'No experts' : 'Add to expert…'}
+                      </option>
+                      {expertOptions?.map((opt) => (
+                        <option key={opt.slug} value={opt.slug}>
+                          {opt.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
                   {entry.transport === 'http' && entry.enabled ? (
                     <button
                       type="button"
@@ -136,10 +173,14 @@ export function McpCatalogListView({ entries, pending, checking, onToggle, onChe
 
 export function McpCatalogSection() {
   const api = window.electronAPI?.maker?.mcpCatalog;
+  const expertsApi = window.electronAPI?.maker?.experts;
   const [view, setView] = useState<McpCatalogView | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
+  const [addingToExpert, setAddingToExpert] = useState<string | null>(null);
+  const [expertEntries, setExpertEntries] = useState<readonly ExpertEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!api) return;
@@ -157,11 +198,31 @@ export function McpCatalogSection() {
     return off;
   }, [api, refresh]);
 
+  useEffect(() => {
+    if (!expertsApi) return undefined;
+    let alive = true;
+    void expertsApi.list().then((list) => {
+      if (alive) setExpertEntries(list);
+    }).catch(() => undefined);
+    const off = expertsApi.onChanged((list) => {
+      if (alive) setExpertEntries(list);
+    });
+    return () => {
+      alive = false;
+      off();
+    };
+  }, [expertsApi]);
+
   if (!api) return null;
+
+  const expertOptions = expertEntries
+    .filter((e) => e.expert && e.expert.agent === 'hermes')
+    .map((e) => ({ slug: e.slug, name: e.expert!.name }));
 
   const handleToggle = async (id: string, enabled: boolean) => {
     setPending(id);
     setError(null);
+    setStatus(null);
     try {
       setView(await api.setEnabled(id, enabled));
     } catch (err) {
@@ -174,6 +235,7 @@ export function McpCatalogSection() {
   const handleCheck = async (id: string) => {
     setChecking(id);
     setError(null);
+    setStatus(null);
     try {
       await api.checkHealth(id);
       await refresh();
@@ -181,6 +243,21 @@ export function McpCatalogSection() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setChecking(null);
+    }
+  };
+
+  const handleAddToExpert = async (id: string, slug: string) => {
+    setAddingToExpert(id);
+    setError(null);
+    setStatus(null);
+    try {
+      const res = await api.addToExpert(id, slug);
+      const expertName = expertOptions.find((o) => o.slug === slug)?.name ?? slug;
+      setStatus(`Added ${res.serverName} to ${expertName}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAddingToExpert(null);
     }
   };
 
@@ -200,9 +277,17 @@ export function McpCatalogSection() {
         entries={view?.entries ?? []}
         pending={pending}
         checking={checking}
+        expertOptions={expertOptions}
+        addingToExpert={addingToExpert}
         onToggle={(id, enabled) => void handleToggle(id, enabled)}
         onCheck={(id) => void handleCheck(id)}
+        onAddToExpert={(id, slug) => void handleAddToExpert(id, slug)}
       />
+      {status ? (
+        <div role="status" className="rounded-lg border border-emerald-500/40 px-3 py-2 text-12 text-emerald-500">
+          {status}
+        </div>
+      ) : null}
       {error ? (
         <div role="alert" className="rounded-lg border border-red-500/40 px-3 py-2 text-12 text-red-500">
           {error}

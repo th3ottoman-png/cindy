@@ -5582,6 +5582,11 @@ interface ElectronAPI {
       ) => Promise<import('../main/maker-ipc/mcpCatalog').McpCatalogView>;
       /** On-demand liveness probe for one http entry; static health otherwise. */
       checkHealth: (id: string) => Promise<import('@cindy/maker-core/mcp-catalog').McpHealth>;
+      /** ROADMAP 4.3: add an MCP server to an expert's tools.yaml policy. */
+      addToExpert: (
+        id: string,
+        slug: string,
+      ) => Promise<{ ok: true; slug: string; serverName: string }>;
       /** Fires after a toggle or probe; no payload — refetch the list. */
       onChanged: (cb: () => void) => () => void;
     };

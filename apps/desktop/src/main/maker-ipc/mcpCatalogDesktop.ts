@@ -28,7 +28,7 @@ async function probeHttp(url: string): Promise<boolean> {
   }
 }
 
-export function createDesktopMcpCatalogHost(): McpCatalogHost {
+export function createDesktopMcpCatalogHost(opts?: { expertsRootDir?: string }): McpCatalogHost {
   return createMcpCatalogHost({
     listHermesServers: () => listHermesMcpServers(),
     setHermesServer: (name, server) => setHermesMcpServer(name, server),
@@ -48,5 +48,6 @@ export function createDesktopMcpCatalogHost(): McpCatalogHost {
     },
     setLiziEnabled: (pluginId, enabled) => getPluginRegistry().setEnabled(pluginId, enabled),
     probe: probeHttp,
+    expertsRootDir: opts?.expertsRootDir,
   });
 }

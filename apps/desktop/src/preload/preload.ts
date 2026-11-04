@@ -6331,6 +6331,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         id: string,
       ): Promise<import('@cindy/maker-core/mcp-catalog').McpHealth> =>
         ipcRenderer.invoke('maker:mcp-catalog:check-health', { id }),
+      addToExpert: (
+        id: string,
+        slug: string,
+      ): Promise<{ ok: true; slug: string; serverName: string }> =>
+        ipcRenderer.invoke('maker:mcp-catalog:add-to-expert', { id, slug }),
       onChanged: fanOutMakerMcpCatalogChanged,
     },
     skills: {

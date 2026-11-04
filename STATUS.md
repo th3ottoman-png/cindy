@@ -10,6 +10,28 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-04 — 4.3c: MCP catalog "add to expert" shortcut (`unit-tested`)
+
+- **What:** Implemented the "Add to expert" shortcut affordance on the unified MCP server catalog in Settings -> Tools -> MCP Servers (`McpCatalogSection.tsx`), closing the remaining open item from ROADMAP row 4.3. Backed by IPC channel `maker:mcp-catalog:add-to-expert` and `addToExpert` in `apps/desktop/src/main/maker-ipc/mcpCatalog.ts`. Selecting an expert writes the server name to that expert's `~/.cindy-harness/experts/<slug>/tools.yaml` policy under `mcp_servers.allow` (and strips it from `deny` if present) using 3.2b `writeExpertToolsFile`. Fails closed if the slug is invalid, if the expert is not found or not a Hermes agent, or if `tools.yaml` contains invalid syntax.
+- **Files:**
+  - `apps/desktop/src/main/maker-ipc/channels.ts`: Added `MAKER_INVOKE.MCP_CATALOG_ADD_TO_EXPERT`.
+  - `apps/desktop/src/main/maker-ipc/mcpCatalog.ts`: Added `addToExpert` to `McpCatalogHost` and `createMcpCatalogHost`; added `expertsRootDir` option to `McpCatalogHostDeps`; handled IPC invocation and broadcasted `EXPERTS_CHANGED` and `MCP_CATALOG_CHANGED`.
+  - `apps/desktop/src/main/maker-ipc/mcpCatalogDesktop.ts`: Passed `opts?.expertsRootDir` into `createMcpCatalogHost`.
+  - `apps/desktop/src/preload/preload.ts`: Added `addToExpert` under `mcpCatalog`.
+  - `apps/desktop/src/renderer/vite-env.d.ts`: Added `addToExpert` typing under `mcpCatalog`.
+  - `apps/desktop/src/renderer/components/settings/McpCatalogSection.tsx`: Loaded loadable Hermes experts from `window.electronAPI.maker.experts.list()`, rendered an "Add to expert…" select dropdown on each catalog row, reset selection after triggering, and showed inline status/alert messages.
+  - `apps/desktop/src/renderer/components/settings/__tests__/McpCatalogSection.test.tsx`: Added unit test coverage for the "Add to expert" select dropdown and disabled states.
+  - `apps/desktop/src/main/maker-ipc/__tests__/mcpCatalog.test.ts`: Added unit tests for `addToExpert` host method and IPC channel (13 tests total).
+  - `docs/design-rules/design-inventory.md`: Regenerated via `pnpm design:inventory` to reconcile surface styling changes.
+  - `ROADMAP.md`: Updated row 4.3 with 4.3c details and verification label.
+  - `STATUS.md`: This entry.
+- **Verification:** Unit tests in `mcpCatalog.test.ts` (13 tests) and `McpCatalogSection.test.tsx` (9 tests) pass. All four gates green under Node 22.23.4 / pnpm 10.33.2 in real Terminal sessions with `NODE_OPTIONS=[]`:
+  - `pnpm typecheck` `RC=0`
+  - `pnpm test:runner` `RC=0` (608 pass, 0 fail, 2 skipped, 77.2s standalone in `/tmp/cindy-runner-43.log`)
+  - `pnpm check:test-hygiene` `RC=0` (361 files within baseline)
+  - `pnpm test:unit:related` `NONDESKTOP_RC=0`, desktop shards 1 to 8 all `RC=0` in batch (`/tmp/cindy-gates-43.log`, 0 SIGSEGV across all 8 shards)
+- **Still open:** The owner's 4.5 done-test; 5.1b local notes vault bridge; 5.2b session export; 5.4b scheduled sessions; 3.7 Hermes as Orca lead UI; remaining in 3.2: `skills/` (Hermes 0.22.5 chat has no per-session skills flag), auto-selecting expert model in draft, Claude Code/Codex/Pi experts.
+
 ## 2026-11-04 — 3.2b: expert tools.yaml schema, validation, and MCP server scoping (`unit-tested`)
 
 - **What:** Implemented the `tools.yaml` schema, validation, atomic file writer, and runtime policy evaluation for experts under `~/.cindy-harness/experts/<slug>/tools.yaml` per owner decision (Option B: scoped sections for tools and MCP servers, strict whitelist semantics when `allow` is specified, explicit `deny` always taking precedence). Unblocks ROADMAP 5.1b (vault notes tool opt-in) and 4.3 ("add MCP server to expert" shortcut).

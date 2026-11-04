@@ -16,6 +16,11 @@
  * a later `list` keeps it. Toggling an entry drops its cached probe.
  */
 
+import os from 'node:os';
+import path from 'node:path';
+
+import { loadExpertToolsFile, writeExpertToolsFile } from '@cindy/maker-core/expert-tools';
+import { loadExpert } from '@cindy/maker-core/experts';
 import {
   buildMcpCatalog,
   checkMcpHealth,
@@ -24,6 +29,8 @@ import {
   type McpHealthStatus,
   type McpServerConfig,
 } from '@cindy/maker-core/mcp-catalog';
+
+import { isValidExpertSlug } from './expertSessions.js';
 
 import { MAKER_INVOKE, MAKER_PUSH } from './channels.js';
 import type { IpcHandlerRegistry } from './ipcHandlerRegistry.js';
@@ -48,6 +55,8 @@ export interface McpCatalogHostDeps {
   setLiziEnabled(pluginId: string, enabled: boolean): Promise<boolean>;
   /** Optional liveness probe for http servers; runs only on an explicit check-health call. */
   probe?: (url: string) => Promise<boolean>;
+  /** Optional experts root dir (defaults to ~/.cindy-harness/experts). */
+  expertsRootDir?: string;
 }
 
 export interface McpCatalogHost {
@@ -56,6 +65,8 @@ export interface McpCatalogHost {
   setEnabled(id: unknown, enabled: unknown): Promise<McpCatalogView>;
   /** Static health for any entry; http entries are probed when a probe is injected. */
   checkHealth(id: unknown): Promise<McpHealth>;
+  /** Adds an MCP server to an expert's tools.yaml policy under mcp_servers.allow. */
+  addToExpert(id: unknown, slug: unknown): Promise<{ ok: true; slug: string; serverName: string }>;
 }
 
 const HERMES_PREFIX = 'hermes/';
@@ -137,6 +148,62 @@ export function createMcpCatalogHost(deps: McpCatalogHostDeps): McpCatalogHost {
       if (entry.transport === 'http' && deps.probe) probedHealth.set(entryId, health);
       return health;
     },
+
+    async addToExpert(id: unknown, slug: unknown): Promise<{ ok: true; slug: string; serverName: string }> {
+      const entryId = parseId(id);
+      if (typeof slug !== 'string' || !isValidExpertSlug(slug)) {
+        throw new Error('invalid expert slug');
+      }
+
+      let serverName: string;
+      if (entryId.startsWith(HERMES_PREFIX)) {
+        serverName = entryId.slice(HERMES_PREFIX.length);
+        if (serverName === '' || serverName.includes('/')) throw new Error(`unknown MCP server id: ${entryId}`);
+        const servers = await deps.listHermesServers();
+        if (!servers[serverName]) throw new Error(`unknown MCP server id: ${entryId}`);
+      } else if (entryId.startsWith(LIZI_PREFIX)) {
+        serverName = entryId.slice(LIZI_PREFIX.length);
+        if (serverName === '' || serverName.includes('/')) throw new Error(`unknown MCP server id: ${entryId}`);
+        const servers = await deps.listLiziServers();
+        if (!servers[serverName]) throw new Error(`unknown MCP server id: ${entryId}`);
+      } else {
+        throw new Error(`unknown MCP server id: ${entryId}`);
+      }
+
+      const rootDir = deps.expertsRootDir ?? path.join(os.homedir(), '.cindy-harness', 'experts');
+      const expertDir = path.join(rootDir, slug);
+      const loadedExpert = loadExpert(expertDir);
+      if (loadedExpert.error) {
+        throw new Error(`cannot update expert "${slug}": ${loadedExpert.error}`);
+      }
+      if (!loadedExpert.expert || loadedExpert.expert.agent !== 'hermes') {
+        throw new Error(`expert "${slug}" not found or not a hermes agent`);
+      }
+
+      const toolsPath = path.join(expertDir, 'tools.yaml');
+      const loadedTools = loadExpertToolsFile(toolsPath);
+      if (loadedTools.issues.length > 0) {
+        throw new Error(`cannot update expert "${slug}" with invalid tools.yaml: ${loadedTools.issues[0].message}`);
+      }
+
+      const policy = { ...loadedTools.policy };
+      const mcpServers = { ...(policy.mcpServers ?? {}) };
+      const currentAllow = mcpServers.allow ? [...mcpServers.allow] : [];
+      if (!currentAllow.includes(serverName)) {
+        currentAllow.push(serverName);
+      }
+      mcpServers.allow = currentAllow;
+      if (mcpServers.deny) {
+        mcpServers.deny = mcpServers.deny.filter((s) => s !== serverName);
+        if (mcpServers.deny.length === 0) {
+          delete mcpServers.deny;
+        }
+      }
+      policy.mcpServers = mcpServers;
+      writeExpertToolsFile(toolsPath, policy);
+
+      return { ok: true, slug, serverName };
+    },
   };
 }
 
@@ -170,5 +237,13 @@ export function registerMcpCatalogHandlers(
     const health = await deps.host.checkHealth(r.id);
     deps.broadcast(MAKER_PUSH.MCP_CATALOG_CHANGED);
     return health;
+  });
+  registry.handle(MAKER_INVOKE.MCP_CATALOG_ADD_TO_EXPERT, async (event, request: unknown) => {
+    deps.assertTrusted(event);
+    const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
+    const res = await deps.host.addToExpert(r.id, r.slug);
+    deps.broadcast(MAKER_PUSH.EXPERTS_CHANGED);
+    deps.broadcast(MAKER_PUSH.MCP_CATALOG_CHANGED);
+    return res;
   });
 }

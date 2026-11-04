@@ -49,6 +49,8 @@ export const MAKER_INVOKE = {
   MCP_CATALOG_SET_ENABLED: 'maker:mcp-catalog:set-enabled',
   /** ROADMAP 4.3b: on-demand liveness probe for one http entry; never runs on list. */
   MCP_CATALOG_CHECK_HEALTH: 'maker:mcp-catalog:check-health',
+  /** ROADMAP 4.3: add an MCP server to an expert's tools.yaml policy. */
+  MCP_CATALOG_ADD_TO_EXPERT: 'maker:mcp-catalog:add-to-expert',
   /** ROADMAP 4.4b: installed Hermes-home skills (enabled + disabled roots). */
   SKILLS_LIST: 'maker:skills:list',
   /** ROADMAP 4.4b: static scan of a local folder or git URL (clone is the only outbound call). */
