@@ -18,6 +18,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { readExpertMemory, type MemoryTarget } from '@cindy/maker-core/expert-memory';
+import { isToolAllowed, isMcpServerAllowed } from '@cindy/maker-core/expert-tools';
 import { loadExpert, type Expert } from '@cindy/maker-core/experts';
 
 /** Expert slugs are directory names under the experts root; nothing else is accepted. */
@@ -182,15 +183,29 @@ export class ExpertSessionStore {
   }
 
   /**
-   * True when the session's expert is a loadable Hermes expert whose `tools:` lists `tool`
-   * (ROADMAP 3.8). `includePending` also accepts the pending pick, for the tool list built when
+   * True when the session's expert is a loadable Hermes expert that permits `tool`
+   * (ROADMAP 3.8, 3.2b). Checks `tools.yaml` if present, falling back to frontmatter `tools:`.
+   * `includePending` also accepts the pending pick, for the tool list built when
    * a fresh session starts (before its first send binds it); tool calls check the binding only.
    */
   expertAllowsTool(sessionId: string, tool: string, opts: { includePending?: boolean } = {}): boolean {
     const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
     if (!slug) return false;
     const expert = loadExpert(path.join(this.opts.rootDir, slug)).expert;
-    return expert?.agent === 'hermes' && expert.tools.includes(tool);
+    if (!expert || expert.agent !== 'hermes') return false;
+    return isToolAllowed(tool, expert.toolsPolicy, expert.tools);
+  }
+
+  /**
+   * True when the session's expert permits the given MCP server name (ROADMAP 3.2b, 4.3).
+   * If the session is not an expert session, returns true (unrestricted).
+   */
+  expertAllowsMcpServer(sessionId: string, server: string, opts: { includePending?: boolean } = {}): boolean {
+    const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
+    if (!slug) return true;
+    const expert = loadExpert(path.join(this.opts.rootDir, slug)).expert;
+    if (!expert || expert.agent !== 'hermes') return false;
+    return isMcpServerAllowed(server, expert.toolsPolicy);
   }
 
   /**

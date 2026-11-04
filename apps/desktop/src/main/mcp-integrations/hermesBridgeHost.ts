@@ -196,6 +196,8 @@ export interface HermesBridgeHostDeps {
   expertCreator?: (sessionId: string) => boolean;
   /** ROADMAP 3.10d: the locked session's expert (or the pending pick) opts into the project reader. */
   projectReader?: (sessionId: string) => boolean;
+  /** ROADMAP 3.2b: expert-scoped MCP server filter via tools.yaml */
+  expertAllowsMcpServer?: (sessionId: string, server: string) => boolean;
   /** Null when the bundle is not built/shipped → Hermes runs without Cindy tools. */
   resolveShimPath: () => string | null;
   registration: HermesShimRegistrationDeps;
@@ -243,7 +245,7 @@ export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
     try {
       const registry = createPluginRegistry();
       const disabledPluginIds = registry.getDisabledRuntimePluginIds(info.workingDir);
-      const exposed = locked
+      const candidateServers = locked
         ? HERMES_BRIDGE_READER_SERVERS.filter((name) => lease.serverNames.includes(name))
         : selectHermesBridgeServers(
             lease.serverNames,
@@ -256,6 +258,9 @@ export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
             deps.expertCreator?.(info.sessionId) ?? false,
             info.vendorOptions?.orcaRole === 'worker',
           );
+      const exposed = deps.expertAllowsMcpServer
+        ? candidateServers.filter((name) => deps.expertAllowsMcpServer!(info.sessionId, name))
+        : candidateServers;
       // config.yaml is shared by every Hermes session (each session home copies it per turn), so
       // it lists every server any session may use: per-session lists here would let one session's
       // start remove another running session's tools (found live in 3.8). Each session is limited

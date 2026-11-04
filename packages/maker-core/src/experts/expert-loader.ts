@@ -12,6 +12,13 @@ import * as path from 'node:path';
 
 import matter from 'gray-matter';
 
+import {
+  loadExpertToolsFile,
+  type ExpertToolsPolicy,
+} from './expert-tools.js';
+
+export * from './expert-tools.js';
+
 export const EXPERT_AGENTS = ['hermes', 'claude-code', 'codex', 'pi'] as const;
 export type ExpertAgent = (typeof EXPERT_AGENTS)[number];
 
@@ -37,8 +44,10 @@ export interface Expert {
   prompt: string;
   /** Absolute paths of `skills/<name>/SKILL.md` files, sorted. */
   skillFiles: string[];
-  /** Absolute path of `tools.yaml` when present (parsed by the tool-policy layer, not here). */
+  /** Absolute path of `tools.yaml` when present. */
   toolsFile?: string;
+  /** Parsed tools policy from `tools.yaml` when present (ROADMAP 3.2b). */
+  toolsPolicy?: ExpertToolsPolicy;
   /** Absolute path of `knowledge/` when present. */
   knowledgeDir?: string;
 }
@@ -147,6 +156,15 @@ export function loadExpert(dir: string): ExpertEntry {
     if (!prompt) throw new Error('expert.md has no system prompt body');
 
     const toolsFile = path.join(dir, 'tools.yaml');
+    let toolsPolicy: ExpertToolsPolicy | undefined;
+    if (exists(toolsFile)) {
+      const parsed = loadExpertToolsFile(toolsFile);
+      if (parsed.issues.length > 0) {
+        throw new Error(`tools.yaml: ${parsed.issues.map((i) => `${i.where}: ${i.message}`).join('; ')}`);
+      }
+      toolsPolicy = parsed.policy;
+    }
+
     const knowledgeDir = path.join(dir, 'knowledge');
     entry.expert = {
       slug,
@@ -164,6 +182,7 @@ export function loadExpert(dir: string): ExpertEntry {
       prompt,
       skillFiles: listSkillFiles(dir),
       ...(exists(toolsFile) ? { toolsFile } : {}),
+      ...(toolsPolicy ? { toolsPolicy } : {}),
       ...(exists(knowledgeDir) ? { knowledgeDir } : {}),
     };
   } catch (error) {

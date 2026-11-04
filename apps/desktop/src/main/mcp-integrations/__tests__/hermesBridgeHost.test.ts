@@ -479,6 +479,35 @@ describe('createHermesBridgePreparer (real bridge, stub providers)', () => {
     reader!.dispose();
   });
 
+  it('filters exposed MCP servers via expertAllowsMcpServer (ROADMAP 3.2b)', async () => {
+    const config: Record<string, HermesShimServerConfig> = {};
+    const prepare = createHermesBridgePreparer({
+      providers: () => [stubProvider('cindy_docs', 'docs-ok'), stubProvider('cindy_browser', 'browser-ok')],
+      logger: noopLogger(),
+      runtimeFile,
+      resolveShimPath: () => SHIM,
+      optedInGatedServers: () => new Set(['cindy_browser']),
+      expertAllowsMcpServer: (sessId, server) => server === 'cindy_browser',
+      registration: {
+        listServers: async () => ({ ...config }),
+        setServer: async (name, server) => {
+          config[name] = server;
+        },
+        removeServer: async (name) => {
+          delete config[name];
+        },
+      },
+    });
+
+    const session = await prepare({ sessionId: 'sess-filtered', workingDir: dir, permissionMode: 'bypassPermissions' });
+    expect(session).not.toBeNull();
+    // cindy_browser was allowed
+    expect((await callTool('cindy_browser', 'sess-filtered')).body).toContain('browser-ok');
+    // cindy_docs was blocked by expert policy
+    expect((await callTool('cindy_docs', 'sess-filtered')).status).toBe(403);
+    session!.dispose();
+  });
+
   it('fails open (null) without a shim bundle, and registers nothing', async () => {
     let touched = false;
     const prepare = createHermesBridgePreparer({

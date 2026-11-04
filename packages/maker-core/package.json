@@ -15,6 +15,7 @@
     "./skill-scan-limits": "./src/agents/shared/skill-scan-limits.ts",
     "./hermes-provider-env": "./src/agents/hermes/hermes-provider-env.ts",
     "./experts": "./src/experts/expert-loader.ts",
+    "./expert-tools": "./src/experts/expert-tools.ts",
     "./providers-file": "./src/providers/providers-file.ts",
     "./providers-discovery": "./src/providers/discovery.ts",
     "./extensions": "./src/extensions/registry.ts",

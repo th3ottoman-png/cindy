@@ -10,7 +10,24 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
-## 2026-11-04 — 2.4b: one-click alternative routes live proof (`live-proven`)
+## 2026-11-04 — 3.2b: expert tools.yaml schema, validation, and MCP server scoping (`unit-tested`)
+
+- **What:** Implemented the `tools.yaml` schema, validation, atomic file writer, and runtime policy evaluation for experts under `~/.cindy-harness/experts/<slug>/tools.yaml` per owner decision (Option B: scoped sections for tools and MCP servers, strict whitelist semantics when `allow` is specified, explicit `deny` always taking precedence). Unblocks ROADMAP 5.1b (vault notes tool opt-in) and 4.3 ("add MCP server to expert" shortcut).
+- **Files:**
+  - `packages/maker-core/src/experts/expert-tools.ts`: New module defining `ExpertToolsPolicy`, `parseExpertToolsDoc`, `parseExpertToolsYaml`, `loadExpertToolsFile`, `serializeExpertToolsPolicy`, `writeExpertToolsFile` (atomic temp + rename), and policy evaluation functions `isToolAllowed` and `isMcpServerAllowed`.
+  - `packages/maker-core/src/experts/__tests__/expert-tools.test.ts`: 24 unit tests covering parsing, validation, error reporting, serialization roundtrip, atomic writes, tool evaluation and MCP server evaluation.
+  - `packages/maker-core/package.json`: Added subpath export `"./expert-tools": "./src/experts/expert-tools.ts"`.
+  - `packages/maker-core/src/experts/expert-loader.ts`: Integrated `loadExpertToolsFile`, attached `toolsPolicy` to `Expert`, failing closed on syntax or schema errors; re-exported `expert-tools`.
+  - `packages/maker-core/src/experts/__tests__/expert-loader.test.ts`: Updated full expert fixture, added valid toolsPolicy test and fail-closed syntax/schema tests.
+  - `apps/desktop/src/main/maker-ipc/expertSessions.ts`: Updated `expertAllowsTool` to evaluate `tools.yaml` before frontmatter fallback; added `expertAllowsMcpServer`.
+  - `apps/desktop/src/main/maker-ipc/__tests__/expertSessions.test.ts`: Added unit tests for tools and MCP server allow/deny policies and frontmatter fallback.
+  - `apps/desktop/src/main/mcp-integrations/hermesBridgeHost.ts`: Added `expertAllowsMcpServer` dep and filtered `exposed` MCP servers by expert policy.
+  - `apps/desktop/src/main/mcp-integrations/__tests__/hermesBridgeHost.test.ts`: Added unit test confirming `expertAllowsMcpServer` filters candidate MCP servers.
+  - `apps/desktop/src/main/maker-host/index.ts`: Wired `expertAllowsMcpServer` from `ExpertSessionStore` into `createHermesBridgePreparer`.
+  - `ROADMAP.md`: Updated row 3.2 with 3.2b status and verification label.
+  - `STATUS.md`: This entry.
+- **Verification:** Unit tests in `expert-tools.test.ts` (24 tests), `expert-loader.test.ts` (21 tests), `expertSessions.test.ts` (25 tests), and `hermesBridgeHost.test.ts` pass. All four gates green under Node 22.23.4 in a canonical real Terminal session with `NODE_OPTIONS=[]` and `PS_PROBE=1 /sbin/launchd`: `pnpm typecheck` `RC=0`; `pnpm test:runner` `RC=0`; `pnpm check:test-hygiene` `RC=0`; non-desktop unit `NONDESKTOP_RC=0`; desktop shards 1, 2, 3, 4, 6, 7, 8 `RC=0` in batch (`/tmp/cindy-gates-32b.log`); shard 5 hit documented V8 GC teardown SIGSEGV and passed standalone in the canonical environment (`/tmp/cindy-shard5-32b.log`, `SHARD_5_STANDALONE_RC=0`, 53.2s). Zero test assertion failures.
+- **Still open:** The owner's 4.5 done-test; 5.1b local notes vault bridge; 5.2b session export; 5.4b scheduled sessions; 3.7 Hermes as Orca lead UI; remaining in 3.2: `skills/` (Hermes 0.22.5 chat has no per-session skills flag), auto-selecting expert model in draft, Claude Code/Codex/Pi experts.
 
 - **What:** Live proof of one-click alternative route buttons in `SessionRouteBlockedBanner` when a session route is blocked by an offline provider. The safety rule and banner re-evaluation were already proven; this closes the remaining UI half of ROADMAP 2.4b.
 - **Files:**

@@ -45,7 +45,7 @@ describe('loadExpert', () => {
     const dir = writeExpert('code-reviewer', FULL, {
       'skills/review/SKILL.md': '# review',
       'skills/.hidden/SKILL.md': 'x',
-      'tools.yaml': 'allow: []',
+      'tools.yaml': 'tools:\n  allow: []\n',
       'knowledge/notes.md': 'n',
     });
     const { expert, error } = loadExpert(dir);
@@ -63,6 +63,7 @@ describe('loadExpert', () => {
       tags: ['code', 'review'],
       prompt: 'You review code carefully.',
       toolsFile: path.join(dir, 'tools.yaml'),
+      toolsPolicy: { tools: { allow: [] } },
       knowledgeDir: path.join(dir, 'knowledge'),
     });
     expect(expert!.skillFiles).toEqual([path.join(dir, 'skills', 'review', 'SKILL.md')]);
@@ -81,6 +82,45 @@ describe('loadExpert', () => {
     const { expert, error } = loadExpert(writeExpert('advisor', '---\nname: Advisor\ntoolsets: [web, clarify]\n---\nList options.\n'));
     expect(error).toBeUndefined();
     expect(expert!.toolsets).toEqual(['web', 'clarify']);
+  });
+
+  it('reads toolsPolicy when tools.yaml is valid', () => {
+    const dir = writeExpert('custom-tools', '---\nname: Custom\n---\nPrompt\n', {
+      'tools.yaml': `
+tools:
+  allow: [read_project_file]
+  deny: [bash]
+mcp_servers:
+  allow: [cindy_docs]
+`,
+    });
+    const { expert, error } = loadExpert(dir);
+    expect(error).toBeUndefined();
+    expect(expert?.toolsPolicy).toEqual({
+      tools: {
+        allow: ['read_project_file'],
+        deny: ['bash'],
+      },
+      mcpServers: {
+        allow: ['cindy_docs'],
+      },
+    });
+  });
+
+  it('fails closed when tools.yaml contains syntax or schema errors', () => {
+    const dir = writeExpert('broken-tools', '---\nname: Broken\n---\nPrompt\n', {
+      'tools.yaml': 'tools:\n  allow: [unclosed\n',
+    });
+    const entry = loadExpert(dir);
+    expect(entry.expert).toBeUndefined();
+    expect(entry.error).toContain('tools.yaml:');
+
+    const dir2 = writeExpert('bad-schema', '---\nname: Bad\n---\nPrompt\n', {
+      'tools.yaml': 'invalid_section:\n  allow: []\n',
+    });
+    const entry2 = loadExpert(dir2);
+    expect(entry2.expert).toBeUndefined();
+    expect(entry2.error).toContain('unknown property "invalid_section" in tools.yaml');
   });
 
   it.each([

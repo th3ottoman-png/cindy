@@ -209,6 +209,36 @@ describe('expert creator gate (ROADMAP 3.8)', () => {
     expect(store.expertAllowsTool('s3', 'draft_expert')).toBe(false);
     expect(store.expertAllowsTool('nobody', 'draft_expert', { includePending: true })).toBe(false);
   });
+
+  it('enforces tools.yaml allow and deny policies for tools and mcp servers (ROADMAP 3.2b)', () => {
+    writeExpert('scoped-expert', 'name: Scoped Expert\ntools: [frontmatter_tool]');
+    fs.writeFileSync(
+      path.join(root, 'scoped-expert', 'tools.yaml'),
+      `tools:
+  allow: [read_project_file, frontmatter_tool]
+  deny: [frontmatter_tool]
+mcp_servers:
+  allow: [cindy_project_reader, cindy_docs]
+  deny: [cindy_docs]
+`,
+    );
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    store.setPending('scoped-expert');
+    store.resolveFirstTurnPreamble({ sessionId: 's1', model: 'm' }, anyRoute);
+
+    // Tools: read_project_file allowed; frontmatter_tool denied (deny wins); unlisted bash blocked
+    expect(store.expertAllowsTool('s1', 'read_project_file')).toBe(true);
+    expect(store.expertAllowsTool('s1', 'frontmatter_tool')).toBe(false);
+    expect(store.expertAllowsTool('s1', 'bash')).toBe(false);
+
+    // MCP servers: cindy_project_reader allowed; cindy_docs denied (deny wins); unlisted cindy_browser blocked
+    expect(store.expertAllowsMcpServer('s1', 'cindy_project_reader')).toBe(true);
+    expect(store.expertAllowsMcpServer('s1', 'cindy_docs')).toBe(false);
+    expect(store.expertAllowsMcpServer('s1', 'cindy_browser')).toBe(false);
+
+    // Non-expert session allows all MCP servers by default
+    expect(store.expertAllowsMcpServer('unbound-sess', 'cindy_browser')).toBe(true);
+  });
 });
 
 describe('expert draft IPC (ROADMAP 3.8)', () => {

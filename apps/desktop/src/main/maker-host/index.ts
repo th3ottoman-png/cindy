@@ -2877,6 +2877,9 @@ export function getMaker(): Maker {
           projectReader: (sessionId) =>
             getDesktopExpertSessionStore().expertAllowsTool(sessionId, READ_PROJECT_FILE_TOOL, { includePending: true })
             || getDesktopExpertSessionStore().expertAllowsTool(sessionId, SEARCH_PROJECT_TOOL, { includePending: true }),
+          // ROADMAP 3.2b: expert-scoped MCP server filter via tools.yaml
+          expertAllowsMcpServer: (sessionId, server) =>
+            getDesktopExpertSessionStore().expertAllowsMcpServer(sessionId, server, { includePending: true }),
           resolveShimPath: resolveHermesBridgeShimPath,
           registration: {
             listServers: listHermesMcpServers,
