@@ -2,17 +2,17 @@
 
 How to add an **expert**, a **route**, a **tool**, a **panel** and an **adapter**. Each section is
 short and ends with a worked example. Every example file lives in
-[`docs/examples/extending/`](examples/extending/) and was loaded by the real code on 2026-10-30
-(see "How these examples were checked" at the end).
+[`docs/examples/extending/`](examples/extending/). They were loaded by the real code on 2026-10-30
+and re-verified on 2026-11-04 (see "How these examples were checked" at the end).
 
 **Read this first: what works today and what is only half wired.**
 
 | You want to add | Works today | Not wired yet |
 |---|---|---|
-| Expert | Drop a folder of files. It is read, validated and listed over IPC. | A UI to pick/edit one (ROADMAP 3.x). |
-| Route (model choice) | Write two YAML files. They are validated and can be health-checked. | Nothing calls them in a live session yet (2.3b, 2.4b). |
+| Expert | Drop a folder of files. It is read, validated and listed over IPC. A Hermes new-task picker can start a session as one (3.2a). | Editing an expert in the UI, and experts for Claude Code, Codex and Pi. |
+| Route (model choice) | Write two YAML files. They are validated, health-checked, and drive live title/predict calls (2.3b) plus the no-silent-fallback notice (2.4b). | One-click "use X instead" is wired but not `live-proven` with a healthy alternative. |
 | Tool / Panel | A plugin can *register* one on the registry. | Nothing *consumes* the registry yet, so a registered tool does not appear to an agent. |
-| Adapter | Registering one on the registry works. | The existing adapters are not on the registry (4.1b), and a new agent adapter is code in `packages/maker-core`, not a drop-in. |
+| Adapter | All four built-ins are on the registry (4.1b), and a plugin can register another. | No production site builds a plugin-registered adapter. A new agent runtime is still code in `packages/maker-core`, not a drop-in folder. |
 
 Rule of thumb: files you can hand-edit and `git`-track come first; code comes second.
 
@@ -30,8 +30,10 @@ then the system prompt.
 | `agent` | no | `hermes` (default), `claude-code`, `codex` or `pi`. |
 | `model` | no | A **route name** from `routing.yaml`, not a raw model id. |
 | `temperature`, `memory`, `tags`, `tools`, `skills` | no | Optional settings and lists. |
+| `toolsets` | no | Non-empty list of distinct Hermes toolset names, locked for the session's whole life (3.10). |
 
-Optional siblings: `skills/<name>/SKILL.md`, `tools.yaml`, `knowledge/`.
+Optional siblings: `skills/<name>/SKILL.md`, `knowledge/` and `tools.yaml`. The last has no schema yet
+(ROADMAP 3.2b), so the loader only records its path; nothing parses it into an agent's tools.
 
 Worked example: [`examples/extending/experts/changelog-writer/expert.md`](examples/extending/experts/changelog-writer/expert.md).
 Copy the folder to `~/.cindy-harness/experts/changelog-writer/`. A broken expert is listed with its
@@ -99,10 +101,11 @@ expecting it to appear.
 
 An adapter connects an agent runtime (Claude Code, Codex, Pi, Hermes). It is code in
 `packages/maker-core/src/agents/<name>/`, built on `base-agent.ts`; the Hermes one
-(`agents/hermes/agent.ts`, `translator.ts`, `transport.ts`) is the newest reference. Today it is wired
-into the app by editing the exports in `agents/index.ts` and the host that creates sessions. The unified
-registry accepts `kind: 'adapter'` but the existing adapters are **not** registered on it (4.1b), so a
-registry-only adapter would not be used.
+(`agents/hermes/agent.ts`, `translator.ts`, `transport.ts`) is the newest reference. Since 4.1b all four
+built-ins are registered under `kind: 'adapter'`, and the five production construction sites build them
+through `createAdapterAgent`. A plugin can register another adapter and `createRegisteredAdapterAgent`
+will resolve it, but no production site calls that path yet. Adding an agent runtime therefore still
+means code in `packages/maker-core`, not a drop-in folder.
 
 Because this changes the daily-driver path, `AGENTS.md` applies in full: do not alter the Claude Code,
 Codex or Pi adapters unless a ROADMAP row says so, tests use a fake binary (never the real agent), and a
@@ -122,6 +125,18 @@ code and printed the results:
   `local-small` (`ollama-local` / `qwen3:8b`), and with Ollama marked offline the route came back
   blocked with only `flash` (paid) as an alternative;
 - the expert loaded with `model: local-small`.
+
+**Re-verified 2026-11-04** after 4.1b, 4.2b and 4.4b reshaped the surfaces. A second throwaway script
+(Node 22.23.4, plain Node through `tsx`) ran the same checks: all eight assertions passed, including
+the plugin still loading `active` with both registrations through the default native `import()` path,
+the offline `title` route still blocked with only `flash` (paid) as an alternative, and the expert
+still loading `model: local-small`. A separate check confirmed `registerBuiltinAdapters` puts
+`claude-code`, `codex`, `hermes` and `pi` on the registry. That 4.1b change is why the adapter row
+above was corrected.
+
+Gotcha for the next re-verify: the plugin example cannot be checked inside a Vitest worker. The
+loader's native `import()` fails there with "A dynamic import callback was not specified", so run it in
+plain Node. The existing `plugin-loader` unit tests inject a CommonJS importer for the same reason.
 
 Not checked: any of this inside the running app, a real Ollama, or an agent calling a registered tool.
 Whether the owner can follow this guide unaided is an open question for the owner (ROADMAP 4.5).
