@@ -21,6 +21,10 @@ export interface McpServerConfig {
   headers?: Record<string, string>;
   auth?: string;
   disabled?: boolean;
+  /** Runs inside the host process (e.g. lizi builtin providers); no command or URL to check. */
+  inProcess?: boolean;
+  /** One-line human description shown in the UI. */
+  description?: string;
 }
 
 export interface McpCatalogSource {
@@ -29,7 +33,7 @@ export interface McpCatalogSource {
   servers: Record<string, McpServerConfig>;
 }
 
-export type McpTransport = 'stdio' | 'http' | 'invalid';
+export type McpTransport = 'stdio' | 'http' | 'in-process' | 'invalid';
 
 export interface McpCatalogEntry {
   /** `<source>/<name>`, unique across the catalog. */
@@ -38,8 +42,10 @@ export interface McpCatalogEntry {
   name: string;
   transport: McpTransport;
   enabled: boolean;
-  /** `command arg arg` for stdio, the URL with credentials and query stripped for http. */
+  /** `command arg arg` for stdio, the URL with credentials and query stripped for http, empty for in-process. */
   target: string;
+  /** Optional one-line description carried over from the config. */
+  description?: string;
   envKeys: string[];
   headerKeys: string[];
   hasAuth: boolean;
@@ -57,6 +63,7 @@ function safeUrl(raw: string): URL | undefined {
 }
 
 function describe(name: string, cfg: McpServerConfig): Pick<McpCatalogEntry, 'transport' | 'target' | 'problem'> {
+  if (cfg.inProcess) return { transport: 'in-process', target: '' };
   const command = cfg.command?.trim();
   const url = cfg.url?.trim();
   if (command && url) return { transport: 'invalid', target: '', problem: 'has both "command" and "url"' };
@@ -80,6 +87,7 @@ export function buildMcpCatalog(sources: McpCatalogSource[]): McpCatalogEntry[] 
         name,
         enabled: cfg.disabled !== true,
         ...describe(name, cfg),
+        ...(cfg.description ? { description: cfg.description } : {}),
         envKeys: Object.keys(cfg.env ?? {}).sort(),
         headerKeys: Object.keys(cfg.headers ?? {}).sort(),
         hasAuth: Boolean(cfg.auth),
@@ -127,6 +135,7 @@ export async function checkMcpHealth(entry: McpCatalogEntry, opts: McpHealthOpti
   const cfg = opts.configs[entry.id];
   if (!cfg) return done('invalid', 'no config supplied for this entry');
 
+  if (entry.transport === 'in-process') return done('ok');
   if (entry.transport === 'stdio') {
     const command = (cfg.command ?? '').trim();
     return resolvesToExecutable(command, opts.searchPath ?? process.env.PATH ?? '')

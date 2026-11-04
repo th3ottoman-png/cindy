@@ -43,6 +43,12 @@ export const MAKER_INVOKE = {
   EXT_PLUGINS_LIST: 'maker:ext-plugins:list',
   /** ROADMAP 4.2b: enable/disable one plugin; persists in plugins.json and applies at once. */
   EXT_PLUGINS_SET_ENABLED: 'maker:ext-plugins:set-enabled',
+  /** ROADMAP 4.3b: unified MCP server catalog (Hermes config + lizi builtins) with health. */
+  MCP_CATALOG_LIST: 'maker:mcp-catalog:list',
+  /** ROADMAP 4.3b: toggle one catalog entry (hermes disabled flag / lizi plugin enable). */
+  MCP_CATALOG_SET_ENABLED: 'maker:mcp-catalog:set-enabled',
+  /** ROADMAP 4.3b: on-demand liveness probe for one http entry; never runs on list. */
+  MCP_CATALOG_CHECK_HEALTH: 'maker:mcp-catalog:check-health',
   /** ROADMAP 2.1b: providers.yaml entries plus file issues (read-only). */
   PROVIDERS_LIST: 'maker:providers:list',
   /** ROADMAP 2.2b: probe each providers.yaml endpoint for online/offline and models. */
@@ -980,6 +986,8 @@ export const MAKER_PUSH = {
   EXPERTS_DRAFT_EVENT: 'maker:experts:draft-event',
   /** ROADMAP 4.2b: a plugin toggle was applied; payload is the fresh plugin list. */
   EXT_PLUGINS_CHANGED: 'maker:ext-plugins:changed',
+  /** ROADMAP 4.3b: a catalog toggle or health probe finished; no payload — the renderer refetches. */
+  MCP_CATALOG_CHANGED: 'maker:mcp-catalog:changed',
   TURN_CHANGE_SET_UPDATED: 'maker:turn-change-set:updated',
   STATUS_CHANGED: 'maker:status-changed',
   /** 用户从独立 Computer Use 授权引导浮窗主动取消。 */

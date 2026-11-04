@@ -914,6 +914,8 @@ import {
   createDesktopExtensionPluginsHost,
   registerExtensionPluginsHandlers,
 } from './extensionPlugins.js';
+import { registerMcpCatalogHandlers } from './mcpCatalog.js';
+import { createDesktopMcpCatalogHost } from './mcpCatalogDesktop.js';
 import { getDesktopExpertSessionStore } from './expertSessions.js';
 import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
@@ -25592,6 +25594,13 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   );
   registerExtensionPluginsHandlers(createElectronIpcHandlerRegistry(), {
     host: extensionPlugins,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
+  });
+
+  // ── Unified MCP server catalog (ROADMAP 4.3b): Hermes mcp_servers + lizi builtins ──
+  registerMcpCatalogHandlers(createElectronIpcHandlerRegistry(), {
+    host: createDesktopMcpCatalogHost(),
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
     broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
   });

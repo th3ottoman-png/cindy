@@ -127,3 +127,43 @@ describe('checkMcpHealth', () => {
     ).toEqual({ id: 's/r', status: 'unreachable', detail: 'ECONNREFUSED' });
   });
 });
+
+describe('in-process entries (4.3b)', () => {
+  it('buildMcpCatalog: an inProcess config becomes an in-process entry with an empty target', () => {
+    const catalog = buildMcpCatalog([
+      { source: 'lizi', servers: { cindy_docs: { inProcess: true, description: 'Project docs search' } } },
+    ]);
+    expect(catalog).toHaveLength(1);
+    expect(catalog[0]).toMatchObject({
+      id: 'lizi/cindy_docs',
+      transport: 'in-process',
+      target: '',
+      description: 'Project docs search',
+      enabled: true,
+    });
+  });
+
+  it('buildMcpCatalog: description is optional and passed through verbatim', () => {
+    const catalog = buildMcpCatalog([{ source: 'lizi', servers: { a: { inProcess: true } } }]);
+    expect(catalog[0].description).toBeUndefined();
+  });
+
+  it('buildMcpCatalog: an in-process entry can be disabled like any other', () => {
+    const catalog = buildMcpCatalog([{ source: 'lizi', servers: { a: { inProcess: true, disabled: true } } }]);
+    expect(catalog[0]).toMatchObject({ transport: 'in-process', enabled: false });
+  });
+
+  it('checkMcpHealth: an enabled in-process entry is ok without touching fs or network', async () => {
+    const entry = buildMcpCatalog([{ source: 'lizi', servers: { a: { inProcess: true } } }])[0];
+    expect(await checkMcpHealth(entry, { configs: { 'lizi/a': { inProcess: true } }, searchPath: '/nonexistent' })).toEqual({
+      id: 'lizi/a',
+      status: 'ok',
+    });
+  });
+
+  it('checkMcpHealth: a disabled in-process entry is disabled, never probed', async () => {
+    const cfg: McpServerConfig = { inProcess: true, disabled: true };
+    const entry = buildMcpCatalog([{ source: 'lizi', servers: { a: cfg } }])[0];
+    expect(await checkMcpHealth(entry, { configs: { 'lizi/a': cfg } })).toEqual({ id: 'lizi/a', status: 'disabled' });
+  });
+});

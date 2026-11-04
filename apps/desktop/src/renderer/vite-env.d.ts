@@ -5572,6 +5572,19 @@ interface ElectronAPI {
         cb: (view: import('../main/maker-ipc/extensionPlugins').ExtensionPluginListView) => void,
       ) => () => void;
     };
+    mcpCatalog: {
+      /** ROADMAP 4.3b: unified MCP server catalog (Hermes mcp_servers + lizi builtins). */
+      list: () => Promise<import('../main/maker-ipc/mcpCatalog').McpCatalogView>;
+      /** Toggle one entry (`hermes/<name>` disabled flag, `lizi/<pluginId>` plugin enable). */
+      setEnabled: (
+        id: string,
+        enabled: boolean,
+      ) => Promise<import('../main/maker-ipc/mcpCatalog').McpCatalogView>;
+      /** On-demand liveness probe for one http entry; static health otherwise. */
+      checkHealth: (id: string) => Promise<import('@cindy/maker-core/mcp-catalog').McpHealth>;
+      /** Fires after a toggle or probe; no payload — refetch the list. */
+      onChanged: (cb: () => void) => () => void;
+    };
     providers: {
       list: () => Promise<import('@cindy/maker-core/providers-file').ProviderFileResult>;
       discover: () => Promise<import('@cindy/maker-core/providers-discovery').EndpointProbe[]>;

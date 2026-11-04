@@ -800,6 +800,7 @@ const fanOutMakerExpertsChanged = createIpcFanOut('maker:experts:changed');
 const fanOutMakerExpertsSessionEvent = createIpcFanOut('maker:experts:session-event');
 const fanOutMakerExpertsDraftEvent = createIpcFanOut('maker:experts:draft-event');
 const fanOutMakerExtPluginsChanged = createIpcFanOut('maker:ext-plugins:changed');
+const fanOutMakerMcpCatalogChanged = createIpcFanOut('maker:mcp-catalog:changed');
 const fanOutMakerTurnChangeSetUpdated = createIpcFanOut('maker:turn-change-set:updated');
 const fanOutMakerStatusChanged = createIpcFanOut('maker:status-changed');
 const fanOutMakerInputProjection = createIpcFanOut('maker:input:projection');
@@ -6316,6 +6317,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ): Promise<import('../main/maker-ipc/extensionPlugins').ExtensionPluginListView> =>
         ipcRenderer.invoke('maker:ext-plugins:set-enabled', { name, enabled }),
       onChanged: fanOutMakerExtPluginsChanged,
+    },
+    mcpCatalog: {
+      list: (): Promise<import('../main/maker-ipc/mcpCatalog').McpCatalogView> =>
+        ipcRenderer.invoke('maker:mcp-catalog:list'),
+      setEnabled: (
+        id: string,
+        enabled: boolean,
+      ): Promise<import('../main/maker-ipc/mcpCatalog').McpCatalogView> =>
+        ipcRenderer.invoke('maker:mcp-catalog:set-enabled', { id, enabled }),
+      checkHealth: (
+        id: string,
+      ): Promise<import('@cindy/maker-core/mcp-catalog').McpHealth> =>
+        ipcRenderer.invoke('maker:mcp-catalog:check-health', { id }),
+      onChanged: fanOutMakerMcpCatalogChanged,
     },
     providers: {
       list: (): Promise<import('@cindy/maker-core/providers-file').ProviderFileResult> =>

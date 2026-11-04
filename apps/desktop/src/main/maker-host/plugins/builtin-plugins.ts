@@ -173,6 +173,14 @@ const PLUGIN_ID_TO_MCP_ID: Record<PluginId, LiziMcpId | undefined> = {
   lsp: 'cindy_lsp',
 };
 
+/**
+ * plugin id → LiziMcpId lookup (ROADMAP 4.3b: the MCP catalog lists only builtin plugins
+ * that actually back an MCP provider).
+ */
+export function mcpIdForBuiltinPluginId(id: PluginId): LiziMcpId | undefined {
+  return PLUGIN_ID_TO_MCP_ID[id];
+}
+
 /** createLiziMcpProviders `enabled` 数组使用的有序 LiziMcpId。模块加载时计算一次，运行期不变。 */
 export const BUILTIN_LIZI_MCP_IDS: readonly LiziMcpId[] = BUILTIN_META
   .map((m) => PLUGIN_ID_TO_MCP_ID[m.id])

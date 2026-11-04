@@ -56,6 +56,7 @@ import { AgentResourceSection } from './AgentResourceSection';
 import { HermesSection } from './HermesSection';
 import { ExpertsSection } from './ExpertsSection';
 import { PluginsSection } from './PluginsSection';
+import { McpCatalogSection } from './McpCatalogSection';
 import { PiPackagesSection } from './PiPackagesSection';
 import { CollaborationSection } from './CollaborationSection';
 import { BuiltinToolsSection } from './BuiltinToolsSection';
@@ -631,6 +632,9 @@ export function SettingsView() {
                 id="settings-panel-builtin-tools"
                 aria-labelledby="settings-tab-builtin-tools"
               >
+                <section className="pb-[18px]" aria-label="MCP Servers">
+                  <McpCatalogSection />
+                </section>
                 <section className="pb-[18px]" aria-label={t('settings.builtinTools.title')}>
                   <BuiltinToolsSection workingDir={workingDir ?? undefined} />
                 </section>
