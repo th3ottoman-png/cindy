@@ -31,9 +31,12 @@ architecture, commands and versions.
 
 ## 2. Exact stopping point
 
-`main` at **`c483e79e3d`** (`feat(timeline): show and cancel long-running turns (5.3b)`), pushed
-to `origin main`. `git ls-remote origin refs/heads/main` returns the same SHA. The work tree is
-clean except the untracked folders in §8, which must stay untracked.
+`main` at the commit that adds this file (a docs-only handoff commit), pushed to `origin main`.
+The **last code commit is `c483e79e3d`** (`feat(timeline): show and cancel long-running turns
+(5.3b)`). Phrase it this way rather than naming a HEAD SHA, because the handoff commit itself
+sits on top and any later correction commit would make an absolute SHA stale. Run `git log -3` for
+exact SHAs. `git ls-remote origin refs/heads/main` must match local HEAD. The work tree is clean
+except the untracked folders in §8, which must stay untracked.
 
 Commits since the morning handover, in order:
 
