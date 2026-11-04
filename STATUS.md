@@ -10,6 +10,14 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-04 — Full handoff docs (owner is moving the project elsewhere)
+
+- **What:** `docs/handoff/2026-11-04-handover.md` (supersedes the 2026-11-03 one): exact stopping point (`74dd93d594`, Phase 4 complete except the owner-call 4.5), machine state at handover (dev app pid 96824 possibly running; no linked sessions; `~/.hermes-cindy` config state after 1.12b/4.3b/4.4b), open work in priority order (4.5 owner call → 2.4b-live → 5.3b → 5.1b/5.2b/5.4b blocked on the 3.2b `tools.yaml` schema → 3.7 → Debt picks), and the accumulated gotcha list (shard gate form, CDP-over-9222 driving method for a locked display, design-inventory regen, ink-ladder placeholder rule, Hermes facts: no skill off-switch, `requires_toolsets` hiding, `disabled` MCP ignored, `-t` fixed at creation). `docs/handoff/2026-11-04-next-agent-prompt.md`: copy-paste prompt for the next agent.
+- **HANDOVER.md (stable changes only):** the CDP location row corrected — the dev app binds `127.0.0.1:9222` fixed (`XDT_CDP_PORT` overrides), per `docs/dev-rules/desktop-development.md`; the old "port 9333" row was incomplete. Key-files table gained the 4.3/4.4 host surfaces.
+- **Gates:** docs + reference edits only; `pnpm typecheck`, `pnpm test:runner`, `pnpm check:test-hygiene` all exit 0 under Node 22.23.4. Unit tiers not rerun: no code changed since the 4.4b gates (8/8 shards green).
+
+---
+
 ## 2026-11-04 — ROADMAP 4.4b: Hermes skills manager with scan-first install (`live-proven`)
 
 - **What:** the second half of row 4.4. Settings → Tools gained a "Hermes Skills" section listing every skill in `~/.hermes-cindy/skills` (57 bundled + installed community skills) with Built-in badges, per-row enable/disable toggles, and a two-click uninstall for non-bundled rows. Install is scan-first: a local folder or a git URL (+optional subdir) is scanned before anything is written, the report (verdict OK/Review/Blocked/Invalid with per-line findings) is shown, and only an explicit Install (or "Install anyway (N HIGH findings)") copies the skill into the home. Hermes itself stays untouched — Cindy manages the folders Hermes reads.

@@ -39,7 +39,7 @@ This is not a product. There is no marketing surface, no onboarding funnel, no o
 | Hermes daemon state | `~/.hermes-cindy/hermes-mgr/sessions.json` |
 | Harness user files (planned) | `~/.cindy-harness/{providers.yaml, routing.yaml, experts/, plugins/, plugins.json}` |
 | Vendored agent binaries | `tools/` — untracked, required at runtime, **keep** |
-| CDP debugging | port `9333` (env `XDT_CDP_PORT`) |
+| CDP debugging | dev app binds `127.0.0.1:9222` (fixed; `XDT_CDP_PORT` overrides, dev-only — `docs/dev-rules/desktop-development.md`) |
 
 ---
 
@@ -97,6 +97,8 @@ SQLite (Cindy DB)             ~/.hermes-cindy  (isolated Hermes home)
 | `apps/desktop/src/main/maker-host/hermes-manager-client.ts` | Desktop side of the daemon; `getHermesHomeStatus`, MCP helpers |
 | `apps/desktop/src/main/maker-ipc/channels.ts`, `register.ts` | IPC channel names and handlers |
 | `apps/desktop/src/renderer/components/settings/HermesSection.tsx` | Settings card: home, route, plugins, skills, MCP servers |
+| `apps/desktop/src/main/maker-ipc/{skills.ts,skillsDesktop.ts}` | 4.4 skills manager host: list/scan/install/enable/disable/uninstall over `~/.hermes-cindy/skills` (+ `skills-disabled/`); scan-first install, Cindy-side shallow git clone is the only outbound call |
+| `apps/desktop/src/main/maker-ipc/{mcpCatalog.ts,mcpCatalogDesktop.ts}` | 4.3 MCP server catalog host (Hermes config servers + lizi in-process); Hermes toggle is config-write-only (0.22.5 ignores `disabled` at startup — Debt) |
 | `apps/desktop/src/renderer/hooks/useHermesModelCatalog.ts` | Model picker data |
 | `apps/desktop/src/main/maker-ipc/title.ts` | `TITLE_AGENT_KINDS` includes `hermes` |
 
