@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   assessRoute,
   resolveTaskRoute,
@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ErrorNotice } from '@/components/ui/error-notice';
 import { WINDOW_NO_DRAG_STYLE } from '@/components/layout/windowDrag';
+import { makerChatStore } from '@/lib/makerChatStore';
 import * as sessionService from '@/lib/sessionService';
 
 export function formatRouteAlternativeLabel(alt: RouteAlternative): string {
@@ -138,6 +139,19 @@ export function SessionRouteBlockedBannerView({
   );
 }
 
+/**
+ * Signature of the chat-store fields that can change a session's route health
+ * (ROADMAP 2.4b). Streaming text deltas leave it unchanged, so a store
+ * notification on every token does not re-probe the local endpoints. A turn
+ * starting or ending, an error being set or cleared, and a retry all change it.
+ */
+export function routeHealthTriggerSignature(snapshot: {
+  error?: string | null;
+  agentStatus?: { isRunning?: boolean } | null;
+}): string {
+  return `${snapshot.error ?? ''}|${snapshot.agentStatus?.isRunning === true ? 'running' : 'idle'}`;
+}
+
 export function SessionRouteBlockedBanner({
   sessionId,
   agentKind,
@@ -154,14 +168,23 @@ export function SessionRouteBlockedBanner({
   const [health, setHealth] = useState<RouteHealth | null>(null);
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
   const [switchingRoute, setSwitchingRoute] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const evaluationSeq = useRef(0);
 
   const evaluate = useCallback(async () => {
+    const seq = ++evaluationSeq.current;
+    const clear = () => {
+      if (seq === evaluationSeq.current) setHealth(null);
+    };
     if (agentKind !== 'hermes') {
-      setHealth(null);
+      clear();
       return;
     }
     const api = window.electronAPI?.maker?.providers;
-    if (!api?.list || !api?.discover || !api?.getRouting) return;
+    if (!api?.list || !api?.discover || !api?.getRouting) {
+      clear();
+      return;
+    }
     try {
       const [providersRes, routingRes, probes] = await Promise.all([
         api.list(),
@@ -175,15 +198,53 @@ export function SessionRouteBlockedBanner({
         providers: providersRes.providers ?? [],
         probes: probes ?? [],
       });
+      if (seq !== evaluationSeq.current) return;
       setHealth(next);
     } catch {
-      setHealth(null);
+      clear();
     }
   }, [agentKind, sessionModel]);
 
+  const requestEvaluation = useCallback(() => setRevision((n) => n + 1), []);
+
+  // A provider can die after this component mounted. Without these, the
+  // no-silent-fallback notice stayed invisible at the exact moment the fallback
+  // was refused (2.4b-live re-run 2026-11-04). Re-probe when a turn starts or
+  // ends, when providers.yaml/routing.yaml change, and on refocus so a recovered
+  // endpoint clears the banner without a renderer reload.
+  useEffect(() => {
+    if (!sessionId) return undefined;
+    let last = routeHealthTriggerSignature(makerChatStore.getSnapshot(sessionId));
+    return makerChatStore.subscribe(sessionId, () => {
+      const next = routeHealthTriggerSignature(makerChatStore.getSnapshot(sessionId));
+      if (next === last) return;
+      last = next;
+      requestEvaluation();
+    });
+  }, [requestEvaluation, sessionId]);
+
+  useEffect(() => {
+    const onProvidersChanged = window.electronAPI?.maker?.onProvidersChanged;
+    if (!onProvidersChanged) return undefined;
+    return onProvidersChanged(requestEvaluation);
+  }, [requestEvaluation]);
+
+  useEffect(() => {
+    const onFocus = () => requestEvaluation();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') requestEvaluation();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [requestEvaluation]);
+
   useEffect(() => {
     void evaluate();
-  }, [evaluate]);
+  }, [evaluate, revision]);
 
   const handleSelectAlternative = useCallback(
     async (alt: RouteAlternative) => {
