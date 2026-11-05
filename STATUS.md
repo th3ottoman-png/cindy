@@ -10,6 +10,60 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — Visual Assets: Updated Cindy App Icon, Splash Hero, and Avatars (`unit-tested`)
+
+- **What:** Updated Cindy visual identity assets from the user-provided character portrait artwork while keeping the "Cindy" wordmark and name intact:
+  1. **macOS & Windows App Icons (`apps/desktop/resources/`):**
+     - Master 1024x1024 icon (`icon-master-1024.png`) generated with Lanczos3 resampling, framing the cybernetic character's face, glowing hair, and circuit traces.
+     - Compiled macOS bundle icon (`icon.icns`) via `generate-mac-icns.mjs` applying Apple's standard Big Sur+ squircle mask (185.4px radius with 100px margins) across all 10 standard mipmap chunks.
+     - Generated `icon-dock.png` (512x512) for Electron development dock rendering.
+     - Compiled Windows icon (`icon.ico`) with multi-resolution BMPs (16..256) and `icon.png` (512x512) via `generate-win-ico.mjs`, synchronized to `apps/desktop/cindy-updater/src-tauri/icons/`.
+     - Generated `bgicon.jpg` (1024x1024) and `macicon.jpg` (2048x2048).
+  2. **Splash / Login Hero Artwork (`apps/desktop/src/renderer/assets/login/`):**
+     - Generated `hero.png` (934x934) and `hero@2x.png` (1868x1868) with smooth radial/vignette edge feathering, allowing the glowing cyan bokeh to seamlessly float over both dark and light canvases while aligning with `hero-mask.svg` bottom gradient fade.
+  3. **Theme & Lockup Small Avatars (`apps/desktop/src/renderer/assets/`):**
+     - Generated `head-image-dark.png` and `head-image-light.png` (200x200) circular face avatar with sleek anti-aliased edge and border rings tailored for dark/light headers.
+     - Updated `cindy-avatar-lockup.png` (100x100) and `cindy-avatar-account.png` (74x74).
+  4. **Companion & Preset Avatars:**
+     - Updated `bot-presets/cindy.png` (256x256), `companion-preset-avatars/cindy.png` (256x256), and mobile `bot-presets/cindy.png`.
+     - Updated Agent Island mascots (128x128 circular) in renderer, desktop tools, and native directories.
+     - Updated `cindy-share-character.jpg` (1024x1024) for desktop and mobile.
+- **Files:**
+  - `apps/desktop/resources/icon-master-1024.png`
+  - `apps/desktop/resources/icon.icns`
+  - `apps/desktop/resources/icon-dock.png`
+  - `apps/desktop/resources/icon.ico`
+  - `apps/desktop/resources/icon.png`
+  - `apps/desktop/resources/bgicon.jpg`
+  - `apps/desktop/resources/macicon.jpg`
+  - `apps/desktop/cindy-updater/src-tauri/icons/icon.ico`
+  - `apps/desktop/cindy-updater/src-tauri/icons/icon.png`
+  - `apps/desktop/src/renderer/assets/login/hero.png`
+  - `apps/desktop/src/renderer/assets/login/hero@2x.png`
+  - `apps/desktop/src/renderer/assets/head-image-dark.png`
+  - `apps/desktop/src/renderer/assets/head-image-light.png`
+  - `apps/desktop/src/renderer/assets/cindy-avatar-lockup.png`
+  - `apps/desktop/src/renderer/assets/cindy-avatar-account.png`
+  - `apps/desktop/src/renderer/assets/bot-presets/cindy.png`
+  - `apps/desktop/resources/companion-preset-avatars/cindy.png`
+  - `apps/mobile/assets/bot-presets/cindy.png`
+  - `apps/desktop/src/renderer/assets/agent-island-cindy.png`
+  - `apps/desktop/resources/tools/agent-island/mascots/cindy.png`
+  - `apps/desktop/native/agent-island/mascots/cindy.png`
+  - `apps/desktop/src/renderer/assets/cindy-share-character.jpg`
+  - `apps/mobile/assets/share/cindy-share-character.jpg`
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - `windowsIconAssets.test.ts`: Passed (1/1) — verifies taskbar canvas fill, rounded corner bounds, and updater asset sync.
+  - `profileEdit.test.ts`: Passed (34/34) — verifies header image dimension parsing and upload boundaries.
+  - `botCanonicalSession.test.ts`: Passed (626/626).
+  - All pre-commit gates green under Node 22:
+    - `pnpm typecheck`: Exit code 0 across all 37 workspaces.
+    - `pnpm test:runner`: Exit code 0, 608 passed.
+    - `pnpm check:test-hygiene`: Exit code 0, 361 files within baseline.
+
+---
+
 ## 2026-11-05 — Debt: Context window reporting outside models.dev (Row 182) (`unit-tested`)
 
 - **What:** Resolved the open item in Debt row 182 where Hermes sessions using custom local routes (e.g. LM Studio, Ollama) or custom endpoints outside `models.dev` defaulted their context window to the 200,000 token fallback rather than the endpoint's configured window:
