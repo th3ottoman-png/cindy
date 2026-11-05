@@ -5,7 +5,7 @@
  * 幂等(值未变 = no-op,不与本机乐观切换打架);patch 不含 fastMode 时不动。
  */
 import { describe, it, expect } from 'vitest';
-import { buildCreateOptsForCurrentSession, makerChatStore } from '@/lib/makerChatStore';
+import { buildCreateOptsForCurrentSession, dbAgentKindToMakerKind, makerChatStore } from '@/lib/makerChatStore';
 
 // 模块级 sessions Map 跨用例持久 → 每个用例用唯一 sessionId 隔离。
 let n = 0;
@@ -118,6 +118,40 @@ describe('makerChatStore.mirrorSessionFields', () => {
     makerChatStore.noteAgentSwitchIntent(s, 'codex', { model: 'gpt-5.5', providerId: null });
     makerChatStore.mirrorSessionFields(s, { agentSwitchIntentCanceled: true });
     expect(makerChatStore.getSnapshot(s).agentKind).toBe('claude-code');
+    expect(makerChatStore.getSnapshot(s).agentSwitchIntent).toBeNull();
+  });
+
+  it('dbAgentKindToMakerKind maps hermes to hermes, preserving round-trip without defaulting to claude-code', () => {
+    expect(dbAgentKindToMakerKind('hermes')).toBe('hermes');
+    expect(dbAgentKindToMakerKind('codex')).toBe('codex');
+    expect(dbAgentKindToMakerKind('pi')).toBe('pi');
+    expect(dbAgentKindToMakerKind('cc')).toBe('claude-code');
+    expect(dbAgentKindToMakerKind('claude-code')).toBe('claude-code');
+    expect(dbAgentKindToMakerKind(null)).toBe('claude-code');
+    expect(dbAgentKindToMakerKind(undefined, 'hermes')).toBe('hermes');
+  });
+
+  it('mirrorSessionFields with agentKind: hermes updates state and subsequent createOpts to hermes', () => {
+    const s = sid();
+    expect(makerChatStore.getSnapshot(s).agentKind).toBe('claude-code');
+    makerChatStore.mirrorSessionFields(s, { agentKind: 'hermes' });
+    expect(makerChatStore.getSnapshot(s).agentKind).toBe('hermes');
+    const opts = buildCreateOptsForCurrentSession(s, 'hermes-model', 'default', 'default', '/tmp');
+    expect(opts.agentKind).toBe('hermes');
+  });
+
+  it('mirrorSessionFields with hermes switch intent correctly preserves intent and resolves on switch', () => {
+    const s = sid();
+    makerChatStore.mirrorSessionFields(s, {
+      agentSwitchIntent: { targetAgentKind: 'hermes', model: 'deepseek-v4-pro', providerId: 'nous' },
+    });
+    expect(makerChatStore.getAgentSwitchIntent(s)).toMatchObject({
+      target: 'hermes',
+      model: 'deepseek-v4-pro',
+      providerId: 'nous',
+    });
+    makerChatStore.mirrorSessionFields(s, { agentKind: 'hermes' });
+    expect(makerChatStore.getSnapshot(s).agentKind).toBe('hermes');
     expect(makerChatStore.getSnapshot(s).agentSwitchIntent).toBeNull();
   });
 });

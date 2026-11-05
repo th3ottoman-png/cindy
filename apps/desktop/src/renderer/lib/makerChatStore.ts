@@ -5469,13 +5469,15 @@ function normalizeAgentTaskUpdate(
       ? rawStatus
       : 'running';
   const provider =
-    raw.provider === 'codex' || raw.provider === 'claude-code' || raw.provider === 'pi'
+    raw.provider === 'codex' || raw.provider === 'claude-code' || raw.provider === 'pi' || raw.provider === 'hermes'
       ? raw.provider
       : source === 'codex'
         ? 'codex'
         : source === 'pi'
           ? 'pi'
-          : 'claude-code';
+          : source === 'hermes'
+            ? 'hermes'
+            : 'claude-code';
   const usageRaw =
     raw.usage && typeof raw.usage === 'object' ? (raw.usage as Record<string, unknown>) : null;
   const usage = usageRaw
@@ -10453,7 +10455,7 @@ function isActiveSessionSnapshot(value: unknown): value is ActiveSessionSnapshot
   const item = value as Record<string, unknown>;
   return (
     typeof item.sessionId === 'string' &&
-    (item.agentKind === 'claude-code' || item.agentKind === 'codex' || item.agentKind === 'pi') &&
+    (item.agentKind === 'claude-code' || item.agentKind === 'codex' || item.agentKind === 'pi' || item.agentKind === 'hermes') &&
     typeof item.isTurnRunning === 'boolean'
   );
 }
@@ -11614,18 +11616,19 @@ function retryInvalidatedInitialHistoryFetchIfNeeded(
 }
 
 /**
- * DB sessions.agent_kind('cc' / 'codex' / 'pi')→ maker-core AgentKind 的唯一映射点。
+ * DB sessions.agent_kind('cc' / 'codex' / 'pi' / 'hermes')→ maker-core AgentKind 的唯一映射点。
  * 缺失 / 异常值走 fallback(默认 'claude-code',老 row 兼容)。所有从 session
  * row 派生 agentKind 的地方必须走这里,不要在调用点手写三元(历史上多处各写
  * 一份,遗漏 fallback 语义差异被 review 逐个揪出)。
  */
-function dbAgentKindToMakerKind(
+export function dbAgentKindToMakerKind(
   dbKind: string | null | undefined,
   fallback: 'claude-code' | 'codex' | 'pi' | 'hermes' = 'claude-code',
 ): 'claude-code' | 'codex' | 'pi' | 'hermes' {
   if (dbKind === 'codex') return 'codex';
-  if (dbKind === 'cc') return 'claude-code';
+  if (dbKind === 'cc' || dbKind === 'claude-code') return 'claude-code';
   if (dbKind === 'pi') return 'pi';
+  if (dbKind === 'hermes') return 'hermes';
   return fallback;
 }
 
@@ -18163,6 +18166,7 @@ function normalizeAgentSwitchIntent(value: unknown): AgentSwitchIntentRecord | n
     item.targetAgentKind !== 'claude-code'
     && item.targetAgentKind !== 'codex'
     && item.targetAgentKind !== 'pi'
+    && item.targetAgentKind !== 'hermes'
   ) return null;
   if (typeof item.model !== 'string' || item.model.length === 0) return null;
   // providerId 缺失按 null(与 main projectPendingAgentSwitchIntent 的 `?? null` 对齐);
@@ -18332,7 +18336,7 @@ function mirrorSessionFields(
   // 新引擎的事件会被旧引擎 reducer 错误处理(2026-07-20 审计实锤)。随引擎翻转
   // 同步清 sdkSessionId(旧引擎的原生会话 id 对新引擎无意义,与 noteAgentSwitched
   // 口径一致)。幂等:发起窗口已 noteAgentSwitched → 同值 no-op。
-  if (patch.agentKind === 'cc' || patch.agentKind === 'codex' || patch.agentKind === 'pi') {
+  if (patch.agentKind === 'cc' || patch.agentKind === 'codex' || patch.agentKind === 'pi' || patch.agentKind === 'hermes') {
     const nextKind = dbToMakerAgentKind(patch.agentKind);
     setState(sessionId, (s) => {
       // New hosts publish the full runtime snapshot before explicitly clearing
@@ -18502,6 +18506,7 @@ export const makerChatStore = {
   releaseRemoteArchivedTombstone,
   /** Seed runtime-only state before a session view has mounted and loaded DB metadata. */
   setSessionRuntime,
+  dbAgentKindToMakerKind,
   noteAgentSwitched,
   noteAgentSwitchIntent,
   clearAgentSwitchIntent,

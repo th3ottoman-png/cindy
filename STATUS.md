@@ -10,6 +10,39 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — Debt: `lazy-create` `agentKind` fallback on rebuilt sessions (`unit-tested`)
+
+- **What:** Resolved Debt row 172 where a Hermes session rebuilt before send or loaded in the renderer had its in-memory `agentKind` overwritten to `'claude-code'`, causing subsequent message queue items and lazy-create calls to pass `createOpts.agentKind: 'claude-code'` which main had to reconcile with `log.warn('lazy-create: createOpts agentKind drifted from DB (agent switch); reconciling')`.
+  1. **Root Cause Analysis:**
+     - Traced `apps/desktop/src/renderer/lib/makerChatStore.ts`: `dbAgentKindToMakerKind` (line 11622) omitted `'hermes'` from its DB kind checks (`codex`, `cc`, `pi`). When session metadata loaded from DB (`ensureInitialMessages`), `session.agentKind === 'hermes'` was mapped to the fallback `'claude-code'`, overwriting the in-memory `s.agentKind`.
+     - When a subsequent message was sent via `sendMessageCore`, `buildCreateOptsForCurrentSession` read `current.agentKind` (corrupted to `'claude-code'`), building `createOpts.agentKind = 'claude-code'`.
+     - Additionally, `mirrorSessionFields` ignored `patch.agentKind === 'hermes'`, `normalizeAgentSwitchIntent` rejected switches to Hermes as invalid, and `isActiveSessionSnapshot` filtered out active Hermes sessions during `listActive()` reconciliation.
+  2. **Renderer Store Alignment (`makerChatStore.ts`):**
+     - Updated `dbAgentKindToMakerKind` to check `if (dbKind === 'hermes') return 'hermes';` and `if (dbKind === 'cc' || dbKind === 'claude-code') return 'claude-code';`. Exported `dbAgentKindToMakerKind` on the module and on `makerChatStore`.
+     - Updated `mirrorSessionFields` to include `patch.agentKind === 'hermes'`.
+     - Updated `normalizeAgentSwitchIntent` to include `item.targetAgentKind !== 'hermes'`.
+     - Updated `isActiveSessionSnapshot` to accept `item.agentKind === 'hermes'`.
+     - Updated `normalizeAgentTaskUpdate` provider derivation to resolve `hermes`.
+  3. **Unit Tests:**
+     - In `apps/desktop/src/renderer/__tests__/fastModeMirrorOnPatched.test.ts`, added 3 unit tests verifying:
+       - `dbAgentKindToMakerKind` maps `'hermes'` to `'hermes'` (and handles `'cc'`, `'claude-code'`, `'codex'`, `'pi'`, and custom fallbacks).
+       - `mirrorSessionFields` with `agentKind: 'hermes'` updates state and ensures subsequent `buildCreateOptsForCurrentSession` produces `agentKind: 'hermes'`.
+       - `mirrorSessionFields` preserves switch intent targeting Hermes and cleanly resolves to Hermes on agent switch.
+- **Files:**
+  - `apps/desktop/src/renderer/lib/makerChatStore.ts`: Added Hermes support in `dbAgentKindToMakerKind`, `isActiveSessionSnapshot`, `normalizeAgentSwitchIntent`, `mirrorSessionFields`, and task provider derivation.
+  - `apps/desktop/src/renderer/__tests__/fastModeMirrorOnPatched.test.ts`: Added 3 unit tests verifying Hermes mapping, state mirroring, and createOpts generation.
+  - `ROADMAP.md`: Marked Debt row 172 as fixed (`unit-tested`).
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests: 13/13 passed in `fastModeMirrorOnPatched.test.ts`.
+  - All 4 required gates green under Node 22:
+    - `pnpm typecheck`: green (exit code 0 across all 37 workspaces).
+    - `pnpm test:runner`: green (exit code 0, 608 tests passed).
+    - `pnpm check:test-hygiene`: green (exit code 0, 361 files within baseline).
+    - `pnpm test:unit:related`: green (all non-desktop workspaces passed; desktop unit tests shards 1-8 all passed with exit code 0).
+
+---
+
 ## 2026-11-05 — Debt: Persisted cancelled state for Hermes / generic turns (`unit-tested`)
 
 - **What:** Resolved Debt row 173 where cancelled or failed Hermes turns were persisted as `turnCompleted: true` because `sessionEventTerminal.ts` only evaluated `isSuccessfulCodexDoneEventData` for the `codex` source and defaulted all other agent sources to `isSuccessfulDone = true`.
