@@ -10,6 +10,27 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — Debt: Fix empty `mcp_servers:` and trailing newline when removing last MCP server (`unit-tested`)
+
+- **What:** Fixed the 0.8 Debt item where removing the last/only MCP server left behind an empty `mcp_servers:` key and stripped the trailing newline from `config.yaml`:
+  1. **Clean Block Removal (`hermes-config.ts`):** `removeHermesMcpServer` now scans the server headers in the `mcp_servers:` block. If the server being removed is the last remaining server, it removes the entire `mcp_servers:` block (including block-level comments and separating blank lines) rather than leaving an empty `mcp_servers:` key. If multiple servers exist, it cleanly splices out only the target server and its associated comments.
+  2. **Consistent Trailing Newline:** Output lines are normalized by trimming trailing empty lines and joining with a guaranteed single trailing newline (`\n` or CRLF according to file convention), fixing the missing EOF newline issue.
+  3. **Atomic Writes:** Brought all Hermes config writers (`writeHermesDefaultRoute`, `writeHermesMcpServer`, `removeHermesMcpServer`) into compliance with AGENTS.md §4 by moving `writeFileAtomic` to the top of the file and routing all config writes through temp-file-then-rename in the same directory.
+- **Files:**
+  - `packages/maker-hermes-manager/src/hermes-config.ts`: Updated `removeHermesMcpServer`, `writeHermesMcpServer`, and `writeHermesDefaultRoute` to use `writeFileAtomic`, guarantee a trailing newline, and remove the `mcp_servers:` block when the last server is removed.
+  - `packages/maker-hermes-manager/src/__tests__/hermes-config.test.ts`: Added 3 unit tests verifying clean removal of the last MCP server without leaving an empty key, roundtrip to initial clean config, clean separation when followed by other blocks, and removal of block-level comments.
+  - `ROADMAP.md`: Marked debt item as fixed (`unit-tested`).
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests: `packages/maker-hermes-manager/src/__tests__/hermes-config.test.ts` (34/34 passed). Full suite `packages/maker-hermes-manager` (149/149 passed).
+  - All 4 required gates green under Node 22:
+    - `pnpm typecheck`: green (exit code 0).
+    - `pnpm test:runner`: green (exit code 0, 608 tests passed).
+    - `pnpm test:unit:related` (with `workspace-concurrency=1` serial rerun per ROADMAP line 168): green (exit code 0, all workspaces passed).
+    - `pnpm check:test-hygiene`: green (exit code 0).
+
+---
+
 ## 2026-11-05 — Debt: Reset New Task composer draft when already on `/cc-agent/new` and clarify Ask Expert menu (`unit-tested`)
 
 - **What:** Investigated and resolved the Debt issue reported by the owner on 2026-11-03 where picking an expert from the session header menu opened a new task pre-filled with the copied conversation summary, and subsequently clicking "New task" on the left sidebar did nothing while the box had text until manually cleared:

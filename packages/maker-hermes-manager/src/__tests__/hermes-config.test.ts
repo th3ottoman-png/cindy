@@ -242,6 +242,91 @@ agent:
     expect(content).not.toContain('delete_me');
     expect(content).toContain('keep_me:');
     expect(content).toContain('max_turns: 100');
+    expect(content.endsWith('\n')).toBe(true);
+    await rm(home, { recursive: true, force: true });
+  });
+
+  it('removes the last MCP server without leaving an empty mcp_servers: key and preserves trailing newline (0.8 debt)', async () => {
+    const initial = [
+      'model:',
+      '  default: deepseek/deepseek-v4.1-flash-1017',
+      '  provider: nous',
+      '  base_url: https://inference-api.nousresearch.com/v1',
+      '',
+    ].join('\n');
+
+    const home = await withHome(initial);
+    // Add server
+    await writeHermesMcpServer(home, 'mini_mcp', {
+      command: 'node',
+      args: ['/path/to/mini-mcp.mjs'],
+    });
+
+    const addedContent = await readFile(path.join(home, 'config.yaml'), 'utf8');
+    expect(addedContent).toContain('mcp_servers:');
+    expect(addedContent).toContain('mini_mcp:');
+    expect(addedContent.endsWith('\n')).toBe(true);
+
+    // Remove the last/only server
+    const result = await removeHermesMcpServer(home, 'mini_mcp');
+    expect(result).toEqual({});
+
+    const finalContent = await readFile(path.join(home, 'config.yaml'), 'utf8');
+    expect(finalContent).not.toContain('mcp_servers');
+    expect(finalContent.endsWith('\n')).toBe(true);
+    // Roundtrip equals initial clean config
+    expect(finalContent).toBe(initial);
+
+    await rm(home, { recursive: true, force: true });
+  });
+
+  it('removes the last MCP server when followed by other blocks, keeping clean separation', async () => {
+    const initial = [
+      'model:',
+      '  default: deepseek-flash',
+      '',
+      'mcp_servers:',
+      '  single:',
+      '    command: node',
+      '',
+      'agent:',
+      '  max_turns: 100',
+      '',
+    ].join('\n');
+
+    const home = await withHome(initial);
+    const result = await removeHermesMcpServer(home, 'single');
+    expect(result).toEqual({});
+
+    const content = await readFile(path.join(home, 'config.yaml'), 'utf8');
+    expect(content).not.toContain('mcp_servers');
+    expect(content).toContain('model:\n  default: deepseek-flash\n\nagent:\n  max_turns: 100\n');
+    expect(content.endsWith('\n')).toBe(true);
+
+    await rm(home, { recursive: true, force: true });
+  });
+
+  it('removes block-level comments when removing the last MCP server', async () => {
+    const initial = [
+      'model:',
+      '  default: deepseek-flash',
+      '',
+      '# Configured MCP tools',
+      'mcp_servers:',
+      '  tool1:',
+      '    command: node',
+      '',
+    ].join('\n');
+
+    const home = await withHome(initial);
+    const result = await removeHermesMcpServer(home, 'tool1');
+    expect(result).toEqual({});
+
+    const content = await readFile(path.join(home, 'config.yaml'), 'utf8');
+    expect(content).not.toContain('mcp_servers');
+    expect(content).not.toContain('Configured MCP tools');
+    expect(content).toBe('model:\n  default: deepseek-flash\n');
+
     await rm(home, { recursive: true, force: true });
   });
 });

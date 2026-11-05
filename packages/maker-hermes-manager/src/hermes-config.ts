@@ -97,6 +97,16 @@ export async function readHermesDefaultRoute(hermesHome: string): Promise<Hermes
   }
 }
 
+/** Temp-file-then-rename in the same directory (AGENTS.md §4 atomic writes). */
+async function writeFileAtomic(configPath: string, text: string): Promise<void> {
+  const tmp = path.join(
+    path.dirname(configPath),
+    `.config.yaml.${randomBytes(6).toString('hex')}.tmp`,
+  );
+  await writeFile(tmp, text, 'utf8');
+  await rename(tmp, configPath);
+}
+
 const ROUTE_KEYS = ['default', 'provider', 'base_url'] as const;
 const ROUTE_KEY_FOR: Record<'model' | 'provider' | 'baseUrl', (typeof ROUTE_KEYS)[number]> = {
   model: 'default',
@@ -124,6 +134,8 @@ export async function writeHermesDefaultRoute(
     if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
   }
 
+  const isCrlf = yaml.includes('\r\n');
+  const newline = isCrlf ? '\r\n' : '\n';
   const lines = yaml.split(/\r?\n/);
   const values: Record<'model' | 'provider' | 'baseUrl', string | undefined> = {
     model: route.model,
@@ -147,8 +159,8 @@ export async function writeHermesDefaultRoute(
     }
     // Drop trailing blank lines, append the block, keep exactly one final newline.
     while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
-    const next = lines.concat(block).join('\n') + '\n';
-    await writeFile(configPath, next, 'utf8');
+    const next = lines.concat(block).join(newline) + newline;
+    await writeFileAtomic(configPath, next);
     return parseHermesDefaultRoute(next);
   }
 
@@ -179,8 +191,9 @@ export async function writeHermesDefaultRoute(
     lines.splice(insertAfter + 1, 0, ...missing.map((key) => rendered[key]!));
   }
 
-  const next = lines.join('\n');
-  await writeFile(configPath, next, 'utf8');
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  const next = lines.length > 0 ? lines.join(newline) + newline : '';
+  await writeFileAtomic(configPath, next);
   return parseHermesDefaultRoute(next);
 }
 
@@ -390,15 +403,22 @@ export async function writeHermesMcpServer(
     if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
   }
 
+  const isCrlf = yaml.includes('\r\n');
+  const newline = isCrlf ? '\r\n' : '\n';
   const lines = yaml.split(/\r?\n/);
   const blockStart = lines.findIndex((line) => /^mcp_servers\s*:(\s|#|$)/.test(line));
 
   if (blockStart === -1) {
     while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
     const newBlock = ['', 'mcp_servers:', ...serializeServerLines(name, server, '  ')];
-    const next = lines.concat(newBlock).join('\n') + '\n';
-    await writeFile(configPath, next, 'utf8');
+    const next = lines.concat(newBlock).join(newline) + newline;
+    await writeFileAtomic(configPath, next);
     return parseHermesMcpServers(next);
+  }
+
+  // If mcp_servers was inline empty "mcp_servers: {}", expand to "mcp_servers:"
+  if (/^mcp_servers\s*:\s*\{\s*\}\s*$/.test(lines[blockStart]!)) {
+    lines[blockStart] = 'mcp_servers:';
   }
 
   let blockEnd = lines.length;
@@ -445,14 +465,19 @@ export async function writeHermesMcpServer(
     lines.splice(blockStart + 1, 0, ...newServerLines);
   }
 
-  const next = lines.join('\n');
-  await writeFile(configPath, next, 'utf8');
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  const next = lines.length > 0 ? lines.join(newline) + newline : '';
+  await writeFileAtomic(configPath, next);
   return parseHermesMcpServers(next);
 }
 
 /**
  * Remove an MCP server from `mcp_servers:` in config.yaml.
  * Preserves other servers, blocks and comments. Returns the re-parsed servers.
+ *
+ * When the last MCP server is removed, removes the empty `mcp_servers:` key
+ * (and any preceding comment/blank line separating it from prior blocks),
+ * and ensures a clean trailing newline. Writes atomically.
  */
 export async function removeHermesMcpServer(
   hermesHome: string,
@@ -467,6 +492,8 @@ export async function removeHermesMcpServer(
     return {};
   }
 
+  const isCrlf = yaml.includes('\r\n');
+  const newline = isCrlf ? '\r\n' : '\n';
   const lines = yaml.split(/\r?\n/);
   const blockStart = lines.findIndex((line) => /^mcp_servers\s*:(\s|#|$)/.test(line));
   if (blockStart === -1) {
@@ -502,20 +529,68 @@ export async function removeHermesMcpServer(
     return parseHermesMcpServers(yaml);
   }
 
-  let serverEnd = blockEnd;
-  for (let i = serverIndex + 1; i < blockEnd; i++) {
+  // Count all server headers in mcp_servers with this indent
+  const serverHeaders: Array<{ name: string; headerIndex: number; startIndex: number }> = [];
+  for (let i = blockStart + 1; i < blockEnd; i++) {
     const line = lines[i]!;
     if (!line.trim() || line.trimStart().startsWith('#')) continue;
     const indent = line.length - line.trimStart().length;
-    if (indent <= serverIndent) {
-      serverEnd = i;
-      break;
+    if (indent === serverIndent) {
+      const match = /^([A-Za-z0-9_.-]+)\s*:/.exec(line.trim());
+      if (match) {
+        let startIndex = i;
+        while (startIndex > blockStart + 1) {
+          const prev = lines[startIndex - 1]!;
+          if (!prev.trim()) break;
+          const prevIndent = prev.length - prev.trimStart().length;
+          if (prevIndent === serverIndent && prev.trimStart().startsWith('#')) {
+            startIndex--;
+          } else {
+            break;
+          }
+        }
+        serverHeaders.push({ name: match[1]!, headerIndex: i, startIndex });
+      }
     }
   }
 
-  lines.splice(serverIndex, serverEnd - serverIndex);
-  const next = lines.join('\n');
-  await writeFile(configPath, next, 'utf8');
+  const targetIdx = serverHeaders.findIndex((s) => s.name === name);
+  if (targetIdx === -1) {
+    return parseHermesMcpServers(yaml);
+  }
+
+  if (serverHeaders.length === 1) {
+    // Last server in mcp_servers block: remove the entire mcp_servers block
+    // including any block-level comments and blank separator lines.
+    let removeStart = blockStart;
+    while (removeStart > 0) {
+      const prev = lines[removeStart - 1]!;
+      const prevIndent = prev.length - prev.trimStart().length;
+      if (prevIndent === 0 && prev.trimStart().startsWith('#')) {
+        removeStart--;
+      } else {
+        break;
+      }
+    }
+    lines.splice(removeStart, blockEnd - removeStart);
+  } else {
+    // Multiple servers: remove only this server and its preceding comments
+    const target = serverHeaders[targetIdx]!;
+    const nextServer = serverHeaders[targetIdx + 1];
+    let serverEnd = nextServer ? nextServer.startIndex : blockEnd;
+    if (!nextServer) {
+      while (serverEnd > target.startIndex + 1 && !lines[serverEnd - 1]!.trim()) {
+        serverEnd--;
+      }
+    }
+    lines.splice(target.startIndex, serverEnd - target.startIndex);
+  }
+
+  while (lines.length > 0 && lines[lines.length - 1] === '') {
+    lines.pop();
+  }
+  const next = lines.length > 0 ? lines.join(newline) + newline : '';
+  await writeFileAtomic(configPath, next);
   return parseHermesMcpServers(next);
 }
 
@@ -625,16 +700,6 @@ export function filterDisabledMcpServers(configYaml: string): string {
 function normalizeLocalBaseUrl(url: string): string {
   const trimmed = url.trim().replace(/\/+$/, '');
   return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`;
-}
-
-/** Temp-file-then-rename in the same directory (AGENTS.md §4 atomic writes). */
-async function writeFileAtomic(configPath: string, text: string): Promise<void> {
-  const tmp = path.join(
-    path.dirname(configPath),
-    `.config.yaml.${randomBytes(6).toString('hex')}.tmp`,
-  );
-  await writeFile(tmp, text, 'utf8');
-  await rename(tmp, configPath);
 }
 
 interface CustomProvidersBlock {
