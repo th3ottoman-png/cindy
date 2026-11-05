@@ -810,6 +810,8 @@ function extraResourcesForTarget(targetPlatform: string): string[] {
     'resources/pi-manager',
     // 本机 hermes manager bundle(desktop spawn 的 Hermes harness daemon)。
     'resources/hermes-manager',
+    // Hermes stdio MCP bridge shim (spawned by Hermes to proxy Cindy tools).
+    'resources/hermes-bridge-shim',
     // 第三方开源声明,由 scripts/generate-third-party-notices.mjs 生成
     // (pnpm licenses:generate),随安装包分发以满足各开源协议的署名义务。
     'resources/THIRD-PARTY-NOTICES.txt',

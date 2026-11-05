@@ -63,6 +63,15 @@ const TARGETS = [
     destDir: resolve(DESKTOP_ROOT, 'resources', 'hermes-manager'),
     destFile: 'hermes-mgr.mjs',
   },
+  {
+    pkgName: 'cindy-tools',
+    dependencyDirs: [resolve(MONOREPO_ROOT, 'packages', 'plugin-protocol')],
+    pkgDir: resolve(MONOREPO_ROOT, 'packages', 'cindy-tools'),
+    buildScript: 'build-shim.mjs',
+    bundleFile: 'dist/hermes-bridge-shim.mjs',
+    destDir: resolve(DESKTOP_ROOT, 'resources', 'hermes-bridge-shim'),
+    destFile: 'hermes-bridge-shim.mjs',
+  },
 ];
 
 function bundleIfStale(target) {
@@ -70,14 +79,15 @@ function bundleIfStale(target) {
   const inputDigest = bundleInputDigest(target.pkgDir, target.dependencyDirs);
   if (bundleInputsMatch(bundleAbs, inputDigest)) return false;
   console.log(`[remote-bundles] ${target.pkgName}: bundling (inputs or output changed)...`);
-  // 直接 spawn 当前 node + 包的 build.mjs, 不走 pnpm 包装层:
+  // 直接 spawn 当前 node + 包的 buildScript (默认 build.mjs), 不走 pnpm 包装层:
   //  1. 跨平台干净 — pnpm 在 Windows 是 pnpm.cmd, fnm shim 又只暴露 pnpm 无后缀,
   //     spawn 时 EINVAL / not found 各种坑; 用 process.execPath 永远是当前 node
   //     绝对路径, 跨 OS / 跨 shell / 跨 node-version-manager 100% 可靠。
   //  2. 性能更好 — 跳过 pnpm cold-start (~200ms) 直接进 esbuild。
   //  3. 语义对等 — 两个包的 `pnpm bundle` 就是 `node build.mjs` (一字不差),
   //     不需要 pnpm 做 workspace 解析 / hoist 之类。
-  const r = spawnSync(process.execPath, ['build.mjs'], {
+  const buildScript = target.buildScript ?? 'build.mjs';
+  const r = spawnSync(process.execPath, [buildScript], {
     cwd: target.pkgDir,
     stdio: 'inherit',
   });

@@ -10,6 +10,37 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — Debt: Copy hermes-bridge-shim.mjs into packaged build resources (`unit-tested`)
+
+- **What:** Fixed the Debt item where packaged desktop builds did not ship `hermes-bridge-shim.mjs`. In packaged releases, `resolveHermesBridgeShimPath` looks for `path.join(process.resourcesPath, 'hermes-bridge-shim', 'hermes-bridge-shim.mjs')`, but no packaging script copied the bundled shim there, causing packaged releases to run without Cindy bridge tools. Fixed by:
+  1. Adding a `cindy-tools` target to `apps/desktop/scripts/build-remote-bundles.mjs` (which runs on `predev`, `prepackage`, `prebuild`, and `release:package`), bundling `packages/cindy-tools/dist/hermes-bridge-shim.mjs` via `build-shim.mjs` and staging it to `apps/desktop/resources/hermes-bridge-shim/hermes-bridge-shim.mjs`.
+  2. Updating `apps/desktop/scripts/remote-bundle-inputs.mjs` to track `build-shim.mjs` in bundle input digests so edits to the shim build script invalidate cache receipts.
+  3. Adding `'resources/hermes-bridge-shim'` to `extraResourcesForTarget` in `apps/desktop/forge.config.ts` so Electron Forge packager copies the staged directory into the packaged app's `resourcesPath`.
+  4. Adding `apps/desktop/resources/hermes-bridge-shim/` to `.gitignore`.
+  5. Updating `hermes-manager-client.ts` doc comments and adding unit tests for packaged resolution and packaging contracts.
+- **Files:**
+  - `apps/desktop/scripts/build-remote-bundles.mjs`: Added `cindy-tools` target with `buildScript: 'build-shim.mjs'`, `bundleFile: 'dist/hermes-bridge-shim.mjs'`, and `destDir: 'resources/hermes-bridge-shim'`. Supported custom `target.buildScript`.
+  - `apps/desktop/scripts/remote-bundle-inputs.mjs`: Added `build-shim.mjs` to visited files in `bundleInputDigest`.
+  - `apps/desktop/forge.config.ts`: Added `'resources/hermes-bridge-shim'` to `extraResourcesForTarget`.
+  - `.gitignore`: Added `apps/desktop/resources/hermes-bridge-shim/`.
+  - `apps/desktop/src/main/maker-host/hermes-manager-client.ts`: Updated doc comment on `resolveHermesBridgeShimPath`.
+  - `apps/desktop/src/main/maker-host/__tests__/hermesManagerClient.test.ts`: Added unit tests covering packaged shim resolution via `process.resourcesPath` when `app.isPackaged` is true, and fallback to null when absent.
+  - `ROADMAP.md`: Fixed merged table row in §Debt and marked `Packaged build does not ship hermes-bridge-shim.mjs` as fixed (`unit-tested`).
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests:
+    - `hermesManagerClient.test.ts`: 11/11 passed (including 2 new packaging tests).
+    - `scripts/__tests__/remote-bundle-inputs.test.mjs`: 6/6 passed.
+    - `node apps/desktop/scripts/build-remote-bundles.mjs`: successfully bundles and stages `hermes-bridge-shim.mjs` (804 KB).
+  - Gates green under Node 22:
+    - `pnpm typecheck`: green (exit code 0).
+    - `pnpm check:test-hygiene`: green (exit code 0, 361 files).
+    - `pnpm test:runner`: green (exit code 0, 608 passed, 0 failed, 2 skipped).
+    - `node scripts/test-workspaces.mjs --tier unit --related --exclude-workspace apps/desktop`: green (exit code 0).
+    - `XDT_UNIT_TEST_SHARD=7/8 node scripts/test-workspaces.mjs --tier unit --related --workspace apps/desktop`: green (exit code 0).
+
+---
+
 ## 2026-11-05 — Debt: Filter disabled MCP servers in session homes (`unit-tested`)
 
 - **What:** Fixed the Debt item from 4.3b where Hermes 0.22.5 ignores `disabled: true` on `mcp_servers` at startup. When a user disables an MCP server in Settings → Tools → MCP Servers, `disabled: true` is persisted to `~/.hermes-cindy/config.yaml`. However, Hermes 0.22.5's gateway ignores `disabled: true` and still spawned and registered tools for all configured servers (e.g. `cindy_docs`). Fixed by implementing `filterDisabledMcpServers` in `packages/maker-hermes-manager/src/hermes-config.ts` and wiring it into `prepareSessionHome` (`packages/maker-hermes-manager/src/session-home.ts`) when materializing per-session home `config.yaml` files. Disabled MCP servers (`disabled: true`) are stripped out of the session home `config.yaml` so Hermes never sees or spawns them, while the base `~/.hermes-cindy/config.yaml` retains them so Settings toggles remain intact. All comments, enabled servers, and non-MCP blocks are preserved byte-for-byte; when all servers are disabled, `mcp_servers: {}` is emitted so Hermes receives an empty dictionary.

@@ -14,13 +14,14 @@
  */
 
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { app } from 'electron';
 
 import { PROTOCOL_VERSION } from '@cindy/maker-hermes-manager';
 
@@ -39,6 +40,7 @@ import {
   hermesManagerSocketPath,
   parseHermesPluginLists,
   resetHermesManagerClientForTests,
+  resolveHermesBridgeShimPath,
   resolveHermesHome,
   stopHermesManagerDaemon,
   type HermesManagerFork,
@@ -334,5 +336,43 @@ describe('parseHermesPluginLists (ROADMAP 1.6)', () => {
       .toEqual(['superpowers', 'other']);
     expect(parseHermesPluginLists('model: {}\n').enabled.size).toBe(0);
     expect(parseHermesPluginLists('plugins: [\n').enabled.size).toBe(0);
+  });
+});
+
+describe('resolveHermesBridgeShimPath and packaging', () => {
+  it('resolves the packaged resources shim path when packaged', () => {
+    const origResourcesPath = process.resourcesPath;
+    const origIsPackaged = app?.isPackaged;
+
+    try {
+      if (app) (app as { isPackaged: boolean }).isPackaged = true;
+      const packagedShimDir = path.join(rootDir, 'resources', 'hermes-bridge-shim');
+      mkdirSync(packagedShimDir, { recursive: true });
+      const packagedShimPath = path.join(packagedShimDir, 'hermes-bridge-shim.mjs');
+      writeFileSync(packagedShimPath, '// shim binary bundle');
+
+      (process as { resourcesPath?: string }).resourcesPath = path.join(rootDir, 'resources');
+
+      const resolved = resolveHermesBridgeShimPath();
+      expect(resolved).toBe(packagedShimPath);
+    } finally {
+      if (app && origIsPackaged !== undefined) (app as { isPackaged: boolean }).isPackaged = origIsPackaged;
+      (process as { resourcesPath?: string }).resourcesPath = origResourcesPath;
+    }
+  });
+
+  it('returns null when neither dev nor packaged shim exists', () => {
+    const origResourcesPath = process.resourcesPath;
+    const origIsPackaged = app?.isPackaged;
+
+    try {
+      if (app) (app as { isPackaged: boolean }).isPackaged = true;
+      (process as { resourcesPath?: string }).resourcesPath = path.join(rootDir, 'empty-resources');
+
+      expect(resolveHermesBridgeShimPath()).toBeNull();
+    } finally {
+      if (app && origIsPackaged !== undefined) (app as { isPackaged: boolean }).isPackaged = origIsPackaged;
+      (process as { resourcesPath?: string }).resourcesPath = origResourcesPath;
+    }
   });
 });

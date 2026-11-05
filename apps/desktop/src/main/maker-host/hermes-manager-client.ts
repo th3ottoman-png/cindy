@@ -489,30 +489,42 @@ export async function listHermesMcpServers(): Promise<Record<string, HermesMcpSe
 
 /**
  * hermes-bridge-shim.mjs 路径(cindy-tools `bundle:shim` 产物):dev 取源码 dist,
- * packaged 取 resources/hermes-bridge-shim/。两处都没有 → null,Hermes 不带 Cindy 工具运行
- * (packaged 构建尚未随包携带 shim —— ROADMAP §Debt)。
+ * packaged 取 resources/hermes-bridge-shim/ (由 build-remote-bundles.mjs stage)。两处都没有 → null,Hermes 不带 Cindy 工具运行。
  */
 export function resolveHermesBridgeShimPath(): string | null {
   const candidates: string[] = [];
   try {
-    candidates.push(
-      path.join(
-        app.getAppPath(),
-        '..',
-        '..',
-        'packages',
-        'cindy-tools',
-        'dist',
-        'hermes-bridge-shim.mjs',
-      ),
-    );
+    if (app?.isPackaged) {
+      if (process.resourcesPath) {
+        candidates.push(
+          path.join(process.resourcesPath, 'hermes-bridge-shim', 'hermes-bridge-shim.mjs'),
+        );
+      }
+    } else {
+      candidates.push(
+        path.join(
+          app.getAppPath(),
+          '..',
+          '..',
+          'packages',
+          'cindy-tools',
+          'dist',
+          'hermes-bridge-shim.mjs',
+        ),
+      );
+      if (process.resourcesPath) {
+        candidates.push(
+          path.join(process.resourcesPath, 'hermes-bridge-shim', 'hermes-bridge-shim.mjs'),
+        );
+      }
+    }
   } catch {
     // 非 Electron 环境:只试 packaged 路径。
-  }
-  if (process.resourcesPath) {
-    candidates.push(
-      path.join(process.resourcesPath, 'hermes-bridge-shim', 'hermes-bridge-shim.mjs'),
-    );
+    if (process.resourcesPath) {
+      candidates.push(
+        path.join(process.resourcesPath, 'hermes-bridge-shim', 'hermes-bridge-shim.mjs'),
+      );
+    }
   }
   for (const candidate of candidates) {
     try {
