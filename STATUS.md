@@ -10,6 +10,37 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — Debt: Persisted cancelled state for Hermes / generic turns (`unit-tested`)
+
+- **What:** Resolved Debt row 173 where cancelled or failed Hermes turns were persisted as `turnCompleted: true` because `sessionEventTerminal.ts` only evaluated `isSuccessfulCodexDoneEventData` for the `codex` source and defaulted all other agent sources to `isSuccessfulDone = true`.
+  1. **Cross-Agent Success Validation (`messagePersistBroadcaster.ts`):**
+     - Added `isSuccessfulDoneEventData(data, source)` in `apps/desktop/src/main/messagePersistBroadcaster.ts`.
+     - When `source === 'codex'`, delegates directly to `isSuccessfulCodexDoneEventData(data)`.
+     - When `source === 'hermes'` (or generic sources), checks that `data.cancelled !== true`, `data.is_error !== true`, and `data.status` is not in `NON_SUCCESS_DONE_STATUSES` (`['failed', 'cancelled', 'interrupted']`).
+     - Preserves clean completion semantics for `claude-code` (`reason: 'stream_end'`) while correctly catching Hermes cancelled (`status: 'cancelled'`) and failed (`status: 'failed'`) terminal events.
+  2. **Terminal Persistence Hook (`sessionEventTerminal.ts`):**
+     - Updated `finishSessionTerminalEvent` in `apps/desktop/src/main/maker-ipc/sessionEventTerminal.ts` to call `isSuccessfulDoneEventData(event.data, event.source)` instead of `(event.source !== 'codex' || isSuccessfulCodexDoneEventData(event.data))`.
+     - When a Hermes turn is cancelled or fails, `isSuccessfulDone` is `false`, triggering `markAssistantTurnFailed(session.id, turnBoundaryAssistantPersistId)` and stamping `turnCompleted: false` in the database.
+  3. **Unit Tests:**
+     - In `messagePersistBroadcaster.test.ts`, added 3 test cases (9 assertions) covering Codex delegation, Hermes turn-complete / session-closed statuses (`completed`, `cancelled`, `failed`), and generic / Pi / Claude-Code payloads.
+     - In `sessionEventPipeline.test.ts`, added unit tests confirming that a Hermes `cancelled` done event triggers `markAssistantTurnFailed`, and a Hermes `completed` done event triggers `markAssistantTurnCompleted`.
+- **Files:**
+  - `apps/desktop/src/main/messagePersistBroadcaster.ts`: Added `isSuccessfulDoneEventData`.
+  - `apps/desktop/src/main/maker-ipc/sessionEventTerminal.ts`: Use `isSuccessfulDoneEventData` in terminal done evaluation.
+  - `apps/desktop/src/main/__tests__/messagePersistBroadcaster.test.ts`: Added unit tests for `isSuccessfulDoneEventData`.
+  - `apps/desktop/src/main/maker-ipc/__tests__/sessionEventPipeline.test.ts`: Added Hermes cancelled/completed pipeline seal tests.
+  - `ROADMAP.md`: Marked Debt row 173 as fixed (`unit-tested`).
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests: 371/371 passed across `messagePersistBroadcaster.test.ts` and `sessionEventPipeline.test.ts`.
+  - All 4 required gates green under Node 22:
+    - `pnpm typecheck`: green (exit code 0).
+    - `pnpm test:runner`: green (exit code 0, 608 tests passed).
+    - `pnpm check:test-hygiene`: green (exit code 0, 361 files within baseline).
+    - `pnpm test:unit:related`: green (all non-desktop workspaces passed; desktop unit tests shards 1-8 all passed with exit code 0).
+
+---
+
 ## 2026-11-05 — Debt: `query/start` prewarm race with immediate `query/send` (`unit-tested`)
 
 - **What:** Resolved Debt row 186 where `query/start`'s background gateway prewarm raced against an immediate scripted `query/send`, causing `query/send` to fail with `INTERNAL: could not prepare the session home: EEXIST …/skills`.

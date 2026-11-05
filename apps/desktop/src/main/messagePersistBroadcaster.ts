@@ -664,6 +664,24 @@ export function isSuccessfulCodexDoneEventData(data: unknown): boolean {
   return status === 'completed';
 }
 
+const NON_SUCCESS_DONE_STATUSES = new Set(['failed', 'cancelled', 'interrupted']);
+
+/**
+ * Validates whether a terminal `done` event payload represents a successful turn.
+ * Codex has a specific schema with raw.status; other agents (Hermes, Pi, etc.)
+ * report top-level `status` ('completed' | 'cancelled' | 'failed') and/or `cancelled: true`.
+ */
+export function isSuccessfulDoneEventData(data: unknown, source?: string): boolean {
+  if (source === 'codex') return isSuccessfulCodexDoneEventData(data);
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return true;
+  const done = data as { cancelled?: unknown; status?: unknown; is_error?: unknown };
+  if (done.cancelled === true || done.is_error === true) return false;
+  if (typeof done.status === 'string' && NON_SUCCESS_DONE_STATUSES.has(done.status)) {
+    return false;
+  }
+  return true;
+}
+
 /**
  * 给一条自动续跑（中断自愈）的 user 消息补上**结果**。
  *

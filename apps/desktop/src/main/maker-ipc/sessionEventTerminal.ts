@@ -18,7 +18,7 @@ import {
   drainPersistQueue,
   flushAssistantBlock,
   flushOrphanToolResults,
-  isSuccessfulCodexDoneEventData,
+  isSuccessfulDoneEventData,
   markAssistantTurnCompleted,
   markAssistantTurnFailed,
   clearCodexPlanRowsForSession,
@@ -230,8 +230,7 @@ export function finishSessionTerminalEvent(
       // Codex 的 interrupted / failed 同样以 done 收尾；即使没有配套 error，也必须
       // 写 false，避免历史计划兼容逻辑把用户主动停止的半截计划推成全部完成。
       const isSuccessfulDone =
-        event.type === 'done' &&
-        (event.source !== 'codex' || isSuccessfulCodexDoneEventData(event.data));
+        event.type === 'done' && isSuccessfulDoneEventData(event.data, event.source);
       if (!isSuccessfulDone) {
         void markAssistantTurnFailed(session.id, turnBoundaryAssistantPersistId);
       } else if (!isPairedFailedTurnDone) {

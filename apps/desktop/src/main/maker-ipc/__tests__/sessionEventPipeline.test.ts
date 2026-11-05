@@ -146,6 +146,7 @@ vi.mock('../../messagePersistBroadcaster.js', () => ({
   drainPersistQueue: effects.fn('drainPersistQueue'),
   flushOrphanToolResults: effects.fn('flushOrphanToolResults'),
   isSuccessfulCodexDoneEventData: effects.fn('isSuccessfulCodexDoneEventData'),
+  isSuccessfulDoneEventData: effects.fn('isSuccessfulDoneEventData'),
   markAssistantTurnCompleted: effects.fn('markAssistantTurnCompleted'),
   markAssistantTurnFailed: effects.fn('markAssistantTurnFailed'),
   clearCodexPlanRowsForSession: effects.fn('clearCodexPlanRowsForSession'),
@@ -409,6 +410,14 @@ beforeEach(() => {
   effects.fn('onAssistantTextEvent').mockReturnValue('assistant-row');
   effects.fn('onToolUseEvent').mockReturnValue('tool-row');
   effects.fn('isSuccessfulCodexDoneEventData').mockReturnValue(true);
+  effects.fn('isSuccessfulDoneEventData').mockImplementation((data: unknown, source?: string) => {
+    if (source === 'codex') return effects.fn('isSuccessfulCodexDoneEventData')(data);
+    if (!data || typeof data !== 'object') return true;
+    const d = data as { cancelled?: unknown; status?: unknown; is_error?: unknown };
+    if (d.cancelled === true || d.is_error === true) return false;
+    if (typeof d.status === 'string' && ['failed', 'cancelled', 'interrupted'].includes(d.status)) return false;
+    return true;
+  });
   effects.fn('verdictForModelRoute').mockResolvedValue({ kind: 'pass' });
 });
 afterEach(() => {
@@ -1176,6 +1185,32 @@ describe('production Session event pipeline', () => {
       await h.dispose();
     },
   );
+
+  it('seals a Hermes cancelled done without a preceding error as failed', async () => {
+    const h = harness();
+    effects.fn('consumeLastTopLevelAssistantPersistId').mockReturnValueOnce('failed-row');
+    h.emit(event('done', { type: 'hermes/turn-complete', status: 'cancelled' }, { source: 'hermes' }));
+    expect(effects.fn('isSuccessfulDoneEventData')).toHaveBeenCalledWith(
+      { type: 'hermes/turn-complete', status: 'cancelled' },
+      'hermes',
+    );
+    expect(effects.fn('markAssistantTurnFailed')).toHaveBeenCalledWith('task', 'failed-row');
+    expect(effects.fn('markAssistantTurnCompleted')).not.toHaveBeenCalled();
+    await h.dispose();
+  });
+
+  it('seals a Hermes completed done as completed', async () => {
+    const h = harness();
+    effects.fn('consumeLastTopLevelAssistantPersistId').mockReturnValueOnce('completed-row');
+    h.emit(event('done', { type: 'hermes/turn-complete', status: 'completed' }, { source: 'hermes' }));
+    expect(effects.fn('isSuccessfulDoneEventData')).toHaveBeenCalledWith(
+      { type: 'hermes/turn-complete', status: 'completed' },
+      'hermes',
+    );
+    expect(effects.fn('markAssistantTurnCompleted')).toHaveBeenCalledWith('task', 'completed-row', undefined);
+    expect(effects.fn('markAssistantTurnFailed')).not.toHaveBeenCalled();
+    await h.dispose();
+  });
 
   it('passes the native fork anchor to the successful assistant seal after flushing tools', async () => {
     const h = harness();

@@ -156,6 +156,7 @@ import {
   sealAssistantBlockForLateFinal,
   flushOrphanToolResults,
   isSuccessfulCodexDoneEventData,
+  isSuccessfulDoneEventData,
   onTurnErrorEvent,
   captureDeferredTurnError,
   persistDeferredTurnError,
@@ -202,6 +203,32 @@ describe('Codex done completion boundary', () => {
     expect(isSuccessfulCodexDoneEventData({ raw: { status: 'failed' } })).toBe(false);
     expect(isSuccessfulCodexDoneEventData({ cancelled: true })).toBe(false);
     expect(isSuccessfulCodexDoneEventData({ raw: { id: 'legacy-turn' } })).toBe(false);
+  });
+});
+
+describe('Generic done completion boundary (isSuccessfulDoneEventData)', () => {
+  it('delegates to Codex predicate when source is codex', () => {
+    expect(isSuccessfulDoneEventData({ raw: { status: 'completed' } }, 'codex')).toBe(true);
+    expect(isSuccessfulDoneEventData({ raw: { status: 'interrupted' } }, 'codex')).toBe(false);
+    expect(isSuccessfulDoneEventData({ cancelled: true }, 'codex')).toBe(false);
+  });
+
+  it('recognizes Hermes turn-complete and session-closed statuses', () => {
+    expect(isSuccessfulDoneEventData({ type: 'hermes/turn-complete', status: 'completed' }, 'hermes')).toBe(true);
+    expect(isSuccessfulDoneEventData({ type: 'hermes/turn-complete', status: 'cancelled' }, 'hermes')).toBe(false);
+    expect(isSuccessfulDoneEventData({ type: 'hermes/turn-complete', status: 'failed' }, 'hermes')).toBe(false);
+    expect(isSuccessfulDoneEventData({ type: 'hermes/session-closed', status: 'completed' }, 'hermes')).toBe(true);
+    expect(isSuccessfulDoneEventData({ type: 'hermes/session-closed', status: 'cancelled' }, 'hermes')).toBe(false);
+    expect(isSuccessfulDoneEventData({ type: 'hermes/session-closed', status: 'failed' }, 'hermes')).toBe(false);
+  });
+
+  it('rejects cancelled or errored payloads for other or unspecified sources', () => {
+    expect(isSuccessfulDoneEventData({ cancelled: true }, 'pi')).toBe(false);
+    expect(isSuccessfulDoneEventData({ status: 'cancelled' }, 'pi')).toBe(false);
+    expect(isSuccessfulDoneEventData({ status: 'interrupted' })).toBe(false);
+    expect(isSuccessfulDoneEventData({ is_error: true })).toBe(false);
+    expect(isSuccessfulDoneEventData({ reason: 'stream_end' }, 'claude-code')).toBe(true);
+    expect(isSuccessfulDoneEventData({}, 'generic')).toBe(true);
   });
 });
 
