@@ -519,6 +519,106 @@ export async function removeHermesMcpServer(
   return parseHermesMcpServers(next);
 }
 
+/**
+ * Strips any MCP server entries from config.yaml that have `disabled: true`.
+ * Used when materializing per-session home config.yaml files, because
+ * Hermes 0.22.5 ignores `disabled: true` on mcp_servers at startup.
+ * Preserves comments, enabled servers, and non-MCP blocks byte-for-byte.
+ */
+export function filterDisabledMcpServers(configYaml: string): string {
+  const parsed = parseHermesMcpServers(configYaml);
+  const disabledNames = new Set(
+    Object.entries(parsed)
+      .filter(([, cfg]) => cfg.disabled === true)
+      .map(([name]) => name),
+  );
+
+  if (disabledNames.size === 0) {
+    return configYaml;
+  }
+
+  const isCrlf = configYaml.includes('\r\n');
+  const lines = configYaml.split(/\r?\n/);
+  const blockStart = lines.findIndex((line) => /^mcp_servers\s*:(\s|#|$)/.test(line));
+  if (blockStart === -1) {
+    return configYaml;
+  }
+
+  let blockEnd = lines.length;
+  for (let i = blockStart + 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (!line.trim() || line.trimStart().startsWith('#')) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) {
+      blockEnd = i;
+      break;
+    }
+  }
+
+  let serverIndent: number | null = null;
+  for (let i = blockStart + 1; i < blockEnd; i++) {
+    const line = lines[i]!;
+    if (!line.trim() || line.trimStart().startsWith('#')) continue;
+    serverIndent = line.length - line.trimStart().length;
+    break;
+  }
+
+  if (serverIndent === null) {
+    return configYaml;
+  }
+
+  const serverHeaders: Array<{ name: string; headerIndex: number; startIndex: number }> = [];
+  for (let i = blockStart + 1; i < blockEnd; i++) {
+    const line = lines[i]!;
+    if (!line.trim() || line.trimStart().startsWith('#')) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === serverIndent) {
+      const match = /^([A-Za-z0-9_.-]+)\s*:/.exec(line.trim());
+      if (match) {
+        let startIndex = i;
+        while (startIndex > blockStart + 1) {
+          const prev = lines[startIndex - 1]!;
+          if (!prev.trim()) break;
+          const prevIndent = prev.length - prev.trimStart().length;
+          if (prevIndent === serverIndent && prev.trimStart().startsWith('#')) {
+            startIndex--;
+          } else {
+            break;
+          }
+        }
+        serverHeaders.push({ name: match[1]!, headerIndex: i, startIndex });
+      }
+    }
+  }
+
+  const disabledRanges: Array<{ start: number; end: number }> = [];
+  for (let idx = 0; idx < serverHeaders.length; idx++) {
+    const { name, startIndex } = serverHeaders[idx]!;
+    if (disabledNames.has(name)) {
+      const nextServer = serverHeaders[idx + 1];
+      let end = nextServer ? nextServer.startIndex : blockEnd;
+      if (!nextServer) {
+        while (end > startIndex + 1 && !lines[end - 1]!.trim()) {
+          end--;
+        }
+      }
+      disabledRanges.push({ start: startIndex, end });
+    }
+  }
+
+  disabledRanges.sort((a, b) => b.start - a.start);
+  for (const { start, end } of disabledRanges) {
+    lines.splice(start, end - start);
+  }
+
+  const remainingServersCount = serverHeaders.length - disabledRanges.length;
+  if (remainingServersCount === 0) {
+    lines[blockStart] = 'mcp_servers: {}';
+  }
+
+  return lines.join(isCrlf ? '\r\n' : '\n');
+}
+
 /* ===== Local endpoint context windows (custom_providers) ===== */
 
 /** Same normalization as the route resolver: strip trailing slashes, ensure `/v1`. */

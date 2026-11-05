@@ -12,6 +12,7 @@ import {
   readHermesMcpServers,
   writeHermesMcpServer,
   removeHermesMcpServer,
+  filterDisabledMcpServers,
   parseHermesCustomProviders,
   writeHermesLocalContextWindows,
 } from '../hermes-config.js';
@@ -242,6 +243,167 @@ agent:
     expect(content).toContain('keep_me:');
     expect(content).toContain('max_turns: 100');
     await rm(home, { recursive: true, force: true });
+  });
+});
+
+describe('filterDisabledMcpServers', () => {
+  it('returns YAML unchanged when mcp_servers block is absent', () => {
+    const yaml = 'model:\n  default: deepseek-flash\n';
+    expect(filterDisabledMcpServers(yaml)).toBe(yaml);
+  });
+
+  it('returns YAML unchanged when no servers are disabled', () => {
+    const yaml = [
+      'model:',
+      '  default: deepseek-flash',
+      '',
+      'mcp_servers:',
+      '  active:',
+      '    command: node',
+      '    disabled: false',
+      '  another:',
+      '    url: "https://example.com"',
+      '',
+      'agent:',
+      '  max_turns: 100',
+      '',
+    ].join('\n');
+    expect(filterDisabledMcpServers(yaml)).toBe(yaml);
+  });
+
+  it('strips a disabled server while preserving enabled servers and other blocks', () => {
+    const yaml = [
+      '# Top comment',
+      'model:',
+      '  default: deepseek-flash',
+      '',
+      'mcp_servers:',
+      '  cindy_docs:',
+      '    command: node',
+      '    args:',
+      '      - /path/to/shim.mjs',
+      '      - --server',
+      '      - cindy_docs',
+      '    env:',
+      '      CINDY_BRIDGE_SESSION: ${CINDY_BRIDGE_SESSION}',
+      '    disabled: true',
+      '  keep_me:',
+      '    command: python',
+      '    args:',
+      '      - -m',
+      '      - my_server',
+      '',
+      'agent:',
+      '  max_turns: 100',
+    ].join('\n');
+
+    const result = filterDisabledMcpServers(yaml);
+    expect(result).not.toContain('cindy_docs');
+    expect(result).not.toContain('disabled: true');
+    expect(result).toContain('keep_me:');
+    expect(result).toContain('command: python');
+    expect(result).toContain('model:\n  default: deepseek-flash');
+    expect(result).toContain('agent:\n  max_turns: 100');
+    expect(result).toContain('# Top comment');
+
+    const parsed = parseHermesMcpServers(result);
+    expect(parsed.cindy_docs).toBeUndefined();
+    expect(parsed.keep_me).toBeDefined();
+    expect(parsed.keep_me.command).toBe('python');
+  });
+
+  it('strips multiple disabled servers (first and last) leaving middle enabled', () => {
+    const yaml = [
+      'mcp_servers:',
+      '  first_disabled:',
+      '    command: node',
+      '    disabled: true',
+      '  middle_active:',
+      '    command: python',
+      '  last_disabled:',
+      '    url: https://example.com',
+      '    disabled: true',
+      '',
+      'custom_providers:',
+      '  - name: local',
+    ].join('\n');
+
+    const result = filterDisabledMcpServers(yaml);
+    expect(result).not.toContain('first_disabled');
+    expect(result).not.toContain('last_disabled');
+    expect(result).toContain('middle_active:');
+    expect(result).toContain('custom_providers:');
+
+    const parsed = parseHermesMcpServers(result);
+    expect(Object.keys(parsed)).toEqual(['middle_active']);
+  });
+
+  it('replaces mcp_servers: with mcp_servers: {} when all servers are disabled', () => {
+    const yaml = [
+      'model:',
+      '  default: deepseek-flash',
+      '',
+      'mcp_servers:',
+      '  disabled_a:',
+      '    command: node',
+      '    disabled: true',
+      '  disabled_b:',
+      '    command: python',
+      '    disabled: true',
+      '',
+      'agent:',
+      '  max_turns: 100',
+    ].join('\n');
+
+    const result = filterDisabledMcpServers(yaml);
+    expect(result).not.toContain('disabled_a');
+    expect(result).not.toContain('disabled_b');
+    expect(result).toContain('mcp_servers: {}');
+    expect(result).toContain('model:\n  default: deepseek-flash');
+    expect(result).toContain('agent:\n  max_turns: 100');
+
+    const parsed = parseHermesMcpServers(result);
+    expect(Object.keys(parsed)).toEqual([]);
+  });
+
+  it('removes server-preceding comments belonging to the disabled server while preserving comments for enabled servers', () => {
+    const yaml = [
+      'mcp_servers:',
+      '  # Cindy Docs Server',
+      '  cindy_docs:',
+      '    command: node',
+      '    disabled: true',
+      '',
+      '  # Active Server',
+      '  active_server:',
+      '    command: python',
+    ].join('\n');
+
+    const result = filterDisabledMcpServers(yaml);
+    expect(result).not.toContain('cindy_docs');
+    expect(result).not.toContain('# Cindy Docs Server');
+    expect(result).toContain('# Active Server');
+    expect(result).toContain('active_server:');
+  });
+
+  it('preserves CRLF line endings', () => {
+    const yaml = [
+      'model:',
+      '  default: deepseek-flash',
+      '',
+      'mcp_servers:',
+      '  disabled_one:',
+      '    command: node',
+      '    disabled: true',
+      '  active_one:',
+      '    command: python',
+      '',
+    ].join('\r\n');
+
+    const result = filterDisabledMcpServers(yaml);
+    expect(result).toContain('\r\n');
+    expect(result).not.toContain('disabled_one');
+    expect(result).toContain('active_one:');
   });
 });
 

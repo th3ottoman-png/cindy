@@ -10,6 +10,30 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — Debt: Filter disabled MCP servers in session homes (`unit-tested`)
+
+- **What:** Fixed the Debt item from 4.3b where Hermes 0.22.5 ignores `disabled: true` on `mcp_servers` at startup. When a user disables an MCP server in Settings → Tools → MCP Servers, `disabled: true` is persisted to `~/.hermes-cindy/config.yaml`. However, Hermes 0.22.5's gateway ignores `disabled: true` and still spawned and registered tools for all configured servers (e.g. `cindy_docs`). Fixed by implementing `filterDisabledMcpServers` in `packages/maker-hermes-manager/src/hermes-config.ts` and wiring it into `prepareSessionHome` (`packages/maker-hermes-manager/src/session-home.ts`) when materializing per-session home `config.yaml` files. Disabled MCP servers (`disabled: true`) are stripped out of the session home `config.yaml` so Hermes never sees or spawns them, while the base `~/.hermes-cindy/config.yaml` retains them so Settings toggles remain intact. All comments, enabled servers, and non-MCP blocks are preserved byte-for-byte; when all servers are disabled, `mcp_servers: {}` is emitted so Hermes receives an empty dictionary.
+- **Files:**
+  - `packages/maker-hermes-manager/src/hermes-config.ts`: Added `filterDisabledMcpServers(configYaml: string): string`.
+  - `packages/maker-hermes-manager/src/index.ts`: Re-exported `filterDisabledMcpServers`.
+  - `packages/maker-hermes-manager/src/session-home.ts`: Imported `filterDisabledMcpServers` and applied it to `text` before atomic write in `prepareSessionHome`.
+  - `packages/maker-hermes-manager/src/__tests__/hermes-config.test.ts`: Added 7 unit tests for `filterDisabledMcpServers` (absent block, all enabled, single disabled with comments/blocks preserved, multiple disabled, all disabled -> `mcp_servers: {}`, server comments stripped while next server comments kept, CRLF preserved).
+  - `packages/maker-hermes-manager/src/__tests__/session-home.test.ts`: Added unit test verifying `prepareSessionHome` strips disabled MCP servers from the session home config while preserving enabled servers and leaving base config intact.
+  - `ROADMAP.md`: Updated Debt entry to marked resolved with `unit-tested`.
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests:
+    - `hermes-config.test.ts`: 31/31 passed (including 7 new tests).
+    - `session-home.test.ts`: 24/24 passed (including 1 new test).
+    - `@cindy/maker-hermes-manager`: 146/146 tests passed.
+  - Gates green under Node 22.23.4 / pnpm 10.33.2:
+    - `pnpm typecheck` passed (exit code 0 across all 37 workspace projects).
+    - `pnpm check:test-hygiene` passed (exit code 0, 361 files within baseline).
+    - `pnpm test:runner` passed (exit code 0, 608 passed, 0 failed, 2 skipped).
+    - `pnpm test:unit:related` passed (exit code 0 across all workspace packages).
+
+---
+
 ## 2026-11-05 — 3.2c: Auto-select expert model in draft (`unit-tested`)
 
 - **What:** Implemented auto-selection of an expert's model in the new task draft (ROADMAP 3.2c). When an expert with a configured `model:` is selected in `HermesExpertPicker` or loaded as pending (e.g. via "Ask expert" handoff from `AskExpertMenu` / `startExpertHandoff`), the expert's model is resolved via `resolveExpertDraftModel` (mapping `routing.yaml` route names like `local-small` to target model `qwen3-8b` when defined, or falling back to the raw model ID) and applied to the Hermes draft preferences (`patchActiveTuplePrefs` / `patchVendorPrefs('hermes', { model })`), updating the composer's `ModelSelector` so users do not hit the wrong-route send refusal. Handoff RPC `maker:experts:handoff` now returns `model?: string` and `prefillExpertHandoffDraft` sets the model directly into draft preferences. Subsequent manual model changes by the user after selecting an expert are preserved and not clobbered on re-render. Switching back to "No expert" clears applied tracking.

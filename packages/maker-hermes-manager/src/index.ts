@@ -25,6 +25,7 @@ export {
   readHermesMcpServers,
   writeHermesMcpServer,
   removeHermesMcpServer,
+  filterDisabledMcpServers,
   type HermesDefaultRoute,
 } from './hermes-config.js';
 export {

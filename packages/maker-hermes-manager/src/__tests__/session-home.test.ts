@@ -89,6 +89,39 @@ describe('prepareSessionHome', () => {
     );
   });
 
+  it('strips disabled MCP servers when preparing session home config while keeping base config intact', async () => {
+    const baseWithMcp = [
+      'model:',
+      '  default: fake/model',
+      '',
+      'mcp_servers:',
+      '  cindy_docs:',
+      '    command: node',
+      '    args:',
+      '      - ./shim.mjs',
+      '    disabled: true',
+      '  cindy_active:',
+      '    command: node',
+      '    args:',
+      '      - ./active.mjs',
+      '    disabled: false',
+      '',
+    ].join('\n');
+    fs.writeFileSync(path.join(base, 'config.yaml'), baseWithMcp);
+
+    const { home } = await prepareSessionHome(base, 's-mcp-filter');
+    const sessionConfig = fs.readFileSync(path.join(home, 'config.yaml'), 'utf8');
+
+    // In the session home config, cindy_docs is stripped completely so Hermes 0.22.5 never starts it
+    expect(sessionConfig).not.toContain('cindy_docs');
+    expect(sessionConfig).toContain('cindy_active:');
+    expect(sessionConfig).toContain('command: node');
+
+    // In the base config, cindy_docs remains intact with disabled: true
+    const baseConfig = fs.readFileSync(path.join(base, 'config.yaml'), 'utf8');
+    expect(baseConfig).toBe(baseWithMcp);
+  });
+
   it('replaces a symlinked config.yaml with a regular file and leaves its target alone', async () => {
     const { home } = await prepareSessionHome(base, 's1');
     const shared = path.join(base, 'shared-config.yaml');

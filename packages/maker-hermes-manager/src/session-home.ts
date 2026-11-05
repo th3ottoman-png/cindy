@@ -16,6 +16,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { filterDisabledMcpServers } from './hermes-config.js';
 
 export const SESSION_HOMES_DIRNAME = 'session-homes';
 
@@ -118,16 +119,17 @@ export async function prepareSessionHome(
     // No base config: the session home starts with an empty one.
   }
   const text = opts.transformConfig ? opts.transformConfig(baseConfig, { sessionId, home }) : baseConfig;
+  const filteredText = filterDisabledMcpServers(text);
   const configPath = path.join(home, 'config.yaml');
   const current = await lstatOrNull(configPath);
   if (current?.isSymbolicLink()) await fs.unlink(configPath);
   let same = false;
   if (current && !current.isSymbolicLink()) {
-    same = (await fs.readFile(configPath, 'utf8').catch(() => null)) === text;
+    same = (await fs.readFile(configPath, 'utf8').catch(() => null)) === filteredText;
   }
   if (!same) {
     const tmp = path.join(home, `.config.yaml.${randomBytes(6).toString('hex')}.tmp`);
-    await fs.writeFile(tmp, text, { mode: 0o600 });
+    await fs.writeFile(tmp, filteredText, { mode: 0o600 });
     await fs.rename(tmp, configPath);
   }
   return { home, linked, skipped };
