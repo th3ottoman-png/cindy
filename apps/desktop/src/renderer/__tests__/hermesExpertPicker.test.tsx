@@ -266,4 +266,31 @@ describe('Hermes expert draft card (ROADMAP 3.8)', () => {
     expect(html).toContain('data-testid="hermes-expert-draft-approve"');
     expect(html).toContain('data-testid="hermes-expert-draft-reject"');
   });
+
+  it('does not duplicate Model/Memory/Tags in header dl when model is set, letting YAML preview show them without repeating', async () => {
+    const { HermesExpertDraftCardView } = await import('@/features/cc-agent/HermesExpertDraftCard');
+    const html = renderToStaticMarkup(
+      <HermesExpertDraftCardView
+        request={{
+          requestId: 'r2',
+          sessionId: 's2',
+          draft: { slug: 'uk-fm', name: 'UK FM Writer', description: 'Writes.', model: 'deepseek-v4-pro', tags: ['sales'], memory: true, prompt: 'p' },
+          targetDir: '/home/o/.cindy-harness/experts/uk-fm',
+          markdown: '---\nname: UK FM Writer\nmodel: deepseek-v4-pro\nmemory: true\ntags:\n  - sales\n---\nPrompt\n',
+          createdAt: 0,
+          expiresAt: 1,
+        }}
+        busy={false}
+        note=""
+        onNoteChange={() => undefined}
+        onDecide={() => undefined}
+      />,
+    );
+    expect(html).toContain('Writes');
+    expect(html).toContain('/home/o/.cindy-harness/experts/uk-fm/expert.md');
+    // Header dl does not repeat Model/Memory/Tags rows since markdown YAML preview already displays them
+    expect(html).not.toMatch(/<dt[^>]*>Memory<\/dt>/);
+    expect(html).not.toMatch(/<dt[^>]*>Tags<\/dt>/);
+    expect(html).not.toMatch(/<dt[^>]*>Model<\/dt>/);
+  });
 });

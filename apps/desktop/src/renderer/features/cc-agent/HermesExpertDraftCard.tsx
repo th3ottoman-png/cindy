@@ -34,18 +34,13 @@ export function HermesExpertDraftCardView({
       style={WINDOW_NO_DRAG_STYLE}
     >
       <div className="font-medium">New expert draft: {draft.name}</div>
-      <div className="text-xs text-[var(--status-bar-meta)]">{draft.description}</div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
         <dt className="text-[var(--status-bar-meta)]">Writes</dt>
         <dd className="break-all font-mono">{request.targetDir}/expert.md</dd>
-        <dt className="text-[var(--status-bar-meta)]">Model</dt>
-        <dd>{draft.model ?? 'session model (no route set)'}</dd>
-        <dt className="text-[var(--status-bar-meta)]">Memory</dt>
-        <dd>{draft.memory ? 'on' : 'off'}</dd>
-        {draft.tags.length > 0 && (
+        {!draft.model && (
           <>
-            <dt className="text-[var(--status-bar-meta)]">Tags</dt>
-            <dd>{draft.tags.join(', ')}</dd>
+            <dt className="text-[var(--status-bar-meta)]">Model</dt>
+            <dd>session model (no route set)</dd>
           </>
         )}
       </dl>

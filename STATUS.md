@@ -10,6 +10,20 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — Debt: Deduplicate header rows in expert draft card (`unit-tested`)
+
+- **What:** Fixed the Debt item from 3.8b where `HermesExpertDraftCard.tsx` repeated header metadata rows (`description`, `Model` when set, `Memory`, `Tags`) in the `<dl>` above the markdown `<pre>` block, overlapping the exact YAML frontmatter preview displayed at the top of the markdown block. The `<dl>` block was simplified to display the essential target path `Writes: <path>/expert.md`, and only notes `Model: session model (no route set)` when `model` is omitted from frontmatter so the user knows the draft inherits the session model. All other frontmatter fields (`model`, `memory`, `tags`, `description`) are displayed cleanly and authoritatively in the YAML preview itself without repetition.
+- **Files:**
+  - `apps/desktop/src/renderer/features/cc-agent/HermesExpertDraftCard.tsx`: Removed redundant subtitle description, Model when set, Memory, and Tags from `<dl>`.
+  - `apps/desktop/src/renderer/__tests__/hermesExpertPicker.test.tsx`: Added unit test confirming header `<dl>` does not duplicate Model/Memory/Tags when model is set, letting the markdown YAML preview show them without repeating.
+  - `ROADMAP.md`: Marked `Expert draft card draws the Writes/Model/Memory/Tags rows two or three times...` as fixed (`unit-tested`).
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests: `hermesExpertPicker.test.tsx` (13/13 passed, including 2 draft card tests).
+  - Gates green under Node 22.
+
+---
+
 ## 2026-11-05 — Debt: Copy hermes-bridge-shim.mjs into packaged build resources (`unit-tested`)
 
 - **What:** Fixed the Debt item where packaged desktop builds did not ship `hermes-bridge-shim.mjs`. In packaged releases, `resolveHermesBridgeShimPath` looks for `path.join(process.resourcesPath, 'hermes-bridge-shim', 'hermes-bridge-shim.mjs')`, but no packaging script copied the bundled shim there, causing packaged releases to run without Cindy bridge tools. Fixed by:
