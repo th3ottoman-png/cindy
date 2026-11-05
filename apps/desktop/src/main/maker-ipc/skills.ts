@@ -28,10 +28,13 @@ import {
   type InstallSkillResult,
   type SkillScanReport,
 } from '@cindy/maker-core/skills';
+import { loadExpert } from '@cindy/maker-core/experts';
+import matter from 'gray-matter';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { isValidExpertSlug } from './expertSessions.js';
 import { MAKER_INVOKE, MAKER_PUSH } from './channels.js';
 import type { IpcHandlerRegistry } from './ipcHandlerRegistry.js';
 
@@ -86,6 +89,8 @@ export interface SkillsHostDeps {
   tmpdir?(): string;
   /** Prepared-clone TTL in ms (tests inject a small value). Default 10 minutes. */
   preparedTtlMs?: number;
+  /** Experts root directory (production: ~/.cindy-harness/experts). */
+  expertsRootDir?: string;
 }
 
 export interface SkillsHost {
@@ -94,6 +99,7 @@ export interface SkillsHost {
   install(request: unknown): Promise<InstallSkillResult>;
   setEnabled(request: unknown): Promise<SkillsView>;
   uninstall(request: unknown): Promise<SkillsView>;
+  addToExpert(id: unknown, slug: unknown): Promise<{ ok: true; slug: string; skillName: string }>;
 }
 
 const GIT_URL_RE = /^(https:\/\/\S+|git@[^:\s]+:\S+|ssh:\/\/\S+)$/;
@@ -273,6 +279,84 @@ export function createSkillsHost(deps: SkillsHostDeps): SkillsHost {
       if (!result.ok) throw new Error(result.message);
       return this.list();
     },
+
+    async addToExpert(id: unknown, slug: unknown): Promise<{ ok: true; slug: string; skillName: string }> {
+      if (typeof id !== 'string' || !id.includes('/')) {
+        throw new Error('invalid skill id');
+      }
+      const slash = id.indexOf('/');
+      const category = requireSlug(id.slice(0, slash), 'category');
+      const name = requireSlug(id.slice(slash + 1), 'name');
+
+      if (typeof slug !== 'string' || !isValidExpertSlug(slug)) {
+        throw new Error('invalid expert slug');
+      }
+
+      const { skillsRoot, disabledRoot } = deps.roots();
+      const enabledPath = path.join(skillsRoot, category, name);
+      const disabledPath = path.join(disabledRoot, category, name);
+      let skillSourceDir: string;
+      if (fs.existsSync(enabledPath)) {
+        skillSourceDir = enabledPath;
+      } else if (fs.existsSync(disabledPath)) {
+        skillSourceDir = disabledPath;
+      } else {
+        throw new Error(`unknown skill: ${category}/${name}`);
+      }
+
+      const rootDir = deps.expertsRootDir ?? path.join(os.homedir(), '.cindy-harness', 'experts');
+      const expertDir = path.join(rootDir, slug);
+      const loadedExpert = loadExpert(expertDir);
+      if (loadedExpert.error) {
+        throw new Error(`cannot update expert "${slug}": ${loadedExpert.error}`);
+      }
+      if (!loadedExpert.expert || loadedExpert.expert.agent !== 'hermes') {
+        throw new Error(`expert "${slug}" not found or not a hermes agent`);
+      }
+
+      // 1. Update expert.md frontmatter skills list
+      const expertFile = path.join(expertDir, 'expert.md');
+      const raw = fs.readFileSync(expertFile, 'utf8');
+      const parsed = matter(raw, {});
+      const data = { ...(parsed.data as Record<string, unknown>) };
+      const currentSkills: string[] = Array.isArray(data.skills)
+        ? (data.skills as unknown[]).filter((s): s is string => typeof s === 'string')
+        : [];
+      if (!currentSkills.includes(name)) {
+        currentSkills.push(name);
+      }
+      data.skills = currentSkills;
+      const text = matter.stringify(parsed.content, data, { lineWidth: -1 } as Parameters<typeof matter.stringify>[2]);
+      const newMarkdown = text.endsWith('\n') ? text : `${text}\n`;
+
+      const tmpExpertFile = path.join(expertDir, `.expert.md.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+      fs.writeFileSync(tmpExpertFile, newMarkdown);
+      fs.renameSync(tmpExpertFile, expertFile);
+
+      // 2. Copy skill directory into expert's skills/<name>
+      const expertSkillsDir = path.join(expertDir, 'skills');
+      fs.mkdirSync(expertSkillsDir, { recursive: true });
+      const targetSkillDir = path.join(expertSkillsDir, name);
+      if (!fs.existsSync(targetSkillDir)) {
+        const tmpSkillDir = path.join(expertSkillsDir, `.skill-${name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+        fs.mkdirSync(tmpSkillDir, { recursive: true });
+        try {
+          fs.cpSync(skillSourceDir, tmpSkillDir, {
+            recursive: true,
+            filter: (src) => {
+              const base = path.basename(src);
+              return !(base === '.git' || base === 'node_modules');
+            },
+          });
+          fs.renameSync(tmpSkillDir, targetSkillDir);
+        } catch (err) {
+          fs.rmSync(tmpSkillDir, { recursive: true, force: true });
+          throw err;
+        }
+      }
+
+      return { ok: true, slug, skillName: name };
+    },
   };
 }
 
@@ -311,5 +395,12 @@ export function registerSkillsHandlers(registry: IpcHandlerRegistry, deps: Skill
     const fresh = await deps.host.uninstall(request);
     deps.broadcast(MAKER_PUSH.SKILLS_CHANGED);
     return fresh;
+  });
+  registry.handle(MAKER_INVOKE.SKILLS_ADD_TO_EXPERT, async (event, request: unknown) => {
+    deps.assertTrusted(event);
+    const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
+    const res = await deps.host.addToExpert(r.id, r.slug);
+    deps.broadcast(MAKER_PUSH.EXPERTS_CHANGED);
+    return res;
   });
 }

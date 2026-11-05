@@ -5612,6 +5612,11 @@ interface ElectronAPI {
         category: string;
         name: string;
       }) => Promise<import('../main/maker-ipc/skills').SkillsView>;
+      /** ROADMAP 4.4: add a skill to an expert's skills list and directory. */
+      addToExpert: (
+        id: string,
+        slug: string,
+      ) => Promise<{ ok: true; slug: string; skillName: string }>;
       /** Fires after install/toggle/uninstall; no payload — refetch the list. */
       onChanged: (cb: () => void) => () => void;
     };

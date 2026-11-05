@@ -287,6 +287,108 @@ describe('skills host (ROADMAP 4.4b)', () => {
       roots.cleanup();
     }
   });
+
+  describe('addToExpert (ROADMAP 4.4)', () => {
+    function makeExpert(root: string, slug: string, agent = 'hermes') {
+      const dir = path.join(root, slug);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(
+        path.join(dir, 'expert.md'),
+        `---\nname: ${slug}\nagent: ${agent}\ndescription: test expert\ntags: [testing]\n---\nPrompt body\n`,
+        'utf8',
+      );
+      return dir;
+    }
+
+    it('adds a skill to an expert frontmatter and copies the skill directory', async () => {
+      const roots = makeRoots();
+      const expertsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cindy-test-experts-'));
+      try {
+        makeExpert(expertsRoot, 'reviewer');
+        writeSkill(path.join(roots.skillsRoot, 'community', 'my-skill'), 'my-skill', { 'helper.py': 'print("hi")\n' });
+
+        const host = createSkillsHost(deps(roots, { expertsRootDir: expertsRoot }));
+        const res = await host.addToExpert('community/my-skill', 'reviewer');
+
+        expect(res).toEqual({ ok: true, slug: 'reviewer', skillName: 'my-skill' });
+
+        // expert.md frontmatter updated
+        const md = fs.readFileSync(path.join(expertsRoot, 'reviewer', 'expert.md'), 'utf8');
+        expect(md).toContain('skills:');
+        expect(md).toContain('my-skill');
+        expect(md).toContain('tags:');
+
+        // skill folder copied into expert's skills/ directory
+        const copiedSkill = path.join(expertsRoot, 'reviewer', 'skills', 'my-skill');
+        expect(fs.existsSync(path.join(copiedSkill, 'SKILL.md'))).toBe(true);
+        expect(fs.readFileSync(path.join(copiedSkill, 'helper.py'), 'utf8')).toBe('print("hi")\n');
+      } finally {
+        roots.cleanup();
+        fs.rmSync(expertsRoot, { recursive: true, force: true });
+      }
+    });
+
+    it('is idempotent: calling twice does not duplicate skill entry in frontmatter', async () => {
+      const roots = makeRoots();
+      const expertsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cindy-test-experts-'));
+      try {
+        makeExpert(expertsRoot, 'reviewer');
+        writeSkill(path.join(roots.skillsRoot, 'community', 'my-skill'), 'my-skill');
+
+        const host = createSkillsHost(deps(roots, { expertsRootDir: expertsRoot }));
+        await host.addToExpert('community/my-skill', 'reviewer');
+        const res = await host.addToExpert('community/my-skill', 'reviewer');
+
+        expect(res).toEqual({ ok: true, slug: 'reviewer', skillName: 'my-skill' });
+
+        const md = fs.readFileSync(path.join(expertsRoot, 'reviewer', 'expert.md'), 'utf8');
+        const matches = md.match(/my-skill/g);
+        expect(matches).toHaveLength(1);
+      } finally {
+        roots.cleanup();
+        fs.rmSync(expertsRoot, { recursive: true, force: true });
+      }
+    });
+
+    it('can copy from disabledRoot if skill is currently disabled', async () => {
+      const roots = makeRoots();
+      const expertsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cindy-test-experts-'));
+      try {
+        makeExpert(expertsRoot, 'reviewer');
+        writeSkill(path.join(roots.disabledRoot, 'community', 'off-skill'), 'off-skill');
+
+        const host = createSkillsHost(deps(roots, { expertsRootDir: expertsRoot }));
+        const res = await host.addToExpert('community/off-skill', 'reviewer');
+
+        expect(res).toEqual({ ok: true, slug: 'reviewer', skillName: 'off-skill' });
+        expect(fs.existsSync(path.join(expertsRoot, 'reviewer', 'skills', 'off-skill', 'SKILL.md'))).toBe(true);
+      } finally {
+        roots.cleanup();
+        fs.rmSync(expertsRoot, { recursive: true, force: true });
+      }
+    });
+
+    it('refuses invalid slug, unknown skill, or non-Hermes expert', async () => {
+      const roots = makeRoots();
+      const expertsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cindy-test-experts-'));
+      try {
+        makeExpert(expertsRoot, 'codex-bot', 'codex');
+        makeExpert(expertsRoot, 'reviewer', 'hermes');
+        writeSkill(path.join(roots.skillsRoot, 'community', 'my-skill'), 'my-skill');
+
+        const host = createSkillsHost(deps(roots, { expertsRootDir: expertsRoot }));
+
+        await expect(host.addToExpert('community/my-skill', '')).rejects.toThrow('invalid expert slug');
+        await expect(host.addToExpert('invalid-id', 'reviewer')).rejects.toThrow('invalid skill id');
+        await expect(host.addToExpert('community/missing', 'reviewer')).rejects.toThrow('unknown skill');
+        await expect(host.addToExpert('community/my-skill', 'nonexistent')).rejects.toThrow('cannot update expert');
+        await expect(host.addToExpert('community/my-skill', 'codex-bot')).rejects.toThrow('not a hermes agent');
+      } finally {
+        roots.cleanup();
+        fs.rmSync(expertsRoot, { recursive: true, force: true });
+      }
+    });
+  });
 });
 
 describe('skills IPC (ROADMAP 4.4b)', () => {
@@ -303,10 +405,11 @@ describe('skills IPC (ROADMAP 4.4b)', () => {
       })),
       setEnabled: vi.fn(async () => freshView),
       uninstall: vi.fn(async () => freshView),
+      addToExpert: vi.fn(async () => ({ ok: true as const, slug: 'reviewer', skillName: 'my-skill' })),
     };
   }
 
-  it('all five channels require a trusted sender; an untrusted call never reaches the host', async () => {
+  it('all six channels require a trusted sender; an untrusted call never reaches the host', async () => {
     const host = hostStub();
     const harness = new IpcHarness();
     registerSkillsHandlers(harness, {
@@ -322,11 +425,13 @@ describe('skills IPC (ROADMAP 4.4b)', () => {
     await expect(harness.invoke(MAKER_INVOKE.SKILLS_INSTALL, { source: 'local', path: '/x', category: 'c' })).rejects.toThrow('untrusted sender');
     await expect(harness.invoke(MAKER_INVOKE.SKILLS_SET_ENABLED, { category: 'c', name: 'n', enabled: false })).rejects.toThrow('untrusted sender');
     await expect(harness.invoke(MAKER_INVOKE.SKILLS_UNINSTALL, { category: 'c', name: 'n' })).rejects.toThrow('untrusted sender');
+    await expect(harness.invoke(MAKER_INVOKE.SKILLS_ADD_TO_EXPERT, { id: 'c/n', slug: 'reviewer' })).rejects.toThrow('untrusted sender');
     expect(host.list).not.toHaveBeenCalled();
     expect(host.scan).not.toHaveBeenCalled();
     expect(host.install).not.toHaveBeenCalled();
     expect(host.setEnabled).not.toHaveBeenCalled();
     expect(host.uninstall).not.toHaveBeenCalled();
+    expect(host.addToExpert).not.toHaveBeenCalled();
   });
 
   it('scan returns the report without broadcasting; install/set-enabled/uninstall broadcast changed', async () => {
@@ -354,5 +459,10 @@ describe('skills IPC (ROADMAP 4.4b)', () => {
     expect(uninstallResult).toEqual(freshView);
     expect(broadcast).toHaveBeenCalledTimes(3);
     expect(assertTrusted).toHaveBeenCalledTimes(4);
+
+    const addResult = await harness.invoke(MAKER_INVOKE.SKILLS_ADD_TO_EXPERT, { id: 'community/x', slug: 'reviewer' });
+    expect(host.addToExpert).toHaveBeenCalledWith('community/x', 'reviewer');
+    expect(addResult).toEqual({ ok: true, slug: 'reviewer', skillName: 'my-skill' });
+    expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.EXPERTS_CHANGED);
   });
 });

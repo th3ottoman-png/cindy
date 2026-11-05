@@ -117,4 +117,42 @@ describe('Settings skills manager (ROADMAP 4.4b)', () => {
   it('testid suffixes are sanitized', () => {
     expect(skillsTestIdSuffix('community/a b/c_d')).toBe('community-a-b-c-d');
   });
+
+  describe('Add to expert dropdown (ROADMAP 4.4c)', () => {
+    it('renders "Add to expert…" select with available Hermes experts', () => {
+      const html = renderList([row('community/alpha')], {
+        expertOptions: [
+          { slug: 'researcher', name: 'Researcher' },
+          { slug: 'coder', name: 'Code Expert' },
+        ],
+        onAddToExpert: () => undefined,
+      });
+      expect(html).toContain('data-testid="skills-add-expert-community-alpha"');
+      expect(html).toContain('Add to expert…');
+      expect(html).toContain('value="researcher"');
+      expect(html).toContain('>Researcher</option>');
+      expect(html).toContain('value="coder"');
+      expect(html).toContain('>Code Expert</option>');
+    });
+
+    it('renders disabled select with "No experts" when expert list is empty', () => {
+      const html = renderList([row('community/alpha')], {
+        expertOptions: [],
+        onAddToExpert: () => undefined,
+      });
+      expect(html).toContain('data-testid="skills-add-expert-community-alpha"');
+      expect(html).toMatch(/<select[^>]*disabled=""[^>]*data-testid="skills-add-expert-community-alpha"/);
+      expect(html).toContain('No experts');
+    });
+
+    it('disables the select while an addition is in flight', () => {
+      const html = renderList([row('community/alpha')], {
+        expertOptions: [{ slug: 'researcher', name: 'Researcher' }],
+        addingToExpert: 'community/alpha',
+        onAddToExpert: () => undefined,
+      });
+      expect(html).toMatch(/<select[^>]*disabled=""[^>]*data-testid="skills-add-expert-community-alpha"/);
+    });
+  });
 });
+

@@ -10,6 +10,34 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — 4.4c: Add skill to expert affordance (`live-proven`)
+
+- **What:** Finalised ROADMAP row 4.4 by adding an "Add to expert…" shortcut affordance to each skill row in Settings → Tools → Hermes Skills (`SkillsSection.tsx`), mirroring the 4.3c pattern from the MCP catalog. Supported by IPC channel `maker:skills:add-to-expert` (`SKILLS_ADD_TO_EXPERT`) and `addToExpert(id, slug)` on `SkillsHost` in `apps/desktop/src/main/maker-ipc/skills.ts`. The implementation validates the expert slug via `isValidExpertSlug`, verifies that the skill exists in either the enabled `skillsRoot` or disabled `disabledRoot`, checks that the expert exists under `~/.cindy-harness/experts/<slug>` and is an active Hermes expert (`agent: hermes`), atomically updates the `skills:` frontmatter list in `expert.md` via `gray-matter` (preserving existing frontmatter and body), and atomically copies the skill directory into `~/.cindy-harness/experts/<slug>/skills/<name>` (excluding `.git` and `node_modules`). Broadcasts `maker:experts:changed` upon completion. Exposed via `preload.ts` (`window.electronAPI.maker.skills.addToExpert`). The UI loads available Hermes experts via `maker.experts.list()`, renders a select dropdown per skill row (disabled while pending or when no experts exist), displays temporary success ("Added <skill> to <expert>.") or error feedback that auto-clears after 4 seconds, and handles error states. Also raised the Vitest timeout for `sources.test.ts` (large 2242 file import test) to 30,000 ms to prevent transient test timeouts under full suite concurrent load, and synchronized the design inventory document.
+- **Files:**
+  - `apps/desktop/src/main/maker-ipc/channels.ts`: Added `SKILLS_ADD_TO_EXPERT`.
+  - `apps/desktop/src/main/maker-ipc/skills.ts`: Added `addToExpert(id, slug)` to `SkillsHost` with atomic frontmatter update, directory copy, and `SKILLS_ADD_TO_EXPERT` IPC handler broadcasting `EXPERTS_CHANGED`.
+  - `apps/desktop/src/main/maker-ipc/__tests__/skills.test.ts`: Added 4 unit tests covering `addToExpert` frontmatter update, directory copying, idempotency, disabled root copying, error handling, and IPC registration (16 tests total).
+  - `apps/desktop/src/preload/preload.ts`: Exposed `window.electronAPI.maker.skills.addToExpert(id, slug)`.
+  - `apps/desktop/src/renderer/vite-env.d.ts`: Added type definitions for `addToExpert`.
+  - `apps/desktop/src/renderer/components/settings/SkillsSection.tsx`: Added "Add to expert…" select dropdown per skill row in `SkillsListView`, loaded loadable Hermes experts, wired `addToExpert` action and feedback banner.
+  - `apps/desktop/src/renderer/components/settings/__tests__/SkillsSection.test.tsx`: Added unit tests for expert options rendering, disabled states, and in-flight addition (11 tests total).
+  - `apps/desktop/src/main/bot-import/__tests__/sources.test.ts`: Added 30,000 ms timeout to prevent transient timeout under full test suite load.
+  - `docs/design-rules/design-inventory.md`: Updated via `pnpm design:inventory` for new settings UI surface token/radius hashes.
+  - `ROADMAP.md`: Marked row 4.4 as `live-proven`.
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests: 16/16 passed in `skills.test.ts`, 11/11 passed in `SkillsSection.test.tsx`, 68/68 passed in `sources.test.ts`.
+  - Gates green under Node 22.23.4 / pnpm 10.33.2:
+    - `pnpm typecheck` passed cleanly across all 37 workspace packages.
+    - `pnpm test:runner` passed (608 pass, 0 fail, 2 skipped).
+    - `pnpm check:test-hygiene` passed (361 files within baseline).
+    - `pnpm test:unit:related` passed with exit code 0 via the sanctioned split:
+      - `node scripts/test-workspaces.mjs --tier unit --related --exclude-workspace apps/desktop` passed (exit 0).
+      - `XDT_UNIT_TEST_SHARD=i/8 node scripts/test-workspaces.mjs --tier unit --related --workspace apps/desktop` (shards 1 to 8 all passed, exit 0, 0 SIGSEGV).
+- **Still open:** The owner's 4.5 done-test; 5.4b scheduled sessions; 3.7 Hermes as Orca lead UI; remaining in 3.2: auto-selecting expert model in draft, Claude Code/Codex/Pi experts.
+
+---
+
 ## 2026-11-05 — 5.2b: Session export to Markdown (`live-proven`)
 
 - **What:** Completed the session export feature, connecting the pure session export logic in `@cindy/maker-core/session-export` to the desktop application and SQLite message store. Implemented `buildExportSession` in `@cindy/maker-core` to map stored messages (`StoredMessageInput`, `SessionMetadataInput`) into `ExportSession`: pairs tool calls and tool results by `toolUseId` and chronological adjacency, embeds tool calls under assistant speech turns, preserves speech turns before and after tool calls, and filters synthetic UI triggers. Created desktop host `SessionExportHost` and IPC handlers (`maker:session:export-markdown`, `maker:session:export-pick-folder`) with input validation, session & message fetching via `getSessionRowSnapshot` and `listMessagesForAgentHandoff`, atomic export via `writeSessionExport`, and native folder picker. Exposed through `preload.ts` (`window.electronAPI.maker.sessionExport`). Added `SessionMarkdownExportDialog` offering a choice between the configured Notes Vault (`vaultDir`) and a custom folder with browser picker (defaulting to vault if configured, custom folder otherwise), ensuring nothing writes to the vault without explicit user selection. Integrated export affordance ("Export to Markdown...") in `SessionContentHeader`'s `···` task menu and `SessionItem` sidebar context menu. Live-proven against real Hermes session `8f0179d4-bdd6-49bb-a688-90c894d1509b` (123 DB messages, 60 tool calls) generating valid Markdown with YAML frontmatter, headings, collapsed `<details>` tool calls, and atomic collision handling (103,825 bytes).

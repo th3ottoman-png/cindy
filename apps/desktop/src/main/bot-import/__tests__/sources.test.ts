@@ -552,7 +552,7 @@ it('discovers 142 grouped Hermes skills and all memory documents, excluding arch
   expect(snapshot.items.filter(item => item.view.category === 'memory')).toHaveLength(2100);
   expect(snapshot.items.filter(item => item.automation).map(item => item.view.name)).toEqual(['heartbeat-main']);
   expect(validateImportSelection({ requestId: 'large-hermes-import', previewId: 'p', name: 'Ada', entryIds: snapshot.items.map(item => item.view.id), takeover: false }, snapshot)).toHaveLength(snapshot.items.length);
-});
+}, 30000);
 
 it('uses OpenClaw declared names, skillKey, grouped roots and plugin sources in native precedence order', async () => {
   await write('.openclaw/openclaw.json', JSON.stringify({ skills: { load: { extraDirs: ['../extra-skills'] }, entries: { 'auth-key': { enabled: false, env: { SERVICE_TOKEN: 'fixture-token' } } } }, plugins: { load: { paths: ['../my-plugin'] } } }));

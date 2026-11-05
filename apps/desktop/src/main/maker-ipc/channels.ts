@@ -71,6 +71,8 @@ export const MAKER_INVOKE = {
   SKILLS_SET_ENABLED: 'maker:skills:set-enabled',
   /** ROADMAP 4.4b: remove an installed (non-builtin) skill folder for good. */
   SKILLS_UNINSTALL: 'maker:skills:uninstall',
+  /** ROADMAP 4.4: associate an installed skill with an expert. */
+  SKILLS_ADD_TO_EXPERT: 'maker:skills:add-to-expert',
   /** ROADMAP 2.1b: providers.yaml entries plus file issues (read-only). */
   PROVIDERS_LIST: 'maker:providers:list',
   /** ROADMAP 2.2b: probe each providers.yaml endpoint for online/offline and models. */

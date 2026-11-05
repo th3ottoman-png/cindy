@@ -38,11 +38,25 @@ export interface SkillsListViewProps {
   pending: string | null;
   /** Row id waiting for the second uninstall click. */
   confirmingUninstall: string | null;
+  /** Hermes experts loadable for the "Add to expert…" shortcut. */
+  expertOptions?: Array<{ slug: string; name: string }>;
+  /** Skill id whose addToExpert request is in flight. */
+  addingToExpert?: string | null;
   onToggle: (id: string, enabled: boolean) => void;
   onUninstall: (id: string) => void;
+  onAddToExpert?: (id: string, slug: string) => void;
 }
 
-export function SkillsListView({ skills, pending, confirmingUninstall, onToggle, onUninstall }: SkillsListViewProps) {
+export function SkillsListView({
+  skills,
+  pending,
+  confirmingUninstall,
+  expertOptions,
+  addingToExpert,
+  onToggle,
+  onUninstall,
+  onAddToExpert,
+}: SkillsListViewProps) {
   return (
     <div className={SETTINGS_CARD_CLASS}>
       {skills.length === 0 ? (
@@ -75,6 +89,28 @@ export function SkillsListView({ skills, pending, confirmingUninstall, onToggle,
                   {skill.description ? <span className={SETTINGS_ROW_HINT_CLASS}>{skill.description}</span> : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {onAddToExpert ? (
+                    <select
+                      aria-label={`Add ${skill.name} to expert`}
+                      className="h-7 max-w-[9rem] truncate rounded-md border border-[var(--border-subtle)] bg-transparent px-1.5 text-11 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] disabled:opacity-50"
+                      value=""
+                      disabled={addingToExpert === skill.id || !expertOptions || expertOptions.length === 0}
+                      onChange={(e) => {
+                        const slug = e.target.value;
+                        if (slug) onAddToExpert(skill.id, slug);
+                      }}
+                      data-testid={`skills-add-expert-${suffix}`}
+                    >
+                      <option value="" disabled>
+                        {!expertOptions || expertOptions.length === 0 ? 'No experts' : 'Add to expert…'}
+                      </option>
+                      {expertOptions?.map((opt) => (
+                        <option key={opt.slug} value={opt.slug}>
+                          {opt.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
                   {skill.builtin ? null : (
                     <button
                       type="button"
@@ -198,9 +234,13 @@ export function ScanReportView({ report, installing, onInstall }: ScanReportView
 
 export function SkillsSection() {
   const api = window.electronAPI?.maker?.skills;
+  const expertsApi = window.electronAPI?.maker?.experts;
   const [view, setView] = useState<SkillsView | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [confirmingUninstall, setConfirmingUninstall] = useState<string | null>(null);
+  const [expertOptions, setExpertOptions] = useState<Array<{ slug: string; name: string }>>([]);
+  const [addingToExpert, setAddingToExpert] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const [mode, setMode] = useState<'local' | 'git'>('local');
   const [localPath, setLocalPath] = useState('');
   const [gitUrl, setGitUrl] = useState('');
@@ -226,6 +266,27 @@ export function SkillsSection() {
     const off = api.onChanged(() => void refresh());
     return off;
   }, [api, refresh]);
+
+  useEffect(() => {
+    if (!expertsApi) return;
+    let cancelled = false;
+    void expertsApi.list().then((list) => {
+      if (cancelled) return;
+      const hermes = list
+        .filter((e) => e.expert?.agent === 'hermes')
+        .map((e) => ({ slug: e.slug, name: e.expert!.name }));
+      setExpertOptions(hermes);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [expertsApi]);
+
+  useEffect(() => {
+    if (!status) return undefined;
+    const t = setTimeout(() => setStatus(null), 4000);
+    return () => clearTimeout(t);
+  }, [status]);
 
   if (!api) return null;
 
@@ -254,6 +315,21 @@ export function SkillsSection() {
       setView(await api.uninstall({ category: categoryPart, name }));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleAddToExpert = async (id: string, slug: string) => {
+    setAddingToExpert(id);
+    setError(null);
+    setStatus(null);
+    try {
+      const res = await api.addToExpert(id, slug);
+      const expertName = expertOptions.find((o) => o.slug === slug)?.name ?? slug;
+      setStatus(`Added ${res.skillName} to ${expertName}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAddingToExpert(null);
     }
   };
 
@@ -321,8 +397,11 @@ export function SkillsSection() {
         skills={view?.skills ?? []}
         pending={pending}
         confirmingUninstall={confirmingUninstall}
+        expertOptions={expertOptions}
+        addingToExpert={addingToExpert}
         onToggle={(id, enabled) => void handleToggle(id, enabled)}
         onUninstall={(id) => void handleUninstall(id)}
+        onAddToExpert={(id, slug) => void handleAddToExpert(id, slug)}
       />
 
       <div className={cn(SETTINGS_CARD_CLASS, 'flex flex-col gap-2 p-3')} data-testid="skills-install-form">
@@ -417,6 +496,12 @@ export function SkillsSection() {
 
       {scan && !scan.candidates ? (
         <ScanReportView report={scan.report} installing={installing} onInstall={() => void handleInstall()} />
+      ) : null}
+
+      {status ? (
+        <div role="status" className="rounded-lg border border-emerald-500/40 px-3 py-2 text-12 text-emerald-500">
+          {status}
+        </div>
       ) : null}
 
       {error ? (

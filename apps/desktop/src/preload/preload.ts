@@ -6361,6 +6361,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         name: string;
       }): Promise<import('../main/maker-ipc/skills').SkillsView> =>
         ipcRenderer.invoke('maker:skills:uninstall', request),
+      addToExpert: (
+        id: string,
+        slug: string,
+      ): Promise<{ ok: true; slug: string; skillName: string }> =>
+        ipcRenderer.invoke('maker:skills:add-to-expert', { id, slug }),
       onChanged: fanOutMakerSkillsChanged,
     },
     vault: {
