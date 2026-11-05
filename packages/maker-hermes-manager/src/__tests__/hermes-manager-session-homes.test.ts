@@ -185,6 +185,26 @@ describe('HermesManager per-session homes (fake hermes)', () => {
       expect(warm.home).toBe(sessionHomePath(h.home, 'a'));
       expect(warm.probe).toBe('sess-a');
     });
+
+    it('does not race when query/send immediately follows query/start without delay', async () => {
+      const h = current!;
+      const before = h.notes.filter((n) => n.method === NOTIFICATIONS.SESSION_CLOSED).length;
+      await h.client.request(
+        METHODS.QUERY_START,
+        { sessionId: 'race-test', cwd: h.dir, permissionMode: 'bypassPermissions' },
+        { timeoutMs: 5_000 },
+      );
+      // Immediately send turn without waiting for prewarm gateway spawn
+      const sendRes = await h.client.request(
+        METHODS.QUERY_SEND,
+        { sessionId: 'race-test', text: 'hello prewarm' },
+        { timeoutMs: 5_000 },
+      );
+      expect(sendRes).toBeDefined();
+      await until(() => h.notes.filter((n) => n.method === NOTIFICATIONS.SESSION_CLOSED).length > before);
+      const sessionSpawns = spawns(h).filter((s) => s.home === sessionHomePath(h.home, 'race-test'));
+      expect(sessionSpawns.length).toBeGreaterThanOrEqual(1);
+    });
   });
 
   describe('orphan homes at startup', () => {

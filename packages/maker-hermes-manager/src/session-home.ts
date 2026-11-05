@@ -108,8 +108,20 @@ export async function prepareSessionHome(
       skipped.push(item);
       continue;
     }
-    await fs.symlink(source, target);
-    linked.push(item);
+    try {
+      await fs.symlink(source, target);
+      linked.push(item);
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === 'EEXIST') {
+        const link = await fs.readlink(target).catch(() => null);
+        if (link === source) {
+          linked.push(item);
+          continue;
+        }
+      }
+      throw error;
+    }
   }
 
   let baseConfig = '';
@@ -122,7 +134,7 @@ export async function prepareSessionHome(
   const filteredText = filterDisabledMcpServers(text);
   const configPath = path.join(home, 'config.yaml');
   const current = await lstatOrNull(configPath);
-  if (current?.isSymbolicLink()) await fs.unlink(configPath);
+  if (current?.isSymbolicLink()) await fs.unlink(configPath).catch(() => {});
   let same = false;
   if (current && !current.isSymbolicLink()) {
     same = (await fs.readFile(configPath, 'utf8').catch(() => null)) === filteredText;

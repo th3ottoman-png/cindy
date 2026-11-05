@@ -10,6 +10,39 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — Debt: `query/start` prewarm race with immediate `query/send` (`unit-tested`)
+
+- **What:** Resolved Debt row 186 where `query/start`'s background gateway prewarm raced against an immediate scripted `query/send`, causing `query/send` to fail with `INTERNAL: could not prepare the session home: EEXIST …/skills`.
+  1. **In-Flight Preparation Deduplication (`HermesManager`):**
+     - In `packages/maker-hermes-manager/src/hermes-manager.ts`, added `inFlightHomePrepares = new Map<string, Promise<string>>()`.
+     - `homeForSession(sessionId)` checks for an in-flight preparation promise for `sessionId` and returns it directly if present.
+     - When initiating a new preparation, the promise is stored in `inFlightHomePrepares` and deleted in `finally`.
+     - On `stop()`, `inFlightHomePrepares.clear()` ensures proper lifecycle teardown.
+     - Result: `query/send` arriving immediately after `query/start` cleanly awaits the in-flight prewarm preparation instead of initiating redundant and colliding filesystem operations.
+  2. **Filesystem Re-entrancy & Symlink Resilience (`session-home.ts`):**
+     - In `prepareSessionHome` (`packages/maker-hermes-manager/src/session-home.ts`), wrapped `fs.symlink(source, target)` in a try/catch.
+     - If an `EEXIST` error is encountered, it inspects `fs.readlink(target)`. If the target already points to `source`, it treats the link as successfully established and continues.
+     - Protected `fs.unlink(configPath)` with `.catch(() => {})` against race conditions.
+  3. **Unit Tests:**
+     - Added test in `session-home.test.ts`: "handles concurrent preparations for the same session cleanly without EEXIST" (`Promise.all` running 4 concurrent preparations).
+     - Added test in `hermes-manager-session-homes.test.ts`: "does not race when query/send immediately follows query/start without delay".
+- **Files:**
+  - `packages/maker-hermes-manager/src/hermes-manager.ts`: Deduplicate in-flight session home preparations in `homeForSession`.
+  - `packages/maker-hermes-manager/src/session-home.ts`: Tolerate concurrent `EEXIST` when symlink target matches desired source.
+  - `packages/maker-hermes-manager/src/__tests__/hermes-manager-session-homes.test.ts`: Added immediate send regression test.
+  - `packages/maker-hermes-manager/src/__tests__/session-home.test.ts`: Added concurrent session home preparation test.
+  - `ROADMAP.md`: Marked Debt row 186 as fixed (`unit-tested`).
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests: `packages/maker-hermes-manager` (151/151 passed).
+  - All 4 required gates green under Node 22:
+    - `pnpm typecheck`: green (exit code 0).
+    - `pnpm test:runner`: green (exit code 0, 608 tests passed).
+    - `pnpm check:test-hygiene`: green (exit code 0, 361 files within baseline).
+    - `pnpm test:unit:related`: green (non-desktop workspaces passed; desktop unit tests shards 1-8 all passed with exit code 0).
+
+---
+
 ## 2026-11-05 — 4.5: Extension author guide review and sign-off (`unit-tested`)
 
 - **What:** Completed the extension author guide review and sign-off for ROADMAP Phase 4.5. Reviewed `docs/extending.md` against the current codebase state, updated all stale claims, documented schema and evaluation rules for `tools.yaml`, documented frontmatter and sibling file options, and re-verified all 5 worked example files under `docs/examples/extending/`.

@@ -80,6 +80,20 @@ describe('prepareSessionHome', () => {
     expect(fs.readdirSync(again.home).filter((name) => name.endsWith('.tmp'))).toEqual([]);
   });
 
+  it('handles concurrent preparations for the same session cleanly without EEXIST', async () => {
+    const results = await Promise.all([
+      prepareSessionHome(base, 'concurrent-s'),
+      prepareSessionHome(base, 'concurrent-s'),
+      prepareSessionHome(base, 'concurrent-s'),
+      prepareSessionHome(base, 'concurrent-s'),
+    ]);
+    expect(results).toHaveLength(4);
+    for (const res of results) {
+      expect(res.home).toBe(results[0].home);
+      expect(res.linked.sort()).toEqual(['.env', 'auth.json', 'installs', 'skills']);
+    }
+  });
+
   it('applies transformConfig (the hook 1.5b-5c uses for shim entries)', async () => {
     const { home } = await prepareSessionHome(base, 's7', {
       transformConfig: (config, ctx) => `${config}# session ${ctx.sessionId}\n`,

@@ -121,6 +121,8 @@ export class HermesManager {
   private readonly defaultPreamble?: string;
   private readonly logger?: ManagerLogger;
   private readonly sessionHomes?: SessionHomeOptions;
+  /** In-flight home preparations deduplicated by sessionId to prevent concurrent prewarm/send races. */
+  private readonly inFlightHomePrepares = new Map<string, Promise<string>>();
   /** Session homes whose gateway this daemon may have started; stopped on close/stop. */
   private readonly gatewayHomes = new Set<string>();
 
@@ -176,6 +178,7 @@ export class HermesManager {
   }
 
   async stop(): Promise<void> {
+    this.inFlightHomePrepares.clear();
     const kills: Array<Promise<void>> = [];
     for (const [, turn] of this.running) {
       turn.killed = true;
@@ -189,9 +192,21 @@ export class HermesManager {
   /** The home a session's turns run in: the shared home, or the session's own when enabled. */
   private async homeForSession(sessionId: string): Promise<string> {
     if (!this.sessionHomes) return this.hermesHome;
-    const prepared = await prepareSessionHome(this.hermesHome, sessionId, this.sessionHomes);
-    this.gatewayHomes.add(prepared.home);
-    return prepared.home;
+    const inFlight = this.inFlightHomePrepares.get(sessionId);
+    if (inFlight) return inFlight;
+
+    const preparePromise = (async () => {
+      try {
+        const prepared = await prepareSessionHome(this.hermesHome, sessionId, this.sessionHomes);
+        this.gatewayHomes.add(prepared.home);
+        return prepared.home;
+      } finally {
+        this.inFlightHomePrepares.delete(sessionId);
+      }
+    })();
+
+    this.inFlightHomePrepares.set(sessionId, preparePromise);
+    return preparePromise;
   }
 
   /** Start the session's gateway ahead of its first turn (hides the cold start). Best effort. */
