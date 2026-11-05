@@ -230,7 +230,10 @@ describe('complete personal Skills with bounded startup projection', () => {
     await importBotSkillFiles(userDataDir, botId, 'imported', [{ name: 'SKILL.md',
       bytes: Buffer.from('---\nname: imported\ndescription: Imported\n---\nSteps'), executable: false }], () => {});
     expect((await collect()).skills.map(item => item.name)).toEqual(['imported', 'report']);
-    await writeSkill('report', '---\nname: report\ndescription: Hand edited\n---\nSteps');
+    const reportPath = await writeSkill('report', '---\nname: report\ndescription: Hand edited\n---\nSteps');
+    const futureTime = new Date(Date.now() + 5000);
+    await fs.utimes(reportPath, futureTime, futureTime);
+    await fs.utimes(path.join(botSkillRootDir(userDataDir, botId), 'skills'), futureTime, futureTime);
     await vi.waitFor(async () => expect((await collect()).skills.find(item => item.name === 'report')?.description).toBe('Hand edited'));
     await deleteBotSkill(userDataDir, botId, 'imported');
     expect((await collect()).skills.map(item => item.name)).toEqual(['report']);

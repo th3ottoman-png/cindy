@@ -10,6 +10,41 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — Debt: Test suite flake & timing hardening (Rows 169, 170, 178, 181) (`unit-tested`)
+
+- **What:** Resolved four open test suite timing and load flake items from `ROADMAP.md` §Debt to ensure rock-solid determinism across gate runs:
+  1. **Row 169 (`preRunHook.test.ts`)**:
+     - *Issue*: "预检耗尽超时预算" (1 ms budget) failed occasionally under full-suite load due to real wall-clock timing races before checking timeout budgets.
+     - *Fix*: In `apps/desktop/src/main/scheduler-host/__tests__/preRunHook.test.ts`, replaced wall-clock race with deterministic mocked `Date.now` ticks (+10ms per tick) via `vi.spyOn(Date, 'now')`. Guarantees `timeoutMs - (Date.now() - startedAt) <= 0` evaluates immediately without spawning real processes.
+     - *Verification*: 27/27 tests passed.
+  2. **Row 170 (`sources.test.ts`)**:
+     - *Issue*: "discovers 142 grouped Hermes skills…" timed out at the default 5s budget under parallel unit tier load.
+     - *Fix*: Verified explicit 30,000ms test timeout configured for the test in `apps/desktop/src/main/bot-import/__tests__/sources.test.ts`.
+     - *Verification*: 68/68 tests passed.
+  3. **Row 178 (`botSkillRuntimeProjection.test.ts`)**:
+     - *Issue*: "refreshes after typed mutations, hand edits…" failed intermittently when mtime didn't advance sufficiently fast for `sourceStamp` to detect file hand edits before `waitFor` timeout.
+     - *Fix*: In `apps/desktop/src/main/maker-ipc/__tests__/botSkillRuntimeProjection.test.ts`, stamped future mtime (+5000ms) on both the hand-edited skill file and the skills shelf directory via `fs.utimes`.
+     - *Verification*: 9/9 tests passed (step latency dropped from 68ms to 17ms).
+  4. **Row 181 (`fetch-with-timeout.test.mjs`)**:
+     - *Issue*: Mock HTTP server emitted `HTTP 408 Request Timeout` under heavy multi-core load; 150ms test margin was tight.
+     - *Fix*: In `scripts/__tests__/fetch-with-timeout.test.mjs`, disabled Node.js HTTP server default timeouts (`server.requestTimeout = 0`, `server.headersTimeout = 0`) and widened explicit timeout margin from 150ms to 250ms.
+     - *Verification*: 17/17 tests passed.
+- **Files:**
+  - `apps/desktop/src/main/scheduler-host/__tests__/preRunHook.test.ts`
+  - `apps/desktop/src/main/maker-ipc/__tests__/botSkillRuntimeProjection.test.ts`
+  - `scripts/__tests__/fetch-with-timeout.test.mjs`
+  - `ROADMAP.md`
+  - `STATUS.md`
+- **Verification:**
+  - Unit tests: All touched test suites pass cleanly.
+  - All 4 gates green under Node 22:
+    - `pnpm typecheck`: exit code 0 across all 37 workspaces.
+    - `pnpm test:runner`: exit code 0, 608 passed.
+    - `pnpm test:unit:related`: exit code 0 across all suites.
+    - `pnpm check:test-hygiene`: exit code 0, 361 files within baseline.
+
+---
+
 ## 2026-11-05 — Debt: `lazy-create` `agentKind` fallback on rebuilt sessions (`unit-tested`)
 
 - **What:** Resolved Debt row 172 where a Hermes session rebuilt before send or loaded in the renderer had its in-memory `agentKind` overwritten to `'claude-code'`, causing subsequent message queue items and lazy-create calls to pass `createOpts.agentKind: 'claude-code'` which main had to reconcile with `log.warn('lazy-create: createOpts agentKind drifted from DB (agent switch); reconciling')`.

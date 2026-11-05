@@ -225,15 +225,24 @@ describe.skipIf(process.platform === 'win32')('前置检查命令语法预检', 
 
   it('预检耗尽超时预算 → 直接 timed_out,不再启动真实命令', async () => {
     spawnCalls.count = 0;
-    const result = await executePreRunHook({
-      command: 'node -e "process.exit(0)"',
-      timeoutMs: 1,
-      stdinPayload: payload,
+    let ticks = 0;
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => {
+      ticks += 10;
+      return 1_700_000_000_000 + ticks;
     });
-    expect(result.status).toBe('timed_out');
-    expect(result.decision).toBe('block');
-    expect(result.timedOut).toBe(true);
-    expect(spawnCalls.count).toBe(0);
+    try {
+      const result = await executePreRunHook({
+        command: 'node -e "process.exit(0)"',
+        timeoutMs: 1,
+        stdinPayload: payload,
+      });
+      expect(result.status).toBe('timed_out');
+      expect(result.decision).toBe('block');
+      expect(result.timedOut).toBe(true);
+      expect(spawnCalls.count).toBe(0);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   it('预检响应取消信号:已取消时不再预检,执行返回 aborted', async () => {

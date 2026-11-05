@@ -57,6 +57,9 @@ before(async () => {
       res.end('err');
     }
   });
+  // 禁用 Node.js 内置 HTTP 服务器超时，避免在多核高负载下意外返回 HTTP 408 Request Timeout
+  server.requestTimeout = 0;
+  server.headersTimeout = 0;
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -128,11 +131,11 @@ test('fetchJsonWithTimeout: env 覆盖 JSON deadline(优先于 60s 默认)', asy
 });
 
 test('fetchJsonWithTimeout: 显式入参优先于 env', async () => {
-  // env 给大值,显式入参给 150ms —— 若显式没赢,本用例会等到 env 值(远超测试超时)才失败。
+  // env 给大值,显式入参给 250ms —— 若显式没赢,本用例会等到 env 值(远超测试超时)才失败。
   process.env.XDT_AGENTBIN_TOTAL_TIMEOUT_MS = '600000';
   try {
     await assert.rejects(
-      () => fetchJsonWithTimeout(`${base}/slow.json`, {}, { totalTimeoutMs: 150 }),
+      () => fetchJsonWithTimeout(`${base}/slow.json`, {}, { totalTimeoutMs: 250 }),
       (err) => err instanceof TimeoutError && err.kind === 'total',
     );
   } finally {
