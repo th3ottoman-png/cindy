@@ -57,6 +57,18 @@ export const MAKER_INVOKE = {
   VAULT_SET_CONFIG: 'maker:vault:set-config',
   /** ROADMAP 5.1: native open directory picker for notes vault. */
   VAULT_PICK_FOLDER: 'maker:vault:pick-folder',
+  /** ROADMAP 5.4b: get local scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
+  SCHEDULED_SESSIONS_GET_CONFIG: 'maker:scheduled-sessions:get-config',
+  /** ROADMAP 5.4b: set local scheduled sessions directory path. */
+  SCHEDULED_SESSIONS_SET_CONFIG: 'maker:scheduled-sessions:set-config',
+  /** ROADMAP 5.4b: native open directory picker for scheduled sessions directory. */
+  SCHEDULED_SESSIONS_PICK_FOLDER: 'maker:scheduled-sessions:pick-folder',
+  /** ROADMAP 5.4b: list configured scheduled sessions. */
+  SCHEDULED_SESSIONS_LIST: 'maker:scheduled-sessions:list',
+  /** ROADMAP 5.4b: trigger immediate execution of a scheduled session. */
+  SCHEDULED_SESSIONS_RUN_NOW: 'maker:scheduled-sessions:run-now',
+  /** ROADMAP 5.4b: get state of scheduled sessions (~/.cindy-harness/schedules-state.json). */
+  SCHEDULED_SESSIONS_GET_STATE: 'maker:scheduled-sessions:get-state',
   /** ROADMAP 5.2b: export session transcript to Markdown into a directory. */
   SESSION_EXPORT_MARKDOWN: 'maker:session:export-markdown',
   /** ROADMAP 5.2b: directory picker for session export destination. */
@@ -1016,6 +1028,8 @@ export const MAKER_PUSH = {
   SKILLS_CHANGED: 'maker:skills:changed',
   /** ROADMAP 5.1: local notes vault configuration changed; payload is fresh VaultConfigView. */
   VAULT_CHANGED: 'maker:vault:changed',
+  /** ROADMAP 5.4b: scheduled sessions configuration or state changed; no payload — renderer refetches. */
+  SCHEDULED_SESSIONS_CHANGED: 'maker:scheduled-sessions:changed',
   TURN_CHANGE_SET_UPDATED: 'maker:turn-change-set:updated',
   STATUS_CHANGED: 'maker:status-changed',
   /** 用户从独立 Computer Use 授权引导浮窗主动取消。 */

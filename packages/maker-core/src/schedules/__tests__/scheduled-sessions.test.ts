@@ -5,7 +5,22 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { nextRun, parseCron } from '../../../../maker-scheduler/src/engine/cron';
-import { buildScheduledPrompt, dueSchedules, loadSchedules, parseSchedule, resolveOutputPath, type CronApi, type Schedule } from '../scheduled-sessions';
+import {
+  buildScheduledPrompt,
+  defaultSchedulesDir,
+  dueSchedules,
+  loadSchedules,
+  parseSchedule,
+  readScheduleState,
+  readSchedulesConfig,
+  recordScheduleRun,
+  resolveOutputPath,
+  updateFirstSeenSchedules,
+  writeScheduleState,
+  writeSchedulesConfig,
+  type CronApi,
+  type Schedule,
+} from '../scheduled-sessions';
 
 // The real upstream cron implementation, not a fake: the contract is that it satisfies CronApi.
 const cron: CronApi = { parseCron, nextRun };
@@ -125,5 +140,86 @@ describe('resolveOutputPath / buildScheduledPrompt', () => {
     const p = buildScheduledPrompt({ id: 'job', cron: '0 8 * * 1-5', prompt: 'Do the thing.' }, now);
     expect(p.startsWith('[Scheduled run "job" (0 8 * * 1-5) at 2026-10-30T08:00:00.000Z.')).toBe(true);
     expect(p.endsWith('\n\nDo the thing.')).toBe(true);
+  });
+});
+
+describe('ScheduleState and SchedulesConfig persistence (ROADMAP 5.4b)', () => {
+  let tempDir: string;
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sched-state-'));
+  });
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('reads and writes schedule state atomically', () => {
+    const stateFile = path.join(tempDir, 'state.json');
+    // Missing file returns empty state
+    expect(readScheduleState(stateFile)).toEqual({ lastRunMs: {}, firstSeenMs: {}, lastRuns: {} });
+
+    // Write state
+    writeScheduleState(stateFile, {
+      lastRunMs: { job1: 1000 },
+      firstSeenMs: { job1: 500 },
+      lastRuns: {
+        job1: { status: 'success', at: 1000, notePath: 'schedules/job1.md', sessionId: 'sess-1' },
+      },
+    });
+
+    const read = readScheduleState(stateFile);
+    expect(read.lastRunMs.job1).toBe(1000);
+    expect(read.firstSeenMs.job1).toBe(500);
+    expect(read.lastRuns?.job1?.status).toBe('success');
+    expect(read.lastRuns?.job1?.sessionId).toBe('sess-1');
+  });
+
+  it('reads and writes schedules config atomically', () => {
+    const configFile = path.join(tempDir, 'config.json');
+    // Missing file returns default schedules dir
+    const def = readSchedulesConfig(configFile);
+    expect(def.config.schedulesDir).toBe(defaultSchedulesDir());
+
+    // Write custom config
+    writeSchedulesConfig(configFile, { schedulesDir: '/custom/schedules' });
+    const custom = readSchedulesConfig(configFile);
+    expect(custom.config.schedulesDir).toBe('/custom/schedules');
+  });
+
+  it('updates firstSeenMs for newly seen schedules without overwriting existing', () => {
+    const state = {
+      lastRunMs: { known1: 1000 },
+      firstSeenMs: { known2: 800 },
+    };
+    const s1 = ok('---\nexpert: a\ncron: "0 8 * * *"\n---\nx', '/s/known1.md');
+    const s2 = ok('---\nexpert: a\ncron: "0 8 * * *"\n---\nx', '/s/known2.md');
+    const s3 = ok('---\nexpert: a\ncron: "0 8 * * *"\n---\nx', '/s/fresh.md');
+
+    const changed = updateFirstSeenSchedules([s1, s2, s3], state, 2000);
+    expect(changed).toBe(true);
+    expect(state.firstSeenMs.known2).toBe(800);
+    expect(state.firstSeenMs.fresh).toBe(2000);
+    expect(state.firstSeenMs.known1).toBeUndefined();
+
+    // Calling again with the same schedules causes no changes
+    const changed2 = updateFirstSeenSchedules([s1, s2, s3], state, 3000);
+    expect(changed2).toBe(false);
+  });
+
+  it('records schedule run status and updates lastRunMs', () => {
+    const state = {
+      lastRunMs: {},
+      firstSeenMs: { job1: 500 },
+    };
+    recordScheduleRun(state, 'job1', {
+      status: 'success',
+      at: 1500,
+      notePath: 'schedules/2026-10-30.md',
+    });
+    expect(state.lastRunMs.job1).toBe(1500);
+    expect(state.lastRuns?.job1).toEqual({
+      status: 'success',
+      at: 1500,
+      notePath: 'schedules/2026-10-30.md',
+    });
   });
 });

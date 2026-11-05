@@ -57,6 +57,7 @@ import { HermesSection } from './HermesSection';
 import { ExpertsSection } from './ExpertsSection';
 import { PluginsSection } from './PluginsSection';
 import { VaultSection } from './VaultSection';
+import { ScheduledSessionsSection } from './ScheduledSessionsSection';
 import { McpCatalogSection, MCP_CATALOG_COLLAPSE_STORAGE_KEY } from './McpCatalogSection';
 import { SkillsSection, SKILLS_COLLAPSE_STORAGE_KEY } from './SkillsSection';
 import { PiPackagesSection } from './PiPackagesSection';
@@ -516,6 +517,11 @@ export function SettingsView() {
                     {/* Local notes vault bridge (ROADMAP 5.1b) */}
                     <section id="settings-vault" className="py-[18px]" aria-label="Notes Vault">
                       <VaultSection />
+                    </section>
+
+                    {/* Scheduled sessions (ROADMAP 5.4b) */}
+                    <section id="settings-scheduled-sessions" className="py-[18px]" aria-label="Scheduled Sessions">
+                      <ScheduledSessionsSection />
                     </section>
 
                     {/* Section — Experimental (py 18). */}

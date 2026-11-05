@@ -803,6 +803,7 @@ const fanOutMakerExtPluginsChanged = createIpcFanOut('maker:ext-plugins:changed'
 const fanOutMakerMcpCatalogChanged = createIpcFanOut('maker:mcp-catalog:changed');
 const fanOutMakerSkillsChanged = createIpcFanOut('maker:skills:changed');
 const fanOutMakerVaultChanged = createIpcFanOut('maker:vault:changed');
+const fanOutMakerScheduledSessionsChanged = createIpcFanOut('maker:scheduled-sessions:changed');
 const fanOutMakerTurnChangeSetUpdated = createIpcFanOut('maker:turn-change-set:updated');
 const fanOutMakerStatusChanged = createIpcFanOut('maker:status-changed');
 const fanOutMakerInputProjection = createIpcFanOut('maker:input:projection');
@@ -6378,6 +6379,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
       pickFolder: (): Promise<string | null> =>
         ipcRenderer.invoke('maker:vault:pick-folder'),
       onChanged: fanOutMakerVaultChanged,
+    },
+    scheduledSessions: {
+      getConfig: (): Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView> =>
+        ipcRenderer.invoke('maker:scheduled-sessions:get-config'),
+      setConfig: (
+        schedulesDir: string,
+      ): Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView> =>
+        ipcRenderer.invoke('maker:scheduled-sessions:set-config', { schedulesDir }),
+      pickFolder: (): Promise<string | null> =>
+        ipcRenderer.invoke('maker:scheduled-sessions:pick-folder'),
+      list: (): Promise<import('../main/maker-ipc/scheduledSessions').ScheduleEntryView[]> =>
+        ipcRenderer.invoke('maker:scheduled-sessions:list'),
+      runNow: (
+        id: string,
+      ): Promise<import('@cindy/maker-core/scheduled-sessions').ScheduleRunRecord> =>
+        ipcRenderer.invoke('maker:scheduled-sessions:run-now', { id }),
+      getState: (): Promise<import('@cindy/maker-core/scheduled-sessions').ScheduleState> =>
+        ipcRenderer.invoke('maker:scheduled-sessions:get-state'),
+      onChanged: fanOutMakerScheduledSessionsChanged,
     },
     sessionExport: {
       exportMarkdown: (request: {

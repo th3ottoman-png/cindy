@@ -10,6 +10,38 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — 5.4b: Scheduled sessions (local) (`live-proven`)
+
+- **What:** Completed ROADMAP task 5.4 (Scheduled sessions - local). Connected pure file-backed schedule parsing from 5.4a (`@cindy/maker-core/scheduled-sessions`) to the desktop main process runtime, Notes Vault, and UI. Implemented configuration management (`~/.cindy-harness/schedules-config.json`) defaulting to `~/.cindy-harness/schedules/`, state persistence (`~/.cindy-harness/schedules-state.json`) with atomic writes (`writeAtomic`), and runtime execution host `ScheduledSessionsHost` in `apps/desktop/src/main/maker-ipc/scheduledSessions.ts`. Runs a 60-second background ticker evaluating `dueSchedules` via `@cindy/maker-scheduler` `parseCron`/`nextRun`. For each due schedule: verifies Notes Vault configuration (`~/.cindy-harness/vault.json`), verifies configured expert exists and is valid via `loadExpert`, spawns a session with `agentKind: 'hermes'`, binds expert session via `expertSessionStore`, streams turn response with prompt body, substitutes `{date}` in output path, appends result note to vault via `@cindy/maker-core/vault-notes` `appendNote`, updates run state atomically (`lastRunMs`, `firstSeenMs`, `lastRuns`), and broadcasts `maker:scheduled-sessions:changed`. Also supports manual "Run now" execution with concurrent execution lock per schedule. Exposed through IPC channels and `preload.ts` (`window.electronAPI.maker.scheduledSessions`). Created Settings UI `ScheduledSessionsSection.tsx` mounted in Settings → General tab right after Notes Vault, featuring schedules folder selector, Browse dialog, schedule cards, error banners, next-run calculations, last-run status badges, and manual "Run now" triggers. Live-proven against real schedule (`weekly-review.md`), real expert (`code-reviewer`), and real vault (`/Users/turko/Bishi-memory`), generating dated output note and persisting state.
+- **Files:**
+  - `packages/maker-core/src/schedules/scheduled-sessions.ts`: Added `ScheduleRunRecord`, `ScheduleState`, `SchedulesConfig`, `readScheduleState`, `writeScheduleState`, `readSchedulesConfig`, `writeSchedulesConfig`, `defaultSchedulesDir`, `defaultSchedulesConfigFile`, `defaultSchedulesStateFile`, `updateFirstSeenSchedules`, and `recordScheduleRun`.
+  - `packages/maker-core/src/schedules/__tests__/scheduled-sessions.test.ts`: Added 4 unit tests covering state and config reading/writing, `firstSeenMs` updates, and `recordScheduleRun` (15 tests total).
+  - `apps/desktop/src/main/maker-ipc/channels.ts`: Added IPC channels `SCHEDULED_SESSIONS_GET_CONFIG`, `SCHEDULED_SESSIONS_SET_CONFIG`, `SCHEDULED_SESSIONS_PICK_FOLDER`, `SCHEDULED_SESSIONS_LIST`, `SCHEDULED_SESSIONS_RUN_NOW`, `SCHEDULED_SESSIONS_GET_STATE`, and push channel `SCHEDULED_SESSIONS_CHANGED`.
+  - `apps/desktop/src/main/maker-ipc/scheduledSessions.ts`: Created `ScheduledSessionsHost` with ticker, runner, error handling, atomic state persistence, and IPC registration.
+  - `apps/desktop/src/main/maker-ipc/register.ts`: Registered `ScheduledSessionsHost` with Maker instance, expert session store, and cron API; started background ticker on boot with cleanup on `app.once('before-quit')`.
+  - `apps/desktop/src/preload/preload.ts`: Added push event listener `fanOutMakerScheduledSessionsChanged` and exposed `window.electronAPI.maker.scheduledSessions`.
+  - `apps/desktop/src/renderer/vite-env.d.ts`: Added type definitions for `scheduledSessions` API.
+  - `apps/desktop/src/main/maker-ipc/__tests__/scheduledSessions.test.ts`: Added 11 unit tests covering config, list, runNow, vault missing, expert missing, agent error, concurrency lock, and ticker.
+  - `apps/desktop/src/main/maker-ipc/__tests__/scheduledSessionsLive.test.ts`: Real live proof test against real filesystem, vault, and expert, verifying output note generation and state persistence.
+  - `apps/desktop/src/renderer/components/settings/ScheduledSessionsSection.tsx`: Created Settings UI component with folder selector, cards, error alerts, next run calculation, and Run now trigger.
+  - `apps/desktop/src/renderer/components/settings/__tests__/ScheduledSessionsSection.test.tsx`: Added 5 unit tests for rendering, cards, error state, vault missing state, and empty state.
+  - `apps/desktop/src/renderer/components/settings/SettingsView.tsx`: Mounted `ScheduledSessionsSection` under Settings → General.
+  - `docs/design-rules/design-inventory.md`: Synchronized design inventory via `pnpm design:inventory`.
+  - `ROADMAP.md`: Updated row 5.4 to `✅ live-proven`.
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests: 15/15 passed in `scheduled-sessions.test.ts`, 11/11 passed in `scheduledSessions.test.ts`, 5/5 passed in `ScheduledSessionsSection.test.tsx`.
+  - Live proof: `scheduledSessionsLive.test.ts` passed against real `~/.cindy-harness/schedules/weekly-review.md`, real `code-reviewer` expert, and real `/Users/turko/Bishi-memory` vault.
+  - Gates green under Node 22.23.4 / pnpm 10.33.2:
+    - `pnpm typecheck` passed (all 37 workspaces).
+    - `pnpm test:runner` passed (608 pass, 0 fail, 2 skipped).
+    - `pnpm check:test-hygiene` passed (361 files within baseline).
+    - `pnpm test:unit:related` passed with exit code 0 via the sanctioned split:
+      - `node scripts/test-workspaces.mjs --tier unit --related --exclude-workspace apps/desktop` passed (exit 0).
+      - `XDT_UNIT_TEST_SHARD=i/8 node scripts/test-workspaces.mjs --tier unit --related --workspace apps/desktop` (all 8 shards passed, exit 0, shard 4 passed standalone after known V8 GC teardown SIGSEGV).
+
+---
+
 ## 2026-11-05 — Collapsible MCP Servers and Hermes Skills sections in Tools (`unit-tested`)
 
 - **What:** Made the MCP Servers (`McpCatalogSection`) and Hermes Skills (`SkillsSection`) in the Settings → Tools tab (`activeTab === 'builtin-tools'`) collapsible, allowing users to collapse long lists of tools/skills with a single click. Added collapsible interactive header buttons inside `<h2>` (`aria-expanded`, chevron indicators, item count pill badges `entryCount` / `skillCount`), data-testids (`mcp-catalog-collapse-toggle`, `skills-collapse-toggle`), and persistent collapse states stored in `localStorage` under `cindy:settings:mcp-catalog-collapsed` and `cindy:settings:skills-collapsed`. Also added a top-level "Collapse all" / "Expand all" action button in `SettingsView.tsx` (`tools-collapse-all-button`) that toggles both sections simultaneously and persists their states. Added unit tests for both sections covering expanded/collapsed states and ARIA attributes.

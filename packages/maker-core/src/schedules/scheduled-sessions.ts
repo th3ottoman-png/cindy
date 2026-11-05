@@ -11,6 +11,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 
 import matter from 'gray-matter';
@@ -134,4 +135,125 @@ export function resolveOutputPath(s: Pick<Schedule, 'output'>, now: Date): strin
 /** The first message of the scheduled session: a fixed header, then the owner's prompt. */
 export function buildScheduledPrompt(s: Pick<Schedule, 'id' | 'cron' | 'prompt'>, now: Date): string {
   return `[Scheduled run "${s.id}" (${s.cron}) at ${now.toISOString()}. No one is watching this session: finish the task and reply with the result only.]\n\n${s.prompt}`;
+}
+
+export interface ScheduleRunRecord {
+  status: 'success' | 'error';
+  at: number;
+  error?: string;
+  notePath?: string;
+  sessionId?: string;
+}
+
+export interface ScheduleState {
+  lastRunMs: Record<string, number>;
+  firstSeenMs: Record<string, number>;
+  lastRuns?: Record<string, ScheduleRunRecord>;
+}
+
+export interface SchedulesConfig {
+  schedulesDir: string;
+}
+
+export function defaultSchedulesDir(): string {
+  return path.join(os.homedir(), '.cindy-harness', 'schedules');
+}
+
+export function defaultSchedulesConfigFile(): string {
+  return path.join(os.homedir(), '.cindy-harness', 'schedules-config.json');
+}
+
+export function defaultSchedulesStateFile(): string {
+  return path.join(os.homedir(), '.cindy-harness', 'schedules-state.json');
+}
+
+export function readScheduleState(stateFile: string): ScheduleState {
+  try {
+    const raw = fs.readFileSync(stateFile, 'utf8');
+    const doc = JSON.parse(raw);
+    if (doc && typeof doc === 'object') {
+      return {
+        lastRunMs: typeof doc.lastRunMs === 'object' && doc.lastRunMs !== null ? doc.lastRunMs : {},
+        firstSeenMs: typeof doc.firstSeenMs === 'object' && doc.firstSeenMs !== null ? doc.firstSeenMs : {},
+        lastRuns: typeof doc.lastRuns === 'object' && doc.lastRuns !== null ? doc.lastRuns : {},
+      };
+    }
+  } catch {
+    // Missing, unreadable, or invalid JSON
+  }
+  return { lastRunMs: {}, firstSeenMs: {}, lastRuns: {} };
+}
+
+export function writeScheduleState(stateFile: string, state: ScheduleState): void {
+  const dir = path.dirname(stateFile);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, `.${path.basename(stateFile)}.${process.pid}.${Date.now()}.tmp`);
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(state, null, 2) + '\n', 'utf8');
+    fs.renameSync(tmp, stateFile);
+  } catch (err) {
+    try {
+      fs.rmSync(tmp, { force: true });
+    } catch {
+      // Ignore cleanup error
+    }
+    throw err;
+  }
+}
+
+export function readSchedulesConfig(configFile: string): { config: SchedulesConfig; issue?: string } {
+  try {
+    const raw = fs.readFileSync(configFile, 'utf8');
+    const doc = JSON.parse(raw);
+    if (doc && typeof doc === 'object' && typeof doc.schedulesDir === 'string' && doc.schedulesDir.trim()) {
+      return { config: { schedulesDir: doc.schedulesDir.trim() } };
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      return { config: { schedulesDir: defaultSchedulesDir() }, issue: String(err) };
+    }
+  }
+  return { config: { schedulesDir: defaultSchedulesDir() } };
+}
+
+export function writeSchedulesConfig(configFile: string, config: SchedulesConfig): void {
+  const dir = path.dirname(configFile);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, `.${path.basename(configFile)}.${process.pid}.${Date.now()}.tmp`);
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(config, null, 2) + '\n', 'utf8');
+    fs.renameSync(tmp, configFile);
+  } catch (err) {
+    try {
+      fs.rmSync(tmp, { force: true });
+    } catch {
+      // Ignore cleanup error
+    }
+    throw err;
+  }
+}
+
+export function updateFirstSeenSchedules(
+  schedules: readonly Schedule[],
+  state: ScheduleState,
+  nowMs: number,
+): boolean {
+  let changed = false;
+  for (const s of schedules) {
+    if (state.lastRunMs[s.id] === undefined && state.firstSeenMs[s.id] === undefined) {
+      state.firstSeenMs[s.id] = nowMs;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+export function recordScheduleRun(
+  state: ScheduleState,
+  id: string,
+  record: ScheduleRunRecord,
+): void {
+  state.lastRunMs[id] = record.at;
+  if (!state.lastRuns) state.lastRuns = {};
+  state.lastRuns[id] = record;
 }

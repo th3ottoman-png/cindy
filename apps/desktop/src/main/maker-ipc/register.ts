@@ -923,6 +923,11 @@ import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
 import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNotes.js';
 import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
+import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
+import {
+  getDesktopScheduledSessionsHost,
+  registerScheduledSessionsHandlers,
+} from './scheduledSessions.js';
 import { MAKER_INVOKE, MAKER_PUSH, MAKER_SEND } from './channels.js';
 import type { CollabDispatchOutcome } from './collabSendOutcome.js';
 import {
@@ -25647,6 +25652,26 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   registerSessionExportHandlers(createElectronIpcHandlerRegistry(), {
     host: sessionExportHost,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+
+  // ── Scheduled sessions (ROADMAP 5.4b) ───────────────────────────
+  const scheduledSessionsHost = getDesktopScheduledSessionsHost({
+    maker: () => getMaker(),
+    expertSessionStore: getDesktopExpertSessionStore(),
+    cron: { parseCron, nextRun },
+    showOpenDialog: (options) => dialog.showOpenDialog(options),
+    notifyChanged: () => {
+      broadcastToAllWindows(MAKER_PUSH.SCHEDULED_SESSIONS_CHANGED, undefined);
+    },
+  });
+  registerScheduledSessionsHandlers(createElectronIpcHandlerRegistry(), {
+    host: scheduledSessionsHost,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
+  });
+  scheduledSessionsHost.startTicker();
+  app.once('before-quit', () => {
+    scheduledSessionsHost.stopTicker();
   });
 
   // ── Browser automation (Settings →「电脑使用」) ───────────────────────────

@@ -5630,6 +5630,22 @@ interface ElectronAPI {
       /** Fires when the vault configuration changes. */
       onChanged: (cb: (view: import('../main/maker-ipc/vaultNotes').VaultConfigView) => void) => () => void;
     };
+    scheduledSessions: {
+      /** ROADMAP 5.4b: get scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
+      getConfig: () => Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView>;
+      /** Set schedules folder path. */
+      setConfig: (schedulesDir: string) => Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView>;
+      /** Native directory picker. */
+      pickFolder: () => Promise<string | null>;
+      /** List configured scheduled sessions. */
+      list: () => Promise<import('../main/maker-ipc/scheduledSessions').ScheduleEntryView[]>;
+      /** Manually trigger immediate execution of a schedule. */
+      runNow: (id: string) => Promise<import('@cindy/maker-core/scheduled-sessions').ScheduleRunRecord>;
+      /** Get schedule state (~/.cindy-harness/schedules-state.json). */
+      getState: () => Promise<import('@cindy/maker-core/scheduled-sessions').ScheduleState>;
+      /** Fires when configuration or state changes. */
+      onChanged: (cb: () => void) => () => void;
+    };
     sessionExport: {
       /** ROADMAP 5.2b: export session transcript to Markdown file with tool calls collapsed. */
       exportMarkdown: (request: {
