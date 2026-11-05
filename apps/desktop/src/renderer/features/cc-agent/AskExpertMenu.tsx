@@ -48,7 +48,7 @@ export function AskExpertMenuView({
         if (event.target.value) onPick(event.target.value);
       }}
     >
-      <option value="">Ask expert…</option>
+      <option value="">Ask expert (new task)…</option>
       {goAhead && (
         <option value={GO_AHEAD_VALUE} title="Do the picked option in a new task in this folder, with no expert and this chat's access level">
           Go ahead (new task)
@@ -56,7 +56,7 @@ export function AskExpertMenuView({
       )}
       {options.map((o) => (
         <option key={o.slug} value={o.slug} title={o.title}>
-          {o.label}
+          {o.label} (new task)
         </option>
       ))}
     </select>

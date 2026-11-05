@@ -64,8 +64,9 @@ describe('Ask expert (ROADMAP 3.6b)', () => {
       />,
     );
     expect(html).toContain('data-testid="ask-expert"');
-    expect(html).toContain('Ask expert');
+    expect(html).toContain('Ask expert (new task)…');
     expect(html).toContain('value="code-reviewer"');
+    expect(html).toContain('Code Reviewer (new task)');
     expect(html).not.toContain('value="codex-one"');
     expect(html).not.toContain('value="broken"');
   });

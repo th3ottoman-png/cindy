@@ -55,20 +55,26 @@ describe('通用「新建」保留 newMakerDraft 选择', () => {
     expect(block).toContain('state: makeGenericNewMakerRouteState(location.pathname)');
   });
 
-  it('展开态 SidebarTopNav.handleNew 只 navigate、不清空 workingDir', () => {
+  it('展开态 SidebarTopNav.handleNew 只 navigate、不清空 workingDir，但在草稿页重置草稿与待定专家', () => {
     const block = extractHandlerBlock(topNavSource, 'handleNew');
     expect(block).toMatch(/navigate\(['`]\/cc-agent\/new['`]/);
     expect(block).not.toContain('workingDir: null');
+    expect(block).toContain("location.pathname === '/cc-agent/new'");
+    expect(block).toContain('discardDraft(NEW_MAKER_DRAFT_KEY)');
+    expect(block).toContain('setPending(null)');
     // 通用入口不再需要 patchDraft/patchNewMakerDraft,连 value import 都应移除。
     expect(topNavSource).not.toContain("from '@/state/newMakerDraft'");
   });
 
-  it('折叠态 CCAgentSidebarUpper.handleNewCCS 只 navigate、不清空 workingDir', () => {
+  it('折叠态 CCAgentSidebarUpper.handleNewCCS 只 navigate、不清空 workingDir，但在草稿页重置草稿与待定专家', () => {
     const block = extractHandlerBlock(sidebarUpperSource, 'handleNewCCS');
     expect(block).toMatch(
       /navigate\(['`]\/cc-agent\/new['`],\s*\{\s*state:\s*makeGenericNewMakerRouteState\(location.pathname\)\s*\}\)/,
     );
     expect(block).not.toContain('workingDir: null');
+    expect(block).toContain("location.pathname === '/cc-agent/new'");
+    expect(block).toContain('discardComposerDraft(NEW_MAKER_DRAFT_KEY)');
+    expect(block).toContain('setPending(null)');
   });
 
   it('显式「新建对话」入口仍清空 workingDir,但由创建页集中迁移目标', () => {

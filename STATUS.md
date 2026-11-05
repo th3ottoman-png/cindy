@@ -10,6 +10,32 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — Debt: Reset New Task composer draft when already on `/cc-agent/new` and clarify Ask Expert menu (`unit-tested`)
+
+- **What:** Investigated and resolved the Debt issue reported by the owner on 2026-11-03 where picking an expert from the session header menu opened a new task pre-filled with the copied conversation summary, and subsequently clicking "New task" on the left sidebar did nothing while the box had text until manually cleared:
+  1. **Menu Clarity (`AskExpertMenu.tsx`):** Clarified the dropdown menu placeholder from `Ask expert…` to `Ask expert (new task)…` and option labels from `<Expert>` to `<Expert> (new task)` (mirroring `Go ahead (new task)`). This eliminates ambiguity so the owner immediately recognizes the menu initiates a handoff task rather than attempting to mutate an existing Hermes session's immutable expert.
+  2. **New Task Reset (`SidebarTopNav.tsx`, `CCAgentSidebarUpper.tsx`, `MainLayout.tsx`):** When the user was already on `/cc-agent/new`, calling `navigate('/cc-agent/new')` was a no-op in React Router. Because the navigation did not execute and composer draft state was retained in `composerDraftStore`, clicking "New task" had no visible effect, making the UI appear locked until the user selected all text and deleted it. Now, when `location.pathname === '/cc-agent/new'`, triggering "New task" (via sidebar top nav `handleNew`, collapsed rail `handleNewCCS`, wheel knob `target.kind === 'new-task'`, or shortcut/command palette `newTask`) calls `discardDraft(NEW_MAKER_DRAFT_KEY)` to synchronously clear the live Tiptap editor and staged attachments, and resets any pending expert via `setPending(null)`.
+- **Files:**
+  - `apps/desktop/src/renderer/features/cc-agent/AskExpertMenu.tsx`: Updated placeholder to `Ask expert (new task)…` and expert options to `{o.label} (new task)`.
+  - `apps/desktop/src/renderer/components/sidebar/SidebarTopNav.tsx`: In `handleNew`, if `location.pathname === '/cc-agent/new'`, calls `discardDraft(NEW_MAKER_DRAFT_KEY)` and `setPending(null)`.
+  - `apps/desktop/src/renderer/features/cc-agent/CCAgentSidebarUpper.tsx`: In `handleNewCCS` and `ExpandedView` knob target, if `location.pathname === '/cc-agent/new'`, calls `discardComposerDraft(NEW_MAKER_DRAFT_KEY)` and `setPending(null)`.
+  - `apps/desktop/src/renderer/components/layout/MainLayout.tsx`: In `handleNewMakerShortcut`, `case 'new-maker'`, and command palette `case 'newTask'`, if already on `/cc-agent/new`, calls `discardDraft(NEW_MAKER_DRAFT_KEY)` and `setPending(null)`.
+  - `apps/desktop/src/renderer/features/cc-agent/__tests__/askExpertHandoff.test.tsx`: Updated unit tests verifying `(new task)` in placeholder and option labels.
+  - `apps/desktop/src/renderer/__tests__/newMakerGenericCreatePreservesDraft.test.ts`: Added assertions verifying draft and pending expert reset when "New task" is clicked on `/cc-agent/new`.
+  - `ROADMAP.md`: Marked debt item as fixed (`unit-tested`).
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests:
+    - `apps/desktop/src/renderer/features/cc-agent/__tests__/askExpertHandoff.test.tsx` (7/7 passed).
+    - `apps/desktop/src/renderer/__tests__/newMakerGenericCreatePreservesDraft.test.ts` (6/6 passed).
+  - All 4 required gates green under Node 22:
+    - `pnpm typecheck`: green (exit code 0).
+    - `pnpm test:runner`: green (exit code 0, 608 tests passed).
+    - `pnpm test:unit:related`: green (exit code 0).
+    - `pnpm check:test-hygiene`: green (exit code 0).
+
+---
+
 ## 2026-11-05 — Debt: Deduplicate header rows in expert draft card (`unit-tested`)
 
 - **What:** Fixed the Debt item from 3.8b where `HermesExpertDraftCard.tsx` repeated header metadata rows (`description`, `Model` when set, `Memory`, `Tags`) in the `<dl>` above the markdown `<pre>` block, overlapping the exact YAML frontmatter preview displayed at the top of the markdown block. The `<dl>` block was simplified to display the essential target path `Writes: <path>/expert.md`, and only notes `Model: session model (no route set)` when `model` is omitted from frontmatter so the user knows the draft inherits the session model. All other frontmatter fields (`model`, `memory`, `tags`, `description`) are displayed cleanly and authoritatively in the YAML preview itself without repetition.

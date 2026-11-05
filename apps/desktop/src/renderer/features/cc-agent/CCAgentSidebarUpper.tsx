@@ -319,6 +319,7 @@ import {
 import { resolveDialogueDeviceTarget, type DialogueDeviceTarget } from './lib/dialogueCreateTarget';
 import { makeDialogueNewMakerRouteState } from './lib/newMakerRouteState';
 import { makeGenericNewMakerRouteState } from './lib/genericNewMakerRouteState';
+import { NEW_MAKER_DRAFT_KEY } from './newMakerDraftKeys';
 
 const log = createLogger('CCAgentSidebarUpper');
 // perf-baseline(与 MessageStream 的 perf/session-switch 探针同通道):
@@ -2615,7 +2616,12 @@ function ExpandedView({
       const target = pickAdjacentSessionId(visibleIds, activeId, direction);
       if (!target) return;
       if (target.kind === 'new-task') {
-        navigate('/cc-agent/new', { state: makeGenericNewMakerRouteState(location.pathname) });
+        if (location.pathname === '/cc-agent/new') {
+          discardComposerDraft(NEW_MAKER_DRAFT_KEY);
+          void window.electronAPI?.maker?.experts?.setPending(null);
+        } else {
+          navigate('/cc-agent/new', { state: makeGenericNewMakerRouteState(location.pathname) });
+        }
         return;
       }
       // 同样复用行点击唯一入口,继承清通知 / 同对话去重 / Orca 角色路由。
@@ -4102,7 +4108,13 @@ function CollapsedView({
   // 折叠视图会把失败误传成"完成了")。
   const urgentSet = useSessionAttentionUrgencySet();
   // 与展开态同口径：继承当前任务的电脑，同机保留草稿项目。
+  // 若已在草稿页，再次点击「新建」视为放弃当前草稿重置为全新任务。
   const handleNewCCS = useCallback(() => {
+    if (location.pathname === '/cc-agent/new') {
+      discardComposerDraft(NEW_MAKER_DRAFT_KEY);
+      void window.electronAPI?.maker?.experts?.setPending(null);
+      return;
+    }
     navigate('/cc-agent/new', { state: makeGenericNewMakerRouteState(location.pathname) });
   }, [location.pathname, navigate]);
 

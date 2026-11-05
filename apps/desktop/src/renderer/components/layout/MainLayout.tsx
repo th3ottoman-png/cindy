@@ -122,6 +122,8 @@ import {
 import { requestSessionSwitch } from '@/features/cc-agent/lib/sessionSwitchCommands';
 import { makeFolderPickerNewMakerRouteState } from '@/features/cc-agent/lib/newMakerRouteState';
 import { makeGenericNewMakerRouteState } from '@/features/cc-agent/lib/genericNewMakerRouteState';
+import { NEW_MAKER_DRAFT_KEY } from '@/features/cc-agent/newMakerDraftKeys';
+import { discardDraft } from '@/lib/composerDraftStore';
 import { resolveSessionRoute } from '@/lib/orcaSessionIdentity';
 import { canonicalBotSessionId, ensureBotProfilesLoaded, getBotProfiles, useBotProfiles } from '@/features/bots/botStore';
 import { botRouteForOwnedSession, createSessionEntryNavigator, findBotProfileForSession, remoteBotRouteForSession, resolveBotRouteForSessionEntry } from '@/features/bots/botSessionOwners';
@@ -1292,6 +1294,11 @@ export function MainLayout() {
           applicationMenuLog.info('new-maker shortcut handled by visible collaboration panel');
           return;
         }
+        if (currentPathRef.current.split('?')[0] === '/cc-agent/new') {
+          discardDraft(NEW_MAKER_DRAFT_KEY);
+          void window.electronAPI?.maker?.experts?.setPending(null);
+          return;
+        }
         applicationMenuLog.info('new-maker shortcut invoked, navigating to /cc-agent/new');
         navigate('/cc-agent/new', {
           state: makeGenericNewMakerRouteState(currentPathRef.current.split('?')[0]),
@@ -1333,6 +1340,11 @@ export function MainLayout() {
           break;
         case 'new-maker':
           // 与侧栏同口径：继承当前任务电脑，同机保留草稿项目。
+          if (currentPathRef.current.split('?')[0] === '/cc-agent/new') {
+            discardDraft(NEW_MAKER_DRAFT_KEY);
+            void window.electronAPI?.maker?.experts?.setPending(null);
+            break;
+          }
           applicationMenuLog.info('new-maker invoked, navigating to /cc-agent/new');
           navigate('/cc-agent/new', {
             state: makeGenericNewMakerRouteState(currentPathRef.current.split('?')[0]),
@@ -1443,6 +1455,11 @@ export function MainLayout() {
       if (action.type !== 'command') return false;
       switch (action.commandId) {
         case 'newTask':
+          if (currentPathRef.current.split('?')[0] === '/cc-agent/new') {
+            discardDraft(NEW_MAKER_DRAFT_KEY);
+            void window.electronAPI?.maker?.experts?.setPending(null);
+            return true;
+          }
           navigate('/cc-agent/new', {
             state: makeGenericNewMakerRouteState(currentPathRef.current.split('?')[0]),
           });

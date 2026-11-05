@@ -48,6 +48,8 @@ import { Tip } from '@/components/ui/tooltip';
 import { useConversationSearchContext } from '@/features/cc-agent/sidebar/conversationSearchContext';
 import { GhostMainViewNavEntry, MAIN_VIEW_ICONS } from './GhostMainViewNavEntries';
 import { makeGenericNewMakerRouteState } from '@/features/cc-agent/lib/genericNewMakerRouteState';
+import { NEW_MAKER_DRAFT_KEY } from '@/features/cc-agent/newMakerDraftKeys';
+import { discardDraft } from '@/lib/composerDraftStore';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -434,7 +436,13 @@ export function SidebarTopNav({
   });
 
   // 通用新建继承当前任务的电脑，由草稿页集中迁移；同机保留已选项目。
+  // 若已在草稿页，再次点击「新建」视为放弃当前草稿重置为全新任务。
   const handleNew = () => {
+    if (location.pathname === '/cc-agent/new') {
+      discardDraft(NEW_MAKER_DRAFT_KEY);
+      void window.electronAPI?.maker?.experts?.setPending(null);
+      return;
+    }
     navigate('/cc-agent/new', { state: makeGenericNewMakerRouteState(location.pathname) });
   };
 
