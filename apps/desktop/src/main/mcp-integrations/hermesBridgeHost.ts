@@ -72,6 +72,12 @@ export const HERMES_BRIDGE_EXPERT_SERVERS: readonly string[] = ['cindy_experts']
  */
 export const HERMES_BRIDGE_READER_SERVERS: readonly string[] = ['cindy_project_reader'];
 
+/**
+ * Local notes vault bridge (ROADMAP 5.1). Mounted for a Hermes session whose expert opts into
+ * the vault notes tools via tools.yaml or frontmatter tools: (re-checked per call).
+ */
+export const HERMES_BRIDGE_VAULT_SERVERS: readonly string[] = ['cindy_vault_notes'];
+
 /** Marker used to recognise (and only ever touch) shim entries we wrote. */
 const SHIM_BUNDLE_BASENAME = 'hermes-bridge-shim.mjs';
 
@@ -86,6 +92,7 @@ export function selectHermesBridgeServers(
   collabEnabled = false,
   expertCreator = false,
   orcaWorker = false,
+  vaultNotes = false,
 ): string[] {
   const running = new Set(available);
   return [
@@ -93,6 +100,7 @@ export function selectHermesBridgeServers(
     ...HERMES_BRIDGE_GATED_SERVERS.filter((name) => optedInGated.has(name)),
     ...(collabEnabled ? (orcaWorker ? HERMES_BRIDGE_WORKER_SERVERS : HERMES_BRIDGE_COLLAB_SERVERS) : []),
     ...(expertCreator ? HERMES_BRIDGE_EXPERT_SERVERS : []),
+    ...(vaultNotes ? HERMES_BRIDGE_VAULT_SERVERS : []),
   ].filter((name) => running.has(name));
 }
 
@@ -196,6 +204,8 @@ export interface HermesBridgeHostDeps {
   expertCreator?: (sessionId: string) => boolean;
   /** ROADMAP 3.10d: the locked session's expert (or the pending pick) opts into the project reader. */
   projectReader?: (sessionId: string) => boolean;
+  /** ROADMAP 5.1: the session's expert (or the pending pick) opts into vault notes tools. */
+  vaultNotes?: (sessionId: string) => boolean;
   /** ROADMAP 3.2b: expert-scoped MCP server filter via tools.yaml */
   expertAllowsMcpServer?: (sessionId: string, server: string) => boolean;
   /** Null when the bundle is not built/shipped → Hermes runs without Cindy tools. */
@@ -257,6 +267,7 @@ export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
             ),
             deps.expertCreator?.(info.sessionId) ?? false,
             info.vendorOptions?.orcaRole === 'worker',
+            deps.vaultNotes?.(info.sessionId) ?? false,
           );
       const exposed = deps.expertAllowsMcpServer
         ? candidateServers.filter((name) => deps.expertAllowsMcpServer!(info.sessionId, name))
@@ -267,7 +278,7 @@ export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
       // by its mounts below instead: the bridge refuses an unmounted server at connect, the shim
       // exits, and Hermes lists no tools for it.
       const registered = [
-        ...selectHermesBridgeServers(lease.serverNames, deps.optedInGatedServers?.() ?? new Set(), true, true),
+        ...selectHermesBridgeServers(lease.serverNames, deps.optedInGatedServers?.() ?? new Set(), true, true, false, true),
         ...selectHermesBridgeServers(lease.serverNames, new Set(), true, false, true)
           .filter((name) => HERMES_BRIDGE_WORKER_SERVERS.includes(name)),
         ...HERMES_BRIDGE_READER_SERVERS.filter((name) => lease.serverNames.includes(name)),

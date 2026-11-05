@@ -504,3 +504,57 @@ describe('"Go ahead" IPC (ROADMAP 3.10c)', () => {
     expect(store.getPending()).toBe('code-reviewer');
   });
 });
+
+describe('ExpertSessionStore vault notes access (ROADMAP 5.1)', () => {
+  it('evaluates vault access from tools.yaml mcp_servers.allow', () => {
+    writeExpert('vault-researcher', 'name: Vault Researcher\nagent: hermes');
+    fs.writeFileSync(
+      path.join(root, 'vault-researcher', 'tools.yaml'),
+      'mcp_servers:\n  allow:\n    - cindy_vault_notes\n',
+    );
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    store.bindSession('s1', 'vault-researcher');
+
+    expect(store.expertAllowsVaultTool('s1', 'read_note')).toBe(true);
+    expect(store.expertAllowsVaultTool('s1', 'search_notes')).toBe(true);
+    expect(store.expertAllowsVaultTool('s1', 'append_note')).toBe(true);
+    expect(store.sessionHasVaultAccess('s1')).toBe(true);
+  });
+
+  it('honours strict tools.allow and tools.deny in tools.yaml', () => {
+    writeExpert('read-only-vault', 'name: Read Only Vault\nagent: hermes');
+    fs.writeFileSync(
+      path.join(root, 'read-only-vault', 'tools.yaml'),
+      'mcp_servers:\n  allow:\n    - cindy_vault_notes\ntools:\n  allow:\n    - read_note\n    - search_notes\n',
+    );
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    store.bindSession('s1', 'read-only-vault');
+
+    expect(store.expertAllowsVaultTool('s1', 'read_note')).toBe(true);
+    expect(store.expertAllowsVaultTool('s1', 'search_notes')).toBe(true);
+    expect(store.expertAllowsVaultTool('s1', 'append_note')).toBe(false);
+    expect(store.sessionHasVaultAccess('s1')).toBe(true);
+  });
+
+  it('supports frontmatter tools: opt-in', () => {
+    writeExpert('frontmatter-vault', 'name: FM Vault\nagent: hermes\ntools: [read_note]');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    store.bindSession('s1', 'frontmatter-vault');
+
+    expect(store.expertAllowsVaultTool('s1', 'read_note')).toBe(true);
+    expect(store.expertAllowsVaultTool('s1', 'append_note')).toBe(false);
+    expect(store.sessionHasVaultAccess('s1')).toBe(true);
+  });
+
+  it('fails closed when not opted in or not an expert session', () => {
+    writeExpert('plain', 'name: Plain\nagent: hermes');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    store.bindSession('s1', 'plain');
+
+    expect(store.expertAllowsVaultTool('s1', 'read_note')).toBe(false);
+    expect(store.sessionHasVaultAccess('s1')).toBe(false);
+    expect(store.expertAllowsVaultTool('non-existent-session', 'read_note')).toBe(false);
+    expect(store.sessionHasVaultAccess('non-existent-session')).toBe(false);
+  });
+});
+

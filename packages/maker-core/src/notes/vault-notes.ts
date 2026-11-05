@@ -199,3 +199,102 @@ export function appendNote(vaultDir: string, rel: string, text: string, opts: { 
   }
   return { ok: true, path: checked.rel, created };
 }
+
+export interface VaultConfig {
+  vaultDir: string;
+}
+
+export interface VaultConfigRead {
+  config: VaultConfig;
+  issue?: string;
+}
+
+/**
+ * Read the vault configuration file (~/.cindy-harness/vault.json). Never throws.
+ * Missing file returns an empty vaultDir with no issue.
+ */
+export function readVaultConfig(configFile: string): VaultConfigRead {
+  let text: string;
+  try {
+    text = fs.readFileSync(configFile, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { config: { vaultDir: '' } };
+    }
+    return {
+      config: { vaultDir: '' },
+      issue: `cannot read vault config: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  let doc: unknown;
+  try {
+    doc = JSON.parse(text);
+  } catch (error) {
+    return {
+      config: { vaultDir: '' },
+      issue: `not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) {
+    return {
+      config: { vaultDir: '' },
+      issue: 'vault config must be an object like { "vaultDir": "/path/to/vault" }',
+    };
+  }
+  const raw = doc as Record<string, unknown>;
+  const dirVal = raw.vaultDir ?? raw.vaultPath;
+  if (dirVal === undefined || dirVal === null || dirVal === '') {
+    return { config: { vaultDir: '' } };
+  }
+  if (typeof dirVal !== 'string') {
+    return {
+      config: { vaultDir: '' },
+      issue: '"vaultDir" must be a string path',
+    };
+  }
+  const vaultDir = dirVal.trim();
+  if (vaultDir === '') {
+    return { config: { vaultDir: '' } };
+  }
+  try {
+    if (!fs.existsSync(vaultDir)) {
+      return {
+        config: { vaultDir },
+        issue: `configured vault folder does not exist: ${vaultDir}`,
+      };
+    }
+    const stat = fs.statSync(vaultDir);
+    if (!stat.isDirectory()) {
+      return {
+        config: { vaultDir },
+        issue: `configured vault path is not a directory: ${vaultDir}`,
+      };
+    }
+  } catch (error) {
+    return {
+      config: { vaultDir },
+      issue: `cannot access vault folder: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  return { config: { vaultDir } };
+}
+
+/**
+ * Write vault configuration atomically (temp file in same folder + rename).
+ */
+export function writeVaultConfig(configFile: string, config: VaultConfig): void {
+  if (typeof config !== 'object' || config === null || typeof config.vaultDir !== 'string') {
+    throw new Error('invalid vault config: vaultDir must be a string');
+  }
+  const dir = path.dirname(configFile);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, `.${path.basename(configFile)}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`);
+  try {
+    fs.writeFileSync(tmp, `${JSON.stringify({ vaultDir: config.vaultDir.trim() }, null, 2)}\n`, 'utf8');
+    fs.renameSync(tmp, configFile);
+  } catch (error) {
+    fs.rmSync(tmp, { force: true });
+    throw error;
+  }
+}
+

@@ -308,6 +308,8 @@ import {
   READ_PROJECT_FILE_TOOL,
   SEARCH_PROJECT_TOOL,
 } from '../mcp-integrations/projectReaderMcpServer.js';
+import { createVaultNotesMcpProvider } from '../mcp-integrations/vaultNotesMcpServer.js';
+import { getDesktopVaultNotesHost } from '../maker-ipc/vaultNotes.js';
 import { getDesktopExpertDraftConfirm } from '../maker-ipc/expertDraftConfirm.js';
 import { readContactsSettings } from './contacts-settings-store.js';
 import { captureKnownFileBefore, noteOpaqueTurnChange } from '../turn-change-set/store.js';
@@ -2582,6 +2584,12 @@ export function getMaker(): Maker {
       createProjectReaderMcpProvider({
         sessionMayRead: (sessionId, tool) => getDesktopExpertSessionStore().expertAllowsTool(sessionId, tool),
       }),
+      // ROADMAP 5.1: local notes vault bridge for experts.
+      createVaultNotesMcpProvider({
+        getVaultDir: () => getDesktopVaultNotesHost().getConfig().vaultDir,
+        sessionMayUse: (sessionId, tool) =>
+          getDesktopExpertSessionStore().expertAllowsVaultTool(sessionId, tool),
+      }),
     ]);
     // 用户自定义 MCP:三个 agent 都必须注册其实际持有的数组引用，再统一做初始 refresh。
     // localDb onReady 可能在 Maker 构造前就已触发（此时 registry 无数组，refresh 空跑）；
@@ -2877,6 +2885,9 @@ export function getMaker(): Maker {
           projectReader: (sessionId) =>
             getDesktopExpertSessionStore().expertAllowsTool(sessionId, READ_PROJECT_FILE_TOOL, { includePending: true })
             || getDesktopExpertSessionStore().expertAllowsTool(sessionId, SEARCH_PROJECT_TOOL, { includePending: true }),
+          // ROADMAP 5.1: an expert session opts into the local notes vault bridge.
+          vaultNotes: (sessionId) =>
+            getDesktopExpertSessionStore().sessionHasVaultAccess(sessionId, { includePending: true }),
           // ROADMAP 3.2b: expert-scoped MCP server filter via tools.yaml
           expertAllowsMcpServer: (sessionId, server) =>
             getDesktopExpertSessionStore().expertAllowsMcpServer(sessionId, server, { includePending: true }),

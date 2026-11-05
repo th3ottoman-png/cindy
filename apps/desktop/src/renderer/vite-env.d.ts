@@ -5615,6 +5615,16 @@ interface ElectronAPI {
       /** Fires after install/toggle/uninstall; no payload — refetch the list. */
       onChanged: (cb: () => void) => () => void;
     };
+    vault: {
+      /** ROADMAP 5.1: get local notes vault configuration (~/.cindy-harness/vault.json). */
+      getConfig: () => Promise<import('../main/maker-ipc/vaultNotes').VaultConfigView>;
+      /** Set local notes vault directory path. */
+      setConfig: (vaultDir: string) => Promise<import('../main/maker-ipc/vaultNotes').VaultConfigView>;
+      /** Native open directory picker. */
+      pickFolder: () => Promise<string | null>;
+      /** Fires when the vault configuration changes. */
+      onChanged: (cb: (view: import('../main/maker-ipc/vaultNotes').VaultConfigView) => void) => () => void;
+    };
     providers: {
       list: () => Promise<import('@cindy/maker-core/providers-file').ProviderFileResult>;
       discover: () => Promise<import('@cindy/maker-core/providers-discovery').EndpointProbe[]>;

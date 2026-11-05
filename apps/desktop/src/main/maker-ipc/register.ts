@@ -921,6 +921,7 @@ import { createDesktopSkillsHost } from './skillsDesktop.js';
 import { getDesktopExpertSessionStore } from './expertSessions.js';
 import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
+import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNotes.js';
 import { MAKER_INVOKE, MAKER_PUSH, MAKER_SEND } from './channels.js';
 import type { CollabDispatchOutcome } from './collabSendOutcome.js';
 import {
@@ -25621,6 +25622,19 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   registerProvidersHandlers(createElectronIpcHandlerRegistry(), {
     file: path.join(os.homedir(), '.cindy-harness', 'providers.yaml'),
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+
+  // ── Notes vault (ROADMAP 5.1): read/write ~/.cindy-harness/vault.json ──
+  const vaultNotesHost = getDesktopVaultNotesHost({
+    showOpenDialog: (options) => dialog.showOpenDialog(options),
+    notifyChanged: () => {
+      broadcastToAllWindows(MAKER_PUSH.VAULT_CHANGED, vaultNotesHost.getConfig());
+    },
+  });
+  registerVaultNotesHandlers(createElectronIpcHandlerRegistry(), {
+    host: vaultNotesHost,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
   });
 
   // ── Browser automation (Settings →「电脑使用」) ───────────────────────────

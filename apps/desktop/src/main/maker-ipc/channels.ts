@@ -51,6 +51,12 @@ export const MAKER_INVOKE = {
   MCP_CATALOG_CHECK_HEALTH: 'maker:mcp-catalog:check-health',
   /** ROADMAP 4.3: add an MCP server to an expert's tools.yaml policy. */
   MCP_CATALOG_ADD_TO_EXPERT: 'maker:mcp-catalog:add-to-expert',
+  /** ROADMAP 5.1: get local notes vault configuration (~/.cindy-harness/vault.json). */
+  VAULT_GET_CONFIG: 'maker:vault:get-config',
+  /** ROADMAP 5.1: set local notes vault directory path. */
+  VAULT_SET_CONFIG: 'maker:vault:set-config',
+  /** ROADMAP 5.1: native open directory picker for notes vault. */
+  VAULT_PICK_FOLDER: 'maker:vault:pick-folder',
   /** ROADMAP 4.4b: installed Hermes-home skills (enabled + disabled roots). */
   SKILLS_LIST: 'maker:skills:list',
   /** ROADMAP 4.4b: static scan of a local folder or git URL (clone is the only outbound call). */
@@ -1002,6 +1008,8 @@ export const MAKER_PUSH = {
   MCP_CATALOG_CHANGED: 'maker:mcp-catalog:changed',
   /** ROADMAP 4.4b: a skill install/toggle/uninstall finished; no payload — the renderer refetches. */
   SKILLS_CHANGED: 'maker:skills:changed',
+  /** ROADMAP 5.1: local notes vault configuration changed; payload is fresh VaultConfigView. */
+  VAULT_CHANGED: 'maker:vault:changed',
   TURN_CHANGE_SET_UPDATED: 'maker:turn-change-set:updated',
   STATUS_CHANGED: 'maker:status-changed',
   /** 用户从独立 Computer Use 授权引导浮窗主动取消。 */

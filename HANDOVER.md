@@ -39,7 +39,7 @@ This is not a product. There is no marketing surface, no onboarding funnel, no o
 | Hermes home | **`~/.hermes-cindy`** — isolated. **`~/.hermes` is off-limits, always.** |
 | Hermes launcher | `~/.local/bin/hermes-cindy` (pins `HERMES_HOME`) |
 | Hermes daemon state | `~/.hermes-cindy/hermes-mgr/sessions.json` |
-| Harness user files (planned) | `~/.cindy-harness/{providers.yaml, routing.yaml, experts/, plugins/, plugins.json}` |
+| Harness user files (planned) | `~/.cindy-harness/{providers.yaml, routing.yaml, experts/, plugins/, plugins.json, vault.json}` |
 | Vendored agent binaries | `tools/` — untracked, required at runtime, **keep** |
 | CDP debugging | dev app binds `127.0.0.1:9222` (fixed; `XDT_CDP_PORT` overrides, dev-only — `docs/dev-rules/desktop-development.md`) |
 

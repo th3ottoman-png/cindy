@@ -56,6 +56,7 @@ import { AgentResourceSection } from './AgentResourceSection';
 import { HermesSection } from './HermesSection';
 import { ExpertsSection } from './ExpertsSection';
 import { PluginsSection } from './PluginsSection';
+import { VaultSection } from './VaultSection';
 import { McpCatalogSection } from './McpCatalogSection';
 import { SkillsSection } from './SkillsSection';
 import { PiPackagesSection } from './PiPackagesSection';
@@ -457,6 +458,11 @@ export function SettingsView() {
                     {/* Local extension plugins (ROADMAP 4.2b) */}
                     <section id="settings-plugins" className="py-[18px]" aria-label="Plugins">
                       <PluginsSection />
+                    </section>
+
+                    {/* Local notes vault bridge (ROADMAP 5.1b) */}
+                    <section id="settings-vault" className="py-[18px]" aria-label="Notes Vault">
+                      <VaultSection />
                     </section>
 
                     {/* Section — Experimental (py 18). */}

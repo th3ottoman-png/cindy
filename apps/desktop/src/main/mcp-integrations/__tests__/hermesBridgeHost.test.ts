@@ -91,6 +91,13 @@ describe('hermes bridge exposure policy', () => {
     expect(selectHermesBridgeServers(['cindy_docs'], new Set(), false, true)).toEqual(['cindy_docs']);
   });
 
+  it('adds the vault notes server only for an expert session with vault notes (5.1)', () => {
+    const all = [...HERMES_BRIDGE_SAFE_SERVERS, 'cindy_vault_notes'];
+    expect(selectHermesBridgeServers(all, new Set(), false, false, false, false)).toEqual(['cindy_docs']);
+    expect(selectHermesBridgeServers(all, new Set(), false, false, false, true)).toEqual(['cindy_docs', 'cindy_vault_notes']);
+    expect(selectHermesBridgeServers(['cindy_docs'], new Set(), false, false, false, true)).toEqual(['cindy_docs']);
+  });
+
   it('mirrors the Pi collab gate: global switch or active team member, never when the project disabled it', () => {
     expect(isHermesCollabEnabled(undefined, [], true)).toBe(true);
     expect(isHermesCollabEnabled(undefined, [], false)).toBe(false);

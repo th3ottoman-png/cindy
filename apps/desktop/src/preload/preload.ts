@@ -802,6 +802,7 @@ const fanOutMakerExpertsDraftEvent = createIpcFanOut('maker:experts:draft-event'
 const fanOutMakerExtPluginsChanged = createIpcFanOut('maker:ext-plugins:changed');
 const fanOutMakerMcpCatalogChanged = createIpcFanOut('maker:mcp-catalog:changed');
 const fanOutMakerSkillsChanged = createIpcFanOut('maker:skills:changed');
+const fanOutMakerVaultChanged = createIpcFanOut('maker:vault:changed');
 const fanOutMakerTurnChangeSetUpdated = createIpcFanOut('maker:turn-change-set:updated');
 const fanOutMakerStatusChanged = createIpcFanOut('maker:status-changed');
 const fanOutMakerInputProjection = createIpcFanOut('maker:input:projection');
@@ -6361,6 +6362,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }): Promise<import('../main/maker-ipc/skills').SkillsView> =>
         ipcRenderer.invoke('maker:skills:uninstall', request),
       onChanged: fanOutMakerSkillsChanged,
+    },
+    vault: {
+      getConfig: (): Promise<import('../main/maker-ipc/vaultNotes').VaultConfigView> =>
+        ipcRenderer.invoke('maker:vault:get-config'),
+      setConfig: (
+        vaultDir: string,
+      ): Promise<import('../main/maker-ipc/vaultNotes').VaultConfigView> =>
+        ipcRenderer.invoke('maker:vault:set-config', { vaultDir }),
+      pickFolder: (): Promise<string | null> =>
+        ipcRenderer.invoke('maker:vault:pick-folder'),
+      onChanged: fanOutMakerVaultChanged,
     },
     providers: {
       list: (): Promise<import('@cindy/maker-core/providers-file').ProviderFileResult> =>

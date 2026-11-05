@@ -10,6 +10,45 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — 5.1b: Local notes vault bridge (`live-proven`)
+
+- **What:** Completed the local notes vault bridge, connecting the pure vault logic in `@cindy/maker-core/vault-notes` to the application and Hermes bridge. Added vault configuration reading/writing (`readVaultConfig`, `writeVaultConfig`) with atomic writes to `~/.cindy-harness/vault.json`. Created the agent-facing MCP server `cindy_vault_notes` exposing four tools: `read_note`, `search_notes`, `append_note`, and `list_notes`. Expert sessions opt in via `tools.yaml` (`mcp_servers.allow: [cindy_vault_notes]` or scoped `tools.allow: [read_note, ...]`) or frontmatter `tools:`; permissions are checked on every call and fail closed with FORBIDDEN. Created `VaultNotesHost` and desktop IPC channels (`maker:vault:get-config`, `maker:vault:set-config`, `maker:vault:pick-folder`, push `maker:vault:changed`), exposed through `preload.ts` (`window.electronAPI.maker.vault`). Added Settings -> General -> Notes Vault section (`VaultSection.tsx`) with directory path input, native folder browser, live note count badge, and issue alert banner. Initialised `~/.cindy-harness/vault.json` pointing to `/Users/turko/Bishi-memory`.
+- **Files:**
+  - `packages/maker-core/src/notes/vault-notes.ts`: Added `VaultConfig`, `VaultConfigRead`, `readVaultConfig` and atomic `writeVaultConfig`.
+  - `packages/maker-core/src/notes/__tests__/vault-notes.test.ts`: Added unit tests for vault config reading, writing, issues, and compatibility keys (29 tests total).
+  - `apps/desktop/src/main/mcp-integrations/vaultNotesMcpServer.ts`: Created MCP server `cindy_vault_notes` with `read_note`, `search_notes`, `append_note`, and `list_notes`, session context resolution, per-call permission checks, and vault containment.
+  - `apps/desktop/src/main/mcp-integrations/__tests__/vaultNotesMcpServer.test.ts`: Added 9 unit and integration tests covering note operations, refusals, traversal blocking, and live exercises.
+  - `apps/desktop/src/main/maker-ipc/vaultNotes.ts`: Created `VaultNotesHost`, `registerVaultNotesHandlers`, and singleton accessor.
+  - `apps/desktop/src/main/maker-ipc/__tests__/vaultNotes.test.ts`: Added unit tests for host configuration, directory picking, and IPC registration (6 tests).
+  - `apps/desktop/src/main/maker-ipc/expertSessions.ts`: Added `expertAllowsVaultTool` and `sessionHasVaultAccess` supporting `tools.yaml` server and tool whitelists.
+  - `apps/desktop/src/main/maker-ipc/__tests__/expertSessions.test.ts`: Added unit tests for vault tool permission evaluation (29 tests total).
+  - `apps/desktop/src/main/mcp-integrations/hermesBridgeHost.ts`: Added `HERMES_BRIDGE_VAULT_SERVERS`, updated `selectHermesBridgeServers` with `vaultNotes`, and wired into candidate/registered server lists.
+  - `apps/desktop/src/main/mcp-integrations/__tests__/hermesBridgeHost.test.ts`: Added test verifying `cindy_vault_notes` inclusion on expert vault opt-in (20 tests total).
+  - `apps/desktop/src/main/maker-host/index.ts`: Wired `createVaultNotesMcpProvider` in `setHermesOnlyBridgeProviders` and `vaultNotes` in `prepareHermesBridgeSession`.
+  - `apps/desktop/src/main/maker-ipc/channels.ts`: Added `VAULT_GET_CONFIG`, `VAULT_SET_CONFIG`, `VAULT_PICK_FOLDER`, and `VAULT_CHANGED`.
+  - `apps/desktop/src/main/maker-ipc/register.ts`: Registered vault IPC handlers with `assertTrusted` and broadcast.
+  - `apps/desktop/src/preload/preload.ts`: Exposed `window.electronAPI.maker.vault`.
+  - `apps/desktop/src/renderer/vite-env.d.ts`: Added typing for `maker.vault`.
+  - `apps/desktop/src/renderer/components/settings/VaultSection.tsx`: Settings UI component for Notes Vault.
+  - `apps/desktop/src/renderer/components/settings/__tests__/VaultSection.test.tsx`: Added UI tests for configured, singular, unconfigured, and alert states (4 tests).
+  - `apps/desktop/src/renderer/components/settings/SettingsView.tsx`: Mounted `VaultSection` under General tab.
+  - `docs/design-rules/design-inventory.md`: Regenerated via `pnpm design:inventory`.
+  - `~/.cindy-harness/vault.json`: Initialised with `{"vaultDir": "/Users/turko/Bishi-memory"}`.
+  - `ROADMAP.md`: Updated row 5.1 with live-proven details.
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Live proof against the owner's real vault (`/Users/turko/Bishi-memory`): listed notes (noteCount > 0), read `AGENTS_workline.md`, appended timestamped entry to `cindy-test.md`, verified appended content by reading back, and removed the temporary test note.
+  - Unit tests: 97 passed across maker-core and desktop test suites.
+  - Gates green under Node 22.23.4 / pnpm 10.33.2:
+    - `pnpm typecheck` passed cleanly across all 37 workspace packages.
+    - `pnpm test:runner` passed (608 pass, 0 fail).
+    - `pnpm check:test-hygiene` passed (361 files within baseline).
+    - `pnpm test:unit:related` / desktop unit shards 1 to 8 all passed (all 8 shards green in batch, 0 SIGSEGV).
+- **Still open:** The owner's 4.5 done-test; 5.2b session export; 5.4b scheduled sessions; 3.7 Hermes as Orca lead UI; remaining in 3.2: `skills/` (Hermes 0.22.5 chat has no per-session skills flag), auto-selecting expert model in draft, Claude Code/Codex/Pi experts.
+
+---
+
+
 ## 2026-11-04 — 4.3c: MCP catalog "add to expert" shortcut (`unit-tested`)
 
 - **What:** Implemented the "Add to expert" shortcut affordance on the unified MCP server catalog in Settings -> Tools -> MCP Servers (`McpCatalogSection.tsx`), closing the remaining open item from ROADMAP row 4.3. Backed by IPC channel `maker:mcp-catalog:add-to-expert` and `addToExpert` in `apps/desktop/src/main/maker-ipc/mcpCatalog.ts`. Selecting an expert writes the server name to that expert's `~/.cindy-harness/experts/<slug>/tools.yaml` policy under `mcp_servers.allow` (and strips it from `deny` if present) using 3.2b `writeExpertToolsFile`. Fails closed if the slug is invalid, if the expert is not found or not a Hermes agent, or if `tools.yaml` contains invalid syntax.

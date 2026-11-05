@@ -4,7 +4,7 @@ import * as path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { appendNote, checkNotePath, listNotes, readNote, searchNotes } from '../vault-notes';
+import { appendNote, checkNotePath, listNotes, readNote, readVaultConfig, searchNotes, writeVaultConfig } from '../vault-notes';
 
 let vault: string;
 let outside: string;
@@ -133,3 +133,53 @@ describe('appendNote', () => {
     expect(fs.readdirSync(outside)).toEqual(['target.md']);
   });
 });
+
+describe('readVaultConfig / writeVaultConfig', () => {
+  it('reads empty config when file does not exist', () => {
+    const missing = path.join(outside, 'vault.json');
+    const res = readVaultConfig(missing);
+    expect(res).toEqual({ config: { vaultDir: '' } });
+  });
+
+  it('reads and writes valid vault config atomically', () => {
+    const file = path.join(outside, 'vault.json');
+    writeVaultConfig(file, { vaultDir: vault });
+    const res = readVaultConfig(file);
+    expect(res).toEqual({ config: { vaultDir: vault } });
+  });
+
+  it('reports invalid JSON as an issue', () => {
+    const file = path.join(outside, 'bad.json');
+    fs.writeFileSync(file, '{ not-json');
+    const res = readVaultConfig(file);
+    expect(res.config.vaultDir).toBe('');
+    expect(res.issue).toContain('not valid JSON');
+  });
+
+  it('reports non-existent directory as an issue', () => {
+    const file = path.join(outside, 'missing-dir.json');
+    const fakeDir = path.join(outside, 'does-not-exist');
+    fs.writeFileSync(file, JSON.stringify({ vaultDir: fakeDir }));
+    const res = readVaultConfig(file);
+    expect(res.config.vaultDir).toBe(fakeDir);
+    expect(res.issue).toContain('does not exist');
+  });
+
+  it('reports non-directory path as an issue', () => {
+    const file = path.join(outside, 'file-not-dir.json');
+    const aFile = path.join(outside, 'plain.txt');
+    fs.writeFileSync(aFile, 'hello');
+    fs.writeFileSync(file, JSON.stringify({ vaultDir: aFile }));
+    const res = readVaultConfig(file);
+    expect(res.config.vaultDir).toBe(aFile);
+    expect(res.issue).toContain('not a directory');
+  });
+
+  it('supports vaultPath key for compatibility', () => {
+    const file = path.join(outside, 'vault-path.json');
+    fs.writeFileSync(file, JSON.stringify({ vaultPath: vault }));
+    const res = readVaultConfig(file);
+    expect(res).toEqual({ config: { vaultDir: vault } });
+  });
+});
+

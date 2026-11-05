@@ -209,6 +209,54 @@ export class ExpertSessionStore {
   }
 
   /**
+   * True when the session's expert opts into vault notes tools (ROADMAP 5.1).
+   * Supports `mcp_servers.allow: [cindy_vault_notes]`, scoped `tools.allow: [read_note, ...]`,
+   * or frontmatter `tools: [read_note, ...]`. Explicit deny always wins.
+   */
+  expertAllowsVaultTool(sessionId: string, tool: string, opts: { includePending?: boolean } = {}): boolean {
+    const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
+    if (!slug) return false;
+    const expert = loadExpert(path.join(this.opts.rootDir, slug)).expert;
+    if (!expert || expert.agent !== 'hermes') return false;
+
+    // Explicit deny always wins
+    if (!isMcpServerAllowed('cindy_vault_notes', expert.toolsPolicy)) return false;
+    if (expert.toolsPolicy?.tools?.deny?.includes(tool)) return false;
+
+    // Strict tools.allow whitelist
+    if (expert.toolsPolicy?.tools?.allow !== undefined) {
+      return expert.toolsPolicy.tools.allow.includes(tool);
+    }
+
+    // Explicit mcp_servers.allow includes cindy_vault_notes
+    if (expert.toolsPolicy?.mcpServers?.allow?.includes('cindy_vault_notes')) {
+      return true;
+    }
+
+    // Fallback to frontmatter tools:
+    if (expert.tools !== undefined) {
+      return expert.tools.includes(tool) || expert.tools.includes('cindy_vault_notes');
+    }
+
+    return false;
+  }
+
+  /**
+   * True when the session's expert has opted into any vault tool (ROADMAP 5.1).
+   */
+  sessionHasVaultAccess(sessionId: string, opts: { includePending?: boolean } = {}): boolean {
+    const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
+    if (!slug) return false;
+    return (
+      this.expertAllowsVaultTool(sessionId, 'read_note', opts) ||
+      this.expertAllowsVaultTool(sessionId, 'search_notes', opts) ||
+      this.expertAllowsVaultTool(sessionId, 'append_note', opts) ||
+      this.expertAllowsVaultTool(sessionId, 'list_notes', opts)
+    );
+  }
+
+
+  /**
    * Where `save_expert_memory` writes for this session (ROADMAP 3.4b): the folder of a loadable
    * Hermes expert with `memory: true`, else null. `includePending` as in `expertAllowsTool`.
    */
