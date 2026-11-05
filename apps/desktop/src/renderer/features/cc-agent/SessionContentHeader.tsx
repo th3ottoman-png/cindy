@@ -80,6 +80,7 @@ import { SessionProjectMoveSubmenu } from './sidebar/SessionProjectMoveSubmenu';
 import { sessionMoveFailureFeedback } from '../../../shared/worktreeMoveGuardError';
 import type { SessionMoveTarget } from './sidebar/sessionMoveTarget';
 import { SessionShareExportDialog } from './sidebar/SessionShareExportDialog';
+import { SessionMarkdownExportDialog } from './sidebar/SessionMarkdownExportDialog';
 import { useRemoteProjectSessions } from '@/features/device-link/remoteProjectsStore';
 import { isRemoteSessionWriteBlocked } from './lib/remoteSessionWriteGuard';
 import { Tip } from '@/components/ui/tooltip';
@@ -469,6 +470,7 @@ export function SessionContentHeader({
 
   /* ---- 导出会话(.cshare)---- 弹窗仅打开时挂载,与 SessionItem 同款。 */
   const [shareExportOpen, setShareExportOpen] = useState(false);
+  const [markdownExportOpen, setMarkdownExportOpen] = useState(false);
   /* ---- Archive / Delete / Unarchive ----
    * 执行序列共用 useSessionLifecycleActions（与 CCAgentSidebarUpper 同一实现）；
    * 本组件只保留前置检查与确认弹窗。header 操作的恒为当前打开的会话，
@@ -771,6 +773,14 @@ export function SessionContentHeader({
                 </DropdownMenuItem>
               )
             }
+            exportMarkdown={
+              <DropdownMenuItem
+                onSelect={() => setMarkdownExportOpen(true)}
+                className={MENU_ITEM_CLASS}
+              >
+                Export to Markdown...
+              </DropdownMenuItem>
+            }
             move={
               canMoveToProject && (
                 <SessionProjectMoveSubmenu
@@ -803,6 +813,15 @@ export function SessionContentHeader({
           open={shareExportOpen}
           sessionId={session.id}
           onOpenChange={setShareExportOpen}
+        />
+      )}
+
+      {/* ROADMAP 5.2b: 导出 Markdown 弹窗 */}
+      {markdownExportOpen && (
+        <SessionMarkdownExportDialog
+          open={markdownExportOpen}
+          sessionId={session.id}
+          onOpenChange={setMarkdownExportOpen}
         />
       )}
     </div>

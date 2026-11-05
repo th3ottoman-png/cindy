@@ -10,6 +10,37 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — 5.2b: Session export to Markdown (`live-proven`)
+
+- **What:** Completed the session export feature, connecting the pure session export logic in `@cindy/maker-core/session-export` to the desktop application and SQLite message store. Implemented `buildExportSession` in `@cindy/maker-core` to map stored messages (`StoredMessageInput`, `SessionMetadataInput`) into `ExportSession`: pairs tool calls and tool results by `toolUseId` and chronological adjacency, embeds tool calls under assistant speech turns, preserves speech turns before and after tool calls, and filters synthetic UI triggers. Created desktop host `SessionExportHost` and IPC handlers (`maker:session:export-markdown`, `maker:session:export-pick-folder`) with input validation, session & message fetching via `getSessionRowSnapshot` and `listMessagesForAgentHandoff`, atomic export via `writeSessionExport`, and native folder picker. Exposed through `preload.ts` (`window.electronAPI.maker.sessionExport`). Added `SessionMarkdownExportDialog` offering a choice between the configured Notes Vault (`vaultDir`) and a custom folder with browser picker (defaulting to vault if configured, custom folder otherwise), ensuring nothing writes to the vault without explicit user selection. Integrated export affordance ("Export to Markdown...") in `SessionContentHeader`'s `···` task menu and `SessionItem` sidebar context menu. Live-proven against real Hermes session `8f0179d4-bdd6-49bb-a688-90c894d1509b` (123 DB messages, 60 tool calls) generating valid Markdown with YAML frontmatter, headings, collapsed `<details>` tool calls, and atomic collision handling (103,825 bytes).
+- **Files:**
+  - `packages/maker-core/src/export/session-markdown.ts`: Added `StoredMessageInput`, `SessionMetadataInput`, and `buildExportSession` mapping DB rows into `ExportSession`.
+  - `packages/maker-core/src/export/__tests__/session-markdown.test.ts`: Added unit tests for message mapping, tool pairing, adjacent fallback, speech turn ordering, synthetic trigger filtering, and errors (16 tests total).
+  - `apps/desktop/src/main/maker-ipc/channels.ts`: Added `SESSION_EXPORT_MARKDOWN` and `SESSION_EXPORT_PICK_FOLDER`.
+  - `apps/desktop/src/main/maker-ipc/sessionExport.ts`: Created `SessionExportHost` and `registerSessionExportHandlers`.
+  - `apps/desktop/src/main/maker-ipc/__tests__/sessionExport.test.ts`: Added unit tests for export execution, validation errors, non-existent sessions, empty messages, picker dialog, and IPC registration (6 tests).
+  - `apps/desktop/src/main/maker-ipc/register.ts`: Registered session export handlers with `getSessionRowSnapshot` and `listMessagesForAgentHandoff`.
+  - `apps/desktop/src/preload/preload.ts`: Exposed `window.electronAPI.maker.sessionExport.exportMarkdown` and `pickFolder`.
+  - `apps/desktop/src/renderer/vite-env.d.ts`: Added type definitions for `maker.sessionExport`.
+  - `apps/desktop/src/renderer/features/cc-agent/sidebar/SessionMarkdownExportDialog.tsx`: Dialog UI component for Markdown export destination and feedback.
+  - `apps/desktop/src/renderer/features/cc-agent/sidebar/__tests__/SessionMarkdownExportDialog.test.tsx`: Added UI tests for vault pre-selection, custom folder picking, export submission, and error alerts (4 tests).
+  - `apps/desktop/src/renderer/features/cc-agent/sidebar/SessionTaskMenu.tsx`: Added optional `exportMarkdown` menu item slot maintaining menu parity.
+  - `apps/desktop/src/renderer/features/cc-agent/SessionContentHeader.tsx`: Mounted export dialog and added `Export to Markdown...` in header `···` menu.
+  - `apps/desktop/src/renderer/features/cc-agent/sidebar/SessionItem.tsx`: Mounted export dialog and added `Export to Markdown...` in sidebar context menu.
+  - `ROADMAP.md`: Marked 5.2 as `live-proven`.
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Live export proof: Exercised `SessionExportHost` against real Hermes session `8f0179d4-bdd6-49bb-a688-90c894d1509b` from `CindyGlobal-dev2-dev/cindy-local-v1.db` (123 DB messages, 60 tool calls); verified generated Markdown file `2026-11-05-user-picked-option-1.md` (103,825 bytes) with valid YAML frontmatter, `#` heading, `## User`/`## Assistant` turns, collapsed `<details><summary>Tool: ...</summary>` blocks with fenced input/output, and atomic hard-link collision rename (`-2.md`).
+  - Unit tests: 26 passed across maker-core and desktop test suites (core 16, IPC 6, UI 4, parity 3).
+  - Gates green under Node 22.23.4 / pnpm 10.33.2:
+    - `pnpm typecheck` passed cleanly across all 37 workspace packages.
+    - `pnpm test:runner` passed (608 pass, 0 fail, 2 skipped).
+    - `pnpm check:test-hygiene` passed (361 files within baseline).
+    - `pnpm test:unit:related` passed with exit code 0.
+- **Still open:** The owner's 4.5 done-test; 5.4b scheduled sessions; 3.7 Hermes as Orca lead UI; remaining in 3.2: `skills/` (Hermes 0.22.5 chat has no per-session skills flag), auto-selecting expert model in draft, Claude Code/Codex/Pi experts.
+
+---
+
 ## 2026-11-05 — 5.1b: Local notes vault bridge (`live-proven`)
 
 - **What:** Completed the local notes vault bridge, connecting the pure vault logic in `@cindy/maker-core/vault-notes` to the application and Hermes bridge. Added vault configuration reading/writing (`readVaultConfig`, `writeVaultConfig`) with atomic writes to `~/.cindy-harness/vault.json`. Created the agent-facing MCP server `cindy_vault_notes` exposing four tools: `read_note`, `search_notes`, `append_note`, and `list_notes`. Expert sessions opt in via `tools.yaml` (`mcp_servers.allow: [cindy_vault_notes]` or scoped `tools.allow: [read_note, ...]`) or frontmatter `tools:`; permissions are checked on every call and fail closed with FORBIDDEN. Created `VaultNotesHost` and desktop IPC channels (`maker:vault:get-config`, `maker:vault:set-config`, `maker:vault:pick-folder`, push `maker:vault:changed`), exposed through `preload.ts` (`window.electronAPI.maker.vault`). Added Settings -> General -> Notes Vault section (`VaultSection.tsx`) with directory path input, native folder browser, live note count badge, and issue alert banner. Initialised `~/.cindy-harness/vault.json` pointing to `/Users/turko/Bishi-memory`.

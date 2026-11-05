@@ -57,6 +57,10 @@ export const MAKER_INVOKE = {
   VAULT_SET_CONFIG: 'maker:vault:set-config',
   /** ROADMAP 5.1: native open directory picker for notes vault. */
   VAULT_PICK_FOLDER: 'maker:vault:pick-folder',
+  /** ROADMAP 5.2b: export session transcript to Markdown into a directory. */
+  SESSION_EXPORT_MARKDOWN: 'maker:session:export-markdown',
+  /** ROADMAP 5.2b: directory picker for session export destination. */
+  SESSION_EXPORT_PICK_FOLDER: 'maker:session:export-pick-folder',
   /** ROADMAP 4.4b: installed Hermes-home skills (enabled + disabled roots). */
   SKILLS_LIST: 'maker:skills:list',
   /** ROADMAP 4.4b: static scan of a local folder or git URL (clone is the only outbound call). */

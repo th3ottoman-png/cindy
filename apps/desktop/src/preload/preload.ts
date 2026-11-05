@@ -6374,6 +6374,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('maker:vault:pick-folder'),
       onChanged: fanOutMakerVaultChanged,
     },
+    sessionExport: {
+      exportMarkdown: (request: {
+        sessionId: string;
+        targetDir: string;
+        maxToolChars?: number;
+      }): Promise<import('../main/maker-ipc/sessionExport').SessionExportMarkdownResult> =>
+        ipcRenderer.invoke('maker:session:export-markdown', request),
+      pickFolder: (): Promise<string | null> =>
+        ipcRenderer.invoke('maker:session:export-pick-folder'),
+    },
     providers: {
       list: (): Promise<import('@cindy/maker-core/providers-file').ProviderFileResult> =>
         ipcRenderer.invoke('maker:providers:list'),

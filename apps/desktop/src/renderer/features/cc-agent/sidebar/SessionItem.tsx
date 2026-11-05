@@ -82,6 +82,7 @@ import type { FolderPickerOption } from '@/components/new-chat/FolderPickerPopov
 import { RemoteProjectIcon } from './RemoteProjectIcon';
 import { BotFollowMark, useSessionFollowers } from '@/features/bots/BotFollowMark';
 import { SessionShareExportDialog } from './SessionShareExportDialog';
+import { SessionMarkdownExportDialog } from './SessionMarkdownExportDialog';
 import { isRemoteSessionWriteBlocked } from '../lib/remoteSessionWriteGuard';
 import { Tip } from '@/components/ui/tooltip';
 import { prefetchDirtyWorktreeForRemoval } from '@/lib/worktreeRemovalWarning';
@@ -778,6 +779,7 @@ export const SessionItem = withSidebarNavigation<SessionItemProps>(function Sess
   // 保存对话框与编排全在 main)。remote / orca / draft 会话不显示此入口
   // (转录在远端或协同关系不可移植,main 侧同样有双保险拒绝)。
   const [shareExportOpen, setShareExportOpen] = useState(false);
+  const [markdownExportOpen, setMarkdownExportOpen] = useState(false);
   const handleExportShareSelect = useCallback(() => {
     setShareExportOpen(true);
   }, []);
@@ -838,6 +840,12 @@ export const SessionItem = withSidebarNavigation<SessionItemProps>(function Sess
       {t('ccAgent.sidebar.sessionMenu.exportShare')}
     </DropdownMenuItem>
   ) : null;
+
+  const exportMarkdownMenuItem = (
+    <DropdownMenuItem onSelect={() => setMarkdownExportOpen(true)} className={MENU_ITEM_CLASS}>
+      Export to Markdown...
+    </DropdownMenuItem>
+  );
 
   const moveToProjectSubmenu = canMoveToProject ? (
     <SessionProjectMoveSubmenu
@@ -1292,6 +1300,7 @@ export const SessionItem = withSidebarNavigation<SessionItemProps>(function Sess
             onArchive={handleArchiveSelect} onUnarchive={handleUnarchiveSelect} onDelete={handleDeleteSelect}
             onOpenInNewWindow={handleOpenInNewWindowSelect}
             move={moveToProjectSubmenu} tags={tagMenu} copy={copySessionIdSubmenu} exportShare={exportShareMenuItem}
+            exportMarkdown={exportMarkdownMenuItem}
           />
         </DropdownMenu>
       )}
@@ -1303,6 +1312,13 @@ export const SessionItem = withSidebarNavigation<SessionItemProps>(function Sess
           open={shareExportOpen}
           sessionId={session.id}
           onOpenChange={setShareExportOpen}
+        />
+      )}
+      {markdownExportOpen && (
+        <SessionMarkdownExportDialog
+          open={markdownExportOpen}
+          sessionId={session.id}
+          onOpenChange={setMarkdownExportOpen}
         />
       )}
     </div>

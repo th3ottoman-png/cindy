@@ -53,6 +53,7 @@ interface Props {
   tags: ReactNode;
   copy: ReactNode;
   exportShare: ReactNode;
+  exportMarkdown?: ReactNode;
 }
 
 type SharingDialog =
@@ -85,6 +86,7 @@ function ActiveSessionTaskMenu({
   tags,
   copy,
   exportShare,
+  exportMarkdown,
   dialog,
   setDialog,
 }: Props & {
@@ -293,6 +295,7 @@ function ActiveSessionTaskMenu({
               />
             )}
             {exportShare}
+            {exportMarkdown}
             {!archived && !empty && (
               <>
                 {separator}

@@ -30,6 +30,19 @@ export interface ExportSession {
   messages: ExportMessage[];
 }
 
+export interface StoredMessageInput {
+  role: string;
+  content: unknown;
+  createdAt?: number | string;
+  toolUseId?: string | null;
+}
+
+export interface SessionMetadataInput {
+  title: string;
+  agent?: string;
+  model?: string;
+}
+
 export interface RenderOptions {
   exportedAt: Date;
   /** Max characters kept per tool input/output before it is cut with a marker. Default 2000. */
@@ -144,4 +157,176 @@ export function writeSessionExport(dir: string, session: ExportSession, opts: Re
     }
   }
   throw new Error(`could not find a free file name for ${base}`);
+}
+
+const SYNTHETIC_TRIGGER_PREFIX = '[UI_ACTION_TRIGGER]';
+
+function extractPlainText(content: unknown): string {
+  if (typeof content === 'string') {
+    if (content.length === 0) return '';
+    const first = content[0];
+    if (first === '{' || first === '[') {
+      try {
+        return extractPlainText(JSON.parse(content));
+      } catch {
+        return content;
+      }
+    }
+    return content;
+  }
+  if (Array.isArray(content)) {
+    const parts: string[] = [];
+    for (const block of content) {
+      if (block && typeof block === 'object') {
+        const b = block as Record<string, unknown>;
+        if (b.type === 'text' && typeof b.text === 'string') parts.push(b.text);
+      }
+    }
+    return parts.join('\n');
+  }
+  if (content && typeof content === 'object') {
+    const c = content as Record<string, unknown>;
+    if (typeof c.text === 'string') return c.text;
+    if (typeof c.message === 'string') return c.message;
+    if (typeof c.content === 'string') return c.content;
+  }
+  return '';
+}
+
+function parseToolUse(row: StoredMessageInput): { name: string; input?: unknown; toolUseId?: string } {
+  let content = row.content;
+  if (typeof content === 'string') {
+    try {
+      content = JSON.parse(content);
+    } catch {
+      // keep original
+    }
+  }
+  const obj = content && typeof content === 'object' ? (content as Record<string, unknown>) : undefined;
+  const toolUseId =
+    (typeof row.toolUseId === 'string' && row.toolUseId) ||
+    (typeof obj?.toolUseId === 'string' && obj.toolUseId) ||
+    undefined;
+  let name = (typeof obj?.toolName === 'string' && obj.toolName) || (typeof obj?.name === 'string' && obj.name) || '';
+  let input = obj?.input;
+
+  if (name === 'cindy_mcp_call_tool' && input && typeof input === 'object') {
+    const gateway = input as Record<string, unknown>;
+    const server = typeof gateway.server === 'string' ? gateway.server : '';
+    const tool = typeof gateway.tool === 'string' ? gateway.tool : '';
+    if (server && tool) {
+      name = `mcp:${server}:${tool}`;
+      input = gateway.args ?? {};
+    }
+  }
+
+  return { name, input, toolUseId };
+}
+
+function parseToolResult(row: StoredMessageInput): { toolUseId?: string; output: unknown } {
+  let content = row.content;
+  if (typeof content === 'string') {
+    try {
+      content = JSON.parse(content);
+    } catch {
+      // keep original
+    }
+  }
+  const obj = content && typeof content === 'object' ? (content as Record<string, unknown>) : undefined;
+  const toolUseId =
+    (typeof row.toolUseId === 'string' && row.toolUseId) ||
+    (typeof obj?.toolUseId === 'string' && obj.toolUseId) ||
+    undefined;
+  const output = obj?.fullText ?? obj?.output ?? obj?.content ?? content;
+  return { toolUseId, output };
+}
+
+/**
+ * Adapt stored messages and session metadata into the minimal `ExportSession` transcript model.
+ */
+export function buildExportSession(
+  meta: SessionMetadataInput,
+  rows: readonly StoredMessageInput[],
+): ExportSession {
+  const sorted = [...rows].sort((a, b) => {
+    const timeA = typeof a.createdAt === 'number' ? a.createdAt : a.createdAt ? Date.parse(a.createdAt) : 0;
+    const timeB = typeof b.createdAt === 'number' ? b.createdAt : b.createdAt ? Date.parse(b.createdAt) : 0;
+    return timeA - timeB;
+  });
+
+  const resultsByUseId = new Map<string, unknown>();
+  for (const row of sorted) {
+    if (row.role === 'tool_result') {
+      const { toolUseId, output } = parseToolResult(row);
+      if (toolUseId) resultsByUseId.set(toolUseId, output);
+    }
+  }
+
+  const messages: ExportMessage[] = [];
+  let pendingTools: ExportToolCall[] = [];
+
+  const flushPendingTools = () => {
+    if (pendingTools.length === 0) return;
+    messages.push({ role: 'assistant', text: '', toolCalls: pendingTools });
+    pendingTools = [];
+  };
+
+  for (let i = 0; i < sorted.length; i++) {
+    const row = sorted[i];
+    if (row.role === 'tool_use') {
+      const parsed = parseToolUse(row);
+      let output = parsed.toolUseId ? resultsByUseId.get(parsed.toolUseId) : undefined;
+      if (output === undefined && i + 1 < sorted.length && sorted[i + 1].role === 'tool_result') {
+        output = parseToolResult(sorted[i + 1]).output;
+      }
+      const call: ExportToolCall = {
+        name: parsed.name || 'unknown_tool',
+        ...(parsed.input !== undefined ? { input: parsed.input } : {}),
+        ...(output !== undefined ? { output } : {}),
+      };
+
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.role === 'assistant' && pendingTools.length === 0) {
+        lastMsg.toolCalls = lastMsg.toolCalls ?? [];
+        lastMsg.toolCalls.push(call);
+      } else {
+        pendingTools.push(call);
+      }
+    } else if (row.role === 'tool_result') {
+      continue;
+    } else if (row.role === 'assistant') {
+      const text = extractPlainText(row.content).trim();
+      if (!text && pendingTools.length === 0) continue;
+      messages.push({
+        role: 'assistant',
+        text,
+        ...(pendingTools.length > 0 ? { toolCalls: pendingTools } : {}),
+      });
+      pendingTools = [];
+    } else if (row.role === 'user') {
+      const text = extractPlainText(row.content).trim();
+      if (!text || text.startsWith(SYNTHETIC_TRIGGER_PREFIX)) continue;
+      flushPendingTools();
+      messages.push({ role: 'user', text });
+    } else if (row.role === 'system') {
+      const text = extractPlainText(row.content).trim();
+      if (!text) continue;
+      flushPendingTools();
+      messages.push({ role: 'system', text });
+    } else if (row.role === 'error') {
+      const text = extractPlainText(row.content).trim();
+      if (!text) continue;
+      flushPendingTools();
+      messages.push({ role: 'assistant', text: `[Error: ${text}]` });
+    }
+  }
+
+  flushPendingTools();
+
+  return {
+    title: meta.title?.trim() || 'Untitled session',
+    agent: meta.agent?.trim() || 'unknown',
+    ...(meta.model?.trim() ? { model: meta.model.trim() } : {}),
+    messages,
+  };
 }

@@ -5625,6 +5625,16 @@ interface ElectronAPI {
       /** Fires when the vault configuration changes. */
       onChanged: (cb: (view: import('../main/maker-ipc/vaultNotes').VaultConfigView) => void) => () => void;
     };
+    sessionExport: {
+      /** ROADMAP 5.2b: export session transcript to Markdown file with tool calls collapsed. */
+      exportMarkdown: (request: {
+        sessionId: string;
+        targetDir: string;
+        maxToolChars?: number;
+      }) => Promise<import('../main/maker-ipc/sessionExport').SessionExportMarkdownResult>;
+      /** Directory picker for session export destination. */
+      pickFolder: () => Promise<string | null>;
+    };
     providers: {
       list: () => Promise<import('@cindy/maker-core/providers-file').ProviderFileResult>;
       discover: () => Promise<import('@cindy/maker-core/providers-discovery').EndpointProbe[]>;

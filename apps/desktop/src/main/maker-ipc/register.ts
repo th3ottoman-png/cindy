@@ -922,6 +922,7 @@ import { getDesktopExpertSessionStore } from './expertSessions.js';
 import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
 import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNotes.js';
+import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
 import { MAKER_INVOKE, MAKER_PUSH, MAKER_SEND } from './channels.js';
 import type { CollabDispatchOutcome } from './collabSendOutcome.js';
 import {
@@ -25635,6 +25636,17 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     host: vaultNotesHost,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
     broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
+  });
+
+  // ── Session export to Markdown (ROADMAP 5.2b) ───────────────────────────
+  const sessionExportHost = new SessionExportHost({
+    getSessionRow: (sessionId) => getSessionRowSnapshot(sessionId),
+    listMessages: (sessionId) => listMessagesForAgentHandoff(sessionId, null),
+    showOpenDialog: (options) => dialog.showOpenDialog(options),
+  });
+  registerSessionExportHandlers(createElectronIpcHandlerRegistry(), {
+    host: sessionExportHost,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
 
   // ── Browser automation (Settings →「电脑使用」) ───────────────────────────

@@ -4,7 +4,15 @@ import * as path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { exportFileName, redactSecrets, renderSessionMarkdown, writeSessionExport, type ExportSession } from '../session-markdown';
+import {
+  buildExportSession,
+  exportFileName,
+  redactSecrets,
+  renderSessionMarkdown,
+  writeSessionExport,
+  type ExportSession,
+  type StoredMessageInput,
+} from '../session-markdown';
 
 const AT = new Date('2026-10-30T12:00:00Z');
 const SESSION: ExportSession = {
@@ -117,5 +125,109 @@ describe('writeSessionExport', () => {
     expect(path.basename(second)).toBe('2026-10-30-fix-the-login-bug-2.md');
     expect(fs.readFileSync(first, 'utf8')).toContain('owner edit');
     expect(fs.readdirSync(dir).sort()).toEqual(['2026-10-30-fix-the-login-bug-2.md', '2026-10-30-fix-the-login-bug.md']);
+  });
+});
+
+describe('buildExportSession', () => {
+  it('adapts user and assistant messages with title, agent and model metadata', () => {
+    const rows: StoredMessageInput[] = [
+      { role: 'user', content: 'What is 2+2?', createdAt: 100 },
+      { role: 'assistant', content: 'It is 4.', createdAt: 200 },
+    ];
+    const session = buildExportSession({ title: 'Math Task', agent: 'hermes', model: 'deepseek-v4-pro' }, rows);
+    expect(session.title).toBe('Math Task');
+    expect(session.agent).toBe('hermes');
+    expect(session.model).toBe('deepseek-v4-pro');
+    expect(session.messages).toEqual([
+      { role: 'user', text: 'What is 2+2?' },
+      { role: 'assistant', text: 'It is 4.' },
+    ]);
+  });
+
+  it('pairs tool calls and results by toolUseId', () => {
+    const rows: StoredMessageInput[] = [
+      { role: 'user', content: 'Read the file', createdAt: 100 },
+      {
+        role: 'tool_use',
+        toolUseId: 'call_1',
+        content: { toolName: 'read_file', input: { path: 'a.txt' } },
+        createdAt: 200,
+      },
+      {
+        role: 'tool_result',
+        toolUseId: 'call_1',
+        content: { output: 'hello from a' },
+        createdAt: 300,
+      },
+      { role: 'assistant', content: 'The file has hello from a.', createdAt: 400 },
+    ];
+    const session = buildExportSession({ title: 'File read' }, rows);
+    expect(session.messages).toEqual([
+      { role: 'user', text: 'Read the file' },
+      {
+        role: 'assistant',
+        text: 'The file has hello from a.',
+        toolCalls: [
+          { name: 'read_file', input: { path: 'a.txt' }, output: 'hello from a' },
+        ],
+      },
+    ]);
+  });
+
+  it('pairs adjacent tool_result when toolUseId is missing on result', () => {
+    const rows: StoredMessageInput[] = [
+      { role: 'user', content: 'Search' },
+      { role: 'assistant', content: 'Searching now...' },
+      { role: 'tool_use', content: { toolName: 'search_notes', input: { query: 'todo' } } },
+      { role: 'tool_result', content: 'found 2 notes' },
+    ];
+    const session = buildExportSession({ title: 'Search Notes' }, rows);
+    expect(session.messages).toHaveLength(2);
+    expect(session.messages[0]).toEqual({ role: 'user', text: 'Search' });
+    expect(session.messages[1]).toEqual({
+      role: 'assistant',
+      text: 'Searching now...',
+      toolCalls: [
+        { name: 'search_notes', input: { query: 'todo' }, output: 'found 2 notes' },
+      ],
+    });
+  });
+
+  it('preserves chronological speech before and after tool execution', () => {
+    const rows: StoredMessageInput[] = [
+      { role: 'user', content: 'Inspect repo' },
+      { role: 'assistant', content: 'Inspecting repository directory...' },
+      { role: 'tool_use', toolUseId: 't1', content: { name: 'list_files', input: {} } },
+      { role: 'tool_result', toolUseId: 't1', content: 'files: index.ts' },
+      { role: 'assistant', content: 'The repository contains index.ts.' },
+    ];
+    const session = buildExportSession({ title: 'Inspect' }, rows);
+    expect(session.messages).toEqual([
+      { role: 'user', text: 'Inspect repo' },
+      {
+        role: 'assistant',
+        text: 'Inspecting repository directory...',
+        toolCalls: [
+          { name: 'list_files', input: {}, output: 'files: index.ts' },
+        ],
+      },
+      {
+        role: 'assistant',
+        text: 'The repository contains index.ts.',
+      },
+    ]);
+  });
+
+  it('filters synthetic UI action triggers and formats error messages', () => {
+    const rows: StoredMessageInput[] = [
+      { role: 'user', content: '[UI_ACTION_TRIGGER] click' },
+      { role: 'user', content: 'Real question' },
+      { role: 'error', content: 'Connection timed out' },
+    ];
+    const session = buildExportSession({ title: 'Error case' }, rows);
+    expect(session.messages).toEqual([
+      { role: 'user', text: 'Real question' },
+      { role: 'assistant', text: '[Error: Connection timed out]' },
+    ]);
   });
 });
