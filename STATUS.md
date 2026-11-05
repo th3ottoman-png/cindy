@@ -10,6 +10,33 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — 4.5: Extension author guide review and sign-off (`unit-tested`)
+
+- **What:** Completed the extension author guide review and sign-off for ROADMAP Phase 4.5. Reviewed `docs/extending.md` against the current codebase state, updated all stale claims, documented schema and evaluation rules for `tools.yaml`, documented frontmatter and sibling file options, and re-verified all 5 worked example files under `docs/examples/extending/`.
+  1. **Documentation Updates (`docs/extending.md`):**
+     - Updated top capabilities matrix: documented 3.3 UI creation/editing for experts, auto-model selection in drafts (3.2c), `tools.yaml` policy enforcement (3.2b), opt-in memory (3.4), `toolsets` locking (3.10), expert handoffs (3.6), and 2.4b live-proven one-click alternative route buttons on blocked session banners. Clarified that agent-facing tools today are exposed via the Hermes MCP bridge.
+     - Documented `tools.yaml` schema (`tools:` and `mcp_servers:` allow/deny) and fail-closed evaluation semantics (explicit `deny` wins, `allow` acts as strict whitelist, unknown keys fail closed).
+     - Documented frontmatter fields (`name`, `description`, `agent`, `model`, `temperature`, `memory`, `tags`, `tools`, `skills`, `toolsets`) and sibling files (`tools.yaml`, `memory.md`, `skills/<name>/SKILL.md`, `knowledge/`).
+     - Documented one-click "Add to expert…" shortcuts on MCP catalog rows (4.3c) and Hermes skills (4.4c).
+     - Recorded re-verification results in the verification section.
+  2. **Worked Examples Verification:**
+     - Verified all 5 worked example files (`providers.yaml`, `routing.yaml`, `experts/changelog-writer/expert.md`, `plugins/hello/manifest.yaml`, `plugins/hello/index.mjs`) in plain Node 22.23.4 via `tsx` using real loaders (`parseProvidersYaml`, `parseRoutingYaml`, `resolveTaskRoute`, `assessRoute`, `loadExpert`, `loadPlugins`, `createExtensionRegistry`).
+     - All 7 loader assertions passed cleanly: providers and routes parse with 0 issues, title route resolves to `local-small` (`ollama-local` / `qwen3:8b`), offline route blocks with paid `flash` alternative, expert loads with `model: local-small`, and `hello` plugin loads `active` with 2 registrations (`tool/hello-tool` and `panel/hello-panel`) via the default native `import()` path.
+     - Adapter extension registration verified via Vitest (`adapter-extensions.test.ts`, 7/7 passed), confirming `registerBuiltinAdapters` registers all four built-ins (`claude-code`, `codex`, `hermes`, `pi`).
+- **Files:**
+  - `docs/extending.md`: Comprehensive review and updates.
+  - `ROADMAP.md`: Marked row 4.5 as `signed-off`.
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Loader assertions: 8/8 assertions green across plain Node and Vitest.
+  - All 4 gates green under Node 22:
+    - `pnpm typecheck`
+    - `pnpm test:runner`
+    - `pnpm test:unit:related`
+    - `pnpm check:test-hygiene`
+
+---
+
 ## 2026-11-05 — Debt: Fix empty `mcp_servers:` and trailing newline when removing last MCP server (`unit-tested`)
 
 - **What:** Fixed the 0.8 Debt item where removing the last/only MCP server left behind an empty `mcp_servers:` key and stripped the trailing newline from `config.yaml`:
