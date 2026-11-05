@@ -135,7 +135,7 @@ export function AskExpertMenu({ sessionId }: { sessionId: string | null | undefi
               toast.error(res.message);
               return;
             }
-            prefillExpertHandoffDraft(res.prompt);
+            prefillExpertHandoffDraft(res.prompt, res.model);
             navigate('/cc-agent/new');
           })
           .catch((error: unknown) => toast.error(error instanceof Error ? error.message : String(error)))

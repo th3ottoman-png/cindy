@@ -12,18 +12,22 @@ import { NEW_MAKER_DRAFT_KEY } from '@/features/cc-agent/newMakerDraftKeys';
 import { plainTextToTiptapDoc, saveDraft } from '@/lib/composerDraftStore';
 import {
   patchDraft,
+  patchVendorPrefs,
   patchVendorPrefsPreservingModelChoice,
   resetDraftWorkspaceTargets,
   switchVendor,
 } from '@/state/newMakerDraft';
 
-export function prefillExpertHandoffDraft(prompt: string): void {
+export function prefillExpertHandoffDraft(prompt: string, model?: string): void {
   saveDraft(NEW_MAKER_DRAFT_KEY, {
     text: plainTextToTiptapDoc(prompt),
     attachments: [],
   });
   resetDraftWorkspaceTargets();
   switchVendor('hermes');
+  if (model?.trim()) {
+    patchVendorPrefs('hermes', { model: model.trim() });
+  }
 }
 
 /** The two access levels a Hermes task has: Ask (default) and Full access. */

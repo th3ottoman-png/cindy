@@ -5,6 +5,7 @@ const saveDraft = vi.fn();
 const resetDraftWorkspaceTargets = vi.fn();
 const switchVendor = vi.fn();
 const patchDraft = vi.fn();
+const patchVendorPrefs = vi.fn();
 const patchVendorPrefsPreservingModelChoice = vi.fn();
 
 vi.mock('@/lib/composerDraftStore', () => ({
@@ -16,6 +17,7 @@ vi.mock('@/state/newMakerDraft', () => ({
   resetDraftWorkspaceTargets: () => resetDraftWorkspaceTargets(),
   switchVendor: (v: unknown) => switchVendor(v),
   patchDraft: (p: unknown) => patchDraft(p),
+  patchVendorPrefs: (v: unknown, p: unknown) => patchVendorPrefs(v, p),
   patchVendorPrefsPreservingModelChoice: (v: unknown, p: unknown) => patchVendorPrefsPreservingModelChoice(v, p),
 }));
 
@@ -28,6 +30,7 @@ describe('Ask expert (ROADMAP 3.6b)', () => {
     resetDraftWorkspaceTargets.mockClear();
     switchVendor.mockClear();
     patchDraft.mockClear();
+    patchVendorPrefs.mockClear();
     patchVendorPrefsPreservingModelChoice.mockClear();
   });
 
@@ -39,6 +42,13 @@ describe('Ask expert (ROADMAP 3.6b)', () => {
     });
     expect(resetDraftWorkspaceTargets).toHaveBeenCalledTimes(1);
     expect(switchVendor).toHaveBeenCalledWith('hermes');
+    expect(patchVendorPrefs).not.toHaveBeenCalled();
+  });
+
+  it('prefills expert model into Hermes draft preferences when model is present', () => {
+    prefillExpertHandoffDraft('Take a look', 'deepseek-v4-pro');
+    expect(switchVendor).toHaveBeenCalledWith('hermes');
+    expect(patchVendorPrefs).toHaveBeenCalledWith('hermes', { model: 'deepseek-v4-pro' });
   });
 
   it('offers only loadable Hermes experts', () => {

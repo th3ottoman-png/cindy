@@ -10,6 +10,35 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — 3.2c: Auto-select expert model in draft (`unit-tested`)
+
+- **What:** Implemented auto-selection of an expert's model in the new task draft (ROADMAP 3.2c). When an expert with a configured `model:` is selected in `HermesExpertPicker` or loaded as pending (e.g. via "Ask expert" handoff from `AskExpertMenu` / `startExpertHandoff`), the expert's model is resolved via `resolveExpertDraftModel` (mapping `routing.yaml` route names like `local-small` to target model `qwen3-8b` when defined, or falling back to the raw model ID) and applied to the Hermes draft preferences (`patchActiveTuplePrefs` / `patchVendorPrefs('hermes', { model })`), updating the composer's `ModelSelector` so users do not hit the wrong-route send refusal. Handoff RPC `maker:experts:handoff` now returns `model?: string` and `prefillExpertHandoffDraft` sets the model directly into draft preferences. Subsequent manual model changes by the user after selecting an expert are preserved and not clobbered on re-render. Switching back to "No expert" clears applied tracking.
+- **Files:**
+  - `apps/desktop/src/main/maker-ipc/expertsHandlers.ts`: Updated `ExpertHandoffResult` to include optional `model?: string`, returned from `entry.expert.model` in `buildHandoff`.
+  - `apps/desktop/src/main/maker-ipc/__tests__/expertSessions.test.ts`: Added test verifying `model: 'local-backup'` is returned by `EXPERTS_HANDOFF` when expert has a configured model.
+  - `apps/desktop/src/renderer/features/cc-agent/HermesExpertPicker.tsx`: Added `resolveExpertDraftModel`, added `onSelectModel` prop to `HermesExpertPicker`, fetched routing config from `maker.providers.getRouting()`, added reactive auto-application of expert model on pending load and on picker change with `lastAppliedSlugRef` guard against redundant overwrites.
+  - `apps/desktop/src/renderer/__tests__/hermesExpertPicker.test.tsx`: Added `// @vitest-environment jsdom`, added 3 unit tests for `resolveExpertDraftModel`, and 5 unit tests for `HermesExpertPicker` auto-model selection (mount with pending expert, dropdown change, expert without model, preserving manual changes, clearing on "No expert").
+  - `apps/desktop/src/renderer/features/cc-agent/NewMakerDraftRoute.tsx`: Passed `onSelectModel={handleModelDidChange}` to `HermesExpertPicker`.
+  - `apps/desktop/src/renderer/features/cc-agent/lib/startExpertHandoff.ts`: Updated `prefillExpertHandoffDraft(prompt, model?)` to patch `patchVendorPrefs('hermes', { model })` when provided.
+  - `apps/desktop/src/renderer/features/cc-agent/AskExpertMenu.tsx`: Passed `res.model` from `experts.handoff` to `prefillExpertHandoffDraft`.
+  - `apps/desktop/src/renderer/features/cc-agent/__tests__/askExpertHandoff.test.tsx`: Added unit test verifying `prefillExpertHandoffDraft` sets the model into Hermes draft preferences when model is present.
+  - `ROADMAP.md`: Updated row 3.2 with `3.2c` description.
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests:
+    - `hermesExpertPicker.test.tsx`: 12/12 passed (including 8 new tests).
+    - `askExpertHandoff.test.tsx`: 7/7 passed (including 1 new test).
+    - `expertSessions.test.ts`: 29/29 passed (including 1 new assertion).
+  - Gates green under Node 22.23.4 / pnpm 10.33.2:
+    - `pnpm typecheck` passed (exit code 0 across all 37 workspace projects).
+    - `pnpm test:runner` passed (exit code 0, 608 passed, 0 failed, 2 skipped).
+    - `pnpm check:test-hygiene` passed (exit code 0, 361 files within baseline).
+    - `pnpm test:unit:related` passed with exit code 0:
+      - `node scripts/test-workspaces.mjs --tier unit --related --exclude-workspace apps/desktop` passed (exit code 0).
+      - `XDT_UNIT_TEST_SHARD=i/8 node scripts/test-workspaces.mjs --tier unit --related --workspace apps/desktop` (all 8 shards passed, exit code 0).
+
+---
+
 ## 2026-11-05 — 5.4b: Scheduled sessions (local) (`live-proven`)
 
 - **What:** Completed ROADMAP task 5.4 (Scheduled sessions - local). Connected pure file-backed schedule parsing from 5.4a (`@cindy/maker-core/scheduled-sessions`) to the desktop main process runtime, Notes Vault, and UI. Implemented configuration management (`~/.cindy-harness/schedules-config.json`) defaulting to `~/.cindy-harness/schedules/`, state persistence (`~/.cindy-harness/schedules-state.json`) with atomic writes (`writeAtomic`), and runtime execution host `ScheduledSessionsHost` in `apps/desktop/src/main/maker-ipc/scheduledSessions.ts`. Runs a 60-second background ticker evaluating `dueSchedules` via `@cindy/maker-scheduler` `parseCron`/`nextRun`. For each due schedule: verifies Notes Vault configuration (`~/.cindy-harness/vault.json`), verifies configured expert exists and is valid via `loadExpert`, spawns a session with `agentKind: 'hermes'`, binds expert session via `expertSessionStore`, streams turn response with prompt body, substitutes `{date}` in output path, appends result note to vault via `@cindy/maker-core/vault-notes` `appendNote`, updates run state atomically (`lastRunMs`, `firstSeenMs`, `lastRuns`), and broadcasts `maker:scheduled-sessions:changed`. Also supports manual "Run now" execution with concurrent execution lock per schedule. Exposed through IPC channels and `preload.ts` (`window.electronAPI.maker.scheduledSessions`). Created Settings UI `ScheduledSessionsSection.tsx` mounted in Settings → General tab right after Notes Vault, featuring schedules folder selector, Browse dialog, schedule cards, error banners, next-run calculations, last-run status badges, and manual "Run now" triggers. Live-proven against real schedule (`weekly-review.md`), real expert (`code-reviewer`), and real vault (`/Users/turko/Bishi-memory`), generating dated output note and persisting state.

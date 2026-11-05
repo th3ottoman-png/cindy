@@ -5934,8 +5934,8 @@ export function NewMakerDraftRoute() {
                             disabled={wtCreating}
                             hiddenVendors={hiddenSwitcherVendors}
                           />
-                          {/* ROADMAP 3.2a: start this Hermes task as an expert. */}
-                          {draft.vendor === 'hermes' ? <HermesExpertPicker /> : null}
+                          {/* ROADMAP 3.2a: start this Hermes task as an expert. Auto-selects expert's model in draft. */}
+                          {draft.vendor === 'hermes' ? <HermesExpertPicker onSelectModel={handleModelDidChange} /> : null}
                         </>
                       )
                     }

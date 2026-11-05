@@ -374,6 +374,7 @@ describe('ask-expert handoff IPC (ROADMAP 3.6b)', () => {
 
   function setup(handoffSource = vi.fn(async (id: string) => (id === 'src' ? source : null))) {
     writeExpert('code-reviewer', 'name: Code Reviewer');
+    writeExpert('routed-expert', 'name: Routed Expert\nagent: hermes\nmodel: local-backup');
     writeExpert('codex-one', 'name: Codex One\nagent: codex');
     writeExpert('broken', 'agent: hermes');
     const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
@@ -395,6 +396,12 @@ describe('ask-expert handoff IPC (ROADMAP 3.6b)', () => {
     expect(res.prompt).not.toContain('PAYLOAD');
     expect(store.getPending()).toBe('code-reviewer');
     expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.EXPERTS_SESSION_EVENT, { type: 'pending', slug: 'code-reviewer' });
+
+    const routedRes = await harness.invoke(MAKER_INVOKE.EXPERTS_HANDOFF, { sessionId: 'src', slug: 'routed-expert' }) as {
+      ok: true; slug: string; model?: string;
+    };
+    expect(routedRes).toMatchObject({ ok: true, slug: 'routed-expert', model: 'local-backup' });
+    expect(store.getPending()).toBe('routed-expert');
   });
 
   it('refuses without touching the pending pick: bad slug, broken or non-Hermes expert, unknown or empty session', async () => {

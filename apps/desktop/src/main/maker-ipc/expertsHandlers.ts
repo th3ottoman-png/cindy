@@ -68,7 +68,15 @@ export interface ExpertHandoffSource {
 }
 
 export type ExpertHandoffResult =
-  | { ok: true; slug: string; prompt: string; includedMessages: number; omittedMessages: number; truncated: boolean }
+  | {
+      ok: true;
+      slug: string;
+      prompt: string;
+      model?: string;
+      includedMessages: number;
+      omittedMessages: number;
+      truncated: boolean;
+    }
   | { ok: false; reason: 'invalid' | 'expert-unavailable' | 'no-session' | 'no-messages'; message: string };
 
 async function buildHandoff(
@@ -105,6 +113,7 @@ async function buildHandoff(
     ok: true,
     slug,
     prompt: handoff.prompt,
+    ...(entry.expert.model ? { model: entry.expert.model } : {}),
     includedMessages: handoff.includedMessages,
     omittedMessages: handoff.omittedMessages,
     truncated: handoff.truncated,
