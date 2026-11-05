@@ -10,6 +10,42 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — Debt: Context window reporting outside models.dev (Row 182) (`unit-tested`)
+
+- **What:** Resolved the open item in Debt row 182 where Hermes sessions using custom local routes (e.g. LM Studio, Ollama) or custom endpoints outside `models.dev` defaulted their context window to the 200,000 token fallback rather than the endpoint's configured window:
+  1. **Hermes Manager Context Window Lookup (`hermes-context.ts`):**
+     - Added `lookupCustomProviderContextWindow(home, provider, model)` to check `custom_providers` in `config.yaml` when `lookupModelsDevContextWindow` does not find a match in `models_dev_cache.json`.
+     - Matches specific provider name or falls back to the configured custom provider context length.
+  2. **Model Route Resolver Context Length Projection (`model-route-resolver.ts`):**
+     - Added `contextLength?: number` to `ResolvedModelRoute`.
+     - In `resolveModelRoute`, extracted `contextLength` from `providers.yaml` `capabilities.contextLength` for matching endpoints.
+  3. **Hermes Agent Route Window Alignment (`agent.ts`):**
+     - Initialized `contextWindow` at session handle creation from `resolveModelRoute(input.model)?.contextLength` with fallback to `HERMES_CONTEXT_WINDOW`.
+     - Updated `contextWindow` on `handle.setModel` when switching to a route with configured `contextLength`.
+     - In `handleHermesEvent`, when daemon `context-usage` omits `contextWindow`, falls back to active route's `contextLength`.
+- **Files:**
+  - `packages/maker-hermes-manager/src/hermes-context.ts`: Added `lookupCustomProviderContextWindow` and wired into `readTurnContextUsage`.
+  - `packages/maker-hermes-manager/src/__tests__/hermes-context.test.ts`: Added tests for custom provider context window resolution from `config.yaml`.
+  - `packages/maker-core/src/providers/model-route-resolver.ts`: Projected `contextLength` from `providers.yaml` capabilities onto `ResolvedModelRoute`.
+  - `packages/maker-core/src/providers/__tests__/model-route-resolver.test.ts`: Verified `contextLength` propagation.
+  - `packages/maker-core/src/agents/hermes/agent.ts`: Initialized and refreshed `contextWindow` from resolved model routes.
+  - `packages/maker-core/src/agents/hermes/__tests__/agent.test.ts`: Added unit test verifying fallback to route context window.
+  - `ROADMAP.md`: Marked Row 182 as fully resolved (`live-proven` & `unit-tested`).
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests:
+    - `hermes-context.test.ts`: 17/17 passed.
+    - `model-route-resolver.test.ts`: 6/6 passed.
+    - `agent.test.ts`: 45/45 passed.
+    - All 21 `maker-hermes-manager` test files (257/257 tests) passed.
+  - All 4 required gates green under Node 22:
+    - `pnpm typecheck`: exit code 0 across all 37 workspaces.
+    - `pnpm test:runner`: exit code 0, 608 passed.
+    - `pnpm check:test-hygiene`: exit code 0, 361 files within baseline.
+    - `pnpm test:unit:related`: exit code 0 across all workspaces; all 8 desktop shards (1..8) passed.
+
+---
+
 ## 2026-11-05 — Debt: Test suite flake & timing hardening (Rows 169, 170, 178, 181) (`unit-tested`)
 
 - **What:** Resolved four open test suite timing and load flake items from `ROADMAP.md` §Debt to ensure rock-solid determinism across gate runs:

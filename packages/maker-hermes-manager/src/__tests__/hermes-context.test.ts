@@ -94,10 +94,51 @@ describe('readTurnContextUsage', () => {
     expect(readTurnContextUsage(home, SID)?.promptTokens).toBe(222);
   });
 
-  it('returns the prompt size without a window when the model is not in models.dev', () => {
+  it('returns the prompt size without a window when the model is not in models.dev and no custom provider exists', () => {
     fs.mkdirSync(path.join(home, 'logs'));
     fs.writeFileSync(path.join(home, 'logs', 'agent.log'), `${call(SID, 1, 5000, 'qwen3-8b', 'custom')}\n`);
     expect(readTurnContextUsage(home, SID)).toEqual({ promptTokens: 5000, model: 'qwen3-8b', provider: 'custom' });
+  });
+
+  it('resolves context window from config.yaml custom_providers when model is outside models.dev', () => {
+    fs.mkdirSync(path.join(home, 'logs'));
+    fs.writeFileSync(path.join(home, 'logs', 'agent.log'), `${call(SID, 1, 5000, 'qwen3-8b', 'custom')}\n`);
+    fs.writeFileSync(
+      path.join(home, 'config.yaml'),
+      `custom_providers:
+  - name: lmstudio-local
+    base_url: http://127.0.0.1:1234/v1
+    context_length: 65536
+`,
+    );
+    expect(readTurnContextUsage(home, SID)).toEqual({
+      promptTokens: 5000,
+      model: 'qwen3-8b',
+      provider: 'custom',
+      contextWindow: 65536,
+    });
+  });
+
+  it('matches custom provider by specific provider name in custom_providers', () => {
+    fs.mkdirSync(path.join(home, 'logs'));
+    fs.writeFileSync(path.join(home, 'logs', 'agent.log'), `${call(SID, 1, 4200, 'llama-3', 'ollama-local')}\n`);
+    fs.writeFileSync(
+      path.join(home, 'config.yaml'),
+      `custom_providers:
+  - name: lmstudio-local
+    base_url: http://127.0.0.1:1234/v1
+    context_length: 32768
+  - name: ollama-local
+    base_url: http://127.0.0.1:11434/v1
+    context_length: 131072
+`,
+    );
+    expect(readTurnContextUsage(home, SID)).toEqual({
+      promptTokens: 4200,
+      model: 'llama-3',
+      provider: 'ollama-local',
+      contextWindow: 131072,
+    });
   });
 
   it('returns null when the log is missing, without throwing', () => {

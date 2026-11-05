@@ -392,8 +392,9 @@ export class HermesAgent extends BaseAgent {
     const logger = this.deps.logger;
     const queue = createAsyncQueue<AgentEvent>();
     const usage = { tokenUsage: 0, contextTokens: 0, costUsd: 0 };
-    // The model's window, once a context-usage event reported it (models.dev).
-    let contextWindow = HERMES_CONTEXT_WINDOW;
+    // The model's window, once a context-usage event reported it (models.dev or providers.yaml).
+    const initialRoute = resolveModelRoute(input.model);
+    let contextWindow = initialRoute?.contextLength ?? HERMES_CONTEXT_WINDOW;
     // The current turn's last API call prompt size, from the daemon's
     // context-usage event; consumed by that turn's result.
     let turnPromptTokens: number | undefined;
@@ -513,7 +514,14 @@ export class HermesAgent extends BaseAgent {
           return;
         case 'context-usage':
           turnPromptTokens = normalized.promptTokens;
-          if (normalized.contextWindow !== undefined) contextWindow = normalized.contextWindow;
+          if (normalized.contextWindow !== undefined) {
+            contextWindow = normalized.contextWindow;
+          } else {
+            const activeRoute = resolveModelRoute(currentModel);
+            if (activeRoute?.contextLength) {
+              contextWindow = activeRoute.contextLength;
+            }
+          }
           return;
         case 'compression':
           // Hermes compresses the context on its own mid-turn (ROADMAP 1.11, ADR 0010):
@@ -952,6 +960,9 @@ export class HermesAgent extends BaseAgent {
           ...(route?.apiKey ? { apiKey: route.apiKey } : {}),
         });
         currentModel = trimmed;
+        if (route && 'contextLength' in route && typeof route.contextLength === 'number' && route.contextLength > 0) {
+          contextWindow = route.contextLength;
+        }
       },
     };
 

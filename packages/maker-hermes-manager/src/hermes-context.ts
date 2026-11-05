@@ -18,6 +18,8 @@
 import * as fs from 'node:fs';
 import * as nodePath from 'node:path';
 
+import { parseHermesCustomProviders } from './hermes-config.js';
+
 export interface HermesApiCallUsage {
   promptTokens: number;
   model?: string;
@@ -111,19 +113,56 @@ function readModelsDevCache(home: string): unknown {
 }
 
 /**
+ * Context length from custom_providers in config.yaml when models.dev does not describe the model/provider.
+ */
+export function lookupCustomProviderContextWindow(
+  home: string,
+  provider?: string,
+  _model?: string,
+): number | undefined {
+  try {
+    const configPath = nodePath.join(home, 'config.yaml');
+    let configYaml: string | null = null;
+    if (fs.existsSync(configPath)) {
+      configYaml = fs.readFileSync(configPath, 'utf8');
+    } else {
+      const parentConfig = nodePath.join(home, '..', 'config.yaml');
+      if (fs.existsSync(parentConfig)) {
+        configYaml = fs.readFileSync(parentConfig, 'utf8');
+      }
+    }
+    if (!configYaml) return undefined;
+    const entries = parseHermesCustomProviders(configYaml);
+    if (entries.length === 0) return undefined;
+
+    if (provider && provider !== 'custom') {
+      const match = entries.find((e) => e.name === provider);
+      if (match?.contextLength) return match.contextLength;
+    }
+    if (entries[0]?.contextLength) {
+      return entries[0].contextLength;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * The last API call's prompt size for `hermesSessionId` in `home`, with the
- * model's window when models.dev knows it. Synchronous on purpose: the daemon
- * calls it while forwarding the `result` event, so the context-usage event it
- * builds lands before that result without reordering the stream.
+ * model's window when models.dev or custom_providers in config.yaml knows it.
+ * Synchronous on purpose: the daemon calls it while forwarding the `result` event,
+ * so the context-usage event it builds lands before that result without reordering the stream.
  */
 export function readTurnContextUsage(home: string, hermesSessionId: string): HermesTurnContextUsage | null {
   const tail = readTail(nodePath.join(home, 'logs', 'agent.log'), LOG_TAIL_BYTES);
   if (tail === null) return null;
   const call = parseLastApiCall(tail, hermesSessionId);
   if (!call) return null;
-  const contextWindow = call.provider && call.model
+  const modelsDevWindow = call.provider && call.model
     ? lookupModelsDevContextWindow(readModelsDevCache(home), call.provider, call.model)
     : undefined;
+  const contextWindow = modelsDevWindow ?? lookupCustomProviderContextWindow(home, call.provider, call.model);
   return { ...call, ...(contextWindow !== undefined ? { contextWindow } : {}) };
 }
 

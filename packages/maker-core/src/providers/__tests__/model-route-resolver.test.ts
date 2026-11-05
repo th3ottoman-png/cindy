@@ -28,6 +28,8 @@ describe('model-route-resolver', () => {
   - id: lmstudio-local
     kind: lmstudio
     baseUrl: http://127.0.0.1:1234
+    capabilities:
+      contextLength: 65536
 `,
       );
       fs.writeFileSync(
@@ -46,6 +48,7 @@ rules:
         provider: 'custom',
         baseUrl: 'http://127.0.0.1:1234/v1',
         providerId: 'lmstudio-local',
+        contextLength: 65536,
       });
 
       // Resolve by model name matching the route
@@ -55,6 +58,7 @@ rules:
         provider: 'custom',
         baseUrl: 'http://127.0.0.1:1234/v1',
         providerId: 'lmstudio-local',
+        contextLength: 65536,
       });
 
       // Resolve by provider/model prefix (including slash in model name)
@@ -64,6 +68,7 @@ rules:
         provider: 'custom',
         baseUrl: 'http://127.0.0.1:1234/v1',
         providerId: 'lmstudio-local',
+        contextLength: 65536,
       });
 
       const routeWithSlashInModel = resolveModelRoute('lmstudio-local/google/gemma-4-26b-a4b-qat', { harnessDir: tmpDir });
@@ -72,6 +77,7 @@ rules:
         provider: 'custom',
         baseUrl: 'http://127.0.0.1:1234/v1',
         providerId: 'lmstudio-local',
+        contextLength: 65536,
       });
 
       // Resolve by discovered endpoint models without provider prefix
@@ -84,6 +90,7 @@ rules:
         provider: 'custom',
         baseUrl: 'http://127.0.0.1:1234/v1',
         providerId: 'lmstudio-local',
+        contextLength: 65536,
       });
 
       // Unmatched model returns null (home default)

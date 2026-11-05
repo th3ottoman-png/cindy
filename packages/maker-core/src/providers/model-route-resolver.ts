@@ -21,6 +21,8 @@ export interface ResolvedModelRoute {
   apiKey?: string;
   /** The providers.yaml entry id this route uses (e.g. "lmstudio-local"). */
   providerId?: string;
+  /** Configured context window from providers.yaml capabilities.contextLength. */
+  contextLength?: number;
 }
 
 /**
@@ -132,6 +134,10 @@ export function resolveModelRoute(
 
   const env = options?.env ?? process.env;
   const apiKey = entry.keyEnv ? env[entry.keyEnv] : undefined;
+  const contextLength =
+    typeof entry.capabilities?.contextLength === 'number' && entry.capabilities.contextLength > 0
+      ? entry.capabilities.contextLength
+      : undefined;
 
   return {
     model: targetModel,
@@ -139,5 +145,6 @@ export function resolveModelRoute(
     baseUrl: normalizeBaseUrl(entry.baseUrl),
     ...(apiKey ? { apiKey } : {}),
     providerId: targetProviderId,
+    ...(contextLength !== undefined ? { contextLength } : {}),
   };
 }

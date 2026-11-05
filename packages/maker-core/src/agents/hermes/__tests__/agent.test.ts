@@ -1138,6 +1138,38 @@ describe('HermesAgent', () => {
     }
   });
 
+  it('keeps prompt tokens and resolves route context window when context-usage omits models.dev window', async () => {
+    const daemon = await startDaemon({ turn: 'manual' });
+    const handle = await start(buildAgent());
+    const pump = createEventPump(handle);
+    try {
+      await handle.send({ type: 'user', content: 'test custom provider context' });
+      daemon.emit({
+        type: 'hermes-mgr',
+        subtype: 'context-usage',
+        promptTokens: 4200,
+        model: 'custom-model',
+        provider: 'custom',
+      });
+      daemon.emit({
+        type: 'result',
+        session_id: 'hermes-session-1',
+        exit_code: 0,
+        text: 'custom done',
+        tokens: { input: 4200, output: 50, total: 4250, cache_read: 0, cache_write: 0 },
+      });
+      daemon.closeSession('completed');
+      await pump.until((event) => event.type === 'done');
+      expect(handle.getUsageSnapshot()).toMatchObject({ contextTokens: 4200 });
+      expect(pump.seen.filter((event) => event.type === 'status').at(-1)?.data).toMatchObject({
+        isRunning: false,
+        contextTokens: 4200,
+      });
+    } finally {
+      await handle.close();
+    }
+  });
+
   it('surfaces a durable notice when the daemon replaced a lost resume id', async () => {
     const daemon = await startDaemon({ turn: 'manual' });
     const handle = await start(buildAgent());
