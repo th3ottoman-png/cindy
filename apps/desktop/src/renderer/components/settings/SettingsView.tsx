@@ -57,8 +57,8 @@ import { HermesSection } from './HermesSection';
 import { ExpertsSection } from './ExpertsSection';
 import { PluginsSection } from './PluginsSection';
 import { VaultSection } from './VaultSection';
-import { McpCatalogSection } from './McpCatalogSection';
-import { SkillsSection } from './SkillsSection';
+import { McpCatalogSection, MCP_CATALOG_COLLAPSE_STORAGE_KEY } from './McpCatalogSection';
+import { SkillsSection, SKILLS_COLLAPSE_STORAGE_KEY } from './SkillsSection';
 import { PiPackagesSection } from './PiPackagesSection';
 import { CollaborationSection } from './CollaborationSection';
 import { BuiltinToolsSection } from './BuiltinToolsSection';
@@ -221,6 +221,59 @@ export function SettingsView() {
     else exitSettings();
   }, [exitSettings, handleClosePiExtensions, piExtensionsPanelOpen]);
   useSettingsEscape(settingsRootRef, true, handleSettingsEscape);
+
+  const [mcpCatalogCollapsed, setMcpCatalogCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(MCP_CATALOG_COLLAPSE_STORAGE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [skillsCollapsed, setSkillsCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(SKILLS_COLLAPSE_STORAGE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleMcpCatalogCollapsed = useCallback(() => {
+    setMcpCatalogCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(MCP_CATALOG_COLLAPSE_STORAGE_KEY, String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleSkillsCollapsed = useCallback(() => {
+    setSkillsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(SKILLS_COLLAPSE_STORAGE_KEY, String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  const allToolsCollapsed = mcpCatalogCollapsed && skillsCollapsed;
+  const toggleAllToolsCollapsed = useCallback(() => {
+    const next = !allToolsCollapsed;
+    setMcpCatalogCollapsed(next);
+    setSkillsCollapsed(next);
+    try {
+      window.localStorage.setItem(MCP_CATALOG_COLLAPSE_STORAGE_KEY, String(next));
+      window.localStorage.setItem(SKILLS_COLLAPSE_STORAGE_KEY, String(next));
+    } catch {
+      // ignore
+    }
+  }, [allToolsCollapsed]);
 
   const visibleTabIds = useMemo(
     () =>
@@ -639,11 +692,27 @@ export function SettingsView() {
                 id="settings-panel-builtin-tools"
                 aria-labelledby="settings-tab-builtin-tools"
               >
+                <div className="flex items-center justify-end pb-3">
+                  <button
+                    type="button"
+                    onClick={toggleAllToolsCollapsed}
+                    className="flex items-center gap-1 rounded-md border border-[var(--border-subtle)] px-2.5 py-1 text-11 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                    data-testid="tools-collapse-all-button"
+                  >
+                    {allToolsCollapsed ? 'Expand all' : 'Collapse all'}
+                  </button>
+                </div>
                 <section className="pb-[18px]" aria-label="MCP Servers">
-                  <McpCatalogSection />
+                  <McpCatalogSection
+                    collapsed={mcpCatalogCollapsed}
+                    onToggleCollapsed={toggleMcpCatalogCollapsed}
+                  />
                 </section>
                 <section className="pb-[18px]" aria-label="Hermes Skills">
-                  <SkillsSection />
+                  <SkillsSection
+                    collapsed={skillsCollapsed}
+                    onToggleCollapsed={toggleSkillsCollapsed}
+                  />
                 </section>
                 <section className="pb-[18px]" aria-label={t('settings.builtinTools.title')}>
                   <BuiltinToolsSection workingDir={workingDir ?? undefined} />

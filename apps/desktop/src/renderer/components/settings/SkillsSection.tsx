@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Download, FolderOpen, GitBranch, Puzzle, Search, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, FolderOpen, GitBranch, Puzzle, Search, Trash2 } from 'lucide-react';
 
 import type { SkillScanReport } from '@cindy/maker-core/skills';
 
@@ -232,9 +232,45 @@ export function ScanReportView({ report, installing, onInstall }: ScanReportView
   );
 }
 
-export function SkillsSection() {
+export const SKILLS_COLLAPSE_STORAGE_KEY = 'cindy:settings:skills-collapsed';
+
+export interface SkillsSectionProps {
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+}
+
+export function SkillsSection({
+  collapsed: controlledCollapsed,
+  onToggleCollapsed,
+}: SkillsSectionProps = {}) {
   const api = window.electronAPI?.maker?.skills;
   const expertsApi = window.electronAPI?.maker?.experts;
+  const [internalCollapsed, setInternalCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(SKILLS_COLLAPSE_STORAGE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
+
+  const handleToggleCollapse = () => {
+    if (onToggleCollapsed) {
+      onToggleCollapsed();
+    } else {
+      setInternalCollapsed((prev) => {
+        const next = !prev;
+        try {
+          window.localStorage.setItem(SKILLS_COLLAPSE_STORAGE_KEY, String(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+  };
+
   const [view, setView] = useState<SkillsView | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [confirmingUninstall, setConfirmingUninstall] = useState<string | null>(null);
@@ -383,119 +419,144 @@ export function SkillsSection() {
     }
   };
 
+  const skillCount = view?.skills.length ?? 0;
+
   return (
     <div className="flex flex-col gap-3" data-testid="settings-skills">
-      <h2 className={cn(SETTINGS_SECTION_TITLE_CLASS, 'flex items-center gap-2')}>
-        <Puzzle size={16} aria-hidden="true" /> Hermes Skills
-      </h2>
-      <p className={SETTINGS_ROW_HINT_CLASS}>
-        Skills under the Cindy Hermes home; Hermes sessions pick them up on the next turn. The toggle moves a skill
-        out of the scanned folder (nothing is deleted). <strong>Built-in</strong> skills ship with Hermes and are
-        managed by Hermes updates. New skills are installed only after the security-scan report below has been shown.
-      </p>
-      <SkillsListView
-        skills={view?.skills ?? []}
-        pending={pending}
-        confirmingUninstall={confirmingUninstall}
-        expertOptions={expertOptions}
-        addingToExpert={addingToExpert}
-        onToggle={(id, enabled) => void handleToggle(id, enabled)}
-        onUninstall={(id) => void handleUninstall(id)}
-        onAddToExpert={(id, slug) => void handleAddToExpert(id, slug)}
-      />
-
-      <div className={cn(SETTINGS_CARD_CLASS, 'flex flex-col gap-2 p-3')} data-testid="skills-install-form">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between">
+        <h2 className={SETTINGS_SECTION_TITLE_CLASS}>
           <button
             type="button"
-            className={cn(BUTTON_CLASS, mode === 'local' ? 'border-[var(--accent)] text-[var(--text-primary)]' : undefined)}
-            onClick={() => {
-              setMode('local');
-              setScan(null);
-            }}
-            data-testid="skills-mode-local"
+            onClick={handleToggleCollapse}
+            className="flex items-center gap-2 group text-left text-inherit font-inherit hover:opacity-85 transition-opacity"
+            aria-expanded={!isCollapsed}
+            data-testid="skills-collapse-toggle"
           >
-            <FolderOpen size={11} aria-hidden="true" /> Local folder
+            <Puzzle size={16} aria-hidden="true" />
+            <span>Hermes Skills</span>
+            {skillCount > 0 ? (
+              <span className="rounded-full bg-[var(--surface-elevated)] px-2 py-0.5 text-11 font-normal text-[var(--text-tertiary)]">
+                {skillCount}
+              </span>
+            ) : null}
+            <span className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors">
+              {isCollapsed ? <ChevronRight size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
+            </span>
           </button>
-          <button
-            type="button"
-            className={cn(BUTTON_CLASS, mode === 'git' ? 'border-[var(--accent)] text-[var(--text-primary)]' : undefined)}
-            onClick={() => {
-              setMode('git');
-              setScan(null);
-            }}
-            data-testid="skills-mode-git"
-          >
-            <GitBranch size={11} aria-hidden="true" /> Git URL
-          </button>
-        </div>
-        {mode === 'local' ? (
-          <input
-            className={INPUT_CLASS}
-            placeholder="/path/to/skill-folder"
-            value={localPath}
-            onChange={(e) => setLocalPath(e.target.value)}
-            data-testid="skills-local-path"
-          />
-        ) : (
-          <>
-            <input
-              className={INPUT_CLASS}
-              placeholder="https://github.com/user/repo.git"
-              value={gitUrl}
-              onChange={(e) => setGitUrl(e.target.value)}
-              data-testid="skills-git-url"
-            />
-            <input
-              className={INPUT_CLASS}
-              placeholder="Subdirectory (optional, for repos with several skills)"
-              value={gitSubdir}
-              onChange={(e) => setGitSubdir(e.target.value)}
-              data-testid="skills-git-subdir"
-            />
-          </>
-        )}
-        <div className="flex items-center gap-2">
-          <input
-            className={cn(INPUT_CLASS, 'w-40')}
-            placeholder="community"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            aria-label="Install category"
-            data-testid="skills-category"
-          />
-          <button
-            type="button"
-            className={BUTTON_CLASS}
-            disabled={scanning || (mode === 'local' ? localPath.trim() === '' : gitUrl.trim() === '')}
-            onClick={() => void handleScan()}
-            data-testid="skills-scan-button"
-          >
-            <Search size={11} aria-hidden="true" />
-            {scanning ? 'Scanning…' : 'Scan'}
-          </button>
-        </div>
+        </h2>
       </div>
+      {!isCollapsed ? (
+        <>
+          <p className={SETTINGS_ROW_HINT_CLASS}>
+            Skills under the Cindy Hermes home; Hermes sessions pick them up on the next turn. The toggle moves a skill
+            out of the scanned folder (nothing is deleted). <strong>Built-in</strong> skills ship with Hermes and are
+            managed by Hermes updates. New skills are installed only after the security-scan report below has been shown.
+          </p>
+          <SkillsListView
+            skills={view?.skills ?? []}
+            pending={pending}
+            confirmingUninstall={confirmingUninstall}
+            expertOptions={expertOptions}
+            addingToExpert={addingToExpert}
+            onToggle={(id, enabled) => void handleToggle(id, enabled)}
+            onUninstall={(id) => void handleUninstall(id)}
+            onAddToExpert={(id, slug) => void handleAddToExpert(id, slug)}
+          />
 
-      {scan?.candidates && scan.candidates.length > 0 ? (
-        <div className={cn(SETTINGS_CARD_CLASS, 'flex flex-col gap-1 p-3')} data-testid="skills-candidates">
-          <span className={SETTINGS_ROW_HINT_CLASS}>This repo contains several skills. Pick one:</span>
-          {scan.candidates.map((candidate) => (
-            <button
-              key={candidate}
-              type="button"
-              className={cn(BUTTON_CLASS, 'self-start font-mono')}
-              onClick={() => void handleScan(candidate)}
-              data-testid={`skills-candidate-${skillsTestIdSuffix(candidate)}`}
-            >
-              {candidate}/
-            </button>
-          ))}
-        </div>
-      ) : null}
+          <div className={cn(SETTINGS_CARD_CLASS, 'flex flex-col gap-2 p-3')} data-testid="skills-install-form">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className={cn(BUTTON_CLASS, mode === 'local' ? 'border-[var(--accent)] text-[var(--text-primary)]' : undefined)}
+                onClick={() => {
+                  setMode('local');
+                  setScan(null);
+                }}
+                data-testid="skills-mode-local"
+              >
+                <FolderOpen size={11} aria-hidden="true" /> Local folder
+              </button>
+              <button
+                type="button"
+                className={cn(BUTTON_CLASS, mode === 'git' ? 'border-[var(--accent)] text-[var(--text-primary)]' : undefined)}
+                onClick={() => {
+                  setMode('git');
+                  setScan(null);
+                }}
+                data-testid="skills-mode-git"
+              >
+                <GitBranch size={11} aria-hidden="true" /> Git URL
+              </button>
+            </div>
+            {mode === 'local' ? (
+              <input
+                className={INPUT_CLASS}
+                placeholder="/path/to/skill-folder"
+                value={localPath}
+                onChange={(e) => setLocalPath(e.target.value)}
+                data-testid="skills-local-path"
+              />
+            ) : (
+              <>
+                <input
+                  className={INPUT_CLASS}
+                  placeholder="https://github.com/user/repo.git"
+                  value={gitUrl}
+                  onChange={(e) => setGitUrl(e.target.value)}
+                  data-testid="skills-git-url"
+                />
+                <input
+                  className={INPUT_CLASS}
+                  placeholder="Subdirectory (optional, for repos with several skills)"
+                  value={gitSubdir}
+                  onChange={(e) => setGitSubdir(e.target.value)}
+                  data-testid="skills-git-subdir"
+                />
+              </>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                className={cn(INPUT_CLASS, 'w-40')}
+                placeholder="community"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                aria-label="Install category"
+                data-testid="skills-category"
+              />
+              <button
+                type="button"
+                className={BUTTON_CLASS}
+                disabled={scanning || (mode === 'local' ? localPath.trim() === '' : gitUrl.trim() === '')}
+                onClick={() => void handleScan()}
+                data-testid="skills-scan-button"
+              >
+                <Search size={11} aria-hidden="true" />
+                {scanning ? 'Scanning…' : 'Scan'}
+              </button>
+            </div>
+          </div>
 
-      {scan && !scan.candidates ? (
-        <ScanReportView report={scan.report} installing={installing} onInstall={() => void handleInstall()} />
+          {scan?.candidates && scan.candidates.length > 0 ? (
+            <div className={cn(SETTINGS_CARD_CLASS, 'flex flex-col gap-1 p-3')} data-testid="skills-candidates">
+              <span className={SETTINGS_ROW_HINT_CLASS}>This repo contains several skills. Pick one:</span>
+              {scan.candidates.map((candidate) => (
+                <button
+                  key={candidate}
+                  type="button"
+                  className={cn(BUTTON_CLASS, 'self-start font-mono')}
+                  onClick={() => void handleScan(candidate)}
+                  data-testid={`skills-candidate-${skillsTestIdSuffix(candidate)}`}
+                >
+                  {candidate}/
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {scan && !scan.candidates ? (
+            <ScanReportView report={scan.report} installing={installing} onInstall={() => void handleInstall()} />
+          ) : null}
+        </>
       ) : null}
 
       {status ? (

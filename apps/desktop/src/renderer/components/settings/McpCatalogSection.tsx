@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plug, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plug, RefreshCw } from 'lucide-react';
 
 import type { ExpertEntry } from '@cindy/maker-core/experts';
 import type { McpHealthStatus } from '@cindy/maker-core/mcp-catalog';
@@ -171,9 +171,45 @@ export function McpCatalogListView({
   );
 }
 
-export function McpCatalogSection() {
+export const MCP_CATALOG_COLLAPSE_STORAGE_KEY = 'cindy:settings:mcp-catalog-collapsed';
+
+export interface McpCatalogSectionProps {
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+}
+
+export function McpCatalogSection({
+  collapsed: controlledCollapsed,
+  onToggleCollapsed,
+}: McpCatalogSectionProps = {}) {
   const api = window.electronAPI?.maker?.mcpCatalog;
   const expertsApi = window.electronAPI?.maker?.experts;
+  const [internalCollapsed, setInternalCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(MCP_CATALOG_COLLAPSE_STORAGE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
+
+  const handleToggleCollapse = () => {
+    if (onToggleCollapsed) {
+      onToggleCollapsed();
+    } else {
+      setInternalCollapsed((prev) => {
+        const next = !prev;
+        try {
+          window.localStorage.setItem(MCP_CATALOG_COLLAPSE_STORAGE_KEY, String(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+  };
+
   const [view, setView] = useState<McpCatalogView | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
@@ -261,28 +297,53 @@ export function McpCatalogSection() {
     }
   };
 
+  const entryCount = view?.entries.length ?? 0;
+
   return (
     <div className="flex flex-col gap-3" data-testid="settings-mcp-catalog">
-      <h2 className={cn(SETTINGS_SECTION_TITLE_CLASS, 'flex items-center gap-2')}>
-        <Plug size={16} aria-hidden="true" /> MCP Servers
-      </h2>
-      <p className={SETTINGS_ROW_HINT_CLASS}>
-        Every MCP server Cindy can hand an agent. <strong>Hermes</strong> servers live in the Hermes home{' '}
-        <code className="font-mono">config.yaml</code>; the toggle writes their{' '}
-        <code className="font-mono">disabled</code> flag. <strong>Built-in</strong> servers run inside Cindy; their
-        toggle applies to new sessions. Stdio health only checks that the command exists — press Check on a
-        server URL to probe it.
-      </p>
-      <McpCatalogListView
-        entries={view?.entries ?? []}
-        pending={pending}
-        checking={checking}
-        expertOptions={expertOptions}
-        addingToExpert={addingToExpert}
-        onToggle={(id, enabled) => void handleToggle(id, enabled)}
-        onCheck={(id) => void handleCheck(id)}
-        onAddToExpert={(id, slug) => void handleAddToExpert(id, slug)}
-      />
+      <div className="flex items-center justify-between">
+        <h2 className={SETTINGS_SECTION_TITLE_CLASS}>
+          <button
+            type="button"
+            onClick={handleToggleCollapse}
+            className="flex items-center gap-2 group text-left text-inherit font-inherit hover:opacity-85 transition-opacity"
+            aria-expanded={!isCollapsed}
+            data-testid="mcp-catalog-collapse-toggle"
+          >
+            <Plug size={16} aria-hidden="true" />
+            <span>MCP Servers</span>
+            {entryCount > 0 ? (
+              <span className="rounded-full bg-[var(--surface-elevated)] px-2 py-0.5 text-11 font-normal text-[var(--text-tertiary)]">
+                {entryCount}
+              </span>
+            ) : null}
+            <span className="text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors">
+              {isCollapsed ? <ChevronRight size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
+            </span>
+          </button>
+        </h2>
+      </div>
+      {!isCollapsed ? (
+        <>
+          <p className={SETTINGS_ROW_HINT_CLASS}>
+            Every MCP server Cindy can hand an agent. <strong>Hermes</strong> servers live in the Hermes home{' '}
+            <code className="font-mono">config.yaml</code>; the toggle writes their{' '}
+            <code className="font-mono">disabled</code> flag. <strong>Built-in</strong> servers run inside Cindy; their
+            toggle applies to new sessions. Stdio health only checks that the command exists — press Check on a
+            server URL to probe it.
+          </p>
+          <McpCatalogListView
+            entries={view?.entries ?? []}
+            pending={pending}
+            checking={checking}
+            expertOptions={expertOptions}
+            addingToExpert={addingToExpert}
+            onToggle={(id, enabled) => void handleToggle(id, enabled)}
+            onCheck={(id) => void handleCheck(id)}
+            onAddToExpert={(id, slug) => void handleAddToExpert(id, slug)}
+          />
+        </>
+      ) : null}
       {status ? (
         <div role="status" className="rounded-lg border border-emerald-500/40 px-3 py-2 text-12 text-emerald-500">
           {status}

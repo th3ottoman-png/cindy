@@ -1,10 +1,11 @@
+// @vitest-environment jsdom
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { SkillScanReport } from '@cindy/maker-core/skills';
 
 import type { SkillRow } from '../../../../main/maker-ipc/skills';
-import { ScanReportView, SkillsListView, skillsTestIdSuffix } from '../SkillsSection';
+import { ScanReportView, SkillsListView, SkillsSection, skillsTestIdSuffix } from '../SkillsSection';
 
 const row = (id: string, extra: Partial<SkillRow> = {}): SkillRow => {
   const slash = id.indexOf('/');
@@ -152,6 +153,46 @@ describe('Settings skills manager (ROADMAP 4.4b)', () => {
         onAddToExpert: () => undefined,
       });
       expect(html).toMatch(/<select[^>]*disabled=""[^>]*data-testid="skills-add-expert-community-alpha"/);
+    });
+  });
+
+  describe('Collapsible SkillsSection', () => {
+    beforeEach(() => {
+      (window as unknown as { electronAPI: unknown }).electronAPI = {
+        maker: {
+          skills: {
+            list: async () => ({
+              skills: [row('community/alpha')],
+            }),
+            onChanged: () => () => undefined,
+            setEnabled: async () => ({ skills: [] }),
+            uninstall: async () => ({ skills: [] }),
+            scan: async () => ({}),
+            install: async () => ({ skills: [] }),
+            addToExpert: async () => ({ expertSlug: 'test', skillName: 'alpha' }),
+          },
+          experts: {
+            list: async () => [],
+            onChanged: () => () => undefined,
+          },
+        },
+      };
+    });
+
+    it('renders expanded with aria-expanded="true" when collapsed is false', () => {
+      const html = renderToStaticMarkup(<SkillsSection collapsed={false} />);
+      expect(html).toContain('data-testid="skills-collapse-toggle"');
+      expect(html).toContain('aria-expanded="true"');
+      expect(html).toContain('Skills under the Cindy Hermes home');
+      expect(html).toContain('data-testid="skills-install-form"');
+    });
+
+    it('hides description, list and install form with aria-expanded="false" when collapsed is true', () => {
+      const html = renderToStaticMarkup(<SkillsSection collapsed={true} />);
+      expect(html).toContain('data-testid="skills-collapse-toggle"');
+      expect(html).toContain('aria-expanded="false"');
+      expect(html).not.toContain('Skills under the Cindy Hermes home');
+      expect(html).not.toContain('data-testid="skills-install-form"');
     });
   });
 });

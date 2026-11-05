@@ -1,8 +1,9 @@
+// @vitest-environment jsdom
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { McpCatalogViewEntry } from '../../../../main/maker-ipc/mcpCatalog';
-import { McpCatalogListView, mcpCatalogTestIdSuffix } from '../McpCatalogSection';
+import { McpCatalogListView, McpCatalogSection, mcpCatalogTestIdSuffix } from '../McpCatalogSection';
 
 const row = (id: string, extra: Partial<McpCatalogViewEntry> = {}): McpCatalogViewEntry => {
   const slash = id.indexOf('/');
@@ -118,5 +119,41 @@ describe('Settings MCP catalog (ROADMAP 4.3b)', () => {
       expertOptions: [{ slug: 'reviewer', name: 'Code Reviewer' }],
     });
     expect(html).toMatch(/disabled=""[^>]*data-testid="mcp-catalog-add-expert-hermes-shim"/);
+  });
+
+  describe('Collapsible McpCatalogSection', () => {
+    beforeEach(() => {
+      (window as unknown as { electronAPI: unknown }).electronAPI = {
+        maker: {
+          mcpCatalog: {
+            list: async () => ({
+              entries: [row('hermes/shim')],
+            }),
+            onChanged: () => () => undefined,
+            setEnabled: async () => ({ entries: [] }),
+            checkHealth: async () => undefined,
+            addToExpert: async () => ({ expertSlug: 'test', serverName: 'shim' }),
+          },
+          experts: {
+            list: async () => [],
+            onChanged: () => () => undefined,
+          },
+        },
+      };
+    });
+
+    it('renders expanded with aria-expanded="true" when collapsed is false', () => {
+      const html = renderToStaticMarkup(<McpCatalogSection collapsed={false} />);
+      expect(html).toContain('data-testid="mcp-catalog-collapse-toggle"');
+      expect(html).toContain('aria-expanded="true"');
+      expect(html).toContain('Every MCP server Cindy can hand an agent');
+    });
+
+    it('hides description and list with aria-expanded="false" when collapsed is true', () => {
+      const html = renderToStaticMarkup(<McpCatalogSection collapsed={true} />);
+      expect(html).toContain('data-testid="mcp-catalog-collapse-toggle"');
+      expect(html).toContain('aria-expanded="false"');
+      expect(html).not.toContain('Every MCP server Cindy can hand an agent');
+    });
   });
 });

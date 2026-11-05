@@ -10,6 +10,29 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-05 — Collapsible MCP Servers and Hermes Skills sections in Tools (`unit-tested`)
+
+- **What:** Made the MCP Servers (`McpCatalogSection`) and Hermes Skills (`SkillsSection`) in the Settings → Tools tab (`activeTab === 'builtin-tools'`) collapsible, allowing users to collapse long lists of tools/skills with a single click. Added collapsible interactive header buttons inside `<h2>` (`aria-expanded`, chevron indicators, item count pill badges `entryCount` / `skillCount`), data-testids (`mcp-catalog-collapse-toggle`, `skills-collapse-toggle`), and persistent collapse states stored in `localStorage` under `cindy:settings:mcp-catalog-collapsed` and `cindy:settings:skills-collapsed`. Also added a top-level "Collapse all" / "Expand all" action button in `SettingsView.tsx` (`tools-collapse-all-button`) that toggles both sections simultaneously and persists their states. Added unit tests for both sections covering expanded/collapsed states and ARIA attributes.
+- **Files:**
+  - `apps/desktop/src/renderer/components/settings/McpCatalogSection.tsx`: Exported `MCP_CATALOG_COLLAPSE_STORAGE_KEY` and `McpCatalogSectionProps`, added collapsible header button with count badge and chevron, conditionally rendered list when expanded.
+  - `apps/desktop/src/renderer/components/settings/__tests__/McpCatalogSection.test.tsx`: Added unit tests for collapsible McpCatalogSection (11 tests total).
+  - `apps/desktop/src/renderer/components/settings/SkillsSection.tsx`: Exported `SKILLS_COLLAPSE_STORAGE_KEY` and `SkillsSectionProps`, added collapsible header button with count badge and chevron, conditionally rendered list and install form when expanded.
+  - `apps/desktop/src/renderer/components/settings/__tests__/SkillsSection.test.tsx`: Added unit tests for collapsible SkillsSection (13 tests total).
+  - `apps/desktop/src/renderer/components/settings/SettingsView.tsx`: Integrated collapse state management and "Collapse all" / "Expand all" button in `builtin-tools` tab.
+  - `docs/design-rules/design-inventory.md`: Synchronized design inventory.
+  - `STATUS.md`: This entry.
+- **Verification:**
+  - Unit tests: 11/11 passed in `McpCatalogSection.test.tsx`, 13/13 passed in `SkillsSection.test.tsx`.
+  - Gates green under Node 22.23.4 / pnpm 10.33.2:
+    - `pnpm typecheck` passed (all 37 workspaces).
+    - `pnpm test:runner` passed (608 pass, 0 fail, 2 skipped).
+    - `pnpm check:test-hygiene` passed (361 files within baseline).
+    - `pnpm test:unit:related` passed with exit code 0 via the sanctioned split:
+      - `node scripts/test-workspaces.mjs --tier unit --related --exclude-workspace apps/desktop` passed (exit 0).
+      - `XDT_UNIT_TEST_SHARD=i/8 node scripts/test-workspaces.mjs --tier unit --related --workspace apps/desktop` (all 8 shards passed, exit 0, 0 SIGSEGV).
+
+---
+
 ## 2026-11-05 — 4.4c: Add skill to expert affordance (`live-proven`)
 
 - **What:** Finalised ROADMAP row 4.4 by adding an "Add to expert…" shortcut affordance to each skill row in Settings → Tools → Hermes Skills (`SkillsSection.tsx`), mirroring the 4.3c pattern from the MCP catalog. Supported by IPC channel `maker:skills:add-to-expert` (`SKILLS_ADD_TO_EXPERT`) and `addToExpert(id, slug)` on `SkillsHost` in `apps/desktop/src/main/maker-ipc/skills.ts`. The implementation validates the expert slug via `isValidExpertSlug`, verifies that the skill exists in either the enabled `skillsRoot` or disabled `disabledRoot`, checks that the expert exists under `~/.cindy-harness/experts/<slug>` and is an active Hermes expert (`agent: hermes`), atomically updates the `skills:` frontmatter list in `expert.md` via `gray-matter` (preserving existing frontmatter and body), and atomically copies the skill directory into `~/.cindy-harness/experts/<slug>/skills/<name>` (excluding `.git` and `node_modules`). Broadcasts `maker:experts:changed` upon completion. Exposed via `preload.ts` (`window.electronAPI.maker.skills.addToExpert`). The UI loads available Hermes experts via `maker.experts.list()`, renders a select dropdown per skill row (disabled while pending or when no experts exist), displays temporary success ("Added <skill> to <expert>.") or error feedback that auto-clears after 4 seconds, and handles error states. Also raised the Vitest timeout for `sources.test.ts` (large 2242 file import test) to 30,000 ms to prevent transient test timeouts under full suite concurrent load, and synchronized the design inventory document.
