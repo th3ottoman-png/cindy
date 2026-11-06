@@ -23,7 +23,7 @@ interface Props {
   writeBlocked: boolean;
 }
 
-function sessionFamily(current: Session, sessions: Session[]): Session[] {
+export function sessionFamily(current: Session, sessions: Session[]): Session[] {
   const byId = new Map(sessions.map((session) => [session.id, session]));
   byId.set(current.id, current);
   let root = current;

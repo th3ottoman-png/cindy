@@ -43,6 +43,7 @@
 
 import { execFileSync, execSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureBinary } from '../../../scripts/ensure-agent-binaries.mjs';
@@ -448,7 +449,7 @@ async function finishDarwin({
     exec(`/usr/bin/ditto -c -k "${packagedDir}" "${hotfixZipPath}"`);
     files.push(fileEntry('hotfix', hotfixZipPath));
   } else {
-    // 版本无关(或显式放行)→ ad-hoc 签名,产出 .app 的 zip 供本机/内部试用。
+    // 版本无关(或显式放行)→ ad-hoc 签名,产出 .app 的 zip 与 dmg 供本机/内部使用。
     writeMacEntitlements(helperEntitlementsPath);
     writeMacEntitlements(mainEntitlementsPath, { appleEvents: true });
     adhocSignMacApp(appPath, helperEntitlementsPath, mainEntitlementsPath, arch);
@@ -458,6 +459,20 @@ async function finishDarwin({
     if (fs.existsSync(appZipPath)) fs.unlinkSync(appZipPath);
     exec(`/usr/bin/ditto -c -k --keepParent "${appPath}" "${appZipPath}"`);
     files.push(fileEntry('installer', appZipPath));
+
+    const dmgPath = path.join(artifactDir, `${baseName}-${arch}.dmg`);
+    console.log('==> Creating DMG (hdiutil)...');
+    if (fs.existsSync(dmgPath)) fs.unlinkSync(dmgPath);
+    const dmgTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cindy-dmg-'));
+    try {
+      exec(`/bin/cp -R "${appPath}" "${dmgTempDir}/"`);
+      exec(`/bin/ln -s /Applications "${dmgTempDir}/Applications"`);
+      exec(`/usr/bin/hdiutil create -volname "${appName}" -srcfolder "${dmgTempDir}" -ov -format UDZO "${dmgPath}"`);
+      exec(`/usr/bin/codesign --force --sign - "${dmgPath}"`);
+      files.push(fileEntry('installer', dmgPath));
+    } finally {
+      fs.rmSync(dmgTempDir, { recursive: true, force: true });
+    }
   }
 
   return { files, signing: { mode: signingMode } };

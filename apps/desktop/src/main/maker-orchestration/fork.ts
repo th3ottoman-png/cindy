@@ -939,6 +939,7 @@ export async function forkSessionAtMessage(
   // Codex: 从当前时间线倒扫 agent_switch，把 copy boundary 之后、确实写入所选
   // 原生 thread 的 user turn 计为 rollback 数；其它引擎片段不能混算。
   const isCodex = forkSource.agentKind === 'codex';
+  const isHermes = forkSource.agentKind === 'hermes';
   // pi 复用 codex 的粗粒度 tail-turn fork:countCodexTailTurns 只按 sdkSessionId
   // 数边界后的 user turn(引擎无关),pi 的 forkSdkSession 按 tailTurnsToDrop rewind
   // 到目标 user 消息。只有 Claude(cc)走 message-uuid 锚点路径。
@@ -953,7 +954,11 @@ export async function forkSessionAtMessage(
     target.role,
     forkSource.agentKind,
   );
-  if (!usesTailTurnFork && forkSource.sdkSessionId) {
+  if (isHermes) {
+    if (target.role === 'user' && !sourceMessages.some((m) => m.role === 'assistant')) {
+      throw forkError('NO_PRIOR_ASSISTANT', '请在 AI 回复之后的提问上 fork');
+    }
+  } else if (!usesTailTurnFork && forkSource.sdkSessionId) {
     claudeAnchorIndex = forkSource.agentDeviceId ? null : await loadClaudeTranscriptAnchorIndex({
       sdkSessionId: forkSource.sdkSessionId,
       workingDir: source.workingDir,
@@ -994,15 +999,12 @@ export async function forkSessionAtMessage(
     && !forkSource.reuseVendorSession
     && forkSource.rebuildReason === 'native-session-recovery';
   if (
+    !isHermes &&
     forkSource.reuseVendorSession &&
     forkSource.sdkSessionId &&
     (usesTailTurnFork || assistantUuid)
   ) {
-    const agentKind = dbToMakerAgentKind(forkSource.agentKind);
-    if (agentKind === 'hermes') {
-      // hermes 原生会话 fork v1 未接(需 hermes-manager resume 通道);显式失败。
-      throw new Error('forking a hermes session is not supported yet');
-    }
+    const agentKind = dbToMakerAgentKind(forkSource.agentKind) as 'claude-code' | 'codex' | 'pi';
     const forkOptions = {
       sourceSdkSessionId: forkSource.sdkSessionId,
       ...(isCodex ? { model: forkSource.model, providerId: forkSource.providerId } : {}),
@@ -1152,7 +1154,18 @@ export async function forkSessionAtMessage(
   if (!row) {
     throw new Error('Fork session 创建后查询失败');
   }
-  if (!needsHistoryRecovery && !forkSource.reuseVendorSession && forkSource.rebuildReason) {
+  if (isHermes) {
+    if (sourceMessages.length > 0) {
+      await seedForkHandoffAfterSameEngineRebuild({
+        sessionId: newSessionId,
+        rows: sourceMessages,
+        agentKind: 'hermes',
+        model: forkSource.model,
+        providerId: forkSource.providerId,
+        reason: 'native-session-recovery',
+      });
+    }
+  } else if (!needsHistoryRecovery && !forkSource.reuseVendorSession && forkSource.rebuildReason) {
     await seedForkHandoffAfterSameEngineRebuild({
       sessionId: newSessionId,
       rows: sourceMessages,

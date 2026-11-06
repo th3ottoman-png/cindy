@@ -2515,6 +2515,83 @@ describe('forkSessionAtMessage', () => {
     expect(forkSdkSessionMock).not.toHaveBeenCalled();
     expect(txCalls).toHaveLength(0);
   });
+
+  describe('hermes session forking', () => {
+    it('forks at an assistant reply, copies messages to new session, and seeds context rebuild handoff', async () => {
+      const priorUser = makeMessageRow({ id: 'user-1', role: 'user', content: '"explain this"', createdAt: 2000 });
+      const targetAsst = makeMessageRow({
+        id: 'asst-1',
+        role: 'assistant',
+        content: '"here is the explanation"',
+        createdAt: 2500,
+      });
+
+      selectQueue.push([makeSourceRow({ agentKind: 'hermes', sdkSessionId: 'hermes-sess-1' })]); // source
+      selectQueue.push([targetAsst]); // target
+      selectQueue.push([]); // no next user (boundary extends to end of turn)
+      selectQueue.push([priorUser, targetAsst]); // sourceMessages
+      selectQueue.push([makeSourceRow({ agentKind: 'hermes', parentSessionId: 'src-session', sdkSessionId: null, title: '[Fork] Project A' })]); // new session
+
+      const result = await forkSessionAtMessage('src-session', targetAsst.clientId);
+
+      expect(forkSdkSessionMock).not.toHaveBeenCalled();
+      const tx = txCalls.find((c) => c.name === 'fork.session');
+      expect(tx).toBeDefined();
+      expect((tx?.args as Record<string, any>)?.newSession).toMatchObject({
+        agentKind: 'hermes',
+        parentSessionId: 'src-session',
+        forkedAtMessageId: targetAsst.clientId,
+        sdkSessionId: null,
+      });
+      expect(commitContextRebuildMock).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('[Session context rebuild · internal context]'),
+        expect.objectContaining({
+          reason: 'native-session-recovery',
+          sourceAgentKind: 'hermes',
+        }),
+      );
+      expect(result.agentKind).toBe('hermes');
+      expect(result.parentSessionId).toBe('src-session');
+    });
+
+    it('forks at a subsequent user message and copies prior turn', async () => {
+      const priorUser = makeMessageRow({ id: 'user-1', role: 'user', content: '"step 1"', createdAt: 1000 });
+      const priorAsst = makeMessageRow({ id: 'asst-1', role: 'assistant', content: '"done 1"', createdAt: 2000 });
+      const targetUser = makeMessageRow({ id: 'user-2', role: 'user', content: '"step 2"', createdAt: 3000 });
+
+      selectQueue.push([makeSourceRow({ agentKind: 'hermes', sdkSessionId: 'hermes-sess-1' })]);
+      selectQueue.push([targetUser]);
+      selectQueue.push([priorUser, priorAsst]); // sourceMessages before targetUser
+      selectQueue.push([makeSourceRow({ agentKind: 'hermes', sdkSessionId: null, title: '[Fork] Project A' })]);
+
+      const result = await forkSessionAtMessage('src-session', targetUser.clientId);
+
+      expect(forkSdkSessionMock).not.toHaveBeenCalled();
+      const tx = txCalls.find((c) => c.name === 'fork.session');
+      expect((tx?.args as Record<string, any>)?.newSession).toMatchObject({
+        agentKind: 'hermes',
+        parentSessionId: 'src-session',
+        forkedAtMessageId: targetUser.clientId,
+      });
+      expect(commitContextRebuildMock).toHaveBeenCalled();
+      expect(result.agentKind).toBe('hermes');
+    });
+
+    it('throws NO_PRIOR_ASSISTANT when forking at a user message before any assistant reply has arrived', async () => {
+      const firstUser = makeMessageRow({ id: 'user-1', role: 'user', content: '"hello"', createdAt: 1000 });
+
+      selectQueue.push([makeSourceRow({ agentKind: 'hermes', sdkSessionId: 'hermes-sess-1' })]);
+      selectQueue.push([firstUser]);
+      selectQueue.push([]); // sourceMessages before firstUser (empty)
+
+      await expect(forkSessionAtMessage('src-session', firstUser.clientId)).rejects.toMatchObject({
+        code: 'NO_PRIOR_ASSISTANT',
+      });
+      expect(forkSdkSessionMock).not.toHaveBeenCalled();
+      expect(txCalls).toHaveLength(0);
+    });
+  });
 });
 
 describe('isCodexNativeThreadStart (#4994)', () => {

@@ -194,7 +194,7 @@ Frontmatter: `name`, `description`, `agent` (hermes | claude-code | codex | pi),
 Kept so nobody re-proposes them as new ideas.
 
 - Worktree manager dock, artifacts side-drawer, embedded terminal panel
-- Time-travel / session forking UI
+- ~~Time-travel / session forking UI~~ — un-parked 2026-11-06 (✅ `unit-tested`): Fork button enabled for Hermes assistant and user message turns in chat (`AssistantMessage.tsx`, `UserMessage.tsx`); backend copies message history, sets parent/child tree lineage, and initializes context rebuild markers for the child Hermes session (`fork.ts`); session branch tree dialog accessible from header `<GitBranch size={15} />` icon button (`SessionContentHeader.tsx`, `SessionBranchTreeDialog.tsx`). Covered by 92 unit tests in `fork.test.ts`, 6 in `SessionBranchTreeDialog.test.tsx`, and 46 in `packages/maker-core/src/agents/hermes/__tests__/agent.test.ts`.
 - Slash-command palette
 - Automatic model cascade / cost-optimising router (conflicts with 2.4 "no silent fallback")
 - ~~Autonomous multi-agent orchestration~~ — un-parked 2026-11-01 by ADR 0005 (rows 3.7–3.9, with its limits)

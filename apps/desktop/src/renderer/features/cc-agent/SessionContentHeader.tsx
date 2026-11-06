@@ -5,6 +5,7 @@ import { HermesExpertDraftCard } from './HermesExpertDraftCard';
 import { HermesExpertLabel } from './HermesExpertLabel';
 import { HermesSessionModelLabel } from './HermesSessionModelLabel';
 import { SessionUsagePanel } from './SessionUsagePanel';
+import { SessionBranchTreeDialog, sessionFamily } from './SessionBranchTreeDialog';
 /**
  * SessionContentHeader — 会话视图注入 ContentHeader 的中部内容
  * ---------------------------------------------------------------------------
@@ -28,7 +29,7 @@ import { SessionUsagePanel } from './SessionUsagePanel';
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Ellipsis, Pin } from 'lucide-react';
+import { ArrowLeft, Ellipsis, GitBranch, Pin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -243,6 +244,11 @@ export function SessionContentHeader({
           输入框本体 + Magic AI 改名按钮统一在 SessionRenameInput） ---- */
   const [isEditing, setIsEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [branchTreeOpen, setBranchTreeOpen] = useState(false);
+  const hasBranches = useMemo(
+    () => session.agentKind === 'pi' || sessionFamily(session, sessions).length > 1,
+    [session, sessions],
+  );
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [tagEditorOpen, setTagEditorOpen] = useState(false);
   useEffect(() => {
@@ -714,6 +720,26 @@ export function SessionContentHeader({
 
       {!isEditing && <BotTaskOwnerChip session={session} />}
 
+      {!isEditing && hasBranches && (
+        <Tip text={t('ccAgent.sidebar.sessionBranches.title')}>
+          <button
+            type="button"
+            onClick={() => setBranchTreeOpen(true)}
+            className={cn(
+              'flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
+              'text-[var(--cmd-palette-item-meta)] transition-colors',
+              'hover:bg-titlebar-button-hover hover:text-foreground',
+              'focus-visible:outline-none',
+              branchTreeOpen && 'bg-titlebar-button-hover text-foreground',
+            )}
+            aria-label={t('ccAgent.sidebar.sessionBranches.title')}
+            style={WINDOW_NO_DRAG_STYLE}
+          >
+            <GitBranch size={15} />
+          </button>
+        </Tip>
+      )}
+
       {!isEditing && !readOnly && (!sharedGuest || session.status === 'active') && (
         // 菜单打开就把归档/删除的 dirty 预检发出去:用户从展开菜单到点条目至少
         // 一次反应时间,足够这次 git status 跑完,点下去时命中缓存、零等待。
@@ -822,6 +848,17 @@ export function SessionContentHeader({
           open={markdownExportOpen}
           sessionId={session.id}
           onOpenChange={setMarkdownExportOpen}
+        />
+      )}
+
+      {hasBranches && (
+        <SessionBranchTreeDialog
+          open={branchTreeOpen}
+          onOpenChange={setBranchTreeOpen}
+          session={session}
+          sessions={sessions}
+          running={runningSessionIds.has(session.id)}
+          writeBlocked={remoteWritesBlocked}
         />
       )}
     </div>

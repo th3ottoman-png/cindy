@@ -213,7 +213,7 @@ export class HermesAgent extends BaseAgent {
         image: { supported: true },
         file: unsupported(),
       },
-      fork: unsupported(),
+      fork: { supported: true },
       rewind: unsupported(),
       sessionTree: unsupported(),
       abort: { supported: true },

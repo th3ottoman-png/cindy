@@ -1022,6 +1022,10 @@ describe('HermesAgent', () => {
     expect(text('bypassPermissions')).toMatch(/cindy_docs.*starts in this mode/);
   });
 
+  it('declares fork support for session branching', () => {
+    expect(buildAgent().capabilities.fork).toEqual({ supported: true });
+  });
+
   it('inlines image attachment references into the turn text', async () => {
     const daemon = await startDaemon();
     const agent = buildAgent();

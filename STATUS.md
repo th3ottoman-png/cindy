@@ -10,6 +10,45 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-06 — Time-travel / Session Forking UI (`unit-tested`)
+
+- **What:** Un-parked and implemented Item 1 (Time-travel / session forking UI) for Hermes conversations and integrated branch navigation:
+  1. **Hermes Agent Capabilities (`packages/maker-core/src/agents/hermes/agent.ts`):**
+     - Advertised `capabilities.fork: { supported: true }` so the renderer and orchestration treat Hermes sessions as forkable.
+  2. **Message Turn Forking UI (`apps/desktop/src/renderer/components/chat/AssistantMessage.tsx`, `UserMessage.tsx`):**
+     - Mapped `session.agentKind === 'hermes'` to include the Fork turn action on assistant and user messages (previously omitted and defaulted to claude-code).
+  3. **Hermes Session Forking Backend (`apps/desktop/src/main/maker-orchestration/fork.ts`):**
+     - Implemented session forking at a given message ID: copies session history up to the target message into a new Cindy session with `parentSessionId: source.id` and `forkedAtMessageId: messageClientId`.
+     - Ensures valid fork boundary: when forking from a user message, requires at least one preceding completed assistant response (throws `NO_PRIOR_ASSISTANT` otherwise).
+     - Initializes context rebuild handoff via `seedForkHandoffAfterSameEngineRebuild` with `reason: 'native-session-recovery'`, writing a `context_rebuild` marker so when the user speaks in the forked session, `agentHandoffPending` injects the conversation context into the fresh Hermes session.
+  4. **Session Branch Tree UI Integration (`apps/desktop/src/renderer/features/cc-agent/SessionContentHeader.tsx`, `SessionBranchTreeDialog.tsx`):**
+     - Exported `sessionFamily` helper from `SessionBranchTreeDialog.tsx`.
+     - Mounted `<GitBranch size={15} />` branch switcher button in `SessionContentHeader.tsx` whenever a session belongs to a branch family (`sessionFamily(session, sessions).length > 1` or `agentKind === 'pi'`), allowing the user to view the conversation tree and switch between forks.
+  5. **Packaging:**
+     - Updated `apps/desktop/scripts/package-desktop.mjs` to output an ad-hoc signed `.dmg` alongside `.zip` in packaged output.
+- **Files:**
+  - `packages/maker-core/src/agents/hermes/agent.ts`
+  - `packages/maker-core/src/agents/hermes/__tests__/agent.test.ts`
+  - `apps/desktop/src/main/maker-orchestration/fork.ts`
+  - `apps/desktop/src/main/__tests__/fork.test.ts`
+  - `apps/desktop/src/renderer/components/chat/AssistantMessage.tsx`
+  - `apps/desktop/src/renderer/components/chat/UserMessage.tsx`
+  - `apps/desktop/src/renderer/features/cc-agent/SessionBranchTreeDialog.tsx`
+  - `apps/desktop/src/renderer/features/cc-agent/SessionContentHeader.tsx`
+  - `apps/desktop/scripts/package-desktop.mjs`
+  - `ROADMAP.md`
+- **Verification:**
+  - `pnpm typecheck`: PASSED (37 workspace projects, 0 errors).
+  - `pnpm test:runner`: PASSED (608 passed, 0 failed, 2 skipped).
+  - `pnpm check:test-hygiene`: PASS (361 files within baseline).
+  - Vitest `apps/desktop/src/main/__tests__/fork.test.ts`: PASSED (92/92 tests, including 3 new tests: assistant fork, user fork, and NO_PRIOR_ASSISTANT).
+  - Vitest `apps/desktop/src/renderer/features/cc-agent/__tests__/SessionBranchTreeDialog.test.tsx`: PASSED (6/6 tests).
+  - Vitest `packages/maker-core/src/agents/hermes/__tests__/agent.test.ts`: PASSED (46/46 tests).
+- **Next:**
+  - Proceed to Item 2: Slash-command palette in the chat composer.
+
+---
+
 ## 2026-11-05 — Visual Assets: Updated Cindy App Icon, Splash Hero, and Avatars (`unit-tested`)
 
 - **What:** Updated Cindy visual identity assets from the user-provided character portrait artwork while keeping the "Cindy" wordmark and name intact:
