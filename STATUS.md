@@ -10,6 +10,38 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-06 — Slash-command Palette in Chat Composer (`unit-tested`)
+
+- **What:** Un-parked and implemented Item 2 (Slash-command palette in the chat composer) for Hermes conversations:
+  1. **Hermes Built-in Commands (`packages/maker-core/src/agents/hermes/agent.ts`):**
+     - Defined `HERMES_AGENT_COMMANDS` exposing `/compact` ("Compress conversation history when nearing context limit").
+     - Overrode `HermesAgent.listAgentCommands()` to return `HERMES_AGENT_COMMANDS`.
+  2. **Hermes Skill Discovery (`packages/maker-core/src/agents/hermes/agent.ts`):**
+     - Added `resolveHermesHome` hook to `AgentDeps` in `packages/maker-core/src/agents/base-agent.ts` and wired it from `apps/desktop/src/main/maker-host/index.ts` to `resolveHermesHome()` (`~/.hermes-cindy`).
+     - Overrode `HermesAgent.listAgentSkills()` to scan and return installed and enabled skills from `<hermesHome>/skills/` (using `listSkillsWithState` and `readBundledSkillNames`), excluding disabled skills in `skills-disabled/` and identifying bundled skills.
+     - Also scans project/repo skills from `<workingDir>/.hermes/skills/` when a working directory is provided.
+  3. **Chat Composer Slash Command Roster Integration:**
+     - Connected `loadAllCommands('hermes', workingDir)` to merge desktop commands (`/help`, `/clear`, `/goal`, etc.), Hermes builtins (`/compact`), and Hermes skills into `UnifiedCommand[]`.
+     - Full support in `SlashCommandPalette.tsx` popover, keyboard navigation (Up/Down/Enter/Esc), query filtering, and `SlashCommandDecoration.ts` badge pill rendering (`.slash-cmd-pill`).
+- **Files:**
+  - `packages/maker-core/src/agents/base-agent.ts`
+  - `packages/maker-core/src/agents/hermes/agent.ts`
+  - `packages/maker-core/src/agents/hermes/__tests__/agent.test.ts`
+  - `apps/desktop/src/main/maker-host/index.ts`
+  - `apps/desktop/src/renderer/lib/__tests__/slashCommands.test.ts`
+  - `ROADMAP.md`
+- **Verification:**
+  - `pnpm typecheck`: PASSED (37 workspace projects, 0 errors).
+  - `pnpm test:runner`: PASSED (608 passed, 0 failed, 2 skipped).
+  - `pnpm check:test-hygiene`: PASS (361 files within baseline).
+  - Vitest `packages/maker-core/src/agents/hermes/__tests__/agent.test.ts`: PASSED (48/48 tests, including 2 new tests for listAgentCommands and listAgentSkills).
+  - Vitest `apps/desktop/src/renderer/lib/__tests__/slashCommands.test.ts`: PASSED (42/42 tests, including new test for Hermes slash command discovery and palette merging).
+  - Vitest `apps/desktop/src/renderer/components/new-chat/__tests__/SlashCommandPalette.test.tsx`: PASSED (19/19 tests).
+- **Next:**
+  - Proceed to Item 3: Side-drawer panels (worktree manager dock, artifacts side-drawer, or embedded terminal panel).
+
+---
+
 ## 2026-11-06 — Time-travel / Session Forking UI (`unit-tested`)
 
 - **What:** Un-parked and implemented Item 1 (Time-travel / session forking UI) for Hermes conversations and integrated branch navigation:

@@ -222,6 +222,7 @@ import {
   listHermesMcpServers,
   removeHermesMcpServer,
   resolveHermesBridgeShimPath,
+  resolveHermesHome,
   resolveHermesManagerBundlePath,
   setHermesMcpServer,
 } from './hermes-manager-client.js';
@@ -2870,6 +2871,7 @@ export function getMaker(): Maker {
       return createAdapterAgent('hermes', {
         binaryPath: bundlePath,
         resolveHermesManagerSocketPath: () => hermesManagerSocketPath(),
+        resolveHermesHome: () => resolveHermesHome(),
         // Cindy tools inside Hermes (1.5b-3): per-session bridge identity + frozen
         // tool policy; only SAFE servers are exposed (see hermesBridgeHost.ts).
         prepareHermesBridgeSession: createHermesBridgePreparer({

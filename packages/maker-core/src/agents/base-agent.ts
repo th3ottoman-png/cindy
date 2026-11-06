@@ -748,6 +748,12 @@ export interface AgentDeps {
   resolveHermesManagerSocketPath?: (sessionId?: string) => string | undefined;
 
   /**
+   * Hermes-only: directory holding the active Hermes home (~/.hermes-cindy).
+   * Refuses any non-cindy daily home by project rule.
+   */
+  resolveHermesHome?: () => string | undefined;
+
+  /**
    * Hermes-only: check the providers.yaml endpoint behind a model before a turn
    * (ROADMAP 2.4c). Defaults to `preflightModelRoute`; tests inject a stub.
    */

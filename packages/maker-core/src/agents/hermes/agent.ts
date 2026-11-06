@@ -9,7 +9,10 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import * as fs from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 import {
   AgentNotAuthenticatedError,
@@ -25,6 +28,13 @@ import { createAsyncQueue } from '../shared/async-queue.js';
 import { NotSupportedError, type Capabilities } from '../../types/capabilities.js';
 import type { Effort, PermissionMode, UserMessage } from '../../types/common.js';
 import type { AgentEvent, InteractionResolver, UsageSnapshot } from '../../types/events.js';
+import type {
+  AgentBuiltinCommand,
+  AgentSkillCommand,
+  ListAgentSkillsOptions,
+  ListAgentSkillsResult,
+} from '../../types/palette.js';
+import { listSkillsWithState, readBundledSkillNames } from '../../skills/skill-manager.js';
 import {
   HERMES_METHODS,
   HERMES_NOTIFICATIONS,
@@ -39,6 +49,14 @@ import { createHermesTransport, type HermesTransport } from './transport.js';
 import { collectHermesProviderEnv } from './hermes-provider-env.js';
 import { resolveModelRoute } from '../../providers/model-route-resolver.js';
 import { preflightModelRoute } from '../../providers/route-preflight.js';
+
+export const HERMES_AGENT_COMMANDS: AgentBuiltinCommand[] = [
+  {
+    kind: 'agent-builtin',
+    name: 'compact',
+    description: 'Compress conversation history when nearing context limit.',
+  },
+];
 
 const HERMES_DEFAULT_MODEL_ID = 'hermes-default';
 /** Fallback window until the daemon reports the model's own (context-usage event). */
@@ -222,6 +240,71 @@ export class HermesAgent extends BaseAgent {
       extraDirs: unsupported(),
       writableDirs: unsupported(),
     };
+  }
+
+  override listAgentCommands(): AgentBuiltinCommand[] {
+    return HERMES_AGENT_COMMANDS;
+  }
+
+  override async listAgentSkills(opts: ListAgentSkillsOptions): Promise<ListAgentSkillsResult> {
+    const skills: AgentSkillCommand[] = [];
+    const errors: Array<{ path?: string; message: string }> = [];
+
+    // 1. Home skills (~/.hermes-cindy/skills)
+    const home = this.deps.resolveHermesHome?.() ?? path.join(os.homedir(), '.hermes-cindy');
+    const skillsRoot = path.join(home, 'skills');
+    const disabledRoot = path.join(home, 'skills-disabled');
+
+    if (fs.existsSync(skillsRoot)) {
+      try {
+        const skillsWithState = listSkillsWithState(skillsRoot, disabledRoot);
+        const bundled = readBundledSkillNames(skillsRoot);
+        for (const s of skillsWithState) {
+          if (s.enabled) {
+            skills.push({
+              kind: 'agent-skill',
+              name: s.name,
+              description: s.description,
+              source: 'skill',
+              path: path.join(s.dir, 'SKILL.md'),
+              scope: 'global',
+              enabled: true,
+              builtIn: bundled.has(s.name),
+            });
+          }
+        }
+      } catch (err) {
+        errors.push({ path: skillsRoot, message: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    // 2. Project / repo skills (<workingDir>/.hermes/skills)
+    if (opts.workingDir) {
+      const repoSkillsRoot = path.join(opts.workingDir, '.hermes', 'skills');
+      const repoDisabledRoot = path.join(opts.workingDir, '.hermes', 'skills-disabled');
+      if (fs.existsSync(repoSkillsRoot)) {
+        try {
+          const repoSkills = listSkillsWithState(repoSkillsRoot, repoDisabledRoot);
+          for (const s of repoSkills) {
+            if (s.enabled && !skills.some((existing) => existing.name === s.name)) {
+              skills.push({
+                kind: 'agent-skill',
+                name: s.name,
+                description: s.description,
+                source: 'skill',
+                path: path.join(s.dir, 'SKILL.md'),
+                scope: 'repo',
+                enabled: true,
+              });
+            }
+          }
+        } catch (err) {
+          errors.push({ path: repoSkillsRoot, message: err instanceof Error ? err.message : String(err) });
+        }
+      }
+    }
+
+    return { skills, ...(errors.length > 0 ? { errors } : {}) };
   }
 
   override async startSession(opts: StartSessionOptions): Promise<AgentSessionHandle> {

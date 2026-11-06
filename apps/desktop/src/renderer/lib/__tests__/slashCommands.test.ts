@@ -706,3 +706,59 @@ describe('Claude managed skill dispatch', () => {
     expect(rewriteAgentSkillInvocationForDispatch('/learn keep this workflow', command)).toBe('/cindy:learn keep this workflow');
   });
 });
+
+describe('Hermes slash commands and skills palette', () => {
+  it('loads and merges desktop commands, hermes builtin commands, and hermes skills', async () => {
+    vi.stubGlobal('window', {
+      electronAPI: {
+        maker: {
+          listDesktopCommands: vi.fn(async () => ({
+            success: true,
+            commands: [{ kind: 'desktop', name: 'help', description: 'Show help' }],
+          })),
+          listAgentCommands: vi.fn(async (kind: string) => {
+            if (kind === 'hermes') {
+              return {
+                success: true,
+                commands: [{ kind: 'agent-builtin', name: 'compact', description: 'Compress context' }],
+              };
+            }
+            return { success: true, commands: [] };
+          }),
+          listAgentSkills: vi.fn(async (kind: string) => {
+            if (kind === 'hermes') {
+              return {
+                success: true,
+                skills: [
+                  {
+                    kind: 'agent-skill',
+                    name: 'calculator',
+                    description: 'Do calculations',
+                    source: 'skill',
+                    scope: 'global',
+                    enabled: true,
+                  },
+                ],
+              };
+            }
+            return { success: true, skills: [] };
+          }),
+        },
+      },
+    });
+
+    const commands = await loadAllCommands('hermes', '/fake/repo');
+    const names = commands.map((c) => c.name);
+    expect(names).toContain('calculator');
+    expect(names).toContain('help');
+    expect(names).toContain('compact');
+
+    // Filtering by query 'calc' returns calculator
+    expect(filterSlashCommands(commands, 'calc')).toHaveLength(1);
+    expect(filterSlashCommands(commands, 'calc')[0].name).toBe('calculator');
+
+    // Filtering by query 'comp' returns compact
+    expect(filterSlashCommands(commands, 'comp')).toHaveLength(1);
+    expect(filterSlashCommands(commands, 'comp')[0].name).toBe('compact');
+  });
+});

@@ -7,7 +7,7 @@
  * transport, event projection, and lifecycle without a Hermes install or home.
  */
 
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import * as net from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -23,7 +23,7 @@ import {
 import type { Logger } from '../../../interfaces/logger.js';
 import { NotSupportedError } from '../../../types/capabilities.js';
 import type { AgentEvent } from '../../../types/events.js';
-import { HERMES_ORCA_WORKER_MAX_TURNS, HermesAgent } from '../agent.js';
+import { HERMES_AGENT_COMMANDS, HERMES_ORCA_WORKER_MAX_TURNS, HermesAgent } from '../agent.js';
 import { HermesProtocolMismatchError } from '../protocol.js';
 
 const noopLogger: Logger = {
@@ -1425,6 +1425,83 @@ describe('HermesAgent', () => {
       expect(pump.seen.filter((event) => event.type === 'compact_boundary')).toHaveLength(1);
     } finally {
       await handle.close();
+    }
+  });
+
+  it('exposes built-in commands via listAgentCommands()', () => {
+    const agent = buildAgent({ socketPath: null });
+    expect(agent.listAgentCommands()).toEqual(HERMES_AGENT_COMMANDS);
+    expect(agent.listAgentCommands().map((c) => c.name)).toContain('compact');
+  });
+
+  it('discovers installed and repo skills via listAgentSkills()', async () => {
+    const fakeHome = mkdtempSync(path.join(tmpdir(), 'hermes-skills-home-'));
+    const fakeRepo = mkdtempSync(path.join(tmpdir(), 'hermes-repo-'));
+    try {
+      // 1. Home skills: enabled, disabled, and bundled
+      const skillsRoot = path.join(fakeHome, 'skills');
+      const disabledRoot = path.join(fakeHome, 'skills-disabled');
+      mkdirSync(path.join(skillsRoot, 'research', 'web-search'), { recursive: true });
+      writeFileSync(
+        path.join(skillsRoot, 'research', 'web-search', 'SKILL.md'),
+        '---\nname: web-search\ndescription: Search the web\n---\nUse web search.',
+      );
+      mkdirSync(path.join(skillsRoot, 'official', 'calculator'), { recursive: true });
+      writeFileSync(
+        path.join(skillsRoot, 'official', 'calculator', 'SKILL.md'),
+        '---\nname: calculator\ndescription: Math calculations\n---\nCalculate.',
+      );
+      // Bundled manifest
+      writeFileSync(path.join(skillsRoot, '.bundled_manifest'), 'calculator:hash123\n');
+
+      // Disabled skill
+      mkdirSync(path.join(disabledRoot, 'tools', 'inactive'), { recursive: true });
+      writeFileSync(
+        path.join(disabledRoot, 'tools', 'inactive', 'SKILL.md'),
+        '---\nname: inactive\ndescription: Disabled tool\n---\nDisabled.',
+      );
+
+      // 2. Repo skill
+      mkdirSync(path.join(fakeRepo, '.hermes', 'skills', 'custom', 'project-helper'), { recursive: true });
+      writeFileSync(
+        path.join(fakeRepo, '.hermes', 'skills', 'custom', 'project-helper', 'SKILL.md'),
+        '---\nname: project-helper\ndescription: Repo helper\n---\nRepo.',
+      );
+
+      const agent = buildAgent({
+        socketPath: null,
+        deps: {
+          resolveHermesHome: () => fakeHome,
+        },
+      });
+
+      const result = await agent.listAgentSkills({ workingDir: fakeRepo });
+      expect(result.errors).toBeUndefined();
+      const names = result.skills.map((s) => s.name);
+      expect(names).toContain('web-search');
+      expect(names).toContain('calculator');
+      expect(names).toContain('project-helper');
+      expect(names).not.toContain('inactive');
+
+      const calc = result.skills.find((s) => s.name === 'calculator');
+      expect(calc).toMatchObject({
+        kind: 'agent-skill',
+        name: 'calculator',
+        description: 'Math calculations',
+        scope: 'global',
+        builtIn: true,
+      });
+
+      const repoHelper = result.skills.find((s) => s.name === 'project-helper');
+      expect(repoHelper).toMatchObject({
+        kind: 'agent-skill',
+        name: 'project-helper',
+        description: 'Repo helper',
+        scope: 'repo',
+      });
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
+      rmSync(fakeRepo, { recursive: true, force: true });
     }
   });
 });
