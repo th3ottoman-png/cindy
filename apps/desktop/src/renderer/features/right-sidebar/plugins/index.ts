@@ -23,3 +23,5 @@ import './resource-usage';
 import './routines';
 import './plugin-view';
 import './plugin-task';
+import './worktree-manager';
+import './artifacts';

@@ -8275,7 +8275,9 @@
         "backgroundTasks": "バックグラウンド実行の進捗と出力を確認",
         "sideChat": "メインタスクの文脈を引き継いで別途質問",
         "browser": "パネル内でウェブページを閲覧",
-        "terminal": "コマンドを実行して出力を確認"
+        "terminal": "コマンドを実行して出力を確認",
+        "worktreeManager": "タスクの Git Worktree を確認・切り替え・管理",
+        "artifacts": "会話中に生成された成果物やファイルを確認"
       },
       "kinds": {
         "fileBrowser": "ファイルブラウザ",
@@ -8285,6 +8287,8 @@
         "subagents": "サブエージェント",
         "backgroundTasks": "バックグラウンドタスク",
         "resourceUsage": "アクティビティモニタ",
+        "worktreeManager": "Worktrees",
+        "artifacts": "Artifacts",
         "collaboration": "コラボ",
         "unknown": "不明なタブ",
         "ghostPanel": "プラグインパネル",

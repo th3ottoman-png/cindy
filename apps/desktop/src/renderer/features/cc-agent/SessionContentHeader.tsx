@@ -29,7 +29,7 @@ import { SessionBranchTreeDialog, sessionFamily } from './SessionBranchTreeDialo
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Ellipsis, GitBranch, Pin } from 'lucide-react';
+import { ArrowLeft, Ellipsis, GitBranch, Pin, Terminal, FolderGit2, Layers } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -90,6 +90,10 @@ import { TaskTagDots, TaskTagMenuSection, TaskTagEditor } from '@/features/task-
 import { isSharedTaskPeer } from '@cindy/device-link';
 import { useDeviceLinkDeviceList } from '@/features/device-link/useDeviceLinkDeviceList';
 import { useProviderShareAgentDevices } from '@/features/provider-share/useProviderShareAgentDevices';
+import { useWorktreeForSession } from '@/contexts/WorktreeContext';
+import { openTerminalTab } from '@/features/right-sidebar/lib/openTerminalTab';
+import { openWorktreeManagerTab } from '@/features/right-sidebar/lib/openWorktreeManagerTab';
+import { openArtifactsTab } from '@/features/right-sidebar/lib/openArtifactsTab';
 
 const log = createLogger('SessionContentHeader');
 
@@ -249,6 +253,7 @@ export function SessionContentHeader({
     () => session.agentKind === 'pi' || sessionFamily(session, sessions).length > 1,
     [session, sessions],
   );
+  const currentWorktree = useWorktreeForSession(session.id);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [tagEditorOpen, setTagEditorOpen] = useState(false);
   useEffect(() => {
@@ -736,6 +741,64 @@ export function SessionContentHeader({
             style={WINDOW_NO_DRAG_STYLE}
           >
             <GitBranch size={15} />
+          </button>
+        </Tip>
+      )}
+
+      {!isEditing && (
+        <Tip text={t('rightSidebar.tabs.kinds.terminal') ?? 'Terminal'}>
+          <button
+            type="button"
+            onClick={() => void openTerminalTab(session.id)}
+            className={cn(
+              'flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
+              'text-[var(--cmd-palette-item-meta)] transition-colors',
+              'hover:bg-titlebar-button-hover hover:text-foreground',
+              'focus-visible:outline-none',
+            )}
+            aria-label={t('rightSidebar.tabs.kinds.terminal') ?? 'Terminal'}
+            style={WINDOW_NO_DRAG_STYLE}
+          >
+            <Terminal size={15} />
+          </button>
+        </Tip>
+      )}
+
+      {!isEditing && (
+        <Tip text={t('rightSidebar.tabs.kinds.worktreeManager') ?? 'Worktrees'}>
+          <button
+            type="button"
+            onClick={() => void openWorktreeManagerTab(session.id)}
+            className={cn(
+              'flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
+              'text-[var(--cmd-palette-item-meta)] transition-colors',
+              'hover:bg-titlebar-button-hover hover:text-foreground',
+              'focus-visible:outline-none',
+              currentWorktree && 'text-primary hover:text-primary',
+            )}
+            aria-label={t('rightSidebar.tabs.kinds.worktreeManager') ?? 'Worktrees'}
+            style={WINDOW_NO_DRAG_STYLE}
+          >
+            <FolderGit2 size={15} />
+          </button>
+        </Tip>
+      )}
+
+      {!isEditing && (
+        <Tip text={t('rightSidebar.tabs.kinds.artifacts') ?? 'Artifacts'}>
+          <button
+            type="button"
+            onClick={() => void openArtifactsTab(session.id)}
+            className={cn(
+              'flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
+              'text-[var(--cmd-palette-item-meta)] transition-colors',
+              'hover:bg-titlebar-button-hover hover:text-foreground',
+              'focus-visible:outline-none',
+            )}
+            aria-label={t('rightSidebar.tabs.kinds.artifacts') ?? 'Artifacts'}
+            style={WINDOW_NO_DRAG_STYLE}
+          >
+            <Layers size={15} />
           </button>
         </Tip>
       )}

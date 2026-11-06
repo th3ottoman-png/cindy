@@ -19,7 +19,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Activity, MessagesSquare, Bot, FolderTree, Globe, Terminal, GitPullRequestArrow, UsersRound, ListTodo, Pin, Plus, Puzzle, X, Maximize2, Minimize2, PanelRightClose, PictureInPicture2, Wrench } from 'lucide-react';
+import { Activity, MessagesSquare, Bot, FolderTree, Globe, Terminal, GitPullRequestArrow, UsersRound, ListTodo, Pin, Plus, Puzzle, X, Maximize2, Minimize2, PanelRightClose, PictureInPicture2, Wrench, FolderGit2, Layers } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -155,6 +155,8 @@ const KIND_ICON: Record<BuiltinTabKindId, LucideIcon> = {
   routines: ListTodo,
   'resource-usage': Activity,
   'cindy-make': Wrench,
+  'worktree-manager': FolderGit2,
+  artifacts: Layers,
   'plugin-view': Puzzle,
   'plugin-task': Puzzle,
 };
@@ -173,6 +175,8 @@ const KIND_LABEL_KEY: Record<BuiltinTabKindId, string> = {
   routines: 'routines.title',
   'resource-usage': 'rightSidebar.tabs.kinds.resourceUsage',
   'cindy-make': 'settings.cindyMake.title',
+  'worktree-manager': 'rightSidebar.tabs.kinds.worktreeManager',
+  artifacts: 'rightSidebar.tabs.kinds.artifacts',
   'plugin-view': 'rightSidebar.tabs.kinds.pluginView',
   'plugin-task': 'rightSidebar.tabs.kinds.pluginTask',
 };

@@ -10,6 +10,69 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-06 — Worktree Manager Dock, Artifacts Side-drawer & Terminal Header Controls (`unit-tested`)
+
+- **What:** Un-parked and implemented Item 3 (Worktree manager dock, artifacts side-drawer, and embedded terminal panel) across the right sidebar plugin system and conversation header:
+  1. **Worktree Manager Dock (`apps/desktop/src/renderer/features/right-sidebar/plugins/worktree-manager/`):**
+     - Registered `worktree-manager` singleton plugin tab in right sidebar.
+     - Implemented `WorktreeManagerBody.tsx`:
+       - Lists all active Git worktrees across Cindy via `window.electronAPI.worktreeListAll()` and auto-refreshes on `onWorktreeChanged` events.
+       - Highlights the current session's workspace (differentiating between an isolated worktree and the main repo root).
+       - For each worktree: shows session title (via `sessionsStore`), branch name, path, and one-click actions: "Switch Task", "Reveal in Finder / Explorer", "Copy Path", and "Open Terminal here".
+       - Clean empty state explaining Git worktree isolation when no worktrees exist.
+  2. **Artifacts Side-Drawer (`apps/desktop/src/renderer/features/right-sidebar/plugins/artifacts/`):**
+     - Registered `artifacts` singleton plugin tab in right sidebar.
+     - Implemented `ArtifactsTabBody.tsx`:
+       - Subscribes to `makerChatStore` session messages and extracts all created files/deliverables via `collectGeneratedFiles(messages, ctx.workdir)`.
+       - Renders file cards with tool/command source badges, file paths, and quick actions: "Open / Preview", "Reveal in Finder", and "Copy Path".
+       - Empty state explaining artifact collection.
+  3. **Direct Header Launchers (`apps/desktop/src/renderer/features/cc-agent/SessionContentHeader.tsx`):**
+     - Added three quick-access launcher buttons in the conversation header (styled with `WINDOW_NO_DRAG_STYLE` and tips):
+       - `<Terminal size={15} />`: opens or focuses the embedded terminal tab in the right sidebar via `openTerminalTab(session.id)`.
+       - `<FolderGit2 size={15} />`: opens or focuses the Worktree Manager tab via `openWorktreeManagerTab(session.id)` (highlighted in primary color when the current task is running in a worktree).
+       - `<Layers size={15} />`: opens or focuses the Artifacts side-drawer via `openArtifactsTab(session.id)`.
+  4. **Plugin Plumbing & Registry:**
+     - Added `BuiltinTabKindId` variants for `worktree-manager` and `artifacts` in `types.ts` and `TabBar.tsx`.
+     - Added programmatic openers: `openWorktreeManagerTab.ts`, `openArtifactsTab.ts`, `openTerminalTab.ts`.
+     - Adjusted `.gitignore` to anchor `/artifacts/` at root so plugin files are properly tracked.
+     - Added localized strings for `worktreeManager` and `artifacts` across all supported locales (`en`, `ja`, `ko`, `zh-CN`, `zh-TW`).
+     - Re-generated design inventory (`pnpm design:inventory`).
+- **Files:**
+  - `apps/desktop/src/renderer/features/right-sidebar/plugins/worktree-manager/index.tsx`
+  - `apps/desktop/src/renderer/features/right-sidebar/plugins/worktree-manager/WorktreeManagerBody.tsx`
+  - `apps/desktop/src/renderer/features/right-sidebar/plugins/worktree-manager/__tests__/worktreeManagerPlugin.test.tsx`
+  - `apps/desktop/src/renderer/features/right-sidebar/plugins/artifacts/index.tsx`
+  - `apps/desktop/src/renderer/features/right-sidebar/plugins/artifacts/ArtifactsTabBody.tsx`
+  - `apps/desktop/src/renderer/features/right-sidebar/plugins/artifacts/__tests__/artifactsPlugin.test.tsx`
+  - `apps/desktop/src/renderer/features/right-sidebar/lib/openWorktreeManagerTab.ts`
+  - `apps/desktop/src/renderer/features/right-sidebar/lib/openArtifactsTab.ts`
+  - `apps/desktop/src/renderer/features/right-sidebar/lib/openTerminalTab.ts`
+  - `apps/desktop/src/renderer/features/right-sidebar/plugins/index.ts`
+  - `apps/desktop/src/renderer/features/right-sidebar/types.ts`
+  - `apps/desktop/src/renderer/features/right-sidebar/TabBar.tsx`
+  - `apps/desktop/src/renderer/features/cc-agent/SessionContentHeader.tsx`
+  - `apps/desktop/src/renderer/i18n/locales/en/common.json`
+  - `apps/desktop/src/renderer/i18n/locales/ja/common.json`
+  - `apps/desktop/src/renderer/i18n/locales/ko/common.json`
+  - `apps/desktop/src/renderer/i18n/locales/zh-CN/common.json`
+  - `apps/desktop/src/renderer/i18n/locales/zh-TW/common.json`
+  - `.gitignore`
+  - `docs/design-rules/design-inventory.md`
+  - `ROADMAP.md`
+- **Verification:**
+  - `pnpm typecheck` (apps/desktop): PASSED (0 errors).
+  - `pnpm test:runner`: PASSED (608 passed, 0 failed, 2 skipped across 35 test suites).
+  - `pnpm check:test-hygiene`: PASS (361 files within baseline).
+  - Vitest `worktreeManagerPlugin.test.tsx`: PASSED (5/5 tests).
+  - Vitest `artifactsPlugin.test.tsx`: PASSED (5/5 tests).
+  - Vitest `sessionContentHeaderDragRegion.test.ts`: PASSED (4/4 tests).
+  - Vitest `i18nCompleteness.test.ts`: PASSED (5/5 tests across en, ja, ko, zh-CN, zh-TW).
+  - Node test `design-inventory.test.mjs`: PASSED (52/52 tests).
+- **Next:**
+  - All 3 backlog parked features (Session Forking, Slash-command palette, and Worktree/Artifacts/Terminal panels) are now complete and verified.
+
+---
+
 ## 2026-11-06 — Slash-command Palette in Chat Composer (`unit-tested`)
 
 - **What:** Un-parked and implemented Item 2 (Slash-command palette in the chat composer) for Hermes conversations:

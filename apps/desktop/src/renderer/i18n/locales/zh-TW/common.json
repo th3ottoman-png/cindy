@@ -8275,7 +8275,9 @@
         "backgroundTasks": "追蹤背景執行的進度與輸出",
         "sideChat": "根據主任務的上下文獨立提問",
         "browser": "在面板中瀏覽網頁",
-        "terminal": "執行命令，查看輸出"
+        "terminal": "執行命令，查看輸出",
+        "worktreeManager": "檢查、切換與管理任務的工作區 Git Worktree",
+        "artifacts": "檢視對話輪次中產出的成果與檔案"
       },
       "kinds": {
         "fileBrowser": "檔案瀏覽器",
@@ -8285,6 +8287,8 @@
         "subagents": "Subagent",
         "backgroundTasks": "後臺任務",
         "resourceUsage": "資源監視器",
+        "worktreeManager": "Worktrees",
+        "artifacts": "Artifacts",
         "collaboration": "協同",
         "unknown": "未知標籤頁",
         "ghostPanel": "插件面板",
