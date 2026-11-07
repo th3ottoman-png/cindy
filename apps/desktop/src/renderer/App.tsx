@@ -26,6 +26,7 @@ import { StartupLogSupport } from '@/components/log-support/StartupLogSupport';
 import { isSecondaryWindow } from '@/lib/secondaryWindow';
 import { isSidebarWindow } from '@/lib/sidebarWindow';
 import { ToastContainer } from '@/components/ui/toast';
+import { toast } from '@/lib/toast';
 import { LegacyMigrationDialog } from '@/components/auth/LegacyMigrationDialog';
 import { Tooltip } from '@/components/ui/tooltip';
 import { ConfirmDialogProvider } from '@/components/ui/confirm-dialog-provider';
@@ -428,6 +429,13 @@ export function App() {
   // main 探到版本差异 broadcast 了也没人接, banner 永不显示。详见 ccMgrUpgradeStore.ts。
   useEffect(() => {
     return installCcMgrUpgradeListener();
+  }, []);
+
+  // ROADMAP 5.5: main pushes once per failure streak when a chat auto-save fails.
+  useEffect(() => {
+    return window.electronAPI?.maker?.chatAutosave?.onFailed?.(({ message }) => {
+      toast.error(`Chat auto-save failed: ${message}`);
+    });
   }, []);
 
   return (

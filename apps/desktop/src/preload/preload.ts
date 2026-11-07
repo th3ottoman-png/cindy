@@ -803,6 +803,7 @@ const fanOutMakerExtPluginsChanged = createIpcFanOut('maker:ext-plugins:changed'
 const fanOutMakerMcpCatalogChanged = createIpcFanOut('maker:mcp-catalog:changed');
 const fanOutMakerSkillsChanged = createIpcFanOut('maker:skills:changed');
 const fanOutMakerVaultChanged = createIpcFanOut('maker:vault:changed');
+const fanOutMakerChatAutosaveFailed = createIpcFanOut('maker:chat-autosave:failed');
 const fanOutMakerScheduledSessionsChanged = createIpcFanOut('maker:scheduled-sessions:changed');
 const fanOutMakerTurnChangeSetUpdated = createIpcFanOut('maker:turn-change-set:updated');
 const fanOutMakerStatusChanged = createIpcFanOut('maker:status-changed');
@@ -6379,6 +6380,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       pickFolder: (): Promise<string | null> =>
         ipcRenderer.invoke('maker:vault:pick-folder'),
       onChanged: fanOutMakerVaultChanged,
+    },
+    chatAutosave: {
+      getConfig: (): Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView> =>
+        ipcRenderer.invoke('maker:chat-autosave:get-config'),
+      setConfig: (patch: {
+        enabled?: boolean;
+        folder?: string;
+      }): Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView> =>
+        ipcRenderer.invoke('maker:chat-autosave:set-config', patch),
+      onFailed: fanOutMakerChatAutosaveFailed,
     },
     scheduledSessions: {
       getConfig: (): Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView> =>

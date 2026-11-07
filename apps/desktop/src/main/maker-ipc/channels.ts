@@ -57,6 +57,10 @@ export const MAKER_INVOKE = {
   VAULT_SET_CONFIG: 'maker:vault:set-config',
   /** ROADMAP 5.1: native open directory picker for notes vault. */
   VAULT_PICK_FOLDER: 'maker:vault:pick-folder',
+  /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */
+  CHAT_AUTOSAVE_GET_CONFIG: 'maker:chat-autosave:get-config',
+  /** ROADMAP 5.5: set chat auto-save `{ enabled?, folder? }`. */
+  CHAT_AUTOSAVE_SET_CONFIG: 'maker:chat-autosave:set-config',
   /** ROADMAP 5.4b: get local scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
   SCHEDULED_SESSIONS_GET_CONFIG: 'maker:scheduled-sessions:get-config',
   /** ROADMAP 5.4b: set local scheduled sessions directory path. */
@@ -1028,6 +1032,8 @@ export const MAKER_PUSH = {
   SKILLS_CHANGED: 'maker:skills:changed',
   /** ROADMAP 5.1: local notes vault configuration changed; payload is fresh VaultConfigView. */
   VAULT_CHANGED: 'maker:vault:changed',
+  /** ROADMAP 5.5: a chat auto-save failed; sent once per failure streak; payload `{ message }`. */
+  CHAT_AUTOSAVE_FAILED: 'maker:chat-autosave:failed',
   /** ROADMAP 5.4b: scheduled sessions configuration or state changed; no payload — renderer refetches. */
   SCHEDULED_SESSIONS_CHANGED: 'maker:scheduled-sessions:changed',
   TURN_CHANGE_SET_UPDATED: 'maker:turn-change-set:updated',

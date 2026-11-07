@@ -3,8 +3,10 @@ import { AlertTriangle, BookOpen, Check, FolderOpen } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { Switch } from '@/components/ui/switch';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import type { ChatAutosaveView } from '../../../main/maker-ipc/chatAutosave';
 import type { VaultConfigView } from '../../../main/maker-ipc/vaultNotes';
 
 import {
@@ -111,6 +113,137 @@ export function VaultView({
   );
 }
 
+/** ROADMAP 5.5: "Auto-save chats" card under the vault settings. Pure props for tests. */
+export function ChatAutosaveCard({
+  view,
+  saving,
+  onToggle,
+  onSaveFolder,
+}: {
+  view: ChatAutosaveView;
+  saving: boolean;
+  onToggle: (enabled: boolean) => void;
+  onSaveFolder: (folder: string) => void;
+}) {
+  const [draftFolder, setDraftFolder] = useState(view.folder);
+
+  useEffect(() => {
+    setDraftFolder(view.folder);
+  }, [view.folder]);
+
+  const folderChanged = draftFolder.trim() !== view.folder.trim();
+  const noVault = !view.vaultDir;
+
+  return (
+    <div className={SETTINGS_CARD_CLASS} data-testid="settings-chat-autosave">
+      <div className={SETTINGS_ROW_CLASS}>
+        <div className="flex flex-col gap-1 flex-1 min-w-0 pr-4">
+          <span className={SETTINGS_ROW_LABEL_CLASS}>Auto-save chats</span>
+          <span className={SETTINGS_ROW_HINT_CLASS}>
+            After each turn, every conversation is written as one Markdown file in this folder of
+            the vault and rewritten as it grows. Edits to those files are overwritten: copy a note
+            before editing it.
+          </span>
+        </div>
+        <Switch
+          checked={view.enabled}
+          disabled={saving}
+          onCheckedChange={(v) => onToggle(v)}
+          aria-label={view.enabled ? 'Turn chat auto-save off' : 'Turn chat auto-save on'}
+        />
+      </div>
+      <div className={SETTINGS_ROW_CLASS}>
+        <div className="flex flex-col gap-1.5 flex-1 min-w-0 pr-4">
+          <span className={SETTINGS_ROW_LABEL_CLASS}>Folder in the vault</span>
+          <input
+            type="text"
+            value={draftFolder}
+            onChange={(e) => setDraftFolder(e.target.value)}
+            placeholder="Cindy/Chats"
+            className={cn(
+              'w-full rounded-md border px-3 py-1.5 text-12',
+              'bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-primary)]',
+              'focus:outline-none focus:ring-1 focus:ring-[var(--focus-ring)]',
+            )}
+            data-testid="chat-autosave-folder-input"
+          />
+          {view.issue && <span className="text-11 text-amber-400">{view.issue}</span>}
+          {view.enabled && noVault && (
+            <span className="text-11 text-amber-400">
+              No vault folder is set above, so nothing is saved yet.
+            </span>
+          )}
+          {view.lastError && (
+            <span className="text-11 text-red-400">Last save failed: {view.lastError}</span>
+          )}
+          {view.lastSavedPath && !view.lastError && (
+            <span className="text-11 text-emerald-400 flex items-center gap-1">
+              <Check size={12} aria-hidden="true" />
+              <span>Last saved: {view.lastSavedPath}</span>
+            </span>
+          )}
+        </div>
+        <div className="shrink-0 flex items-center">
+          <Button
+            size="sm"
+            onClick={() => onSaveFolder(draftFolder)}
+            disabled={!folderChanged || saving}
+            data-testid="chat-autosave-folder-save"
+          >
+            Save
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChatAutosaveSettings() {
+  const [view, setView] = useState<ChatAutosaveView | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!window.electronAPI?.maker?.chatAutosave?.getConfig) return;
+    try {
+      setView(await window.electronAPI.maker.chatAutosave.getConfig());
+    } catch {
+      // Ignore read failure; the card stays hidden.
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const offVault = window.electronAPI?.maker?.vault?.onChanged?.(() => void refresh());
+    const offFailed = window.electronAPI?.maker?.chatAutosave?.onFailed?.(() => void refresh());
+    return () => {
+      offVault?.();
+      offFailed?.();
+    };
+  }, [refresh]);
+
+  const save = useCallback(async (patch: { enabled?: boolean; folder?: string }) => {
+    if (!window.electronAPI?.maker?.chatAutosave?.setConfig) return;
+    setSaving(true);
+    try {
+      setView(await window.electronAPI.maker.chatAutosave.setConfig(patch));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save auto-save settings');
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
+  if (!view) return null;
+  return (
+    <ChatAutosaveCard
+      view={view}
+      saving={saving}
+      onToggle={(enabled) => void save({ enabled })}
+      onSaveFolder={(folder) => void save({ folder })}
+    />
+  );
+}
+
 export function VaultSection() {
   const [config, setConfig] = useState<VaultConfigView | null>(null);
   const [saving, setSaving] = useState(false);
@@ -170,11 +303,14 @@ export function VaultSection() {
   }
 
   return (
-    <VaultView
-      config={config}
-      saving={saving}
-      onSave={handleSave}
-      onPickFolder={handlePickFolder}
-    />
+    <div className="flex flex-col gap-3">
+      <VaultView
+        config={config}
+        saving={saving}
+        onSave={handleSave}
+        onPickFolder={handlePickFolder}
+      />
+      <ChatAutosaveSettings />
+    </div>
   );
 }

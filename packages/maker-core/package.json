@@ -26,6 +26,7 @@
     "./mcp-catalog": "./src/mcp/mcp-catalog.ts",
     "./expert-memory": "./src/experts/expert-memory.ts",
     "./session-export": "./src/export/session-markdown.ts",
+    "./chat-autosave": "./src/export/chat-autosave.ts",
     "./vault-notes": "./src/notes/vault-notes.ts",
     "./scheduled-sessions": "./src/schedules/scheduled-sessions.ts",
     "./expert-handoff": "./src/experts/expert-handoff.ts",

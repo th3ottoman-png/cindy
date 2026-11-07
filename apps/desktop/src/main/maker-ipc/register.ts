@@ -923,6 +923,7 @@ import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
 import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNotes.js';
 import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
+import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
 import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
 import {
   getDesktopScheduledSessionsHost,
@@ -2528,8 +2529,18 @@ export function broadcastSessionCreated(sessionId: string): void {
  * 2026-07-06 收敛为单点)。
  */
 function markTurnEndedAfterPersistDrain(sessionId: string): void {
-  markSessionTurnEndedAfterBarrier(sessionId, drainPersistQueue());
+  const drained = drainPersistQueue();
+  markSessionTurnEndedAfterBarrier(sessionId, drained);
+  // ROADMAP 5.5: auto-save the conversation to the vault once this turn's rows are durable.
+  // Never awaited and never throws into the turn; the host is a no-op when the feature is off.
+  void drained.then(
+    () => chatAutosaveHolder?.onTurnEnded(sessionId),
+    () => undefined,
+  );
 }
+
+// ROADMAP 5.5: set in registerMakerIpc; read at every turn end.
+let chatAutosaveHolder: ChatAutosaveHost | null = null;
 
 // ─── Orca collab service holder ───────────────────────────────────────────
 // 让其它 main 模块(典型: mcp-integrations/mcp-providers 的 cindy_helper
@@ -25651,6 +25662,23 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   });
   registerSessionExportHandlers(createElectronIpcHandlerRegistry(), {
     host: sessionExportHost,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+
+  // ── Chat auto-save to the vault (ROADMAP 5.5) ───────────────────────────
+  chatAutosaveHolder?.dispose();
+  chatAutosaveHolder = new ChatAutosaveHost({
+    getVaultDir: () => {
+      const view = vaultNotesHost.getConfig();
+      return view.issue ? '' : view.vaultDir;
+    },
+    getSessionRow: (sessionId) => getSessionRowSnapshot(sessionId),
+    listMessages: (sessionId) => listMessagesForAgentHandoff(sessionId, null),
+    onFailure: (message) => broadcastToAllWindows(MAKER_PUSH.CHAT_AUTOSAVE_FAILED, { message }),
+    log,
+  });
+  registerChatAutosaveHandlers(createElectronIpcHandlerRegistry(), {
+    host: chatAutosaveHolder,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
 

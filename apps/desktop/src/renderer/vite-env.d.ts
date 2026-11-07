@@ -5630,6 +5630,14 @@ interface ElectronAPI {
       /** Fires when the vault configuration changes. */
       onChanged: (cb: (view: import('../main/maker-ipc/vaultNotes').VaultConfigView) => void) => () => void;
     };
+    chatAutosave: {
+      /** ROADMAP 5.5: chat auto-save settings (~/.cindy-harness/chat-autosave.json) + last result. */
+      getConfig: () => Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView>;
+      /** Turn auto-save on/off or change the folder inside the vault. */
+      setConfig: (patch: { enabled?: boolean; folder?: string }) => Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView>;
+      /** Fires once per failure streak when a save fails. */
+      onFailed: (cb: (payload: { message: string }) => void) => () => void;
+    };
     scheduledSessions: {
       /** ROADMAP 5.4b: get scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
       getConfig: () => Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView>;
