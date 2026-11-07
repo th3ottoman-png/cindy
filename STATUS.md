@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-07 (late night, 3) — 1.13f: Hermes asks survive the ~30 s hook cap (`live-proven`)
+
+- **Owner decision:** "block + approve, retry" (asked with options; the other two were "wait 25 s then block" and "read Hermes source").
+- **Change:** `packages/maker-hermes-manager/src/auto-review-gate.ts`: hook entry `timeout: 30` (was 300), hook socket timeout 27 s (was 292), new `AUTO_REVIEW_HOOK_HOLD_MS` 24 s, `AUTO_REVIEW_HOLD_REASON`, `reviewKey` (session + tool + sorted-key input; ignores tool_call_id), and `ReviewHold`. It answers within the hold, blocks a review still open with the hold reason, lets a retry join the open review, turns a late Allow into a one-time 10-minute grant (used up by the retry, or by a waiter that got the allow itself), and stores nothing for a late block. `hermes-manager.ts` `askClientToReview` runs through it (client request split into `sendReviewRequest`, same 285 s life). The Python hook reads the new socket timeout from the same constant. Tests: new `__tests__/review-hold.test.ts` (8, fake timers), and the `timeout: 30` expectation updated; package suite 196 passed.
+- **Dev app could not carry the dead proxy:** `cindy-dev start` launches through Terminal.app with a fixed env list (`scripts/restart-desktop-remote.mjs` `devEnvEntries`, no proxy vars), so the reviewer stayed up there (a `touch` was reviewed `allow`, file removed). Not changed.
+- **Live (fresh `pnpm package` build swapped into `/Applications/Cindy.app`; the 1.13e build kept at `apps/desktop/out/Cindy-1.13e.app.bak`; launched with `HTTPS_PROXY=http://127.0.0.1:9`, `NO_PROXY` for DeepSeek and localhost; chat `730c4166`, Hermes, Auto-review, deepseek-flash):** prompt "run exactly `touch /tmp/cindy-113f-ask.txt`". From the session `state.db` (read-only) and the logs: reviewer chain exhausted at +0.3 s → `AUTO_REVIEW_UNAVAILABLE` → card at 8.3 s. The hook answered at +24.1 s with the hold reason. The model retried the same call at +25.8 s (joined the open card). Allow once was clicked at 48.5 s, with the card still shown after 40 s, past the old cap. The retry returned `exit=0` right away, the file was created, and the turn ended "Done". No "plugin callback timed out" this time. Registry backups `sessions.json.bak-2026-11-07-113f2`, `-113f3`. Cost about $0.01.
+- **Not proven live:** Deny after a hold (unit-tested: nothing stored, next call reviewed again); a card answered after the turn has ended (the grant then waits for the owner's next "retry" turn, 10 min).
+- **Cleanup:** app quit (the proxy was only in that launch), `/tmp/cindy-113f-ask.txt` removed.
+- **Proposed rule changes:** none.
+
 ## 2026-11-07 (late night, 2) — 1.13: model-issued block `live-proven`; reviewer-down→ask broken by a Hermes 30 s cap (new 1.13f)
 
 - **Housekeeping:** the owner asked to delete the old app, so `~/.Trash/Cindy.app` (2026-11-05 build, 558 MB, no Python hook) was permanently deleted. `/Applications/Cindy.app` is the fresh 1.13e build. Registry backup: `~/.hermes-cindy/hermes-mgr/sessions.json.bak-2026-11-07-113f`.

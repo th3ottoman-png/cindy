@@ -33,12 +33,27 @@ export const AUTO_REVIEW_HOOK_FLAG = '--auto-review-hook';
 export const AUTO_REVIEW_CREDENTIALS_FLAG = '--credentials';
 export const AUTO_REVIEW_CREDENTIALS_FILE = 'auto-review.json';
 
-/** Hermes caps a shell hook at 300 s; the owner may need most of that to answer a prompt. */
-export const AUTO_REVIEW_HOOK_TIMEOUT_SECONDS = 300;
-/** The daemon gives up on the client before Hermes gives up on the hook. */
+/**
+ * Hermes 0.22.7 stops waiting for a `pre_tool_call` callback after ~30 s, whatever the
+ * entry's `timeout` says, and refuses every later tool call while one is still running
+ * (found live, ROADMAP 1.13f). So every hook answer must arrive well inside 30 s.
+ */
+export const AUTO_REVIEW_HOOK_TIMEOUT_SECONDS = 30;
+/**
+ * How long one review (reviewer + the owner's answer to a card) may stay open in the
+ * daemon. It outlives the hook: a call still open when the hook must answer is blocked
+ * with HOLD_REASON, and the owner's later `allow` is kept as a one-time grant (ReviewHold).
+ */
 export const AUTO_REVIEW_CLIENT_TIMEOUT_MS = 285_000;
-/** The hook gives up on the daemon just after the daemon gives up on the client. */
-export const AUTO_REVIEW_HOOK_SOCKET_TIMEOUT_MS = 292_000;
+/** The daemon answers the hook within this, so the hook (and Hermes) never wait longer. */
+export const AUTO_REVIEW_HOOK_HOLD_MS = 24_000;
+/** The hook gives up on the daemon just after the daemon must have answered. */
+export const AUTO_REVIEW_HOOK_SOCKET_TIMEOUT_MS = 27_000;
+/** A grant for an owner-allowed call that missed its hook answer lives this long. */
+export const AUTO_REVIEW_GRANT_TTL_MS = 10 * 60_000;
+export const AUTO_REVIEW_HOLD_REASON =
+  'Waiting for the owner to approve this call in Cindy. It did not run. '
+  + 'Retry this exact call unchanged now; it runs once the owner allows it.';
 const MAX_REQUEST_BYTES = 1_000_000;
 
 export interface AutoReviewHookPayload {
@@ -158,6 +173,95 @@ export function normalizeVerdict(value: unknown): AutoReviewVerdict {
 }
 
 export type AutoReviewHandler = (sessionId: string, payload: AutoReviewHookPayload) => Promise<AutoReviewVerdict>;
+
+/** Stable JSON (sorted object keys) so the same call always gets the same key. */
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    return `{${Object.keys(obj).sort().map((k) => `${JSON.stringify(k)}:${stableJson(obj[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+/** One tool call of one session, ignoring the per-attempt tool_call_id. */
+export function reviewKey(sessionId: string, payload: AutoReviewHookPayload): string {
+  return `${sessionId}\u0000${payload.toolName}\u0000${stableJson(payload.toolInput)}`;
+}
+
+interface ReviewHoldOptions {
+  holdMs?: number;
+  grantTtlMs?: number;
+  now?: () => number;
+}
+
+/**
+ * Keeps a review open past the hook's short answer window (ROADMAP 1.13f).
+ *
+ * - A call with an unused grant (the owner allowed it after its hook had to answer)
+ *   is allowed at once, and the grant is used up.
+ * - A call whose review is still open waits on that same review (no second card).
+ * - Otherwise a new review starts.
+ * If the review has not finished within `holdMs`, the call is blocked with
+ * AUTO_REVIEW_HOLD_REASON; when that review later ends in `allow`, a one-time grant
+ * for exactly this call is stored for `grantTtlMs`. A later `block` stores nothing.
+ */
+export class ReviewHold {
+  private readonly open = new Map<string, Promise<AutoReviewVerdict>>();
+  private readonly grants = new Map<string, number>();
+  private readonly holdMs: number;
+  private readonly grantTtlMs: number;
+  private readonly now: () => number;
+
+  constructor(opts: ReviewHoldOptions = {}) {
+    this.holdMs = opts.holdMs ?? AUTO_REVIEW_HOOK_HOLD_MS;
+    this.grantTtlMs = opts.grantTtlMs ?? AUTO_REVIEW_GRANT_TTL_MS;
+    this.now = opts.now ?? Date.now;
+  }
+
+  async review(key: string, start: () => Promise<AutoReviewVerdict>): Promise<AutoReviewVerdict> {
+    const grantedUntil = this.grants.get(key);
+    if (grantedUntil !== undefined) {
+      this.grants.delete(key);
+      if (grantedUntil > this.now()) return { decision: 'allow' };
+    }
+    let pending = this.open.get(key);
+    if (!pending) {
+      pending = start().then(normalizeVerdict, () => ({
+        decision: 'block' as const,
+        reason: 'Cindy auto-review failed.',
+      }));
+      this.open.set(key, pending);
+      void pending.then((verdict) => {
+        this.open.delete(key);
+        if (verdict.decision === 'allow' && this.heldOver.has(pending!)) {
+          this.grants.set(key, this.now() + this.grantTtlMs);
+        }
+        this.heldOver.delete(pending!);
+      });
+    }
+    const current = pending;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const held = new Promise<null>((resolve) => {
+      timer = setTimeout(() => {
+        // Marked here, before anything can resolve `current` later, so a late allow is never lost.
+        this.heldOver.add(current);
+        resolve(null);
+      }, this.holdMs);
+    });
+    const first = await Promise.race([current, held]);
+    clearTimeout(timer);
+    if (first) {
+      // A retry that receives the late allow itself uses up the grant that allow just stored.
+      if (first.decision === 'allow') this.grants.delete(key);
+      return first;
+    }
+    return { decision: 'block', reason: AUTO_REVIEW_HOLD_REASON };
+  }
+
+  /** Reviews that outlived at least one hook answer; only their `allow` becomes a grant. */
+  private readonly heldOver = new WeakSet<Promise<AutoReviewVerdict>>();
+}
 
 export interface AutoReviewGateOptions {
   socketPath: string;

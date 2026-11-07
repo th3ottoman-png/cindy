@@ -73,7 +73,7 @@ describe('hook command and config injection', () => {
     expect(out.startsWith('model:\n  default: m\n')).toBe(true);
     expect(out).toContain('hooks:\n  pre_tool_call:\n    - matcher: ".*"\n');
     expect(out).toContain(`      command: "${CMD}"\n`);
-    expect(out).toContain('      timeout: 300\n      fail_closed: true\n');
+    expect(out).toContain('      timeout: 30\n      fail_closed: true\n');
   });
 
   it('handles an empty config and one without a trailing newline', () => {

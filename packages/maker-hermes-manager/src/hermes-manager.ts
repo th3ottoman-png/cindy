@@ -65,6 +65,8 @@ import { ManagerServer, type ClientCtx, type ManagerLogger } from './server.js';
 import {
   AUTO_REVIEW_CLIENT_TIMEOUT_MS,
   AutoReviewGate,
+  ReviewHold,
+  reviewKey,
   buildAutoReviewHookCommand,
   AUTO_REVIEW_CREDENTIALS_FILE,
   AUTO_REVIEW_SOCKET_ENV,
@@ -152,6 +154,8 @@ export class HermesManager {
   private readonly gatewayHomes = new Set<string>();
   /** ROADMAP 1.13b: the hook's endpoint; absent when no hook argv was configured. */
   private readonly autoReview?: AutoReviewGate;
+  /** ROADMAP 1.13f: reviews kept open past Hermes's ~30 s hook wait, and one-time grants. */
+  private readonly reviewHold = new ReviewHold();
   private readonly autoReviewHookCommand?: string;
   private autoReviewHookArgv?: readonly string[];
   /** Per-session hook token + env (memory only; dropped on close). */
@@ -260,6 +264,13 @@ export class HermesManager {
       toolName: payload.toolName,
       input,
     };
+    // Hermes waits ~30 s at most for the hook (1.13f): hold the review open past that.
+    return this.reviewHold.review(reviewKey(sessionId, payload), () => this.sendReviewRequest(ctx, params));
+  }
+
+  private async sendReviewRequest(ctx: ClientCtx, params: ApprovalRequestParams): Promise<AutoReviewVerdict> {
+    const { sessionId } = params;
+    const payload = { toolName: params.toolName };
     try {
       const result = await this.server.sendRequest<ApprovalRequestResult>(
         ctx,
