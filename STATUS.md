@@ -10,6 +10,20 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-07 — Security feature comparison with WorkBuddy; ROADMAP rows 1.13, 5.5, 5.6 added (`unverified`, docs only)
+
+- **What:** Owner shared WorkBuddy's security settings and asked whether Cindy has the same. Read the code; no code changed. Added ROADMAP row **1.13 Hermes Auto-review permission mode** (open).
+- **Findings:**
+  - Model behaviour review / smart approval: Cindy has it as the `auto` permission mode for Claude Code, Codex and Pi (`packages/maker-core/src/agents/shared/auto-review.ts`). **Hermes does not**: only `--safe-mode` (MCP/plugins/Cindy tools off) or `--yolo` (no checks). This is the one gap worth building → 1.13.
+  - Tool-result injection detection: only the browser runtime wraps external content and logs suspicious patterns (`packages/browser-control-runtime/.../security/external-content.ts`). Not proposed separately; Auto-review covers the dangerous action an injection would cause.
+  - Secret redaction: Hermes `security.redact_secrets` is on by default; auto-review also flags credential paths (`sensitive-credential-paths.ts`). Enough.
+  - Not proposed (low value for one local user): central file/command/network rule lists, per-turn file auto-backup (git + fork cover it), audit log (transcripts cover it), safety gateway / transport encryption (no cloud). Delete-to-Trash protection is missing; small nice-to-have, not added as a row.
+- **Verification:** `unverified` — documentation only.
+- **Also added (same day, owner pick "Auto-save + summary"):** ROADMAP rows **5.5 Auto-save every conversation to the vault** and **5.6 Auto-summary note per conversation** (both open). Considered mem0 and rejected it for now: memories live in a vector DB (hidden state, not hand-editable) and need an extraction model call every turn (paid/outbound or a local Ollama + vector DB stack). Obsidian needs no integration beyond writing `.md` files into the vault folder; nothing from github.com/obsidianmd is needed. If the owner points `vaultDir` at `/Users/turko/Bishi-memory`, set the 5.5 folder to `raw/cindy/` and the 5.6 folder to `memory/` (that vault's AGENTS.md: `wiki/` is read-only for agents).
+- **Open:** 1.13 needs a check of whether Hermes 0.22.7 exposes a pre-execution hook for built-in tools; split the row if it does not.
+
+---
+
 ## 2026-11-06 — Worktree Manager Dock, Artifacts Side-drawer & Terminal Header Controls (`unit-tested`)
 
 - **What:** Un-parked and implemented Item 3 (Worktree manager dock, artifacts side-drawer, and embedded terminal panel) across the right sidebar plugin system and conversation header:
