@@ -34,12 +34,13 @@ This is not a product. There is no marketing surface, no onboarding funnel, no o
 | Repo | `/Users/turko/=ai space=/=PROJECTS_MAIN=/Cindy` — path has spaces and `=`; **quote it**. macOS FS is case-insensitive, so older docs spelling it `=Projects_Main=` resolve to the same place |
 | Remote | private GitHub, `origin main`. Upstream remote `upstream` (strategy: see `docs/decisions/0001`) |
 | Dev app data | `~/Library/Application Support/CindyGlobal-dev2-private`; the isolated `…/CindyGlobal-dev2-dev` sandbox is what `restart:desktop:remote` uses |
-| Current handover | `docs/handoff/2026-11-06-eod-handover.md` and `docs/handoff/2026-11-06-eod-next-agent-prompt.md`. All older handover files are historical |
+| Current handover | `docs/handoff/2026-11-07-eod-handover.md` and `docs/handoff/2026-11-07-eod-next-agent-prompt.md`. All older handover files are historical |
 | Owner vault note | `/Users/turko/Bishi-memory/memory/Project — Cindy.md` — append one dated line per session at the end |
 | Hermes home | **`~/.hermes-cindy`** — isolated. **`~/.hermes` is off-limits, always.** |
 | Hermes launcher | `~/.local/bin/hermes-cindy` (pins `HERMES_HOME`) |
 | Hermes daemon state | `~/.hermes-cindy/hermes-mgr/sessions.json` |
-| Harness user files (planned) | `~/.cindy-harness/{providers.yaml, routing.yaml, experts/, plugins/, plugins.json, vault.json}` |
+| Harness user files | `~/.cindy-harness/{providers.yaml, routing.yaml, experts/, plugins/, plugins.json, vault.json, chat-autosave.json, expert-sessions.json}` |
+| Notes vault | `/Users/turko/Bishi-memory` (from `vault.json`). Chat auto-save (5.5, **on**) writes `Cindy/Chats/<date>-<slug>-<8-char id>.md`, one file per conversation, rewritten after each turn |
 | Vendored agent binaries | `tools/` — untracked, required at runtime, **keep** |
 | CDP debugging | dev app binds `127.0.0.1:9222` (fixed; `XDT_CDP_PORT` overrides, dev-only — `docs/dev-rules/desktop-development.md`) |
 
@@ -263,6 +264,18 @@ Authoritative list is `AGENTS.md` §1–§3. Summary:
 - **New renderer surfaces**: run `node scripts/design-inventory.mjs --check`. A component mounted
   inside an existing view does not change the generated surface block. Placeholders use
   `--text-placeholder`, not `--text-tertiary` (the ink-ladder test in shard 8 catches it).
+  Editing a file that belongs to an existing surface (e.g. `components/settings/*`) still changes
+  that surface's hash: `test:runner` then fails on `CLI --check`; regenerate with
+  `node scripts/design-inventory.mjs` and commit the ledger.
+- **Formatter hook rewrites whole files.** A PostToolUse formatter in the agent tooling ran
+  Prettier over `preload.ts` and `vite-env.d.ts` after small Edits (+600 lines of churn). Check
+  `git diff --stat` before every commit; rebuild a ballooned file from `git show HEAD:<file>` plus
+  only the new lines, by script.
+- **Dev launcher strips env.** `scripts/restart-desktop-remote.mjs` forwards a fixed env list, so
+  `HTTPS_PROXY`-style tricks (reviewer-down tests) only work on the packaged app
+  (`/Applications/Cindy.app/Contents/MacOS/Cindy --remote-debugging-port=9223`).
+- **BSD `env -i` and the repo path:** the `=` in the path is read as an assignment. Use
+  `env -i … /bin/sh -c 'exec "$1" …' sh "<path>"`.
 
 ---
 
@@ -270,7 +283,7 @@ Authoritative list is `AGENTS.md` §1–§3. Summary:
 
 For a paused handoff, the newest `STATUS.md` entry is the exact resume checklist and takes
 precedence over this generic startup sequence where they differ. The current handover
-(`docs/handoff/2026-11-04-eod-handover.md`) and its matching next-agent prompt carry the exact
+(`docs/handoff/2026-11-07-eod-handover.md`) and its matching next-agent prompt carry the exact
 stopping point and the up-to-date open-work order; read them before this generic sequence.
 
 1. Read `AGENTS.md` end to end. Then this file. Then the current phase of `ROADMAP.md` and the

@@ -10,6 +10,13 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-07 (late night, 5) — Handover to a new agent (docs only)
+
+- **Changed:** new `docs/handoff/2026-11-07-eod-handover.md` + `docs/handoff/2026-11-07-eod-next-agent-prompt.md` (supersede the 2026-11-06 pair); `ROADMAP.md` header points at them and names 5.6 as next; ROADMAP 1.13 parent row flipped to ✅ `live-proven` (owner closed it; Deny after a hold stays `unit-tested` by choice); 3.7's stale "Hermes as a worker" note struck (3.9a did it); `HANDOVER.md` §2 (current handover, harness files incl. `chat-autosave.json`, notes vault + auto-save), §8 (four new traps: surface-hash ledger, formatter hook, dev launcher env, BSD `env -i`), §9 pointer (was still 2026-11-04).
+- **State:** owner turned chat auto-save (5.5) **on** for daily use (`~/.cindy-harness/chat-autosave.json` `enabled: true`). Old `apps/desktop/out/` build copies deleted at the owner's request. Dev app left running (pid 75246, CDP 9222).
+- **Verified:** gates run before the commit (see the commit); no code changed.
+- **Open for the next agent:** 5.6 first, but ask the owner one question before its live proof: the `summary` route is LM Studio `qwen3-8b` and the standing rule keeps LM Studio off.
+
 ## 2026-11-07 (late night, 4) — 5.5: auto-save every conversation to the vault (`live-proven`)
 
 - **Changed:** new `packages/maker-core/src/export/chat-autosave.ts` (+ subpath `./chat-autosave` in `packages/maker-core/package.json`) and its tests; new `apps/desktop/src/main/maker-ipc/chatAutosave.ts` (host + IPC) and tests; `register.ts` (`markTurnEndedAfterPersistDrain` calls the host after the persist drain; host built next to the 5.2 export host); `channels.ts` (`CHAT_AUTOSAVE_GET_CONFIG` / `_SET_CONFIG`, push `CHAT_AUTOSAVE_FAILED`); `preload.ts` + `vite-env.d.ts` (`maker.chatAutosave`); `VaultSection.tsx` (`ChatAutosaveCard`) + test; `App.tsx` (one-time error toast); `docs/design-rules/design-inventory.md` regenerated (settings surface hash only).
