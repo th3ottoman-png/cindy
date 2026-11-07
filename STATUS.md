@@ -10,6 +10,17 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-07 — 1.13a Hermes tool-call gate probe (`live-proven`)
+
+- **What:** Started 1.13 (owner: "build 1.13"). Split the row into 1.13a–d in `ROADMAP.md`; 1.13a done. No code changed.
+- **How:** Scratch `HERMES_HOME` under the session scratchpad holding only `model:` + `hooks.pre_tool_call` (`fail_closed: true`) pointing at a logging script that blocks any payload containing `PROBE_BLOCK`. Nothing in `~/.hermes-cindy` was written; the DeepSeek key came from the environment for one command and was not stored. Free check first (`hermes hooks test pre_tool_call`), then one paid deepseek-flash turn (owner approved): `hermes chat --format stream-json --query-file - --in <scratch> --yolo --accept-hooks -t terminal`.
+- **Result:** Hook fired for both terminal calls. `echo PROBE_BLOCK` was blocked; the model reported `was rejected with "probe blocked"`. `echo probe_ok` ran (exit 0). `result.exit_code` 0.
+- **Surprises (shape 1.13b/c):** (1) a blocked call produces **no** `tool_use`/`tool_result` events in stream-json, so Cindy must show blocks itself; (2) payload `cwd` is the Hermes install dir, not the task folder, so workspace roots must come from the Cindy session; (3) the hook inherits the spawn env, so a per-session endpoint + token can travel by env; (4) `--accept-hooks` registers the hook with no consent prompt; `--safe-mode` would ignore the config and the hook entirely, so `auto` must not use it.
+- **Found in passing:** installed Hermes is **0.22.7** (`hermes --version`), but the pin in `HANDOVER.md` §Versions and `packages/maker-hermes-manager/src/hermes-version.ts` is still 0.22.5. Not changed here; bump the pin (and re-verify the listed behaviours) as its own step. 1.13 was probed on 0.22.7.
+- **Open:** 1.13b (daemon + hook script), 1.13c (adapter + decision + prompt + visible blocks), 1.13d (live proof).
+
+---
+
 ## 2026-11-07 — Security feature comparison with WorkBuddy; ROADMAP rows 1.13, 5.5, 5.6 added (`unverified`, docs only)
 
 - **What:** Owner shared WorkBuddy's security settings and asked whether Cindy has the same. Read the code; no code changed. Added ROADMAP row **1.13 Hermes Auto-review permission mode** (open).
