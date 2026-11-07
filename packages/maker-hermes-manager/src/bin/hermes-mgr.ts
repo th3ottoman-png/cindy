@@ -9,12 +9,42 @@
  * The executable shebang is added by build.mjs's esbuild banner.
  */
 
+import { constants as fsConstants } from 'node:fs';
+import * as fsp from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { AUTO_REVIEW_CREDENTIALS_FLAG, AUTO_REVIEW_HOOK_FLAG, runAutoReviewHook } from '../auto-review-gate.js';
+import { prepareAutoReviewHookArgv, type InterpreterProbeIo } from '../auto-review-hook-python.js';
 import { HermesManager } from '../hermes-manager.js';
+
+/** Reads the first bytes of Hermes's entry scripts and finds `hermes` on PATH (ROADMAP 1.13e). */
+const interpreterProbeIo: InterpreterProbeIo = {
+  async readHead(file) {
+    const fh = await fsp.open(file, 'r');
+    try {
+      const buf = Buffer.alloc(1024);
+      const { bytesRead } = await fh.read(buf, 0, buf.length, 0);
+      return buf.subarray(0, bytesRead).toString('utf8');
+    } finally {
+      await fh.close();
+    }
+  },
+  async which(name) {
+    for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
+      if (!dir) continue;
+      const candidate = path.join(dir, name);
+      try {
+        await fsp.access(candidate, fsConstants.X_OK);
+        return candidate;
+      } catch {
+        /* next PATH entry */
+      }
+    }
+    return undefined;
+  },
+};
 
 /** ROADMAP 1.13b: Hermes runs this same bundle as the `pre_tool_call` hook of an `auto` session. */
 async function hookMain(): Promise<void> {
@@ -89,14 +119,25 @@ async function main(): Promise<void> {
     fail(`refusing to start: HERMES_HOME resolves to the daily Hermes home (${dailyHome})`);
   }
 
-  // `node` from PATH, like the bridge shim (ROADMAP 1.5b-2); a missing node fails the hook,
-  // which is fail_closed, so every `auto` tool call is then blocked, never let through.
+  // The hook runs under Hermes's own Python (found from the `hermes` entry script's
+  // shebang, ROADMAP 1.13e), so no node is needed on the gateway's PATH. When that cannot be
+  // found it falls back to `node` from PATH (1.13b); a missing node fails the hook, which is
+  // fail_closed, so every `auto` tool call is then blocked, never let through.
   const bundlePath = fileURLToPath(import.meta.url);
+  const autoReviewHookArgv = args.perSessionHomes
+    ? await prepareAutoReviewHookArgv({
+        hermesBin: args.hermesBin ?? 'hermes',
+        stateDir: path.join(resolvedHome, 'hermes-mgr'),
+        bundlePath,
+        io: interpreterProbeIo,
+        log: (message, ctx) => console.error('[hermes-mgr][info]', message, ctx ?? ''),
+      })
+    : undefined;
   const manager = new HermesManager({
     socketPath: args.socketPath,
     hermesHome: resolvedHome,
     ...(args.perSessionHomes
-      ? { sessionHomes: {}, autoReviewHookArgv: ['node', bundlePath, AUTO_REVIEW_HOOK_FLAG] }
+      ? { sessionHomes: {}, autoReviewHookArgv: autoReviewHookArgv! }
       : {}),
     ...(args.hermesBin ? { hermesBin: args.hermesBin } : {}),
     ...(args.registryFile
