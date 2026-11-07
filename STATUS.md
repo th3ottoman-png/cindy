@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-07 (late night) — 1.13e: packaged build proof (`live-proven`)
+
+- **Build:** `pnpm package` in `apps/desktop` (Node 22, exit 0) from `47a1348321`; the bundled `Resources/hermes-manager/hermes-mgr.mjs` carries the Python hook code. The stale 2026-11-05 build was renamed to `apps/desktop/out/Cindy-darwin-arm64.bak-2026-11-05`, not deleted.
+- **Surprise 1: the build moves itself.** On first launch from `out/`, the packaged app shows "Move to Applications" (`bootstrap-electron.ts`, `app.moveToApplicationsFolder()`). Move was clicked, so the fresh build is now `/Applications/Cindy.app`, and the previous `/Applications/Cindy.app` (2026-11-05) went to `~/.Trash/Cindy.app`, which can be recovered.
+- **Surprise 2: "node off the PATH" cannot be reached on this Mac by launch env alone.** The app was started with `env -i HOME USER LOGNAME TMPDIR PATH=/usr/bin:/bin:/usr/sbin:/sbin:~/.local/bin` (through `sh -c`, because BSD `env` reads the `=`-containing app path as an assignment). But `fix-path` plus `ensureMacPackageManagerPath()` (`apps/desktop/src/main/agentToolPath.ts`, which always appends `/opt/homebrew/bin`) rebuild the PATH, so `node` is back for the main process and daemon. The node-free part was proven at the hook instead (below).
+- **Live (packaged `/Applications/Cindy.app`, user data `CindyGlobal`, chat `730c4166`, Hermes, Auto-review, deepseek-flash, $0.0046):** the new session `config.yaml` (`session-homes/9efab694-…/config.yaml`) has `pre_tool_call` → `'<Hermes install>/python-3.14.9+20261021-darwin-arm64/bin/python3' '-I' '~/.hermes-cindy/hermes-mgr/auto-review-hook.py' '--credentials' '<session home>/auto-review.json'`, `fail_closed: true`. The `curl -sI https://example.com | head -1` turn went through the reviewer: `cindy-gateway` candidate `no_candidate` at 15:51:02, then the `openai`/`codex-auto-review` utility call succeeded at 15:51:05. The terminal call then executed (curl exit 6, DNS inside Hermes's environment). The packaged build does not write the "auto permission reviewer completed" line, so there is no count to compare. The exact hook command run by hand with `env -i` (no PATH, no node) on an `ls /tmp` payload, against the packaged daemon, printed `{}` exit 0 (allow).
+- **Backups:** `~/.hermes-cindy/hermes-mgr/sessions.json.bak-2026-11-07-113e-pkg` before the run.
+- **Still open (unchanged, documented):** a model-issued risky call blocked live (deepseek-flash refuses risky asks itself), and "reviewer down means ask" (unit-tested only, the owner's choice).
+- **Proposed rule changes:** none.
+
 ## 2026-11-07 (night) — 1.13e: Auto-review hook under Hermes's own Python (`live-proven`)
 
 - **Why:** packaged builds have no RunAsNode and no bundled node, so the node hook could block every `auto` call on a machine without `node` on the gateway PATH. Owner chose Hermes's own Python and, for finding it, reading the entry script's shebang (AGENTS.md says never read or reference `~/.hermes`; the owner approved this one narrow read of the Hermes install's entry script, no code names the path, and nothing in Hermes's home data is read).
