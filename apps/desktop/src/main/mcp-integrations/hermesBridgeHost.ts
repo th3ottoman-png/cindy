@@ -229,6 +229,11 @@ type PrepareInfo = {
  * `bypassPermissions` (`--yolo`) run can reach the shim. Owner decision, 1.5b-5d.
  */
 export const HERMES_BRIDGE_PERMISSION_MODE = 'bypassPermissions';
+/**
+ * ROADMAP 1.13b: `auto` also runs `--yolo` (MCP on), and every bridge tool call
+ * still passes the session's fail-closed auto-review hook first.
+ */
+export const HERMES_BRIDGE_PERMISSION_MODES: ReadonlySet<string> = new Set([HERMES_BRIDGE_PERMISSION_MODE, 'auto']);
 
 /** Builds the `AgentDeps.prepareHermesBridgeSession` hook. */
 export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
@@ -239,7 +244,7 @@ export function createHermesBridgePreparer(deps: HermesBridgeHostDeps) {
   let startupClear: Promise<void> | null = null;
 
   return async (info: PrepareInfo): Promise<HermesBridgeSession | null> => {
-    if (info.permissionMode !== HERMES_BRIDGE_PERMISSION_MODE) return null;
+    if (!info.permissionMode || !HERMES_BRIDGE_PERMISSION_MODES.has(info.permissionMode)) return null;
     // `hermes chat -t` does not scope MCP servers (0.22.5), so a locked session gets no bridge
     // identity, and every shim then refuses every call (ROADMAP 3.10, ADR 0009), unless its
     // expert opts into the read-only project reader, which is then the ONLY server mounted (3.10d).

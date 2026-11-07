@@ -10,6 +10,14 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-07 — 1.13b Hermes `auto` mode, daemon side (`unit-tested`)
+
+- **What:** `packages/maker-hermes-manager/src/auto-review-gate.ts` (new): `injectAutoReviewHook` adds one `pre_tool_call` hook (`matcher ".*"`, `timeout 300`, `fail_closed: true`) to the **per-session** `config.yaml` (extends an owner `hooks:` block, refuses inline values); `AutoReviewGate` is a 0600 unix socket (`hermes-review.sock` next to the daemon socket) with one in-memory token per session; `runAutoReviewHook` is the hook process (prints `{}` or a block, exit 2; every failure blocks). `bin/hermes-mgr.ts`: the bundle runs as the hook when started with `--auto-review-hook`; the daemon passes `node <bundle> --auto-review-hook` (shlex-quoted, the repo path has spaces). `hermes-run.ts`: `auto` → `--yolo --accept-hooks`. `hermes-manager.ts`: `auto` turns are refused unless the gate and per-session homes exist; the home config is re-checked for the hook before spawn; token env goes in the spawn env only; home prepares of one session are now serialized (each reads the current mode, so an older prewarm cannot strip the hook); `auto`↔`bypassPermissions` keeps the Hermes session (both `--yolo`); the gate asks the session's client via the reserved `approval/request` (the attached one, else the client that sent the turn: the Cindy adapter never calls `session/attach`, found while reading it for 1.13c) (`kind: 'permission'`, `behavior: 'allow'|'deny'`), anything else blocks; close drops the token. `protocol.ts`: comment only. `apps/desktop/.../hermesBridgeHost.ts`: bridge also for `auto`.
+- **Verified:** `packages/maker-hermes-manager` vitest 173/173 (new `auto-review-gate.test.ts`: injection, quoting, payload/verdict parsing, gate allow/block/revoked token/handler error, hook no-env/bad stdin/unreachable/timeout, daemon refuses `auto` without hook or homes, argv + session-home-only hook + base config untouched, round-trip allow and deny through a real client, block when unattached and after leaving `auto`, no hook for full access); tsc clean; built bundle run as hook with no env prints a block and exits 2; desktop `hermesBridgeHost.test.ts` 21/21. First full gate run: three green, `test:unit:related` red only by the known `apps/desktop unit` worker SIGSEGV (§Debt), no assertion failed; also an editor auto-format sweep rewrote unrelated lines in the two bridge files, rewritten from HEAD + the minimal change before commit.
+- **Open / assumptions for 1.13d:** a real Hermes run executing the bundle hook (`node` on the Hermes child PATH, packaged app included); Hermes accepting a resume when only `--accept-hooks` differs; maker-core does not offer or handle `auto` yet (1.13c).
+
+---
+
 ## 2026-11-07 — 1.13a Hermes tool-call gate probe (`live-proven`)
 
 - **What:** Started 1.13 (owner: "build 1.13"). Split the row into 1.13a–d in `ROADMAP.md`; 1.13a done. No code changed.

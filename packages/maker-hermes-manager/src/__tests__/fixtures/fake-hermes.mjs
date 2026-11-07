@@ -44,6 +44,9 @@ if (process.env.FAKE_RECORD_ENV) {
       home: process.env.HERMES_HOME ?? null,
       probe: process.env.CINDY_PROBE ?? null,
       argv: process.argv.slice(2),
+      // ROADMAP 1.13b: the auto-review hook endpoint the daemon handed this run.
+      reviewSocket: process.env.CINDY_HERMES_REVIEW_SOCKET ?? null,
+      reviewToken: process.env.CINDY_HERMES_REVIEW_TOKEN ?? null,
     }) + '\n',
   );
 }

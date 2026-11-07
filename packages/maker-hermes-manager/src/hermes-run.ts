@@ -75,9 +75,17 @@ export function isInvalidResumeFailure(result: HermesRunResult): boolean {
   return INVALID_RESUME_PATTERN.test(resultError) || INVALID_RESUME_PATTERN.test(result.stderrTail);
 }
 
-/** Cindy permission modes → Hermes CLI flags (approved mapping; v1). */
+/**
+ * Cindy permission modes → Hermes CLI flags (approved mapping; v1).
+ * `auto` (ROADMAP 1.13b) runs with full tools like `--yolo`, but the session
+ * home carries a fail-closed `pre_tool_call` hook that asks Cindy before every
+ * tool call; `--accept-hooks` registers it without a TTY consent prompt.
+ * `--safe-mode` would ignore config (and so the hook), so `auto` never uses it.
+ */
 export function permissionModeToFlags(mode?: HermesPermissionMode): string[] {
-  return mode === 'bypassPermissions' ? ['--yolo'] : ['--safe-mode'];
+  if (mode === 'bypassPermissions') return ['--yolo'];
+  if (mode === 'auto') return ['--yolo', '--accept-hooks'];
+  return ['--safe-mode'];
 }
 
 export function buildHermesArgs(spec: HermesSpawnSpec): string[] {

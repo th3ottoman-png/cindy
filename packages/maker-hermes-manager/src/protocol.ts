@@ -133,9 +133,11 @@ export type NotificationName = (typeof NOTIFICATIONS)[keyof typeof NOTIFICATIONS
 
 /**
  * daemon → client request methods (reverse-request: daemon asks, desktop
- * answers). Reserved for M3+: Hermes approval hooks surfaced into Cindy's
- * permission UI. v1 never sends these; a v1 desktop that sees one should
- * answer UNKNOWN_METHOD, which the daemon treats as "deny".
+ * answers). `approval/request` is sent for every tool call of an `auto`
+ * session (ROADMAP 1.13b): Hermes's `pre_tool_call` hook asks the daemon, the
+ * daemon asks the client attached to that session. A client that answers
+ * UNKNOWN_METHOD, errors, times out, or answers anything but `allow` blocks
+ * the call.
  */
 export const SERVER_METHODS = {
   APPROVAL_REQUEST: 'approval/request',
@@ -345,9 +347,13 @@ export interface ConfigSetLocalContextWindowsResult {
 /* ============================== Server → Client request shapes ============================== */
 
 /**
- * Reserved (M3): a Hermes approval hook fired and the daemon needs the
- * desktop to approve/deny. Shape intentionally mirrors cc-mgr's
- * ApprovalRequestParams so Cindy's existing interaction UI can consume it.
+ * A Hermes approval hook fired and the daemon needs the desktop to
+ * approve/deny. Shape intentionally mirrors cc-mgr's ApprovalRequestParams so
+ * Cindy's existing interaction UI can consume it. Used since ROADMAP 1.13b for
+ * `auto` sessions: `kind: 'permission'`, `toolName` is Hermes's tool name
+ * (`terminal`, `write_file`, `mcp_<server>_<tool>`, …), `input` the raw tool
+ * arguments, `requestId` Hermes's tool call id. Only `behavior: 'allow'` lets
+ * the call run; the deny `reason` is shown to the model.
  */
 export interface ApprovalRequestParams {
   sessionId: string;

@@ -414,6 +414,24 @@ describe('createHermesBridgePreparer (real bridge, stub providers)', () => {
     expect(await readHermesBridgeRuntimeFile(runtimeFile)).toBeNull();
   });
 
+  it('also serves an auto session, whose tool calls pass the auto-review hook first (ROADMAP 1.13b)', async () => {
+    const prepare = createHermesBridgePreparer({
+      providers: () => [stubProvider('cindy_docs', 'docs-ok')],
+      logger: noopLogger(),
+      runtimeFile,
+      resolveShimPath: () => SHIM,
+      registration: {
+        listServers: async () => ({}),
+        setServer: async () => undefined,
+        removeServer: async () => undefined,
+      },
+    });
+    const session = await prepare({ sessionId: 'sess-A', workingDir: dir, permissionMode: 'auto' });
+    expect(session).not.toBeNull();
+    expect((await readHermesBridgeRuntimeFile(runtimeFile))?.sessions['sess-A']).toBeTruthy();
+    session?.dispose();
+  });
+
   it('gives a toolsets-locked session no Cindy tools, even on full access (ROADMAP 3.10)', async () => {
     let touched = false;
     const prepare = createHermesBridgePreparer({

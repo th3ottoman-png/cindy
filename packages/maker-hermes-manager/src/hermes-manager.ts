@@ -24,6 +24,7 @@ import {
   readInstalledHermesVersion,
 } from './hermes-version.js';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { isValidHermesPluginName, setHermesPluginEnabled } from './hermes-plugins.js';
 import { readFile } from 'node:fs/promises';
 import * as nodePath from 'node:path';
@@ -38,6 +39,9 @@ import {
   HERMES_MGR_BUNDLE_VERSION,
   METHODS,
   NOTIFICATIONS,
+  SERVER_METHODS,
+  type ApprovalRequestParams,
+  type ApprovalRequestResult,
   type ConfigSetLocalContextWindowsParams,
   type HermesLocalContextWindowEntry,
   type HermesQueryEventNotification,
@@ -58,6 +62,14 @@ import {
   type SessionHomeOptions,
 } from './session-home.js';
 import { ManagerServer, type ClientCtx, type ManagerLogger } from './server.js';
+import {
+  AUTO_REVIEW_CLIENT_TIMEOUT_MS,
+  AutoReviewGate,
+  buildAutoReviewHookCommand,
+  injectAutoReviewHook,
+  normalizeVerdict,
+  type AutoReviewVerdict,
+} from './auto-review-gate.js';
 
 export interface HermesManagerOptions {
   socketPath: string;
@@ -76,6 +88,15 @@ export interface HermesManagerOptions {
    * gateway) so the session env reaches MCP children. Omit to keep one shared home.
    */
   sessionHomes?: SessionHomeOptions;
+  /**
+   * ROADMAP 1.13b: argv Hermes runs as the `pre_tool_call` hook of an `auto`
+   * session (production: `node <hermes-mgr.mjs> --auto-review-hook`). Omit to
+   * refuse `auto` turns. Needs `sessionHomes` (the hook goes into the session's
+   * own config.yaml, never the shared one).
+   */
+  autoReviewHookArgv?: string[];
+  /** Socket the hook calls; defaults to `hermes-review.sock` next to `socketPath`. */
+  autoReviewSocketPath?: string;
 }
 
 interface RunningTurn {
@@ -125,6 +146,16 @@ export class HermesManager {
   private readonly inFlightHomePrepares = new Map<string, Promise<string>>();
   /** Session homes whose gateway this daemon may have started; stopped on close/stop. */
   private readonly gatewayHomes = new Set<string>();
+  /** ROADMAP 1.13b: the hook's endpoint; absent when no hook argv was configured. */
+  private readonly autoReview?: AutoReviewGate;
+  private readonly autoReviewHookCommand?: string;
+  /** Per-session hook token + env (memory only; dropped on close). */
+  private readonly autoReviewTurnEnv = new Map<string, { token: string; env: Record<string, string> }>();
+  /**
+   * The client that sent a session's latest turn. The Cindy adapter never calls
+   * session/attach, so review requests fall back to this client (ROADMAP 1.13b).
+   */
+  private readonly turnOwners = new Map<string, ClientCtx>();
 
   constructor(opts: HermesManagerOptions) {
     this.hermesHome = opts.hermesHome;
@@ -139,10 +170,21 @@ export class HermesManager {
       managerVersion: HERMES_MGR_BUNDLE_VERSION,
       logger: opts.logger,
     });
+    if (opts.autoReviewHookArgv?.length) {
+      this.autoReviewHookCommand = buildAutoReviewHookCommand(opts.autoReviewHookArgv);
+      this.autoReview = new AutoReviewGate({
+        socketPath:
+          opts.autoReviewSocketPath ?? nodePath.join(nodePath.dirname(opts.socketPath), 'hermes-review.sock'),
+        handler: (sessionId, payload) => this.askClientToReview(sessionId, payload),
+      });
+    }
     this.wireHandlers();
     this.server.onClientClose((ctx) => {
       for (const [sessionId, attached] of this.attached) {
         if (attached === ctx) this.attached.delete(sessionId);
+      }
+      for (const [sessionId, owner] of this.turnOwners) {
+        if (owner === ctx) this.turnOwners.delete(sessionId);
       }
     });
   }
@@ -174,11 +216,69 @@ export class HermesManager {
         });
       }
     }
+    if (this.autoReview) {
+      try {
+        await this.autoReview.start();
+      } catch (error) {
+        // `auto` turns then fail closed at send (the gate is required); other modes are unaffected.
+        this.logger?.warn('auto-review gate failed to start', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
     await this.server.start();
+  }
+
+  /**
+   * ROADMAP 1.13b: one Hermes tool call of an `auto` session, asked of the
+   * client attached to it. Anything but a valid `allow` blocks.
+   */
+  private async askClientToReview(
+    sessionId: string,
+    payload: { toolName: string; toolInput: unknown; toolCallId?: string },
+  ): Promise<AutoReviewVerdict> {
+    const rec = this.registry.get(sessionId);
+    if (!rec || rec.permissionMode !== 'auto') {
+      return { decision: 'block', reason: 'This session is no longer in Auto-review mode.' };
+    }
+    const ctx = this.attached.get(sessionId) ?? this.turnOwners.get(sessionId);
+    if (!ctx) return { decision: 'block', reason: 'Cindy is not connected to this session.' };
+    const input =
+      payload.toolInput && typeof payload.toolInput === 'object' && !Array.isArray(payload.toolInput)
+        ? (payload.toolInput as Record<string, unknown>)
+        : { value: payload.toolInput };
+    const params: ApprovalRequestParams = {
+      sessionId,
+      requestId: payload.toolCallId ?? `hook-${randomUUID()}`,
+      kind: 'permission',
+      toolName: payload.toolName,
+      input,
+    };
+    try {
+      const result = await this.server.sendRequest<ApprovalRequestResult>(
+        ctx,
+        SERVER_METHODS.APPROVAL_REQUEST,
+        params,
+        { timeoutMs: AUTO_REVIEW_CLIENT_TIMEOUT_MS },
+      );
+      return normalizeVerdict(
+        result && result.kind === 'permission' && result.behavior === 'allow'
+          ? { decision: 'allow' }
+          : { decision: 'block', reason: result?.reason },
+      );
+    } catch (error) {
+      this.logger?.warn('auto-review request failed; blocking', {
+        sessionId,
+        toolName: payload.toolName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { decision: 'block', reason: 'Cindy auto-review did not answer.' };
+    }
   }
 
   async stop(): Promise<void> {
     this.inFlightHomePrepares.clear();
+    await this.autoReview?.stop().catch(() => {});
     const kills: Array<Promise<void>> = [];
     for (const [, turn] of this.running) {
       turn.killed = true;
@@ -192,18 +292,32 @@ export class HermesManager {
   /** The home a session's turns run in: the shared home, or the session's own when enabled. */
   private async homeForSession(sessionId: string): Promise<string> {
     if (!this.sessionHomes) return this.hermesHome;
-    const inFlight = this.inFlightHomePrepares.get(sessionId);
-    if (inFlight) return inFlight;
-
-    const preparePromise = (async () => {
+    // Prepares of one session run one after another (no EEXIST race), and each reads the
+    // permission mode when it runs, so the last write always matches the current mode: an
+    // older prewarm can never land after an `auto` send and strip the hook (ROADMAP 1.13b).
+    const previous = this.inFlightHomePrepares.get(sessionId) ?? Promise.resolve('');
+    const preparePromise: Promise<string> = previous.catch(() => '').then(async () => {
       try {
-        const prepared = await prepareSessionHome(this.hermesHome, sessionId, this.sessionHomes);
+        const autoReview = this.registry.get(sessionId)?.permissionMode === 'auto';
+        const base = this.sessionHomes!;
+        const hookCommand = this.autoReviewHookCommand;
+        const options: SessionHomeOptions =
+          autoReview && hookCommand
+            ? {
+                ...base,
+                transformConfig: (text, ctx) =>
+                  injectAutoReviewHook(base.transformConfig ? base.transformConfig(text, ctx) : text, hookCommand),
+              }
+            : base;
+        const prepared = await prepareSessionHome(this.hermesHome, sessionId, options);
         this.gatewayHomes.add(prepared.home);
         return prepared.home;
       } finally {
-        this.inFlightHomePrepares.delete(sessionId);
+        if (this.inFlightHomePrepares.get(sessionId) === preparePromise) {
+          this.inFlightHomePrepares.delete(sessionId);
+        }
       }
-    })();
+    });
 
     this.inFlightHomePrepares.set(sessionId, preparePromise);
     return preparePromise;
@@ -293,12 +407,13 @@ export class HermesManager {
       };
     });
 
-    s.setHandler(METHODS.QUERY_SEND, async (raw) => {
+    s.setHandler(METHODS.QUERY_SEND, async (raw, ctx) => {
       const p = raw as HermesQuerySendParams;
       const rec = this.registry.get(p?.sessionId ?? '');
       if (!rec) {
         throw rpcError('SESSION_NOT_FOUND', 'query/start first');
       }
+      this.turnOwners.set(rec.sessionId, ctx);
       if (typeof p.text !== 'string' || !p.text) {
         throw rpcError('INVALID_PARAMS', 'text is required');
       }
@@ -325,7 +440,16 @@ export class HermesManager {
       let routeProvider = rec.provider;
       let routeBaseUrl = rec.baseUrl;
       let routeApiKey = rec.apiKey;
-      if (rec.permissionMode !== 'bypassPermissions' && (!routeModel || !routeProvider)) {
+      // ROADMAP 1.13b: `auto` needs its gate and its own home (the hook lives in that home's
+      // config). Without either it must not run, never fall back to an unchecked `--yolo`.
+      const autoReview = rec.permissionMode === 'auto';
+      if (autoReview && (!this.autoReview || !this.autoReviewHookCommand || !this.sessionHomes)) {
+        throw rpcError(
+          'INTERNAL',
+          'Hermes Auto-review is not available in this daemon (no review hook or no per-session homes); switch the task to another permission mode',
+        );
+      }
+      if (!autoReview && rec.permissionMode !== 'bypassPermissions' && (!routeModel || !routeProvider)) {
         const homeRoute = await readHermesDefaultRoute(this.hermesHome);
         routeModel = routeModel ?? homeRoute.model;
         routeProvider = routeProvider ?? homeRoute.provider;
@@ -348,6 +472,21 @@ export class HermesManager {
         );
       }
 
+      let turnEnv = this.sessionEnv.get(rec.sessionId);
+      if (autoReview) {
+        // Defense in depth: the home this turn runs in must carry the hook right now.
+        const config = await readFile(nodePath.join(turnHome, 'config.yaml'), 'utf8').catch(() => '');
+        if (!config.includes(this.autoReviewHookCommand!.replace(/\\/g, '\\\\').replace(/"/g, '\\"'))) {
+          throw rpcError('INTERNAL', 'Hermes Auto-review hook is missing from the session home; the turn was not started');
+        }
+        let review = this.autoReviewTurnEnv.get(rec.sessionId);
+        if (!review) {
+          review = this.autoReview!.registerTurn(rec.sessionId);
+          this.autoReviewTurnEnv.set(rec.sessionId, review);
+        }
+        turnEnv = { ...(turnEnv ?? {}), ...review.env };
+      }
+
       const baseSpec = {
         hermesBin: this.hermesBin,
         hermesHome: turnHome,
@@ -358,7 +497,7 @@ export class HermesManager {
         ...(rec.maxTurns !== undefined ? { maxTurns: rec.maxTurns } : {}),
         ...(rec.toolsets ? { toolsets: rec.toolsets } : {}),
         ...(this.hermesExtraArgs ? { extraArgs: this.hermesExtraArgs } : {}),
-        env: this.sessionEnv.get(rec.sessionId),
+        env: turnEnv,
       };
 
       const startTurn = (
@@ -488,10 +627,12 @@ export class HermesManager {
       // other flag silently starts an empty session (0.22.5). The new mode must
       // take effect (fail closed), so start fresh on purpose and say so.
       // A launch recorded before the mode was tracked counts as unchanged.
+      // `auto` and `bypassPermissions` are both `--yolo` sessions to Hermes (`auto` only adds
+      // `--accept-hooks` and a hook in config), so switching between them keeps the history.
+      const yoloClass = (mode: typeof rec.permissionMode): boolean =>
+        permissionModeToFlags(mode).includes('--yolo');
       const permissionChanged = Boolean(
-        launch?.permissionMode &&
-        permissionModeToFlags(launch.permissionMode).join(' ') !==
-          permissionModeToFlags(rec.permissionMode).join(' '),
+        launch?.permissionMode && yoloClass(launch.permissionMode) !== yoloClass(rec.permissionMode),
       );
 
       let effectiveResumeId = resumeId;
@@ -770,6 +911,12 @@ export class HermesManager {
       }
       this.registry.remove(p.sessionId!);
       this.attached.delete(p.sessionId!);
+      this.turnOwners.delete(p.sessionId!);
+      const review = this.autoReviewTurnEnv.get(p.sessionId!);
+      if (review) {
+        this.autoReview?.unregisterTurn(review.token);
+        this.autoReviewTurnEnv.delete(p.sessionId!);
+      }
       if (this.sessionHomes) {
         // Closing ends the Cindy session for good (it cannot be resumed), so its gateway and
         // home go with it. Best effort: a failure here must not fail the close.
