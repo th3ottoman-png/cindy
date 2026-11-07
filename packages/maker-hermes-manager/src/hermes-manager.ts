@@ -66,7 +66,11 @@ import {
   AUTO_REVIEW_CLIENT_TIMEOUT_MS,
   AutoReviewGate,
   buildAutoReviewHookCommand,
+  AUTO_REVIEW_CREDENTIALS_FILE,
+  AUTO_REVIEW_SOCKET_ENV,
+  buildSessionHookCommand,
   injectAutoReviewHook,
+  writeHookCredentials,
   normalizeVerdict,
   type AutoReviewVerdict,
 } from './auto-review-gate.js';
@@ -149,6 +153,7 @@ export class HermesManager {
   /** ROADMAP 1.13b: the hook's endpoint; absent when no hook argv was configured. */
   private readonly autoReview?: AutoReviewGate;
   private readonly autoReviewHookCommand?: string;
+  private autoReviewHookArgv?: readonly string[];
   /** Per-session hook token + env (memory only; dropped on close). */
   private readonly autoReviewTurnEnv = new Map<string, { token: string; env: Record<string, string> }>();
   /**
@@ -172,6 +177,7 @@ export class HermesManager {
     });
     if (opts.autoReviewHookArgv?.length) {
       this.autoReviewHookCommand = buildAutoReviewHookCommand(opts.autoReviewHookArgv);
+      this.autoReviewHookArgv = opts.autoReviewHookArgv;
       this.autoReview = new AutoReviewGate({
         socketPath:
           opts.autoReviewSocketPath ?? nodePath.join(nodePath.dirname(opts.socketPath), 'hermes-review.sock'),
@@ -289,6 +295,15 @@ export class HermesManager {
     await this.server.stop();
   }
 
+  /** One session's hook command: the shared argv plus that session's credentials file. */
+  private hookCommandFor(sessionId: string): string | undefined {
+    if (!this.autoReviewHookArgv) return undefined;
+    return buildSessionHookCommand(
+      this.autoReviewHookArgv,
+      nodePath.join(sessionHomePath(this.hermesHome, sessionId), AUTO_REVIEW_CREDENTIALS_FILE),
+    );
+  }
+
   /** The home a session's turns run in: the shared home, or the session's own when enabled. */
   private async homeForSession(sessionId: string): Promise<string> {
     if (!this.sessionHomes) return this.hermesHome;
@@ -300,7 +315,7 @@ export class HermesManager {
       try {
         const autoReview = this.registry.get(sessionId)?.permissionMode === 'auto';
         const base = this.sessionHomes!;
-        const hookCommand = this.autoReviewHookCommand;
+        const hookCommand = this.hookCommandFor(sessionId);
         const options: SessionHomeOptions =
           autoReview && hookCommand
             ? {
@@ -310,6 +325,17 @@ export class HermesManager {
               }
             : base;
         const prepared = await prepareSessionHome(this.hermesHome, sessionId, options);
+        if (autoReview && hookCommand) {
+          let review = this.autoReviewTurnEnv.get(sessionId);
+          if (!review) {
+            review = this.autoReview!.registerTurn(sessionId);
+            this.autoReviewTurnEnv.set(sessionId, review);
+          }
+          await writeHookCredentials(nodePath.join(prepared.home, AUTO_REVIEW_CREDENTIALS_FILE), {
+            socketPath: review.env[AUTO_REVIEW_SOCKET_ENV]!,
+            token: review.token,
+          });
+        }
         this.gatewayHomes.add(prepared.home);
         return prepared.home;
       } finally {
@@ -476,7 +502,7 @@ export class HermesManager {
       if (autoReview) {
         // Defense in depth: the home this turn runs in must carry the hook right now.
         const config = await readFile(nodePath.join(turnHome, 'config.yaml'), 'utf8').catch(() => '');
-        if (!config.includes(this.autoReviewHookCommand!.replace(/\\/g, '\\\\').replace(/"/g, '\\"'))) {
+        if (!config.includes(this.hookCommandFor(rec.sessionId)!.replace(/\\/g, '\\\\').replace(/"/g, '\\"'))) {
           throw rpcError('INTERNAL', 'Hermes Auto-review hook is missing from the session home; the turn was not started');
         }
         let review = this.autoReviewTurnEnv.get(rec.sessionId);

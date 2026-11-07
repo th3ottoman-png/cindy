@@ -9,9 +9,11 @@
  *      home `config.yaml` (never the shared base config);
  *   2. runs the turn with `--yolo --accept-hooks` (no `--safe-mode`, which
  *      would ignore config and hooks alike);
- *   3. hands the hook a per-turn token and this gate's socket path through
- *      the spawn env (Hermes passes its env to hooks; nothing is written to
- *      disk);
+ *   3. hands the hook this gate's socket path and a per-session token
+ *      through a 0600 file in the session home, named on the hook's command
+ *      line (`--credentials`). The spawn env is NOT enough: `hermes chat` runs
+ *      tools inside the session's long-lived gateway, whose env is whatever it
+ *      started with (found live in 1.13d);
  *   4. answers each hook request by asking the attached Cindy client
  *      (`approval/request` reverse-request). Anything but a clear `allow`
  *      blocks the call.
@@ -22,11 +24,14 @@
 
 import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs/promises';
+import * as nodePath from 'node:path';
 import * as net from 'node:net';
 
 export const AUTO_REVIEW_SOCKET_ENV = 'CINDY_HERMES_REVIEW_SOCKET';
 export const AUTO_REVIEW_TOKEN_ENV = 'CINDY_HERMES_REVIEW_TOKEN';
 export const AUTO_REVIEW_HOOK_FLAG = '--auto-review-hook';
+export const AUTO_REVIEW_CREDENTIALS_FLAG = '--credentials';
+export const AUTO_REVIEW_CREDENTIALS_FILE = 'auto-review.json';
 
 /** Hermes caps a shell hook at 300 s; the owner may need most of that to answer a prompt. */
 export const AUTO_REVIEW_HOOK_TIMEOUT_SECONDS = 300;
@@ -56,6 +61,21 @@ export function shlexQuote(word: string): string {
 export function buildAutoReviewHookCommand(argv: readonly string[]): string {
   if (argv.length === 0) throw new Error('auto-review hook command is empty');
   return argv.map(shlexQuote).join(' ');
+}
+
+/** The hook command of one session: the shared argv plus that session's credentials file. */
+export function buildSessionHookCommand(argv: readonly string[], credentialsFile: string): string {
+  return buildAutoReviewHookCommand([...argv, AUTO_REVIEW_CREDENTIALS_FLAG, credentialsFile]);
+}
+
+/** Atomic 0600 write of the socket path + token the hook of one session reads. */
+export async function writeHookCredentials(
+  file: string,
+  creds: { socketPath: string; token: string },
+): Promise<void> {
+  const tmp = nodePath.join(nodePath.dirname(file), `.${nodePath.basename(file)}.${process.pid}.tmp`);
+  await fs.writeFile(tmp, JSON.stringify({ socketPath: creds.socketPath, token: creds.token }), { mode: 0o600 });
+  await fs.rename(tmp, file);
 }
 
 function yamlDoubleQuote(value: string): string {
@@ -244,6 +264,8 @@ function blockOutput(reason: string): string {
 export interface RunHookIo {
   readStdin(): Promise<string>;
   env: NodeJS.ProcessEnv;
+  /** Per-session credentials file from the hook command line (`--credentials`). */
+  credentialsFile?: string;
   connect?: (socketPath: string) => net.Socket;
   socketTimeoutMs?: number;
 }
@@ -254,8 +276,19 @@ export interface RunHookIo {
  * blocks (the config entry is also `fail_closed: true`).
  */
 export async function runAutoReviewHook(io: RunHookIo): Promise<{ stdout: string; exitCode: number }> {
-  const socketPath = io.env[AUTO_REVIEW_SOCKET_ENV];
-  const token = io.env[AUTO_REVIEW_TOKEN_ENV];
+  let socketPath = io.env[AUTO_REVIEW_SOCKET_ENV];
+  let token = io.env[AUTO_REVIEW_TOKEN_ENV];
+  if (io.credentialsFile) {
+    try {
+      const creds = JSON.parse(await fs.readFile(io.credentialsFile, 'utf8')) as { socketPath?: unknown; token?: unknown };
+      if (typeof creds.socketPath === 'string' && typeof creds.token === 'string') {
+        socketPath = creds.socketPath;
+        token = creds.token;
+      }
+    } catch {
+      /* fall back to the env; no usable credentials blocks below */
+    }
+  }
   if (!socketPath || !token) {
     return { stdout: blockOutput('Cindy auto-review is not connected to this Hermes run.'), exitCode: 2 };
   }

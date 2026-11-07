@@ -305,6 +305,45 @@ describe('HermesManager auto mode (fake hermes)', () => {
     ]);
   });
 
+  it('reaches the review through the session home credentials file when the hook has no env (gateway, ROADMAP 1.13d)', async () => {
+    const d = await startDaemon({ hook: true, sessionHomes: true });
+    d.client.setRequestHandler(SERVER_METHODS.APPROVAL_REQUEST, async (params) => ({
+      kind: 'permission',
+      behavior: (params as ApprovalRequestParams).input?.command === 'rm -rf /' ? 'deny' : 'allow',
+      reason: 'destructive',
+    }));
+    await d.client.request(METHODS.QUERY_START, { sessionId: 'g', cwd: d.dir, permissionMode: 'auto' }, { timeoutMs: 5_000 });
+    await d.client.request(METHODS.SESSION_ATTACH, { sessionId: 'g' }, { timeoutMs: 5_000 });
+    await d.client.request(METHODS.QUERY_SEND, { sessionId: 'g', text: 'hi' }, { timeoutMs: 5_000 });
+    await until(() => d.notes.some((n) => n.method === NOTIFICATIONS.SESSION_CLOSED));
+    const home = sessionHomePath(d.home, 'g');
+    const credentials = path.join(home, 'auto-review.json');
+    // The hook command names the file, and the file is private to the owner.
+    expect(fs.readFileSync(path.join(home, 'config.yaml'), 'utf8')).toContain(`--credentials`);
+    expect(fs.readFileSync(path.join(home, 'config.yaml'), 'utf8')).toContain(credentials);
+    expect(fs.statSync(credentials).mode & 0o777).toBe(0o600);
+    // No env at all: what a hook inside an already-running gateway sees.
+    const allowed = await runAutoReviewHook({
+      readStdin: async () => JSON.stringify(payload('terminal', { command: 'ls' })),
+      env: {},
+      credentialsFile: credentials,
+    });
+    expect(allowed).toEqual({ stdout: '{}', exitCode: 0 });
+    const blocked = await runAutoReviewHook({
+      readStdin: async () => JSON.stringify(payload('terminal', { command: 'rm -rf /' })),
+      env: {},
+      credentialsFile: credentials,
+    });
+    expect(blocked.exitCode).toBe(2);
+    // A missing or unreadable credentials file still blocks.
+    const missing = await runAutoReviewHook({
+      readStdin: async () => JSON.stringify(payload()),
+      env: {},
+      credentialsFile: path.join(home, 'nope.json'),
+    });
+    expect(missing.exitCode).toBe(2);
+  });
+
   it('asks the client that sent the turn without an attach, and blocks after the session leaves auto', async () => {
     const d = await startDaemon({ hook: true, sessionHomes: true });
     d.client.setRequestHandler(SERVER_METHODS.APPROVAL_REQUEST, async () => ({ kind: 'permission', behavior: 'allow' }));

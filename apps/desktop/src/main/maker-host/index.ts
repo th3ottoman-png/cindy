@@ -2872,6 +2872,8 @@ export function getMaker(): Maker {
         binaryPath: bundlePath,
         resolveHermesManagerSocketPath: () => hermesManagerSocketPath(),
         resolveHermesHome: () => resolveHermesHome(),
+        // ROADMAP 1.13c: the shared Auto-review reviewer, used only in a Hermes `auto` session.
+        reviewAutoPermissionAction,
         // Cindy tools inside Hermes (1.5b-3): per-session bridge identity + frozen
         // tool policy; only SAFE servers are exposed (see hermesBridgeHost.ts).
         prepareHermesBridgeSession: createHermesBridgePreparer({

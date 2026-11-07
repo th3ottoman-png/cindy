@@ -953,26 +953,26 @@ describe('HermesManager socket integration (fake hermes)', () => {
 
     expect(status).toEqual({
       installedVersion: '0.22.6',
-      pinnedVersion: '0.22.5',
+      pinnedVersion: '0.22.7',
       matches: false,
     });
     expect(h.warnings).toHaveLength(1);
     expect(h.warnings[0].msg).toBe('Hermes CLI version mismatch');
     expect(h.warnings[0].ctx).toEqual({
       installedVersion: '0.22.6',
-      pinnedVersion: '0.22.5',
+      pinnedVersion: '0.22.7',
     });
   });
 
   it('does not warn on status when the installed Hermes version matches the pin', async () => {
     const h = current!;
-    process.env.FAKE_VERSION = '0.22.5';
+    process.env.FAKE_VERSION = '0.22.7';
 
     const status = await h.client.request(METHODS.CONFIG_STATUS, {}, { timeoutMs: 5_000 });
 
     expect(status).toEqual({
-      installedVersion: '0.22.5',
-      pinnedVersion: '0.22.5',
+      installedVersion: '0.22.7',
+      pinnedVersion: '0.22.7',
       matches: true,
     });
     expect(h.warnings).toHaveLength(0);
@@ -986,7 +986,7 @@ describe('HermesManager socket integration (fake hermes)', () => {
 
     expect(status).toEqual({
       installedVersion: null,
-      pinnedVersion: '0.22.5',
+      pinnedVersion: '0.22.7',
       matches: null,
     });
     expect(h.warnings).toHaveLength(1);

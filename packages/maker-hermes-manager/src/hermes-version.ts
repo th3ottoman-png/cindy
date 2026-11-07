@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 
-export const HERMES_CLI_PINNED_VERSION = '0.22.5' as const;
+export const HERMES_CLI_PINNED_VERSION = '0.22.7' as const;
 
 export interface HermesVersionProbeOptions {
   hermesBin: string;

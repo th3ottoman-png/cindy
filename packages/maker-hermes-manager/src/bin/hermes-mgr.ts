@@ -13,7 +13,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { AUTO_REVIEW_HOOK_FLAG, runAutoReviewHook } from '../auto-review-gate.js';
+import { AUTO_REVIEW_CREDENTIALS_FLAG, AUTO_REVIEW_HOOK_FLAG, runAutoReviewHook } from '../auto-review-gate.js';
 import { HermesManager } from '../hermes-manager.js';
 
 /** ROADMAP 1.13b: Hermes runs this same bundle as the `pre_tool_call` hook of an `auto` session. */
@@ -23,7 +23,9 @@ async function hookMain(): Promise<void> {
     for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
     return Buffer.concat(chunks).toString('utf8');
   };
-  const result = await runAutoReviewHook({ readStdin, env: process.env }).catch(() => ({
+  const credAt = process.argv.indexOf(AUTO_REVIEW_CREDENTIALS_FLAG);
+  const credentialsFile = credAt > -1 ? process.argv[credAt + 1] : undefined;
+  const result = await runAutoReviewHook({ readStdin, env: process.env, ...(credentialsFile ? { credentialsFile } : {}) }).catch(() => ({
     stdout: JSON.stringify({ decision: 'block', reason: 'Cindy auto-review hook crashed.' }),
     exitCode: 2,
   }));

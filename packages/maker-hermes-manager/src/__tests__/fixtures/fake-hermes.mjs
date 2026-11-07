@@ -70,7 +70,7 @@ if (process.argv.includes('--version')) {
     process.stderr.write('simulated version failure\n');
     process.exit(1);
   }
-  process.stdout.write(`Hermes Agent v${process.env.FAKE_VERSION ?? '0.22.5'} (test fixture)\n`);
+  process.stdout.write(`Hermes Agent v${process.env.FAKE_VERSION ?? '0.22.7'} (test fixture)\n`);
   process.exit(0);
 }
 
