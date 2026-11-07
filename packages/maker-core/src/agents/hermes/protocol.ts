@@ -84,6 +84,31 @@ export const HERMES_NOTIFICATIONS = {
 export type HermesNotificationName =
   (typeof HERMES_NOTIFICATIONS)[keyof typeof HERMES_NOTIFICATIONS];
 
+/** daemon → client requests; mirrors hermes-mgr `SERVER_METHODS`. */
+export const HERMES_SERVER_METHODS = {
+  /** One tool call of an `auto` session, from Hermes's pre_tool_call hook (ROADMAP 1.13b/c). */
+  APPROVAL_REQUEST: 'approval/request',
+} as const;
+
+/** Mirrors hermes-mgr `ApprovalRequestParams` (only `kind: 'permission'` is sent today). */
+export interface HermesApprovalRequestParams {
+  sessionId: string;
+  requestId: string;
+  kind: 'permission' | 'ask_user_question' | 'plan_review';
+  toolName?: string;
+  input?: Record<string, unknown>;
+  title?: string;
+  description?: string;
+}
+
+/** Mirrors hermes-mgr `ApprovalRequestResult`; only `behavior: 'allow'` runs the tool. */
+export interface HermesApprovalRequestResult {
+  kind: 'permission' | 'ask_user_question' | 'plan_review';
+  behavior?: 'allow' | 'deny';
+  reason?: string;
+  answers?: Record<string, string>;
+}
+
 /** Authorization modes the daemon accepts; mirrors `HermesPermissionMode`. */
 export type HermesPermissionMode =
   | 'default'

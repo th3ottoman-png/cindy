@@ -38,6 +38,9 @@ import { listSkillsWithState, readBundledSkillNames } from '../../skills/skill-m
 import {
   HERMES_METHODS,
   HERMES_NOTIFICATIONS,
+  HERMES_SERVER_METHODS,
+  type HermesApprovalRequestParams,
+  type HermesApprovalRequestResult,
   type HermesClientReplacedNotification,
   type HermesPermissionMode,
   type HermesQueryEventNotification,
@@ -46,6 +49,17 @@ import {
 } from './protocol.js';
 import { normalizeHermesEvent, type NormalizedHermesTokens } from './translator.js';
 import { createHermesTransport, type HermesTransport } from './transport.js';
+import { normalizeHermesToolForAutoReview } from './auto-review-policy.js';
+import {
+  annotatePermissionRequestForAutoReview,
+  appendAutoReviewUserIntent,
+  createAutoReviewActionContext,
+  createAutoReviewUnavailableNotice,
+  resolveAutoReviewDecision,
+  withAutoReviewContext,
+  type AutoReviewRequest,
+  type AutoReviewUserIntent,
+} from '../shared/auto-review-decision.js';
 import { collectHermesProviderEnv } from './hermes-provider-env.js';
 import { resolveModelRoute } from '../../providers/model-route-resolver.js';
 import { preflightModelRoute } from '../../providers/route-preflight.js';
@@ -86,7 +100,8 @@ function unsupported(): { supported: false; reason: 'not-implemented' } {
 
 /**
  * Cindy permission modes → the daemon's `HermesPermissionMode`. The daemon maps
- * only `bypassPermissions` to `--yolo`; everything else becomes `--safe-mode`.
+ * `bypassPermissions` to `--yolo`, `auto` to `--yolo --accept-hooks` plus a
+ * fail-closed review hook (ROADMAP 1.13), and everything else to `--safe-mode`.
  * `ask` therefore maps to Hermes's confirm-before-acting default, while modes
  * whose native behavior would be silently collapsed are rejected.
  */
@@ -96,6 +111,7 @@ function mapPermissionMode(mode: PermissionMode | undefined): HermesPermissionMo
       return undefined;
     case 'default':
     case 'bypassPermissions':
+    case 'auto':
       return mode;
     case 'ask':
       return 'default';
@@ -208,14 +224,20 @@ export class HermesAgent extends BaseAgent {
       effort: unsupported(),
       effortLevels: [],
       reasoningDisplay: ['off'],
-      // Only these two modes have distinct daemon behavior (--safe-mode vs
-      // --yolo); offering acceptEdits/auto/plan would silently collapse them.
+      // Only these modes have distinct daemon behavior (--safe-mode, --yolo, and
+      // --yolo behind the auto-review hook); acceptEdits/plan would silently collapse.
       permissionModes: [
         {
           id: 'default',
           displayName: 'Default permissions',
           description:
             'Hermes safe mode: tool actions follow the Hermes home policy. Cindy document tools are off (safe mode disables MCP).',
+        },
+        {
+          id: 'auto',
+          displayName: 'Auto-review',
+          description:
+            'Full Hermes tools, but every tool call is checked first: safe actions run, risky ones are blocked or ask you. Cindy document tools are available when the chat starts in this mode.',
         },
         {
           id: 'bypassPermissions',
@@ -425,6 +447,8 @@ export class HermesAgent extends BaseAgent {
         ...(bridgeSession?.setVendorOptions ? { setBridgeVendorOptions: bridgeSession.setVendorOptions } : {}),
         model: opts.model,
         permissionMode: requestedPermissionMode,
+        workingDir: opts.workingDir,
+        providerId: opts.providerId ?? null,
         ...(toolsets ? { toolsets } : {}),
         transport,
         ...(bridgeSession ? { disposeBridgeSession: bridgeSession.dispose } : {}),
@@ -457,6 +481,9 @@ export class HermesAgent extends BaseAgent {
     resumableSessionId: string;
     model: string;
     permissionMode: PermissionMode;
+    /** The task folder: the only read/write root Auto-review grants (ROADMAP 1.13c). */
+    workingDir: string;
+    providerId: string | null;
     transport: HermesTransport;
     /** Unregisters the bridge identity; idempotent, called on close. */
     disposeBridgeSession?: () => void;
@@ -522,9 +549,104 @@ export class HermesAgent extends BaseAgent {
     let connectionLost = false;
     let closedByUser = false;
     let closePromise: Promise<void> | null = null;
-    // v1 never receives approval requests from the daemon; M3 will dispatch
-    // through this resolver.
+    // Asks the owner when Auto-review says `ask` (ROADMAP 1.13c).
     const interactionState: { resolver?: InteractionResolver } = {};
+    // Auto-review state (ROADMAP 1.13c): the live mode, the owner's own words so far,
+    // and the calls blocked since the last message.
+    let permissionModeNow: PermissionMode = input.permissionMode;
+    let autoReviewIntent: AutoReviewUserIntent | undefined;
+    const autoReviewActionContext = createAutoReviewActionContext();
+    // A function, not a narrowed read: the mode can change while a review awaits.
+    const currentPermissionMode = (): PermissionMode => permissionModeNow;
+    const autoReviewUnavailableNotice = createAutoReviewUnavailableNotice((message) => {
+      queue.push({ type: 'error', data: { message, isTerminal: false }, source: 'hermes' });
+    });
+    // Hermes emits nothing for a call its hook blocked (probed 1.13a), so Cindy shows it.
+    const showBlockedToolCall = (
+      requestId: string,
+      toolName: string,
+      toolInput: Record<string, unknown>,
+      why: string,
+    ): void => {
+      const toolUseId = `auto-review-${requestId}`;
+      queue.push({ type: 'tool_use', data: { toolUseId, toolName, input: toolInput }, source: 'hermes' });
+      queue.push({
+        type: 'tool_result_full',
+        data: { toolUseId, fullText: `Blocked by Auto-review: ${why}`, isError: true },
+        source: 'hermes',
+      });
+      queue.push({ type: 'tool_result', data: { summary: 'failed', toolUseIds: [toolUseId] }, source: 'hermes' });
+    };
+    const reviewToolCall = async (raw: unknown): Promise<HermesApprovalRequestResult> => {
+      const deny = (reason: string): HermesApprovalRequestResult => ({ kind: 'permission', behavior: 'deny', reason });
+      const params = raw as HermesApprovalRequestParams | null;
+      if (!params || params.kind !== 'permission' || typeof params.toolName !== 'string' || !params.toolName) {
+        return deny('Cindy could not read this approval request.');
+      }
+      const toolName = params.toolName;
+      const toolInput = params.input && typeof params.input === 'object' ? params.input : {};
+      const requestId = typeof params.requestId === 'string' && params.requestId ? params.requestId : randomUUID();
+      if (permissionModeNow !== 'auto') return deny('This task is no longer in Auto-review mode.');
+      const action = normalizeHermesToolForAutoReview(toolName, toolInput);
+      const request: AutoReviewRequest = {
+        ...(input.cindySessionId ? { sessionId: input.cindySessionId } : {}),
+        agentKind: 'hermes',
+        providerId: input.providerId,
+        model: currentModel,
+        userIntent: autoReviewIntent ?? '',
+        precedingBlockedActions: autoReviewActionContext.precedingBlockedActions,
+        action,
+        workspaceRoots: [input.workingDir],
+        writableRoots: [input.workingDir],
+        platform: process.platform,
+      };
+      const reviewer = this.deps.reviewAutoPermissionAction;
+      const decision = await withAutoReviewContext(
+        request,
+        reviewer,
+        (prepared) => resolveAutoReviewDecision(prepared, reviewer),
+        (settled) => {
+          autoReviewActionContext.record(action, settled);
+          return settled;
+        },
+      );
+      // The owner may have changed the mode while the review ran: follow the latest.
+      const modeAfterReview = currentPermissionMode();
+      if (modeAfterReview === 'bypassPermissions') return { kind: 'permission', behavior: 'allow' };
+      if (modeAfterReview !== 'auto') return deny('This task is no longer in Auto-review mode.');
+      if (decision.verdict === 'allow') return { kind: 'permission', behavior: 'allow' };
+      if (decision.verdict === 'block') {
+        const why = decision.reason?.trim() || 'Auto-review judged this action unsafe here.';
+        showBlockedToolCall(requestId, toolName, toolInput, why);
+        return deny(why);
+      }
+      if (decision.unavailable) autoReviewUnavailableNotice.notify();
+      const resolver = interactionState.resolver;
+      if (!resolver) {
+        const why = 'Auto-review wanted your confirmation, but no confirmation window is available.';
+        showBlockedToolCall(requestId, toolName, toolInput, why);
+        return deny(why);
+      }
+      let answer: Awaited<ReturnType<InteractionResolver>>;
+      try {
+        answer = await resolver(annotatePermissionRequestForAutoReview({
+          kind: 'permission' as const,
+          requestId,
+          toolUseId: requestId,
+          toolName,
+          input: toolInput,
+        }, decision));
+      } catch {
+        const why = 'The confirmation was not answered.';
+        showBlockedToolCall(requestId, toolName, toolInput, why);
+        return deny(why);
+      }
+      if (answer.kind === 'permission' && answer.behavior === 'allow') return { kind: 'permission', behavior: 'allow' };
+      const why = (answer.kind === 'permission' && answer.reason?.trim()) || 'You declined this action.';
+      showBlockedToolCall(requestId, toolName, toolInput, why);
+      return deny(why);
+    };
+    transport.setRequestHandler(HERMES_SERVER_METHODS.APPROVAL_REQUEST, reviewToolCall);
 
     const usageSnapshot = (): UsageSnapshot => ({
       tokenUsage: usage.tokenUsage,
@@ -910,6 +1032,9 @@ export class HermesAgent extends BaseAgent {
         const orcaPreambleToSend = orcaPreamble && orcaPreamble !== lastSentOrcaPreamble ? orcaPreamble : null;
         const userText = await flattenUserMessage(message);
         const text = [expertPreamble, orcaPreambleToSend, userText].filter(Boolean).join('\n\n');
+        // Auto-review judges tool calls against the owner's own words, never the preambles.
+        autoReviewIntent = appendAutoReviewUserIntent(autoReviewIntent, message.content, sendOpts);
+        autoReviewActionContext.advance(true);
         // Mark the turn before the RPC so a terminal notification arriving in
         // the same socket chunk cannot be cleared by the accepted-send path.
         const epoch = ++sendEpoch;
@@ -1007,6 +1132,8 @@ export class HermesAgent extends BaseAgent {
           sessionId,
           mode: mapped,
         });
+        permissionModeNow = mode;
+        autoReviewUnavailableNotice.reset();
       },
       // Per-session model override, live for the *next* turn (each turn spawns
       // the CLI with the record's model; the home default route applies when the

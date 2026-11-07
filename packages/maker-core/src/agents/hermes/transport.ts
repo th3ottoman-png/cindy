@@ -85,6 +85,8 @@ export class HermesTransport {
   private readonly socketPath: string;
   private readonly pending = new Map<number, PendingRequest>();
   private readonly notificationHandlers = new Set<HermesNotificationHandler>();
+  /** daemon → client request handlers (ROADMAP 1.13c: `approval/request`). */
+  private readonly requestHandlers = new Map<string, (params: unknown) => Promise<unknown>>();
   private readonly closeHandlers = new Set<HermesCloseHandler>();
   private readonly ready: Promise<void>;
   private resolveReady: (() => void) | null = null;
@@ -203,6 +205,15 @@ export class HermesTransport {
     });
   }
 
+  /**
+   * Answer daemon → client requests for `method`. A method without a handler
+   * is answered UNKNOWN_METHOD, and a throwing handler INTERNAL; the daemon
+   * treats both as a deny.
+   */
+  setRequestHandler(method: string, handler: (params: unknown) => Promise<unknown>): void {
+    this.requestHandlers.set(method, handler);
+  }
+
   onNotification(handler: HermesNotificationHandler): () => void {
     this.notificationHandlers.add(handler);
     return () => {
@@ -285,14 +296,32 @@ export class HermesTransport {
       return;
     }
     if (isHermesRpcRequest(message)) {
-      // v1 reserves daemon→client requests for M3 approvals; the daemon treats
-      // an UNKNOWN_METHOD answer as a deny.
+      // daemon→client requests (approvals, ROADMAP 1.13c); the daemon treats any
+      // error answer as a deny.
       if (this.closing || this.closed) return;
-      this.socket.write(encodeHermesMessage({
-        type: 'response',
-        id: message.id,
-        error: { code: 'UNKNOWN_METHOD', message: `no client handler for ${message.method}` },
-      }));
+      const handler = this.requestHandlers.get(message.method);
+      if (!handler) {
+        this.socket.write(encodeHermesMessage({
+          type: 'response',
+          id: message.id,
+          error: { code: 'UNKNOWN_METHOD', message: `no client handler for ${message.method}` },
+        }));
+        return;
+      }
+      void handler(message.params).then(
+        (result) => {
+          if (this.closing || this.closed || this.socket.destroyed) return;
+          this.socket.write(encodeHermesMessage({ type: 'response', id: message.id, result }));
+        },
+        (error: unknown) => {
+          if (this.closing || this.closed || this.socket.destroyed) return;
+          this.socket.write(encodeHermesMessage({
+            type: 'response',
+            id: message.id,
+            error: { code: 'INTERNAL', message: error instanceof Error ? error.message : String(error) },
+          }));
+        },
+      );
     }
   }
 
