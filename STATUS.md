@@ -10,6 +10,20 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-08 (part 13) - Phase 8 roadmap rows (docs-only, rows `Open`)
+
+- **Phase 8 added to `ROADMAP.md`:**
+  - New section `## Phase 8 - Capability Surface & Session Transparency` inserted after Phase 7 and before `## Debt`, with rows 8.1 to 8.7. Phases 0 to 7 are byte-identical. Row 8.1 (Capabilities hub) is the first row and the next build target.
+  - Agreed scope: 8.1 Capabilities hub, 8.2 Session manifest, 8.3 Capability diff on the 7.2 chip, 8.4 Turn-scoped `@` attach, 8.5 Library workspace, 8.6 Operations rail, 8.7 Capability packs, graph and budget. All rows use the existing four-column table (`#`, `Task`, `Done when`, `Status`), sequential numbering, `Live:` and `Unit:` acceptance criteria, and `Open` status.
+  - No code, no new top-level markdown files, no upstream edits, no adapter or system-prompt changes, no credentials, no telemetry, no outbound calls. Every row is local-first and file-backed per `AGENTS.md` §6.
+- **Verification:** Docs-only change to `ROADMAP.md` and `STATUS.md`. Canonical Terminal under Node 22.23.4 (`NODE_OPTIONS=[]`, `PS_PROBE=/sbin/launchd`, pnpm 10.33.2): `pnpm typecheck` PASS (37 projects), `pnpm test:runner` PASS (608 passed, 0 fail), `pnpm check:test-hygiene` PASS (361 files within baseline). No renderer or styleRoot file touched, so `design-inventory` and the test-hygiene baseline are unaffected. Phase 8 rows carry `Open` and are `unverified` until built.
+  - `pnpm test:unit:related` repeatedly died in `apps/desktop unit` with the known V8-GC `SIGSEGV` in worker-isolate teardown (ROADMAP §Debt), with no failing assertion. A plain rerun and the serial form (`--workspace-concurrency=1`) each passed once and each also crashed once on this tree. The authoritative unit gate is the 8-shard form from `HANDOVER.md` §5: `node scripts/test-workspaces.mjs --tier unit --related --exclude-workspace apps/desktop` PASS, plus `XDT_UNIT_TEST_SHARD=i/8 node scripts/test-workspaces.mjs --tier unit --related --workspace apps/desktop` for i=1..8, all PASS. Shards 2, 4, 6 and 8 crashed once and passed on standalone rerun. All 8 green counts as the gate. A crashed run is never counted as green.
+- **Roadmap:** Rows 8.1 to 8.7 added, all `Open`. Rows 7.3 and 7.4 remain open. `HANDOVER.md` unchanged: no stable architecture, command, version pin or constraint changed.
+- **Still open:** All seven Phase 8 rows. 8.1 is the next session's task. The optional local-model classifier route in 7.2 remains unbuilt by choice.
+- **Surprising:** None. The second sidebar screenshot matched `SidebarTopNav.tsx` exactly, so the plan was grounded in the real nav rather than a guess.
+
+---
+
 ## 2026-11-08 (part 12) - 7.2 Smart Intent Expert Suggester (`live-proven`)
 
 - **7.2 Smart Intent Expert Suggester ("Task Router"):**

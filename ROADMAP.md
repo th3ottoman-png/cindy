@@ -190,6 +190,22 @@ Frontmatter: `name`, `description`, `agent` (hermes | claude-code | codex | pi),
 
 ---
 
+## Phase 8 - Capability Surface & Session Transparency
+
+Start at 8.1. One row per session, in priority order. Everything stays local-first and file-backed, per `AGENTS.md` §6.
+
+| # | Task | Done when | Status |
+|---|---|---|---|
+| 8.1 | **Capabilities hub.** One sidebar row and one searchable list covering every installed expert, skill, plugin, connector, MCP server, vault source and model route. Extend `packages/maker-core/src/extensions/registry.ts` with a `CapabilityDescriptor` (kind, source file, trust, declared interface) and reuse `quickSwitcherMatcher.ts` for filtering. Adding a kind must not require a central switch. A missing optional plugin hides its row and the app still runs. | Live: one sidebar row opens a unified list; searching "vault" returns the vault researcher, vault MCP tools and vault notes together; a disabled plugin disappears without breaking Settings. Unit: the registry accepts a new kind with no central edit. | Open |
+| 8.2 | **Session manifest.** A header strip showing expert, skills, tools, connectors, pinned notes, model route and permission mode for the active session, plus "Why is this on?" provenance (file and line) and "Copy as YAML" to reproduce the session from files. Satisfies `AGENTS.md` §6 ("no hidden state"). | Live: opening a Hermes task shows the strip; clicking a chip reveals its source file; the copied YAML round-trips into a fresh session with the same capability set. Unit: pure manifest builder. | Open |
+| 8.3 | **Capability diff on the 7.2 chip.** Extend the Task Router so a suggestion shows what switching would change (tools added and removed, toolset lock, model route, skills) before the owner clicks. No blind switches. | Live: a Code Reviewer chip reads "adds 9 tools, drops toolset lock, keeps model" and Switch still applies in one click. Unit: pure diff over two `CapabilityDescriptor` sets. | Open |
+| 8.4 | **Turn-scoped `@` attach.** In the draft composer, `@` attaches an expert, skill, connector or vault note for one message only, with no global state change. Extend the existing Cmd+K prefix modes (`>`, `@`, `#`, `/`) instead of adding a modal. | Live: typing `@` offers capabilities; attaching `search_notes` affects exactly one turn and the session header stays unchanged. Unit: attachment parsing and scoping. | Open |
+| 8.5 | **Library workspace.** One view combining vault notes, auto-saved chat transcripts, generated summaries and artifacts. Drag a note into the composer to pin it; backlinks show which sessions cited a note. Row 7.3 semantic search slots in here. | Live: Library lists notes, chats, summaries and artifacts in one search; dragging a note pins it; the backlink inspector names citing sessions. Unit: pure indexer. | Open |
+| 8.6 | **Operations rail.** Replace the vague Assistant idea with a live rail of running Hermes turns, Orca workers, bots and scheduled sessions, showing last output, with one-click handoff, replay, cancel and a dry-run for schedules. All state is local, no telemetry. | Live: the rail shows a running turn and a cron run; a dry-run executes once against a throwaway home and writes nothing to the vault. Unit: state projection. | Open |
+| 8.7 | **Capability packs, graph and budget.** A `pack.yaml` bundles expert, skills, connectors, model route, pinned notes and permission defaults, git-trackable and offline-importable with the 4.4 security-scan preview. Add a capability graph built on `packages/maker-core/src/notes/vault-graph.ts`, a context budget ("disabling 3 unused skills frees about 4,200 tokens"), "Why is this on?" for every row, unused-capability suggestions from local logs, and extend 7.2 from experts to whole bundles. Build last. | Live: export a session as a pack, import it offline into a new task and see the same manifest; the graph shows expert to skills to tools to connectors; the budget estimates tokens before a turn. Unit: pack parser, graph edges, budget estimator. | Open |
+
+---
+
 ## Debt (fix when touched, never let grow)
 
 | Item | Owner note |
