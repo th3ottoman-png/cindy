@@ -101,10 +101,15 @@ describe('VaultNotesHost (ROADMAP 5.1)', () => {
     expect(updated).toMatchObject({ vaultDir, noteCount: 2 });
     expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.VAULT_CHANGED, expect.objectContaining({ vaultDir }));
 
+    // Set allSessionsSearch via IPC
+    const withSearch = await harness.invoke(MAKER_INVOKE.VAULT_SET_CONFIG, { allSessionsSearch: true });
+    expect(withSearch).toMatchObject({ vaultDir, allSessionsSearch: true, noteCount: 2 });
+    expect(broadcast).toHaveBeenLastCalledWith(MAKER_PUSH.VAULT_CHANGED, expect.objectContaining({ allSessionsSearch: true }));
+
     // Pick folder
     const picked = await harness.invoke(MAKER_INVOKE.VAULT_PICK_FOLDER);
     expect(picked).toBe(vaultDir);
-    expect(assertTrusted).toHaveBeenCalledTimes(3);
+    expect(assertTrusted).toHaveBeenCalledTimes(4);
   });
 });
 

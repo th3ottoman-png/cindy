@@ -22,11 +22,13 @@ export function VaultView({
   config,
   saving,
   onSave,
+  onToggleSearch,
   onPickFolder,
 }: {
   config: VaultConfigView;
   saving: boolean;
   onSave: (vaultDir: string) => void;
+  onToggleSearch?: (enabled: boolean) => void;
   onPickFolder: () => void;
 }) {
   const [draftDir, setDraftDir] = useState(config.vaultDir ?? '');
@@ -108,6 +110,20 @@ export function VaultView({
               {saving ? <Spinner size="sm" /> : 'Save'}
             </Button>
           </div>
+        </div>
+        <div className={SETTINGS_ROW_CLASS}>
+          <div className="flex flex-col gap-1 flex-1 min-w-0 pr-4">
+            <span className={SETTINGS_ROW_LABEL_CLASS}>Vault search in standard chats</span>
+            <span className={SETTINGS_ROW_HINT_CLASS}>
+              Allow Hermes to search and read notes from the vault in all chats, not only expert sessions. Append and edit operations remain strictly restricted to experts.
+            </span>
+          </div>
+          <Switch
+            checked={Boolean(config.allSessionsSearch)}
+            disabled={saving || !config.vaultDir}
+            onCheckedChange={(checked) => onToggleSearch?.(checked)}
+            aria-label="Toggle vault search in standard chats"
+          />
         </div>
       </div>
     </div>
@@ -283,6 +299,23 @@ export function VaultSection() {
     [],
   );
 
+  const handleToggleSearch = useCallback(
+    async (allSessionsSearch: boolean) => {
+      if (!window.electronAPI?.maker?.vault?.setConfig) return;
+      setSaving(true);
+      try {
+        const fresh = await window.electronAPI.maker.vault.setConfig({ allSessionsSearch });
+        setConfig(fresh);
+        toast.success(allSessionsSearch ? 'Vault search enabled for all chats' : 'Vault search restricted to experts');
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to update vault setting');
+      } finally {
+        setSaving(false);
+      }
+    },
+    [],
+  );
+
   const handlePickFolder = useCallback(async () => {
     if (!window.electronAPI?.maker?.vault?.pickFolder) return;
     try {
@@ -309,6 +342,7 @@ export function VaultSection() {
         config={config}
         saving={saving}
         onSave={handleSave}
+        onToggleSearch={handleToggleSearch}
         onPickFolder={handlePickFolder}
       />
       <ChatAutosaveSettings />

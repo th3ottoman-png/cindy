@@ -5623,8 +5623,10 @@ interface ElectronAPI {
     vault: {
       /** ROADMAP 5.1: get local notes vault configuration (~/.cindy-harness/vault.json). */
       getConfig: () => Promise<import('../main/maker-ipc/vaultNotes').VaultConfigView>;
-      /** Set local notes vault directory path. */
-      setConfig: (vaultDir: string) => Promise<import('../main/maker-ipc/vaultNotes').VaultConfigView>;
+      /** Set local notes vault directory path or configuration patch. */
+      setConfig: (
+        patch: string | { vaultDir?: string; allSessionsSearch?: boolean },
+      ) => Promise<import('../main/maker-ipc/vaultNotes').VaultConfigView>;
       /** Native open directory picker. */
       pickFolder: () => Promise<string | null>;
       /** Fires when the vault configuration changes. */

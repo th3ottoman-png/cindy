@@ -19,6 +19,7 @@ import type { IpcHandlerRegistry } from './ipcHandlerRegistry.js';
 
 export interface VaultConfigView {
   vaultDir: string;
+  allSessionsSearch?: boolean;
   issue?: string;
   noteCount?: number;
 }
@@ -47,24 +48,50 @@ export class VaultNotesHost {
   getConfig(): VaultConfigView {
     const { config, issue } = readVaultConfig(this.configFile);
     if (!config.vaultDir) {
-      return { vaultDir: '', ...(issue ? { issue } : {}) };
+      return {
+        vaultDir: '',
+        ...(config.allSessionsSearch !== undefined ? { allSessionsSearch: config.allSessionsSearch } : {}),
+        ...(issue ? { issue } : {}),
+      };
     }
     if (issue) {
-      return { vaultDir: config.vaultDir, issue };
+      return {
+        vaultDir: config.vaultDir,
+        ...(config.allSessionsSearch !== undefined ? { allSessionsSearch: config.allSessionsSearch } : {}),
+        issue,
+      };
     }
     const notes = listNotes(config.vaultDir);
     const noteCount = Array.isArray(notes) ? notes.length : undefined;
     return {
       vaultDir: config.vaultDir,
+      allSessionsSearch: config.allSessionsSearch,
       noteCount,
     };
   }
 
-  setConfig(vaultDir: string): VaultConfigView {
-    if (typeof vaultDir !== 'string') {
-      throw new Error('vaultDir must be a string');
+  setConfig(patch: string | { vaultDir?: string; allSessionsSearch?: boolean }): VaultConfigView {
+    const current = readVaultConfig(this.configFile).config;
+    let nextVaultDir = current.vaultDir;
+    let nextAllSessionsSearch = current.allSessionsSearch;
+
+    if (typeof patch === 'string') {
+      nextVaultDir = patch.trim();
+    } else if (patch && typeof patch === 'object') {
+      if (typeof patch.vaultDir === 'string') {
+        nextVaultDir = patch.vaultDir.trim();
+      }
+      if (typeof patch.allSessionsSearch === 'boolean') {
+        nextAllSessionsSearch = patch.allSessionsSearch;
+      }
+    } else {
+      throw new Error('vaultDir must be a string or config object');
     }
-    writeVaultConfig(this.configFile, { vaultDir: vaultDir.trim() });
+
+    writeVaultConfig(this.configFile, {
+      vaultDir: nextVaultDir,
+      ...(nextAllSessionsSearch !== undefined ? { allSessionsSearch: nextAllSessionsSearch } : {}),
+    });
     this.notifyChanged?.();
     return this.getConfig();
   }
@@ -97,8 +124,17 @@ export function registerVaultNotesHandlers(
   });
   registry.handle(MAKER_INVOKE.VAULT_SET_CONFIG, async (event: unknown, request: unknown) => {
     deps.assertTrusted(event);
-    const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
-    const fresh = deps.host.setConfig(typeof r.vaultDir === 'string' ? r.vaultDir : '');
+    let patch: string | { vaultDir?: string; allSessionsSearch?: boolean };
+    if (typeof request === 'string') {
+      patch = request;
+    } else {
+      const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
+      patch = {
+        ...(typeof r.vaultDir === 'string' ? { vaultDir: r.vaultDir } : {}),
+        ...(typeof r.allSessionsSearch === 'boolean' ? { allSessionsSearch: r.allSessionsSearch } : {}),
+      };
+    }
+    const fresh = deps.host.setConfig(patch);
     deps.broadcast(MAKER_PUSH.VAULT_CHANGED, fresh);
     return fresh;
   });

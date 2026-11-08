@@ -202,6 +202,7 @@ export function appendNote(vaultDir: string, rel: string, text: string, opts: { 
 
 export interface VaultConfig {
   vaultDir: string;
+  allSessionsSearch?: boolean;
 }
 
 export interface VaultConfigRead {
@@ -242,41 +243,42 @@ export function readVaultConfig(configFile: string): VaultConfigRead {
     };
   }
   const raw = doc as Record<string, unknown>;
+  const allSessionsSearch = typeof raw.allSessionsSearch === 'boolean' ? raw.allSessionsSearch : undefined;
   const dirVal = raw.vaultDir ?? raw.vaultPath;
   if (dirVal === undefined || dirVal === null || dirVal === '') {
-    return { config: { vaultDir: '' } };
+    return { config: { vaultDir: '', ...(allSessionsSearch !== undefined ? { allSessionsSearch } : {}) } };
   }
   if (typeof dirVal !== 'string') {
     return {
-      config: { vaultDir: '' },
+      config: { vaultDir: '', ...(allSessionsSearch !== undefined ? { allSessionsSearch } : {}) },
       issue: '"vaultDir" must be a string path',
     };
   }
   const vaultDir = dirVal.trim();
   if (vaultDir === '') {
-    return { config: { vaultDir: '' } };
+    return { config: { vaultDir: '', ...(allSessionsSearch !== undefined ? { allSessionsSearch } : {}) } };
   }
   try {
     if (!fs.existsSync(vaultDir)) {
       return {
-        config: { vaultDir },
+        config: { vaultDir, ...(allSessionsSearch !== undefined ? { allSessionsSearch } : {}) },
         issue: `configured vault folder does not exist: ${vaultDir}`,
       };
     }
     const stat = fs.statSync(vaultDir);
     if (!stat.isDirectory()) {
       return {
-        config: { vaultDir },
+        config: { vaultDir, ...(allSessionsSearch !== undefined ? { allSessionsSearch } : {}) },
         issue: `configured vault path is not a directory: ${vaultDir}`,
       };
     }
   } catch (error) {
     return {
-      config: { vaultDir },
+      config: { vaultDir, ...(allSessionsSearch !== undefined ? { allSessionsSearch } : {}) },
       issue: `cannot access vault folder: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
-  return { config: { vaultDir } };
+  return { config: { vaultDir, ...(allSessionsSearch !== undefined ? { allSessionsSearch } : {}) } };
 }
 
 /**
@@ -289,8 +291,12 @@ export function writeVaultConfig(configFile: string, config: VaultConfig): void 
   const dir = path.dirname(configFile);
   fs.mkdirSync(dir, { recursive: true });
   const tmp = path.join(dir, `.${path.basename(configFile)}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`);
+  const payload: VaultConfig = {
+    vaultDir: config.vaultDir.trim(),
+    ...(typeof config.allSessionsSearch === 'boolean' ? { allSessionsSearch: config.allSessionsSearch } : {}),
+  };
   try {
-    fs.writeFileSync(tmp, `${JSON.stringify({ vaultDir: config.vaultDir.trim() }, null, 2)}\n`, 'utf8');
+    fs.writeFileSync(tmp, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
     fs.renameSync(tmp, configFile);
   } catch (error) {
     fs.rmSync(tmp, { force: true });

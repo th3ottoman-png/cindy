@@ -167,6 +167,14 @@ Frontmatter: `name`, `description`, `agent` (hermes | claude-code | codex | pi),
 
 ---
 
+## Phase 6 — Advanced Vault Integration & Knowledge Search
+
+| # | Task | Done when | Status |
+|---|---|---|---|
+| 6.1 | **Vault Knowledge Search & Starter Expert.** Starter expert `vault-researcher` (`tools: [search_notes, read_note, list_notes]`) for grounded vault QA. Optional global toggle in Settings → Notes Vault (`allSessionsSearch`) allowing all Hermes chat sessions to search and read notes from the vault while keeping mutating operations (`append_note`) strictly restricted to experts. | Live: Hermes session uses `search_notes`/`read_note` against real vault to answer questions with citations. | ✅ `live-proven` (2026-11-08). Starter expert `vault-researcher` committed in `docs/experts-examples/vault-researcher/expert.md` and installed in `~/.cindy-harness/experts/`. `allSessionsSearch` added to `VaultConfig` (`packages/maker-core/src/notes/vault-notes.ts`, `apps/desktop/src/main/maker-ipc/vaultNotes.ts`), exposed in `VaultSection.tsx` as a toggle in Settings → Notes Vault. Host wiring (`apps/desktop/src/main/maker-host/index.ts`) mounts `cindy_vault_notes` for any Hermes session when `allSessionsSearch` is true and permits read-only tools (`search_notes`, `read_note`, `list_notes`) while restricting `append_note` strictly to authorized experts. Live-proven against real vault (`/Users/turko/Bishi-memory`): Hermes session `9419856c-4629-480b-afa6-9a968349a845` bound to `vault-researcher` called `mcp__cindy_vault_notes__search_notes` and `mcp__cindy_vault_notes__read_note` on `memory/Project — Cindy.md` and returned factual summary with note citations. |
+
+---
+
 ## Debt (fix when touched, never let grow)
 
 | Item | Owner note |

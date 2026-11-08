@@ -10,7 +10,7 @@ const EXAMPLES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 describe('docs/experts-examples', () => {
   it('ships the starter experts and every one loads cleanly', () => {
     const entries = loadExperts(EXAMPLES);
-    expect(entries.map((e) => e.slug)).toEqual(['code-reviewer', 'expert-creator', 'options-first', 'orchestrator', 'prompt-engineer', 'repo-explainer', 'research-analyst']);
+    expect(entries.map((e) => e.slug)).toEqual(['code-reviewer', 'expert-creator', 'options-first', 'orchestrator', 'prompt-engineer', 'repo-explainer', 'research-analyst', 'vault-researcher']);
     for (const entry of entries) {
       expect(entry.error, entry.slug).toBeUndefined();
       expect(entry.expert!.agent).toBe('hermes');
@@ -19,12 +19,13 @@ describe('docs/experts-examples', () => {
     }
   });
 
-  it('only the expert creator (draft_expert, 3.8), Options first (project reader, 3.10d) and the orchestrator (list_experts, 3.9b) list tools', () => {
+  it('only the expert creator (draft_expert, 3.8), Options first (project reader, 3.10d), the orchestrator (list_experts, 3.9b), and vault researcher (search/read/list notes, 6.1) list tools', () => {
     const withTools = loadExperts(EXAMPLES).filter((e) => (e.expert?.tools.length ?? 0) > 0);
     expect(withTools.map((e) => [e.slug, e.expert!.tools])).toEqual([
       ['expert-creator', ['draft_expert']],
       ['options-first', ['read_project_file', 'search_project']],
       ['orchestrator', ['list_experts']],
+      ['vault-researcher', ['search_notes', 'read_note', 'list_notes']],
     ]);
   });
 

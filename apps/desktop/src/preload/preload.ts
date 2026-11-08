@@ -6376,9 +6376,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       getConfig: (): Promise<import('../main/maker-ipc/vaultNotes').VaultConfigView> =>
         ipcRenderer.invoke('maker:vault:get-config'),
       setConfig: (
-        vaultDir: string,
+        patch: string | { vaultDir?: string; allSessionsSearch?: boolean },
       ): Promise<import('../main/maker-ipc/vaultNotes').VaultConfigView> =>
-        ipcRenderer.invoke('maker:vault:set-config', { vaultDir }),
+        ipcRenderer.invoke('maker:vault:set-config', typeof patch === 'string' ? { vaultDir: patch } : patch),
       pickFolder: (): Promise<string | null> =>
         ipcRenderer.invoke('maker:vault:pick-folder'),
       onChanged: fanOutMakerVaultChanged,

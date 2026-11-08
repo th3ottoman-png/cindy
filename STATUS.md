@@ -10,6 +10,30 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-08 (part 6) — 6.1 Vault Knowledge Search & Starter Expert (`live-proven`)
+
+- **6.1 Vault Knowledge Search & Starter Expert:**
+  - Committed starter expert `vault-researcher` (`tools: [search_notes, read_note, list_notes]`) under `docs/experts-examples/vault-researcher/expert.md` and deployed to `~/.cindy-harness/experts/vault-researcher/expert.md`.
+  - Added optional `allSessionsSearch?: boolean` to `VaultConfig` in `packages/maker-core/src/notes/vault-notes.ts` and `apps/desktop/src/main/maker-ipc/vaultNotes.ts` (atomic persistence to `~/.cindy-harness/vault.json`).
+  - Added toggle for "Vault search in standard chats" in Settings → General → Notes Vault (`apps/desktop/src/renderer/components/settings/VaultSection.tsx`).
+  - Updated `apps/desktop/src/main/maker-host/index.ts`:
+    - `prepareHermesBridgeSession` mounts `cindy_vault_notes` when `allSessionsSearch` is enabled and a vault is configured, in addition to expert sessions.
+    - `createVaultNotesMcpProvider` permits read-only tools (`search_notes`, `read_note`, `list_notes`) for standard sessions when `allSessionsSearch` is true, while mutating tool `append_note` remains strictly restricted to authorized experts.
+  - Updated preload and typings in `preload.ts` and `vite-env.d.ts`.
+- **Live Verification:**
+  - Backed up `sessions.json` to `.bak-20261108112242`.
+  - Rebuilt and launched dev app (`pnpm restart:desktop:remote`).
+  - Verified `allSessionsSearch: true` round-trips through UI/IPC into `~/.cindy-harness/vault.json`.
+  - Verified `vault-researcher` appears in `window.electronAPI.maker.experts.list()` with tools `[search_notes, read_note, list_notes]`.
+  - Executed live turn in fresh Hermes session `9419856c-4629-480b-afa6-9a968349a845` bound to `vault-researcher` with `bypassPermissions`:
+    - Hermes invoked `mcp__cindy_vault_notes__search_notes` (`query: "Cindy"`, `query: "project status"`).
+    - Hermes invoked `mcp__cindy_vault_notes__read_note` on `memory/Project — Cindy.md` inside `/Users/turko/Bishi-memory`.
+    - Hermes synthesized factual, accurate findings grounded strictly in the real note with path citations.
+- **Gates:** Green under Node 22 (`pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene`).
+- **Roadmap:** Row 6.1 closed as ✅ `live-proven`.
+
+---
+
 ## 2026-11-08 (part 5) — Live-prove roadmap row 0.5: Atomic `sessions.json` (`live-proven`)
 
 - **0.5 Atomic `sessions.json` and crash recovery live-proven:**

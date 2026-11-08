@@ -181,5 +181,16 @@ describe('readVaultConfig / writeVaultConfig', () => {
     const res = readVaultConfig(file);
     expect(res).toEqual({ config: { vaultDir: vault } });
   });
+
+  it('reads and writes allSessionsSearch flag', () => {
+    const file = path.join(outside, 'all-search.json');
+    writeVaultConfig(file, { vaultDir: vault, allSessionsSearch: true });
+    const res = readVaultConfig(file);
+    expect(res).toEqual({ config: { vaultDir: vault, allSessionsSearch: true } });
+
+    writeVaultConfig(file, { vaultDir: vault, allSessionsSearch: false });
+    const resFalse = readVaultConfig(file);
+    expect(resFalse).toEqual({ config: { vaultDir: vault, allSessionsSearch: false } });
+  });
 });
 

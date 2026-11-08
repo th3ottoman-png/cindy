@@ -62,6 +62,22 @@ describe('Settings VaultSection (ROADMAP 5.1)', () => {
     expect(html).toContain('folder does not exist');
     expect(html).not.toContain('Connected');
   });
+
+  it('renders vault search in standard chats switch', () => {
+    const html = renderToStaticMarkup(
+      <VaultView
+        config={{ vaultDir: '/Users/turko/Bishi-memory', allSessionsSearch: true }}
+        saving={false}
+        onSave={() => undefined}
+        onToggleSearch={() => undefined}
+        onPickFolder={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('Vault search in standard chats');
+    expect(html).toContain('aria-label="Toggle vault search in standard chats"');
+    expect(html).toContain('aria-checked="true"');
+  });
 });
 
 describe('Settings ChatAutosaveCard (ROADMAP 5.5)', () => {

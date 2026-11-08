@@ -2585,11 +2585,16 @@ export function getMaker(): Maker {
       createProjectReaderMcpProvider({
         sessionMayRead: (sessionId, tool) => getDesktopExpertSessionStore().expertAllowsTool(sessionId, tool),
       }),
-      // ROADMAP 5.1: local notes vault bridge for experts.
+      // ROADMAP 5.1 / 6.1: local notes vault bridge for experts and optional all-sessions search.
       createVaultNotesMcpProvider({
         getVaultDir: () => getDesktopVaultNotesHost().getConfig().vaultDir,
-        sessionMayUse: (sessionId, tool) =>
-          getDesktopExpertSessionStore().expertAllowsVaultTool(sessionId, tool),
+        sessionMayUse: (sessionId, tool) => {
+          const cfg = getDesktopVaultNotesHost().getConfig();
+          if (cfg.allSessionsSearch && cfg.vaultDir && tool !== 'append_note') {
+            return true;
+          }
+          return getDesktopExpertSessionStore().expertAllowsVaultTool(sessionId, tool);
+        },
       }),
     ]);
     // 用户自定义 MCP:三个 agent 都必须注册其实际持有的数组引用，再统一做初始 refresh。
@@ -2889,9 +2894,13 @@ export function getMaker(): Maker {
           projectReader: (sessionId) =>
             getDesktopExpertSessionStore().expertAllowsTool(sessionId, READ_PROJECT_FILE_TOOL, { includePending: true })
             || getDesktopExpertSessionStore().expertAllowsTool(sessionId, SEARCH_PROJECT_TOOL, { includePending: true }),
-          // ROADMAP 5.1: an expert session opts into the local notes vault bridge.
-          vaultNotes: (sessionId) =>
-            getDesktopExpertSessionStore().sessionHasVaultAccess(sessionId, { includePending: true }),
+          // ROADMAP 5.1 / 6.1: an expert session opts into the local notes vault bridge,
+          // or all sessions when allSessionsSearch is enabled with a configured vault.
+          vaultNotes: (sessionId) => {
+            const cfg = getDesktopVaultNotesHost().getConfig();
+            return Boolean(cfg.allSessionsSearch && cfg.vaultDir)
+              || getDesktopExpertSessionStore().sessionHasVaultAccess(sessionId, { includePending: true });
+          },
           // ROADMAP 3.2b: expert-scoped MCP server filter via tools.yaml
           expertAllowsMcpServer: (sessionId, server) =>
             getDesktopExpertSessionStore().expertAllowsMcpServer(sessionId, server, { includePending: true }),
