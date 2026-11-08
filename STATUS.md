@@ -10,6 +10,26 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-08 (part 4) — Live-prove roadmap rows 3.2 and 3.7 (`live-proven`)
+
+- **3.2 Per-session skills linking live-proven:**
+  - Added dummy skill `~/.cindy-harness/experts/code-reviewer/skills/sample-expert-skill/SKILL.md`.
+  - Started new Hermes task with `Code Reviewer` in Cindy dev app (task `09dd4de3-2d27-4423-97d4-8a1d773b51ce`, Hermes session `efc2fa46-9839-4466-b073-b80e9e40f1c4`).
+  - Observed: Session home `~/.hermes-cindy/session-homes/efc2fa46-9839-4466-b073-b80e9e40f1c4-002850aac8/skills/sample-expert-skill` was created as a symlink pointing to `/Users/turko/.cindy-harness/experts/code-reviewer/skills/sample-expert-skill` alongside base skills symlinks (`software-development`, `web`, `devops`, `apple`, etc.).
+- **3.2 Non-Hermes experts live-proven:**
+  - Added `~/.cindy-harness/experts/codex-assistant/expert.md` with `agent: codex`.
+  - Selected `Codex` engine in New Task; verified `HermesExpertPicker` enabled only `Codex Assistant` and marked all Hermes experts as disabled with `(hermes)` suffix.
+  - Picked `Codex Assistant` and sent turn in session `3f55523a-7f97-495a-99ad-aca77bb31c80`.
+  - Observed: Session header rendered badge `Codex Assistant`, session bound in `expert-sessions.json`, first-turn preamble `[Cindy expert: Codex Assistant]` injected into `userPrompt`, and Codex replied: `[CODEX_EXPERT_PREAMBLE_VERIFIED] I’ll act as Codex Assistant and help verify the non-Hermes expert integration.`
+- **3.7 Hermes collaboration lead live-proven:**
+  - Started a new Hermes task in Cindy dev app with Collaboration toggle switched ON via Composer actions -> Collaboration -> Start Collaboration (role: `developer`, engine: `codex`).
+  - Sent prompt: "We are a team. Ask the worker for the current date and report the answer." (session `f123b468-9376-4d8e-bf0e-aae59f1e07d6`).
+  - Observed: Orca team `ja0h0eaf8d0av8k630vgvb09` created with worker `a276f806-8895-4c8f-8ffb-ba18c04b9af2`. Hermes lead called `mcp__cindy_orca__get_workspace_info` and `mcp__cindy_orca__send_to_worker`. Worker executed `date` (returning `2026-11-08 08:54:26 GMT`), auto-bridged back to lead, and Hermes reported the date to the user.
+- **Verification:** All tests exercised live on running macOS desktop dev app via CDP, state DB verified, session homes verified. Backup created before runs: `~/.hermes-cindy/hermes-mgr/sessions.json.bak-2026-11-08-live-proofs`.
+- **Fix in maker-core:** `packages/maker-core/src/maker.ts`: Fixed `listAvailableAgents()` and `requireAgent()` to only surface and auto-instantiate dynamic plugin adapter extensions (`source !== 'builtin'`), preserving explicit `registerAgent()` registrations in `initialAgentKinds`. All 224 test files in `maker-core` and all 30 runnable workspaces green.
+- **Gates:** Green under Node 22 (`pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` with 361 files within baseline).
+- **Roadmap:** Rows 3.2 and 3.7 are now closed as ✅ `live-proven`.
+
 ## 2026-11-08 (part 3) — Complete roadmap rows 3.2, 3.7, and 4.1 (`unit-tested`)
 
 - **Changed:**

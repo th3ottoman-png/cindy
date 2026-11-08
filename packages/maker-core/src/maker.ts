@@ -1522,7 +1522,10 @@ export class Maker {
   /** 列出已注册的 agent kind (含通过 extension registry 动态注册的 adapter) */
   listAvailableAgents(): AgentKind[] {
     const reg = getExtensionRegistry();
-    const registered = reg.list(ADAPTER_EXTENSION_KIND).map((e) => e.id as AgentKind);
+    const registered = reg
+      .list(ADAPTER_EXTENSION_KIND)
+      .filter((e) => e.source !== 'builtin')
+      .map((e) => e.id as AgentKind);
     const active = Object.keys(this.agents).filter(
       (k) => this.initialAgentKinds.has(k as AgentKind) || reg.get(ADAPTER_EXTENSION_KIND, k),
     ) as AgentKind[];
@@ -1542,6 +1545,7 @@ export class Maker {
     if (this.shutdownStarted) return false;
     if (this.agents[kind]) return false;
     this.agents[kind] = agent;
+    this.initialAgentKinds.add(kind);
     return true;
   }
 
@@ -1846,7 +1850,7 @@ export class Maker {
     }
     if (!agent) {
       const descriptor = reg.get<(deps: unknown) => unknown>(ADAPTER_EXTENSION_KIND, kind);
-      if (descriptor && typeof descriptor.value === 'function') {
+      if (descriptor && descriptor.source !== 'builtin' && typeof descriptor.value === 'function') {
         const created = createRegisteredAdapterAgent(kind, { logger: this.logger }, reg) as BaseAgent;
         if (created && typeof created.getAuthState === 'function') {
           this.agents[kind] = created;
