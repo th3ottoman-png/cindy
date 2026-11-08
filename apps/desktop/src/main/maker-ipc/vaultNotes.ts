@@ -11,7 +11,9 @@ import * as path from 'node:path';
 import {
   listNotes,
   readVaultConfig,
+  watchVault,
   writeVaultConfig,
+  type VaultWatcher,
 } from '@cindy/maker-core/vault-notes';
 
 import { MAKER_INVOKE, MAKER_PUSH } from './channels.js';
@@ -28,6 +30,7 @@ export interface VaultNotesHostDeps {
   configFile?: string;
   showOpenDialog?: (options: { properties: ('openDirectory' | 'createDirectory')[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   notifyChanged?: () => void;
+  watchDebounceMs?: number;
 }
 
 export function defaultVaultConfigFile(): string {
@@ -38,11 +41,42 @@ export class VaultNotesHost {
   private readonly configFile: string;
   private readonly showOpenDialog?: (options: { properties: ('openDirectory' | 'createDirectory')[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   private readonly notifyChanged?: () => void;
+  private readonly watchDebounceMs: number;
+  private watcher: VaultWatcher | null = null;
+  private currentWatchedDir: string = '';
 
   constructor(deps: VaultNotesHostDeps = {}) {
     this.configFile = deps.configFile ?? defaultVaultConfigFile();
     this.showOpenDialog = deps.showOpenDialog;
     this.notifyChanged = deps.notifyChanged;
+    this.watchDebounceMs = deps.watchDebounceMs ?? 150;
+    this.armWatcher();
+  }
+
+  private armWatcher(): void {
+    const { config, issue } = readVaultConfig(this.configFile);
+    const targetDir = (!issue && config.vaultDir) ? config.vaultDir : '';
+    if (targetDir === this.currentWatchedDir && this.watcher) {
+      return;
+    }
+    this.watcher?.close();
+    this.watcher = null;
+    this.currentWatchedDir = targetDir;
+    if (targetDir) {
+      this.watcher = watchVault(
+        targetDir,
+        () => {
+          this.notifyChanged?.();
+        },
+        this.watchDebounceMs,
+      );
+    }
+  }
+
+  close(): void {
+    this.watcher?.close();
+    this.watcher = null;
+    this.currentWatchedDir = '';
   }
 
   getConfig(): VaultConfigView {
@@ -92,6 +126,7 @@ export class VaultNotesHost {
       vaultDir: nextVaultDir,
       ...(nextAllSessionsSearch !== undefined ? { allSessionsSearch: nextAllSessionsSearch } : {}),
     });
+    this.armWatcher();
     this.notifyChanged?.();
     return this.getConfig();
   }

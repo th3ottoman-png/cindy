@@ -82,6 +82,25 @@ describe('VaultNotesHost (ROADMAP 5.1)', () => {
     expect(picked).toBeNull();
   });
 
+  it('watches configured vault directory and notifies on changes', async () => {
+    const notifyChanged = vi.fn();
+    const host = new VaultNotesHost({ configFile, notifyChanged, watchDebounceMs: 20 });
+    try {
+      host.setConfig(vaultDir);
+      notifyChanged.mockClear();
+
+      // Add a note in vault
+      fs.writeFileSync(path.join(vaultDir, 'c.md'), 'Note C\n');
+      await vi.waitFor(() => {
+        expect(notifyChanged).toHaveBeenCalled();
+      }, { timeout: 3000 });
+
+      expect(host.getConfig().noteCount).toBe(3);
+    } finally {
+      host.close();
+    }
+  });
+
   it('registers and handles IPC channels', async () => {
     const harness = new IpcHarness();
     const host = new VaultNotesHost({

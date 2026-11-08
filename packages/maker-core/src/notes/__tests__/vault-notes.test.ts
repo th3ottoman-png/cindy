@@ -2,9 +2,9 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { appendNote, checkNotePath, listNotes, readNote, readVaultConfig, searchNotes, writeVaultConfig } from '../vault-notes';
+import { appendNote, checkNotePath, listNotes, readNote, readVaultConfig, searchNotes, watchVault, writeVaultConfig } from '../vault-notes';
 
 let vault: string;
 let outside: string;
@@ -191,6 +191,47 @@ describe('readVaultConfig / writeVaultConfig', () => {
     writeVaultConfig(file, { vaultDir: vault, allSessionsSearch: false });
     const resFalse = readVaultConfig(file);
     expect(resFalse).toEqual({ config: { vaultDir: vault, allSessionsSearch: false } });
+  });
+});
+
+describe('watchVault', () => {
+  it('notifies on note creation and modification, ignoring hidden files', async () => {
+    let callCount = 0;
+    const watcher = watchVault(vault, () => {
+      callCount++;
+    }, 20);
+
+    try {
+      // 1. Create a note in vault
+      write('note1.md', 'Initial content');
+      await vi.waitFor(() => {
+        expect(callCount).toBeGreaterThan(0);
+      }, { timeout: 3000 });
+
+      const prevCount = callCount;
+
+      // 2. Modify hidden file inside .obsidian - should not trigger
+      const obsDir = path.join(vault, '.obsidian');
+      fs.mkdirSync(obsDir, { recursive: true });
+      fs.writeFileSync(path.join(obsDir, 'workspace.json'), '{}');
+
+      // Wait a moment and assert callCount didn't increase
+      await new Promise((r) => setTimeout(r, 60));
+      expect(callCount).toBe(prevCount);
+
+      // 3. Close watcher and write another note
+      watcher.close();
+      write('note2.md', 'After close');
+      await new Promise((r) => setTimeout(r, 60));
+      expect(callCount).toBe(prevCount);
+    } finally {
+      watcher.close();
+    }
+  });
+
+  it('fails open when directory does not exist or is invalid', () => {
+    const watcher = watchVault(path.join(outside, 'non-existent'), () => undefined);
+    expect(() => watcher.close()).not.toThrow();
   });
 });
 

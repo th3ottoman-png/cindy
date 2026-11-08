@@ -10,6 +10,32 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-08 (part 7) — 6.2 Real-time Vault File Watcher / Hot Auto-Sync (`live-proven`)
+
+- **6.2 Real-time Vault File Watcher / Hot Auto-Sync:**
+  - Added `watchVault(vaultDir, onChange, debounceMs)` in `packages/maker-core/src/notes/vault-notes.ts`:
+    - Recursive `fs.watch` on the vault directory with debounced notifications.
+    - Filters hidden/dot files and directories (`.obsidian`, `.git`, `.cindy`) and `node_modules`.
+    - Returns `{ close: () => void }` for clean disposal.
+  - Integrated `watchVault` into `VaultNotesHost` (`apps/desktop/src/main/maker-ipc/vaultNotes.ts`):
+    - Automatically arms file watcher on initialization if a valid `vaultDir` is configured.
+    - Dynamically disposes old watcher and re-arms on `setConfig` when `vaultDir` changes.
+    - Broadcasts `MAKER_PUSH.VAULT_CHANGED` to all renderer windows via `notifyChanged` callback when any vault file is added, modified, or removed.
+    - Added `host.close()` to cleanly terminate the watcher during process shutdown or cleanup.
+- **Verification:**
+  - 39 unit tests green (32 in `packages/maker-core/src/notes/__tests__/vault-notes.test.ts`, 7 in `apps/desktop/src/main/maker-ipc/__tests__/vaultNotes.test.ts`).
+  - All four gates green under Node 22 (`pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene`).
+  - **Live-proven in running desktop dev app against real vault `/Users/turko/Bishi-memory`:**
+    - Connected via CDP to main window `http://localhost:5174/` and verified initial `getConfig().noteCount === 275`.
+    - Registered listener for `window.electronAPI.maker.vault.onChanged`.
+    - Planted `/Users/turko/Bishi-memory/test-hot-watcher-live.md`.
+    - Observed: `MAKER_PUSH.VAULT_CHANGED` received in renderer in real time, `noteCount` updated to 276.
+    - Deleted `/Users/turko/Bishi-memory/test-hot-watcher-live.md`.
+    - Observed: `MAKER_PUSH.VAULT_CHANGED` received in renderer in real time, `noteCount` restored to 275.
+- **Roadmap:** Row 6.2 closed as ✅ `live-proven`.
+
+---
+
 ## 2026-11-08 (part 6) — 6.1 Vault Knowledge Search & Starter Expert (`live-proven`)
 
 - **6.1 Vault Knowledge Search & Starter Expert:**

@@ -304,3 +304,60 @@ export function writeVaultConfig(configFile: string, config: VaultConfig): void 
   }
 }
 
+export interface VaultWatcher {
+  close(): void;
+}
+
+/**
+ * Watch a local vault directory for file changes (addition, removal, modification of .md notes).
+ * Debounces callbacks and ignores hidden directories (e.g. .obsidian, .git) and node_modules.
+ * Fails open (safe error handling) if the path does not exist or watcher throws.
+ */
+export function watchVault(
+  vaultDir: string,
+  onChange: () => void,
+  debounceMs = 150,
+): VaultWatcher {
+  let closed = false;
+  let timer: NodeJS.Timeout | undefined;
+  let watcher: fs.FSWatcher | undefined;
+
+  const fire = (): void => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (!closed) onChange();
+    }, debounceMs);
+  };
+
+  try {
+    const root = vaultRoot(vaultDir);
+    if (root && fs.existsSync(root) && fs.statSync(root).isDirectory()) {
+      watcher = fs.watch(root, { recursive: true }, (_eventType, filename) => {
+        if (filename) {
+          const norm = filename.replace(/\\/g, '/');
+          const parts = norm.split('/');
+          if (parts.some((p) => p.startsWith('.') || SKIP_DIRS.has(p))) {
+            return;
+          }
+        }
+        fire();
+      });
+      watcher.on('error', () => undefined);
+    }
+  } catch {
+    // Watching is a convenience; fail open
+  }
+
+  return {
+    close(): void {
+      closed = true;
+      if (timer) clearTimeout(timer);
+      try {
+        watcher?.close();
+      } catch {
+        // ignore close error
+      }
+    },
+  };
+}
+
