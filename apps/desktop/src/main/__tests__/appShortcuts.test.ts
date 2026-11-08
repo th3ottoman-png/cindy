@@ -119,6 +119,20 @@ describe('formatAppShortcutCombo', () => {
 });
 
 describe('overrides normalization and effective merge', () => {
+  it('defines open-quick-switcher defaults with Cmd+K and Cmd+O on darwin, Ctrl on others', () => {
+    const mac = getEffectiveAppShortcuts({}, 'darwin');
+    expect(mac.get('open-quick-switcher')).toEqual([
+      combo('KeyK', { meta: true }),
+      combo('KeyO', { meta: true }),
+    ]);
+
+    const win = getEffectiveAppShortcuts({}, 'win32');
+    expect(win.get('open-quick-switcher')).toEqual([
+      combo('KeyK', { ctrl: true }),
+      combo('KeyO', { ctrl: true }),
+    ]);
+  });
+
   it('defines right sidebar tab cycling defaults with primary and fallback combos', () => {
     const mac = getEffectiveAppShortcuts({}, 'darwin');
     expect(mac.get('right-tab-prev')).toEqual([

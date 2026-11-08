@@ -179,6 +179,17 @@ Frontmatter: `name`, `description`, `agent` (hermes | claude-code | codex | pi),
 
 ---
 
+## Phase 7 — Power-User Speed & Daily-Driver Ergonomics
+
+| # | Task | Done when | Status |
+|---|---|---|---|
+| 7.1 | **Global Quick-Switcher / Spotlight Palette (`Cmd+K` / `Cmd+O`).** Fast keyboard-driven command palette overlay. Searches across active/recent sessions, installed experts, notes vault files, and quick actions/commands (`> New Task`, `> Open Vault Graph`, `> Quick Capture`, `> Open Worktrees`, `> Open Artifacts`, `> Synthesize Memory`). Keyboard navigation (arrows + Enter to execute, Escape to dismiss), category filtering (`>`, `@`, `#`, `/`). | Live: `Cmd+K` / `Cmd+O` opens palette anywhere in Cindy; typing filters across sessions/experts/notes/actions; arrows navigate; Enter executes/opens. | ✅ `live-proven` (2026-11-08). Implemented registered application shortcut `open-quick-switcher` (`Cmd+K` / `Cmd+O` on darwin, `Ctrl+K` / `Ctrl+O` on others) in `appShortcuts.ts`. Created pure matcher and query parser in `quickSwitcherMatcher.ts` with prefix filtering (`>` actions, `@` experts, `#` notes, `/` sessions), custom scoring, and 11 unit tests. Built `useQuickSwitcherData.ts` aggregating active/recent sessions, installed experts, vault notes, and application commands. Created `QuickSwitcherDialog.tsx` with auto-focus, keyboard navigation (up/down/enter/esc), and category badge styling with 6 unit tests. Mounted globally in `MainLayout.tsx`. All gates green under Node 22 (`typecheck`, `test:runner`, `test:unit:related`, `check:test-hygiene`). Live-proven via CDP against running desktop dev app: `Cmd+K` opens modal and renders 50 items across all categories; clicking `> Actions` filters to 10 action commands; `Escape` dismisses modal; `Cmd+O` opens modal; `Escape` dismisses cleanly. |
+| 7.2 | **Smart Intent Expert Suggester ("Task Router").** Evaluates initial composer text via local model classifier route (`local-small` or lightweight heuristic) and surfaces a non-intrusive 1-click chip: *"Switch to <Expert>?"* without modal lock-in. | Live: typing a git/review prompt surfaces a chip recommending `Code Reviewer`; typing a vault/memory prompt recommends `Vault Researcher`; 1-click switches pending expert. | Open |
+| 7.3 | **Local Semantic / Hybrid Search for Notes Vault.** Local SQLite-vec / embeddings stored in `~/.cindy-harness/vault-embeddings.db` via local model route (Ollama / LM Studio) or local embedding client. Enhances `search_notes` tool and Vault Graph with hybrid keyword + vector semantic similarity (zero cloud). | Live: querying vault for a conceptual phrase with no direct keyword match returns semantically relevant notes. | Open |
+| 7.4 | **Git Workspace ↔ Vault Project Note Auto-Sync.** Right sidebar inspector and agent tool that inspects active workspace git diff and recent commits, offering a 1-click button or tool: *"Append progress & commit log to project note"* in `<vault>/memory/Project — <Name>.md`. | Live: 1-click sync appends formatted progress block and commit list to the matching vault project note. | Open |
+
+---
+
 ## Debt (fix when touched, never let grow)
 
 | Item | Owner note |

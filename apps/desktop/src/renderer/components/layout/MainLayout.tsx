@@ -43,6 +43,7 @@ import { AppBadgeAttentionSync } from '@/components/layout/AppBadgeAttentionSync
 import { usePendingAlertAttention } from '@/hooks/usePendingAlertAttention';
 import { FeatureSidebarSlotProvider } from '@/features/feature-context';
 import { useAppShortcut } from '@/hooks/useAppShortcut';
+import { QuickSwitcherDialog } from '@/components/quick-switcher';
 import { isAppInteractionLocked } from '@/lib/appInteractionLock';
 import { useCloseShortcutShellOwner } from '@/hooks/useCloseWindowShortcut';
 import {
@@ -367,6 +368,7 @@ export function MainLayout() {
     remoteHostId: string | null;
     deviceLinkDeviceId?: string | null;
   }>({ workdir: '', remoteHostId: null, deviceLinkDeviceId: undefined });
+  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const rightSidebarWorkdirInfoRef = useRef(rightSidebarWorkdirInfo);
   rightSidebarWorkdirInfoRef.current = rightSidebarWorkdirInfo;
   const rightSidebarSubagentsAvailableRef = useRef(rightSidebarSubagentsAvailable);
@@ -1385,6 +1387,11 @@ export function MainLayout() {
     return true;
   });
 
+  useAppShortcut('open-quick-switcher', () => {
+    setQuickSwitcherOpen((prev) => !prev);
+    return true;
+  });
+
   // 打开命令行 (默认 ⌃`): 会话页有右侧栏时, 已有终端 tab 则聚焦、否则新建;
   // 右侧栏折叠态先展开。非会话路由 (右侧栏不存在) 不消费, 按键保持原生行为。
   //
@@ -1969,6 +1976,13 @@ export function MainLayout() {
       <BrowserWebviewPool />
       {/* 实际存在内联提示（含伙伴 / 折叠态）时组件自行退让，其余页面保留兜底。 */}
       <ControlledBanner />
+      {/* Global Quick-Switcher / Spotlight palette (Cmd+K / Cmd+O) */}
+      <QuickSwitcherDialog
+        open={quickSwitcherOpen}
+        onOpenChange={setQuickSwitcherOpen}
+        activeSessionId={rightSidebarSessionId}
+        navigate={navigate}
+      />
     </FeatureSidebarSlotProvider>
   );
 }

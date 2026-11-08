@@ -6113,6 +6113,10 @@
         "menuAccelerator": "This combination cannot be registered as a menu shortcut"
       },
       "items": {
+        "open-quick-switcher": {
+          "label": "Quick switcher",
+          "description": "Open spotlight palette to search sessions, experts, notes, and actions"
+        },
         "toggle-sidebar": {
           "label": "Toggle sidebar",
           "description": "Collapse or expand the session list sidebar"

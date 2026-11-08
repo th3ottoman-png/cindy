@@ -163,7 +163,7 @@ describe('AppShortcutStore', () => {
       throw new Error('disk full');
     });
 
-    expect(() => store.setOverride('toggle-sidebar', combo('KeyK', { meta: true }))).toThrow(
+    expect(() => store.setOverride('toggle-sidebar', combo('KeyU', { meta: true }))).toThrow(
       'disk full',
     );
     expect(store.getOverrides()['toggle-sidebar']).toEqual(combo('KeyJ', { meta: true }));
@@ -195,7 +195,7 @@ describe('AppShortcutStore', () => {
   it('keeps all overrides when resetAll cannot be persisted', () => {
     const store = makeStore('darwin');
     store.setOverride('toggle-sidebar', combo('KeyJ', { meta: true }));
-    store.setOverride('save-file', combo('KeyO', { meta: true }));
+    store.setOverride('save-file', combo('KeyY', { meta: true }));
     vi.spyOn(fs, 'renameSync').mockImplementation(() => {
       throw new Error('permission denied');
     });

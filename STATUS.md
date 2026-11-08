@@ -10,6 +10,47 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-08 (part 11) — 7.1 Global Quick-Switcher / Spotlight Palette (`live-proven`)
+
+- **7.1 Global Quick-Switcher / Spotlight Palette (`Cmd+K` / `Cmd+O`):**
+  - Registered application shortcut `open-quick-switcher` in `apps/desktop/src/shared/appShortcuts.ts` with `rebindable: true`, scope `app`, and default keybindings: `Cmd+K` and `Cmd+O` on macOS (`darwin`), `Ctrl+K` and `Ctrl+O` on Windows/Linux. Added English localization in `common.json`.
+  - Implemented pure matcher and query parser in `apps/desktop/src/renderer/components/quick-switcher/quickSwitcherMatcher.ts` (types in `quickSwitcherTypes.ts`):
+    - Categorized search across: `session`, `expert`, `note`, `action`.
+    - Prefix-mode filtering: `>` filters to Actions only, `@` filters to Experts only, `#` filters to Vault Notes only, `/` filters to Sessions only.
+    - Tiered score ranking: exact match (120), prefix match (100), word-boundary match (80), substring in title (60), tag match (50), subtitle match (40), badge match (30).
+  - Built data aggregation hook in `apps/desktop/src/renderer/components/quick-switcher/useQuickSwitcherData.ts`:
+    - Collects active and past sessions from `window.electronAPI.localDb.sessions.list(100, 'all')` with relative timestamp and model badges.
+    - Collects configured experts from `window.electronAPI.maker.experts.list()`.
+    - Collects notes from `window.electronAPI.maker.vault.getGraph()` (converting `Record<string, VaultGraphNode>` safely to iterable nodes).
+    - Exposes built-in global commands: `> New Task`, `> Open Notes Vault Graph`, `> Quick Capture Note`, `> Synthesize Vault Memory`, `> Open Git Worktree Manager`, `> Open Artifacts Viewer`, `> Open Terminal`, `> Keyboard Shortcuts Settings`, `> Notes Vault Settings`, `> Hermes Skills & Tools Settings`.
+  - Created Spotlight modal component `QuickSwitcherDialog.tsx`:
+    - Floating modal overlay (`z-[100]`, backdrop blur).
+    - Auto-focused search input, prefix indicator pill buttons (`> Actions`, `@ Experts`, `# Notes`, `/ Sessions`), keyboard navigation with Up/Down arrow selection, `Enter` to execute, and `Escape` to close.
+    - Category icons and colored badges (blue for sessions, purple for experts, emerald for notes, amber for actions).
+    - Mounted globally in `MainLayout.tsx` wrapped in `useAppShortcut('open-quick-switcher')`.
+- **Verification:**
+  - Unit tests:
+    - `apps/desktop/src/renderer/components/quick-switcher/__tests__/quickSwitcherMatcher.test.ts` (11 tests: query parsing, prefix routing, scoring, tag matching).
+    - `apps/desktop/src/renderer/components/quick-switcher/__tests__/QuickSwitcherDialog.test.tsx` (6 tests: open/closed rendering, filter pills, Escape key, Enter execution, ArrowUp/Down navigation).
+    - `apps/desktop/src/main/__tests__/appShortcuts.test.ts` (32 tests: default `open-quick-switcher` combo verification on darwin and win32).
+    - `apps/desktop/src/main/app-shortcuts/__tests__/AppShortcutStore.test.ts` (16 tests: updated collision test keys for unassigned keys `KeyU` and `KeyY`).
+  - Pre-commit gates:
+    - `pnpm typecheck` PASS (37 workspace projects).
+    - `pnpm test:runner` PASS (608 passed, 0 fail).
+    - `pnpm check:test-hygiene` PASS (361 files within baseline).
+  - **Live-proven via CDP against running desktop dev app:**
+    - Launched dev app with remote debugging port 9222.
+    - Connected via CDP WebSocket to main window (`EDA0B6BA39B3129226F88FD613B8916F`).
+    - Verified initial state: `open: false`.
+    - Dispatched `Cmd+K`: dialog opened (`open: true`), auto-focused search input, rendered filter pills, and populated 50 items across sessions, experts, vault notes, and actions.
+    - Clicked `> Actions` filter pill: input value updated to `"> "`, and result list immediately filtered down to 10 action commands.
+    - Dispatched `Escape`: dialog cleanly closed (`open: false`).
+    - Dispatched `Cmd+O`: dialog immediately reopened (`open: true`).
+    - Dispatched `Escape`: dialog cleanly closed.
+- **Roadmap:** Row 7.1 marked ✅ `live-proven`. Rows 7.2, 7.3, and 7.4 added to Phase 7 for subsequent tasks.
+
+---
+
 ## 2026-11-08 (part 10) — 6.5 Vault Note Quick-Capture & Context Pinning (`live-proven`)
 
 - **6.5 Vault Note Quick-Capture & Context Pinning:**
