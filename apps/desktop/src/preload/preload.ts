@@ -803,6 +803,7 @@ const fanOutMakerExtPluginsChanged = createIpcFanOut('maker:ext-plugins:changed'
 const fanOutMakerMcpCatalogChanged = createIpcFanOut('maker:mcp-catalog:changed');
 const fanOutMakerSkillsChanged = createIpcFanOut('maker:skills:changed');
 const fanOutMakerVaultChanged = createIpcFanOut('maker:vault:changed');
+const fanOutMakerVaultPinnedChanged = createIpcFanOut('maker:vault:pinned-changed');
 const fanOutMakerChatAutosaveFailed = createIpcFanOut('maker:chat-autosave:failed');
 const fanOutMakerChatSummaryWritten = createIpcFanOut('maker:chat-summary:written');
 const fanOutMakerChatSummaryFailed = createIpcFanOut('maker:chat-summary:failed');
@@ -6389,7 +6390,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
         force?: boolean,
       ): Promise<{ ok: boolean; graph?: import('@cindy/maker-core/vault-graph').VaultGraph; error?: string }> =>
         ipcRenderer.invoke('maker:vault:get-graph', force),
+      quickCapture: (
+        input: import('@cindy/maker-core/vault-capture').QuickCaptureInput,
+      ): Promise<import('@cindy/maker-core/vault-capture').QuickCaptureResult> =>
+        ipcRenderer.invoke('maker:vault:quick-capture', input),
+      getPinnedNotes: (sessionId: string): Promise<string[]> =>
+        ipcRenderer.invoke('maker:vault:get-pinned-notes', sessionId),
+      pinNote: (
+        sessionId: string,
+        notePath: string,
+      ): Promise<{ ok: boolean; pinnedNotes: string[]; error?: string }> =>
+        ipcRenderer.invoke('maker:vault:pin-note', { sessionId, notePath }),
+      unpinNote: (
+        sessionId: string,
+        notePath: string,
+      ): Promise<{ ok: boolean; pinnedNotes: string[] }> =>
+        ipcRenderer.invoke('maker:vault:unpin-note', { sessionId, notePath }),
       onChanged: fanOutMakerVaultChanged,
+      onPinnedChanged: fanOutMakerVaultPinnedChanged,
     },
     chatAutosave: {
       getConfig: (): Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView> =>

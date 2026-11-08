@@ -2913,11 +2913,14 @@ export function getMaker(): Maker {
         }),
         // Experts (ROADMAP 3.2a): the picked expert's prompt rides the first turn of a
         // fresh session; a broken expert or wrong model route refuses the turn.
-        resolveHermesExpertPreamble: async (input) =>
-          getDesktopExpertSessionStore().resolveFirstTurnPreamble(
+        resolveHermesExpertPreamble: async (input) => {
+          const expertPreamble = await getDesktopExpertSessionStore().resolveFirstTurnPreamble(
             input,
             createRouteMatcher((model) => resolveModelRoute(model)),
-          ),
+          );
+          const pinnedPreamble = getDesktopVaultNotesHost().getPinnedNotesPreamble(input.sessionId);
+          return [expertPreamble, pinnedPreamble].filter(Boolean).join('\n\n') || null;
+        },
         // ROADMAP 3.10 (ADR 0009): an expert's `toolsets:` locks the Hermes session (`-t`) and
         // keeps Cindy tools off. The pending pick only applies to a session starting fresh.
         resolveHermesToolsets: ({ sessionId, fresh }) =>

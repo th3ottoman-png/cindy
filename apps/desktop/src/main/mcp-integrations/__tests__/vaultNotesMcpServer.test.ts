@@ -11,9 +11,13 @@ import {
   createVaultNotesMcpServer,
   EXPLORE_VAULT_GRAPH_TOOL,
   LIST_NOTES_TOOL,
+  LIST_PINNED_NOTES_TOOL,
+  PIN_VAULT_NOTE_TOOL,
+  QUICK_CAPTURE_TOOL,
   READ_NOTE_TOOL,
   SEARCH_NOTES_TOOL,
   SYNTHESIZE_VAULT_MEMORY_TOOL,
+  UNPIN_VAULT_NOTE_TOOL,
   type VaultNotesMcpDeps,
 } from '../vaultNotesMcpServer';
 
@@ -37,6 +41,7 @@ function deps(over: Partial<VaultNotesMcpDeps> = {}): VaultNotesMcpDeps {
     getSessionContext: () => ({ agentKind: 'hermes', sessionId: 's1' }),
     getVaultDir: () => vault,
     sessionMayUse: () => true,
+    pinnedNotesConfigFile: path.join(base, 'pinned-notes.json'),
     ...over,
   };
 }
@@ -163,6 +168,55 @@ Links to [[sub/note2]]
     expect(noteRes.isError).toBe(false);
     expect(noteRes.body.found).toBe(true);
     expect(noteRes.body.backlinks).toContain('note1.md');
+  });
+
+  it('performs quick capture to Inbox.md and custom file', async () => {
+    const res = await call(deps(), QUICK_CAPTURE_TOOL, {
+      content: 'Quick capture snippet with #idea',
+      tags: ['quick', 'idea'],
+      title: 'Idea 1',
+    });
+    expect(res.isError).toBe(false);
+    expect(res.body).toMatchObject({ ok: true, relPath: 'Inbox.md' });
+
+    const inbox = fs.readFileSync(path.join(vault, 'Inbox.md'), 'utf8');
+    expect(inbox).toContain('Quick capture snippet with #idea');
+    expect(inbox).toContain('#quick');
+    expect(inbox).toContain('Idea 1');
+
+    const customRes = await call(deps(), QUICK_CAPTURE_TOOL, {
+      content: 'Captured to specific note',
+      targetFile: 'sub/custom-inbox.md',
+    });
+    expect(customRes.isError).toBe(false);
+    expect(customRes.body).toMatchObject({ ok: true, relPath: 'sub/custom-inbox.md' });
+    expect(fs.readFileSync(path.join(vault, 'sub', 'custom-inbox.md'), 'utf8')).toContain('Captured to specific note');
+  });
+
+  it('pins, lists, and unpins vault notes for the session context', async () => {
+    // Initially empty
+    const listInitial = await call(deps(), LIST_PINNED_NOTES_TOOL);
+    expect(listInitial.isError).toBe(false);
+    expect(listInitial.body.pinnedNotes).toEqual([]);
+
+    // Pin note1.md
+    const pinRes = await call(deps(), PIN_VAULT_NOTE_TOOL, { path: 'note1.md' });
+    expect(pinRes.isError).toBe(false);
+    expect(pinRes.body).toMatchObject({ pinned: true, notePath: 'note1.md' });
+
+    // List pinned
+    const listRes = await call(deps(), LIST_PINNED_NOTES_TOOL);
+    expect(listRes.isError).toBe(false);
+    expect(listRes.body.pinnedNotes).toEqual(['note1.md']);
+
+    // Unpin note1.md
+    const unpinRes = await call(deps(), UNPIN_VAULT_NOTE_TOOL, { path: 'note1.md' });
+    expect(unpinRes.isError).toBe(false);
+    expect(unpinRes.body).toMatchObject({ unpinned: true, notePath: 'note1.md' });
+
+    // Verify empty
+    const listAfter = await call(deps(), LIST_PINNED_NOTES_TOOL);
+    expect(listAfter.body.pinnedNotes).toEqual([]);
   });
 
   it('live-exercises read, search, and append against real vault when present', async () => {

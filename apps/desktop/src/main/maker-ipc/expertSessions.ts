@@ -253,7 +253,11 @@ export class ExpertSessionStore {
       this.expertAllowsVaultTool(sessionId, 'append_note', opts) ||
       this.expertAllowsVaultTool(sessionId, 'list_notes', opts) ||
       this.expertAllowsVaultTool(sessionId, 'synthesize_vault_memory', opts) ||
-      this.expertAllowsVaultTool(sessionId, 'explore_vault_graph', opts)
+      this.expertAllowsVaultTool(sessionId, 'explore_vault_graph', opts) ||
+      this.expertAllowsVaultTool(sessionId, 'quick_capture', opts) ||
+      this.expertAllowsVaultTool(sessionId, 'pin_vault_note', opts) ||
+      this.expertAllowsVaultTool(sessionId, 'unpin_vault_note', opts) ||
+      this.expertAllowsVaultTool(sessionId, 'list_pinned_notes', opts)
     );
   }
 

@@ -10,6 +10,56 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-08 (part 10) — 6.5 Vault Note Quick-Capture & Context Pinning (`live-proven`)
+
+- **6.5 Vault Note Quick-Capture & Context Pinning:**
+  - Implemented pure core engine in `packages/maker-core/src/notes/vault-capture.ts` (subpath `@cindy/maker-core/vault-capture`):
+    - `quickCaptureNote`: appends or creates markdown note (defaulting to `Inbox.md`) with ISO timestamp, tags, session metadata, title heading, atomic temp file write (`.tmp` + rename), sensitive secret redaction (`redactSecrets`), and path traversal containment.
+    - Context Pinning State: file-backed at `~/.cindy-harness/pinned-vault-notes.json` (`loadPinnedNotes`, `savePinnedNotes`, `pinNoteToSession`, `unpinNoteFromSession`, `getPinnedNotesForSession`).
+    - `buildPinnedNotesPreamble`: formats bounded reference envelopes (`[Pinned Vault Note: <relPath>]...`) from pinned vault notes, truncated at 4,000 characters per note.
+    - Exported subpath `./vault-capture` in `packages/maker-core/package.json`.
+  - Added 4 agent MCP tools to `cindy_vault_notes` MCP server (`apps/desktop/src/main/mcp-integrations/vaultNotesMcpServer.ts`):
+    - `quick_capture({ content, targetFile?, tags?, title? })`
+    - `pin_vault_note({ path })`
+    - `unpin_vault_note({ path })`
+    - `list_pinned_notes()`
+    - Added tools to `sessionHasVaultAccess` in `expertSessions.ts`.
+  - Added desktop host methods & IPC handlers in `apps/desktop/src/main/maker-ipc/vaultNotes.ts`:
+    - Host methods: `quickCapture`, `getPinnedNotes`, `pinNote`, `unpinNote`, `getPinnedNotesPreamble`.
+    - Channels: `VAULT_QUICK_CAPTURE`, `VAULT_GET_PINNED_NOTES`, `VAULT_PIN_NOTE`, `VAULT_UNPIN_NOTE`, push event `VAULT_PINNED_CHANGED` in `channels.ts`.
+    - Exposed preload API in `preload.ts` (`window.electronAPI.maker.vault.quickCapture`, `getPinnedNotes`, `pinNote`, `unpinNote`, `onPinnedChanged`) and typings in `vite-env.d.ts`.
+    - Wired `resolveHermesExpertPreamble` in `apps/desktop/src/main/maker-host/index.ts` to append pinned vault notes preamble to expert session preambles.
+  - UI affordances in right sidebar `VaultGraphTabBody.tsx`:
+    - Header: "Quick Capture" drawer toggle button opening an inline input panel with content textarea, optional title and tag inputs, and "Save to Vault" button.
+    - Note Detail pane: "Pin to Session" / "Unpin" toggle button with pin icon and live status badge.
+    - Note items list: renders pin icon indicator on notes currently pinned to the active session.
+  - Updated starter expert `vault-researcher`:
+    - Updated `docs/experts-examples/vault-researcher/expert.md` and harness expert file with `quick_capture`, `pin_vault_note`, `unpin_vault_note`, `list_pinned_notes`.
+    - Updated starter experts test in `packages/maker-core/src/experts/__tests__/starter-experts.test.ts`.
+- **Verification:**
+  - Unit tests:
+    - `packages/maker-core/src/notes/__tests__/vault-capture.test.ts` (9 tests: quick capture to Inbox.md, secret redaction, custom file capture, path traversal refusal, pin/unpin/list state persistence, preamble formatting).
+    - `apps/desktop/src/main/mcp-integrations/__tests__/vaultNotesMcpServer.test.ts` (13 tests: MCP server `quick_capture`, `pin_vault_note`, `unpin_vault_note`, `list_pinned_notes` tools).
+    - `apps/desktop/src/main/maker-ipc/__tests__/vaultNotes.test.ts` (7 tests: host methods and IPC handler round-trips for quick capture and context pinning).
+    - `apps/desktop/src/renderer/features/right-sidebar/plugins/vault-graph/__tests__/vaultGraphPlugin.test.tsx` (6 tests: UI quick capture drawer submission, pin/unpin toggle interactions).
+    - `packages/maker-core/src/experts/__tests__/starter-experts.test.ts` (8 tests green).
+    - Updated `docs/design-rules/design-inventory.md` via `scripts/design-inventory.mjs`.
+  - All four gates green under Node 22:
+    - `pnpm typecheck` PASS
+    - `pnpm test:runner` PASS (608 passed)
+    - `pnpm test:unit:related` PASS
+    - `pnpm check:test-hygiene` PASS (361 files within baseline)
+  - **Live-proven in running dev app via CDP against real vault `/Users/turko/Bishi-memory`:**
+    - Connected to dev app main window via CDP (`ws://127.0.0.1:9222/...`).
+    - Evaluated `quickCapture`: captured test note into `/Users/turko/Bishi-memory/Inbox.md` (`ok: true`, 176 bytes written, created: true). Verified `Inbox.md` contains the captured note.
+    - Evaluated `pinNote`: pinned `memory/Project — Cindy.md` to session `live-cdp-session`.
+    - Evaluated `getPinnedNotes`: returned `['memory/Project — Cindy.md']`.
+    - Evaluated `unpinNote`: unpinned note, returned `[]`.
+    - Cleaned up test note snippet from `Inbox.md`.
+- **Roadmap:** Row 6.5 closed as ✅ `live-proven`.
+
+---
+
 ## 2026-11-08 (part 9) — 6.4 Vault Tag Explorer & Backlink Graph Visualizer (`live-proven`)
 
 - **6.4 Vault Tag Explorer & Backlink Graph Visualizer:**

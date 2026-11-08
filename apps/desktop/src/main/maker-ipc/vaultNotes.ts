@@ -17,6 +17,15 @@ import {
 } from '@cindy/maker-core/vault-notes';
 import { runVaultSynthesis, type VaultSynthesisResult } from '@cindy/maker-core/vault-synthesis';
 import { scanVaultGraph, type VaultGraph } from '@cindy/maker-core/vault-graph';
+import {
+  quickCaptureNote,
+  pinNoteToSession,
+  unpinNoteFromSession,
+  getPinnedNotesForSession,
+  buildPinnedNotesPreamble,
+  type QuickCaptureInput,
+  type QuickCaptureResult,
+} from '@cindy/maker-core/vault-capture';
 
 import { MAKER_INVOKE, MAKER_PUSH } from './channels.js';
 import type { IpcHandlerRegistry } from './ipcHandlerRegistry.js';
@@ -30,6 +39,7 @@ export interface VaultConfigView {
 
 export interface VaultNotesHostDeps {
   configFile?: string;
+  pinnedNotesConfigFile?: string;
   showOpenDialog?: (options: { properties: ('openDirectory' | 'createDirectory')[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   notifyChanged?: () => void;
   watchDebounceMs?: number;
@@ -39,8 +49,13 @@ export function defaultVaultConfigFile(): string {
   return path.join(os.homedir(), '.cindy-harness', 'vault.json');
 }
 
+export function defaultPinnedNotesConfigFile(): string {
+  return path.join(os.homedir(), '.cindy-harness', 'pinned-vault-notes.json');
+}
+
 export class VaultNotesHost {
   private readonly configFile: string;
+  private readonly pinnedNotesConfigFile: string;
   private readonly showOpenDialog?: (options: { properties: ('openDirectory' | 'createDirectory')[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   private readonly notifyChanged?: () => void;
   private readonly watchDebounceMs: number;
@@ -50,6 +65,7 @@ export class VaultNotesHost {
 
   constructor(deps: VaultNotesHostDeps = {}) {
     this.configFile = deps.configFile ?? defaultVaultConfigFile();
+    this.pinnedNotesConfigFile = deps.pinnedNotesConfigFile ?? defaultPinnedNotesConfigFile();
     this.showOpenDialog = deps.showOpenDialog;
     this.notifyChanged = deps.notifyChanged;
     this.watchDebounceMs = deps.watchDebounceMs ?? 150;
@@ -165,6 +181,38 @@ export class VaultNotesHost {
     }
     return { ok: true, graph: this.cachedGraph };
   }
+
+  quickCapture(input: QuickCaptureInput): QuickCaptureResult {
+    const cfg = this.getConfig();
+    if (cfg.issue || !cfg.vaultDir) {
+      return { ok: false, reason: 'no-vault', message: 'no valid notes vault configured' };
+    }
+    const res = quickCaptureNote(cfg.vaultDir, input);
+    if (res.ok) {
+      this.cachedGraph = null;
+      this.notifyChanged?.();
+    }
+    return res;
+  }
+
+  getPinnedNotes(sessionId: string): string[] {
+    return getPinnedNotesForSession(this.pinnedNotesConfigFile, sessionId);
+  }
+
+  pinNote(sessionId: string, notePath: string): { ok: boolean; pinnedNotes: string[]; error?: string } {
+    return pinNoteToSession(this.pinnedNotesConfigFile, sessionId, notePath);
+  }
+
+  unpinNote(sessionId: string, notePath: string): { ok: boolean; pinnedNotes: string[] } {
+    return unpinNoteFromSession(this.pinnedNotesConfigFile, sessionId, notePath);
+  }
+
+  getPinnedNotesPreamble(sessionId: string, maxCharsPerNote?: number): string {
+    const cfg = this.getConfig();
+    if (cfg.issue || !cfg.vaultDir) return '';
+    const pinned = this.getPinnedNotes(sessionId);
+    return buildPinnedNotesPreamble(cfg.vaultDir, pinned, maxCharsPerNote);
+  }
 }
 
 export interface VaultNotesHandlerDeps {
@@ -213,6 +261,43 @@ export function registerVaultNotesHandlers(
   registry.handle(MAKER_INVOKE.VAULT_GET_GRAPH, async (event: unknown, force?: unknown) => {
     deps.assertTrusted(event);
     return deps.host.getGraph(Boolean(force));
+  });
+  registry.handle(MAKER_INVOKE.VAULT_QUICK_CAPTURE, async (event: unknown, input: unknown) => {
+    deps.assertTrusted(event);
+    const captureInput = (input && typeof input === 'object' ? input : {}) as QuickCaptureInput;
+    const res = deps.host.quickCapture(captureInput);
+    if (res.ok) {
+      deps.broadcast(MAKER_PUSH.VAULT_CHANGED, deps.host.getConfig());
+    }
+    return res;
+  });
+  registry.handle(MAKER_INVOKE.VAULT_GET_PINNED_NOTES, async (event: unknown, sessionId: unknown) => {
+    deps.assertTrusted(event);
+    return deps.host.getPinnedNotes(String(sessionId ?? ''));
+  });
+  registry.handle(MAKER_INVOKE.VAULT_PIN_NOTE, async (event: unknown, payload: unknown) => {
+    deps.assertTrusted(event);
+    const { sessionId, notePath } = (payload && typeof payload === 'object' ? payload : {}) as {
+      sessionId: string;
+      notePath: string;
+    };
+    const res = deps.host.pinNote(sessionId, notePath);
+    if (res.ok) {
+      deps.broadcast(MAKER_PUSH.VAULT_PINNED_CHANGED, { sessionId, pinnedNotes: res.pinnedNotes });
+    }
+    return res;
+  });
+  registry.handle(MAKER_INVOKE.VAULT_UNPIN_NOTE, async (event: unknown, payload: unknown) => {
+    deps.assertTrusted(event);
+    const { sessionId, notePath } = (payload && typeof payload === 'object' ? payload : {}) as {
+      sessionId: string;
+      notePath: string;
+    };
+    const res = deps.host.unpinNote(sessionId, notePath);
+    if (res.ok) {
+      deps.broadcast(MAKER_PUSH.VAULT_PINNED_CHANGED, { sessionId, pinnedNotes: res.pinnedNotes });
+    }
+    return res;
   });
 }
 

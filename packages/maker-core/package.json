@@ -31,6 +31,7 @@
     "./vault-notes": "./src/notes/vault-notes.ts",
     "./vault-synthesis": "./src/notes/vault-synthesis.ts",
     "./vault-graph": "./src/notes/vault-graph.ts",
+    "./vault-capture": "./src/notes/vault-capture.ts",
     "./scheduled-sessions": "./src/schedules/scheduled-sessions.ts",
     "./expert-handoff": "./src/experts/expert-handoff.ts",
     "./expert-draft": "./src/experts/expert-draft.ts",

@@ -12,6 +12,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import type { McpProvider } from '@cindy/maker-core';
 import {
   appendNote,
@@ -21,6 +24,12 @@ import {
 } from '@cindy/maker-core/vault-notes';
 import { runVaultSynthesis } from '@cindy/maker-core/vault-synthesis';
 import { scanVaultGraph } from '@cindy/maker-core/vault-graph';
+import {
+  quickCaptureNote,
+  pinNoteToSession,
+  unpinNoteFromSession,
+  getPinnedNotesForSession,
+} from '@cindy/maker-core/vault-capture';
 import { resolveLiziMcpSessionContext, type LiziMcpSessionContext } from '@cindy/mcps';
 
 export const CINDY_VAULT_NOTES_MCP_SERVER_NAME = 'cindy_vault_notes';
@@ -30,6 +39,10 @@ export const APPEND_NOTE_TOOL = 'append_note';
 export const LIST_NOTES_TOOL = 'list_notes';
 export const SYNTHESIZE_VAULT_MEMORY_TOOL = 'synthesize_vault_memory';
 export const EXPLORE_VAULT_GRAPH_TOOL = 'explore_vault_graph';
+export const QUICK_CAPTURE_TOOL = 'quick_capture';
+export const PIN_VAULT_NOTE_TOOL = 'pin_vault_note';
+export const UNPIN_VAULT_NOTE_TOOL = 'unpin_vault_note';
+export const LIST_PINNED_NOTES_TOOL = 'list_pinned_notes';
 
 export const VAULT_NOTES_TOOLS = [
   READ_NOTE_TOOL,
@@ -38,7 +51,15 @@ export const VAULT_NOTES_TOOLS = [
   LIST_NOTES_TOOL,
   SYNTHESIZE_VAULT_MEMORY_TOOL,
   EXPLORE_VAULT_GRAPH_TOOL,
+  QUICK_CAPTURE_TOOL,
+  PIN_VAULT_NOTE_TOOL,
+  UNPIN_VAULT_NOTE_TOOL,
+  LIST_PINNED_NOTES_TOOL,
 ] as const;
+
+export function defaultPinnedNotesConfigFile(): string {
+  return path.join(os.homedir(), '.cindy-harness', 'pinned-vault-notes.json');
+}
 
 export interface VaultNotesMcpDeps {
   getSessionContext(): Pick<LiziMcpSessionContext, 'agentKind' | 'sessionId'> | undefined;
@@ -46,6 +67,8 @@ export interface VaultNotesMcpDeps {
   getVaultDir(): string | null | undefined;
   /** True when the session's expert is allowed to use this tool (ROADMAP 5.1). */
   sessionMayUse(sessionId: string, tool: string): boolean;
+  /** File path to pinned notes config. */
+  pinnedNotesConfigFile?: string;
 }
 
 type Refusal = { code: string; message: string };
@@ -261,6 +284,106 @@ export function createVaultNotesMcpServer(deps: VaultNotesMcpDeps): McpServer {
         totalTags: Object.keys(graph.tags).length,
         topTags,
       });
+    },
+  );
+
+  server.tool(
+    QUICK_CAPTURE_TOOL,
+    'Quick-capture a thought, snippet, or finding into a markdown note in the notes vault (default "Inbox.md").',
+    {
+      content: z.string().describe('The content or note text to capture'),
+      targetFile: z.string().optional().describe('Target markdown note path relative to vault (defaults to "Inbox.md")'),
+      tags: z.array(z.string()).optional().describe('Optional tags for categorization (e.g. ["todo", "perf"])'),
+      title: z.string().optional().describe('Optional title for the captured entry'),
+    },
+    async ({ content, targetFile, tags, title }) => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, QUICK_CAPTURE_TOOL)) {
+        return refused({ code: 'FORBIDDEN', message: `expert does not permit tool "${QUICK_CAPTURE_TOOL}"` });
+      }
+      const vaultDir = deps.getVaultDir()?.trim();
+      if (!vaultDir) {
+        return refused({ code: 'NO_VAULT', message: 'no notes vault configured; configure a vault folder in Settings -> Notes Vault' });
+      }
+      const res = quickCaptureNote(vaultDir, {
+        content,
+        targetFile,
+        tags,
+        title,
+        sourceSessionId: ctx.sessionId,
+      });
+      if (!res.ok) {
+        return refused({ code: res.reason.toUpperCase(), message: res.message });
+      }
+      return reply(res);
+    },
+  );
+
+  server.tool(
+    PIN_VAULT_NOTE_TOOL,
+    'Pin a vault note as persistent reference context for the current session.',
+    {
+      path: z.string().describe('Relative path to .md note inside the vault to pin (e.g. "docs/spec.md")'),
+    },
+    async ({ path: notePath }) => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, PIN_VAULT_NOTE_TOOL)) {
+        return refused({ code: 'FORBIDDEN', message: `expert does not permit tool "${PIN_VAULT_NOTE_TOOL}"` });
+      }
+      const vaultDir = deps.getVaultDir()?.trim();
+      if (!vaultDir) {
+        return refused({ code: 'NO_VAULT', message: 'no notes vault configured' });
+      }
+      const configFile = deps.pinnedNotesConfigFile ?? defaultPinnedNotesConfigFile();
+      const res = pinNoteToSession(configFile, ctx.sessionId, notePath);
+      if (!res.ok) {
+        return refused({ code: 'PIN_FAILED', message: res.error ?? 'failed to pin note' });
+      }
+      return reply({ pinned: true, notePath, pinnedNotes: res.pinnedNotes });
+    },
+  );
+
+  server.tool(
+    UNPIN_VAULT_NOTE_TOOL,
+    'Unpin a vault note from the current session.',
+    {
+      path: z.string().describe('Relative path to .md note inside the vault to unpin'),
+    },
+    async ({ path: notePath }) => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, UNPIN_VAULT_NOTE_TOOL)) {
+        return refused({ code: 'FORBIDDEN', message: `expert does not permit tool "${UNPIN_VAULT_NOTE_TOOL}"` });
+      }
+      const configFile = deps.pinnedNotesConfigFile ?? defaultPinnedNotesConfigFile();
+      const res = unpinNoteFromSession(configFile, ctx.sessionId, notePath);
+      return reply({ unpinned: true, notePath, pinnedNotes: res.pinnedNotes });
+    },
+  );
+
+  server.tool(
+    LIST_PINNED_NOTES_TOOL,
+    'List all vault notes currently pinned to this session.',
+    {},
+    async () => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, LIST_PINNED_NOTES_TOOL)) {
+        return refused({ code: 'FORBIDDEN', message: `expert does not permit tool "${LIST_PINNED_NOTES_TOOL}"` });
+      }
+      const configFile = deps.pinnedNotesConfigFile ?? defaultPinnedNotesConfigFile();
+      const pinned = getPinnedNotesForSession(configFile, ctx.sessionId);
+      return reply({ count: pinned.length, pinnedNotes: pinned });
     },
   );
 

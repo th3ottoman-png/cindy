@@ -1,15 +1,37 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Network, RefreshCw, Search, Tag, FileText, ArrowUpRight, ArrowDownLeft, AlertCircle, ExternalLink } from 'lucide-react';
+import {
+  Network,
+  RefreshCw,
+  Search,
+  Tag,
+  FileText,
+  ArrowUpRight,
+  ArrowDownLeft,
+  AlertCircle,
+  Plus,
+  Pin,
+  PinOff,
+} from 'lucide-react';
 import type { VaultGraph, VaultGraphNode } from '@cindy/maker-core/vault-graph';
 import type { TabKindBodyProps } from '../../types';
 
-export function VaultGraphTabBody({}: TabKindBodyProps) {
+export function VaultGraphTabBody({ ctx }: TabKindBodyProps) {
+  const sessionId = ctx?.sessionId;
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [graph, setGraph] = useState<VaultGraph | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedNotePath, setSelectedNotePath] = useState<string | null>(null);
+  const [pinnedNotes, setPinnedNotes] = useState<string[]>([]);
+  const [pinningLoading, setPinningLoading] = useState<boolean>(false);
+
+  // Quick capture state
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState<boolean>(false);
+  const [captureContent, setCaptureContent] = useState<string>('');
+  const [captureTitle, setCaptureTitle] = useState<string>('');
+  const [captureTags, setCaptureTags] = useState<string>('');
+  const [capturing, setCapturing] = useState<boolean>(false);
 
   const loadGraph = useCallback(async (force = false) => {
     setLoading(true);
@@ -47,6 +69,26 @@ export function VaultGraphTabBody({}: TabKindBodyProps) {
       unsub?.();
     };
   }, [loadGraph]);
+
+  // Load pinned notes and subscribe to changes
+  useEffect(() => {
+    if (sessionId && window.electronAPI?.maker?.vault?.getPinnedNotes) {
+      window.electronAPI.maker.vault
+        .getPinnedNotes(sessionId)
+        .then((notes) => {
+          if (Array.isArray(notes)) setPinnedNotes(notes);
+        })
+        .catch(() => {});
+    }
+    const unsubPinned = window.electronAPI?.maker?.vault?.onPinnedChanged?.((data) => {
+      if (data?.sessionId === sessionId && Array.isArray(data.pinnedNotes)) {
+        setPinnedNotes(data.pinnedNotes);
+      }
+    });
+    return () => {
+      unsubPinned?.();
+    };
+  }, [sessionId]);
 
   // Sorted list of top tags
   const tagsList = useMemo(() => {
@@ -89,6 +131,60 @@ export function VaultGraphTabBody({}: TabKindBodyProps) {
     return graph.backlinks[selectedNotePath] ?? [];
   }, [selectedNotePath, graph]);
 
+  const isPinned = selectedNotePath ? pinnedNotes.includes(selectedNotePath) : false;
+
+  const handleTogglePin = useCallback(async () => {
+    if (!sessionId || !selectedNotePath || pinningLoading) return;
+    setPinningLoading(true);
+    try {
+      if (isPinned) {
+        const res = await window.electronAPI?.maker?.vault?.unpinNote?.(sessionId, selectedNotePath);
+        if (res?.ok && Array.isArray(res.pinnedNotes)) {
+          setPinnedNotes(res.pinnedNotes);
+        }
+      } else {
+        const res = await window.electronAPI?.maker?.vault?.pinNote?.(sessionId, selectedNotePath);
+        if (res?.ok && Array.isArray(res.pinnedNotes)) {
+          setPinnedNotes(res.pinnedNotes);
+        }
+      }
+    } catch {
+      // silent fallback
+    } finally {
+      setPinningLoading(false);
+    }
+  }, [sessionId, selectedNotePath, isPinned, pinningLoading]);
+
+  const handleQuickCapture = useCallback(async () => {
+    if (!captureContent.trim() || capturing) return;
+    setCapturing(true);
+    try {
+      const parsedTags = captureTags
+        .split(/[,\s]+/)
+        .map((t) => t.trim().replace(/^#/, ''))
+        .filter(Boolean);
+
+      const res = await window.electronAPI?.maker?.vault?.quickCapture?.({
+        content: captureContent.trim(),
+        title: captureTitle.trim() || undefined,
+        tags: parsedTags.length > 0 ? parsedTags : undefined,
+        sourceSessionId: sessionId,
+      });
+
+      if (res?.ok) {
+        setCaptureContent('');
+        setCaptureTitle('');
+        setCaptureTags('');
+        setQuickCaptureOpen(false);
+        loadGraph(true);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCapturing(false);
+    }
+  }, [captureContent, captureTitle, captureTags, sessionId, capturing, loadGraph]);
+
   return (
     <div className="flex h-full flex-col bg-background text-foreground text-xs select-none">
       {/* Top Header */}
@@ -102,16 +198,85 @@ export function VaultGraphTabBody({}: TabKindBodyProps) {
             </span>
           )}
         </div>
-        <button
-          onClick={() => loadGraph(true)}
-          disabled={loading}
-          className="rounded p-1 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          title="Refresh Graph"
-          aria-label="Refresh Graph"
-        >
-          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setQuickCaptureOpen((open) => !open)}
+            className={`rounded px-1.5 py-0.5 flex items-center gap-1 text-[10px] font-medium transition-colors ${
+              quickCaptureOpen
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-foreground hover:bg-secondary/80'
+            }`}
+            title="Quick Capture to Vault"
+            aria-label="Quick Capture"
+          >
+            <Plus size={11} />
+            <span>Capture</span>
+          </button>
+          <button
+            onClick={() => loadGraph(true)}
+            disabled={loading}
+            className="rounded p-1 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            title="Refresh Graph"
+            aria-label="Refresh Graph"
+          >
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
+
+      {/* Quick Capture Drawer */}
+      {quickCaptureOpen && (
+        <div className="border-b border-border/60 bg-secondary/30 p-2.5 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-foreground">
+            <span>Quick Capture (Inbox.md)</span>
+            <button
+              onClick={() => setQuickCaptureOpen(false)}
+              className="text-muted-foreground hover:text-foreground text-[10px]"
+            >
+              ✕
+            </button>
+          </div>
+          <textarea
+            placeholder="Type your thought, code snippet, or note..."
+            value={captureContent}
+            onChange={(e) => setCaptureContent(e.target.value)}
+            rows={3}
+            className="w-full rounded border border-border/50 bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none"
+          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Title (optional)"
+              value={captureTitle}
+              onChange={(e) => setCaptureTitle(e.target.value)}
+              className="flex-1 rounded border border-border/50 bg-background px-2 py-1 text-[11px] text-foreground placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-1 focus:ring-primary/40"
+            />
+            <input
+              type="text"
+              placeholder="Tags: idea, ref"
+              value={captureTags}
+              onChange={(e) => setCaptureTags(e.target.value)}
+              className="flex-1 rounded border border-border/50 bg-background px-2 py-1 text-[11px] text-foreground placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-1 focus:ring-primary/40"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-1.5 pt-1">
+            <button
+              onClick={() => setQuickCaptureOpen(false)}
+              className="rounded px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleQuickCapture}
+              disabled={!captureContent.trim() || capturing}
+              className="flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-[10px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {capturing && <RefreshCw size={10} className="animate-spin" />}
+              <span>Save to Vault</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Error Banner */}
       {error && (
@@ -210,6 +375,7 @@ export function VaultGraphTabBody({}: TabKindBodyProps) {
                   filteredNotes.map((note) => {
                     const isSelected = selectedNotePath === note.path;
                     const backlinkCount = graph.backlinks[note.path]?.length ?? 0;
+                    const isNotePinned = pinnedNotes.includes(note.path);
                     return (
                       <div
                         key={note.path}
@@ -224,6 +390,11 @@ export function VaultGraphTabBody({}: TabKindBodyProps) {
                           <div className="flex items-center gap-1.5">
                             <FileText size={12} className="shrink-0 text-muted-foreground" />
                             <span className="font-medium truncate text-xs">{note.title}</span>
+                            {isNotePinned && (
+                              <span title="Pinned to session" className="shrink-0 flex items-center">
+                                <Pin size={10} className="text-amber-500" />
+                              </span>
+                            )}
                           </div>
                           <div className="truncate text-[10px] text-muted-foreground font-mono mt-0.5">
                             {note.path}
@@ -260,13 +431,37 @@ export function VaultGraphTabBody({}: TabKindBodyProps) {
             {activeNode && (
               <div className="h-48 overflow-y-auto bg-secondary/20 p-3 text-[11px] border-t border-border/60">
                 <div className="flex items-center justify-between pb-1.5 border-b border-border/30">
-                  <span className="font-semibold text-foreground truncate">{activeNode.title}</span>
-                  <button
-                    onClick={() => setSelectedNotePath(null)}
-                    className="text-muted-foreground hover:text-foreground text-[10px]"
-                  >
-                    Close
-                  </button>
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-2">
+                    <span className="font-semibold text-foreground truncate">{activeNode.title}</span>
+                    {isPinned && (
+                      <span className="rounded bg-amber-500/20 px-1 py-0.2 text-[9px] text-amber-600 dark:text-amber-400 font-medium">
+                        Pinned
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {sessionId && (
+                      <button
+                        onClick={handleTogglePin}
+                        disabled={pinningLoading}
+                        className={`flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                          isPinned
+                            ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40 hover:bg-amber-500/30'
+                            : 'bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80'
+                        }`}
+                        title={isPinned ? 'Unpin note from session context' : 'Pin note into session context'}
+                      >
+                        {isPinned ? <PinOff size={10} /> : <Pin size={10} />}
+                        <span>{isPinned ? 'Unpin' : 'Pin to Session'}</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setSelectedNotePath(null)}
+                      className="text-muted-foreground hover:text-foreground text-[10px]"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-2 space-y-2">

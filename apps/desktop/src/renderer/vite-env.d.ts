@@ -5637,8 +5637,26 @@ interface ElectronAPI {
       getGraph: (
         force?: boolean,
       ) => Promise<{ ok: boolean; graph?: import('@cindy/maker-core/vault-graph').VaultGraph; error?: string }>;
+      /** ROADMAP 6.5: quick capture note into vault. */
+      quickCapture: (
+        input: import('@cindy/maker-core/vault-capture').QuickCaptureInput,
+      ) => Promise<import('@cindy/maker-core/vault-capture').QuickCaptureResult>;
+      /** ROADMAP 6.5: get pinned vault notes for session. */
+      getPinnedNotes: (sessionId: string) => Promise<string[]>;
+      /** ROADMAP 6.5: pin note to session. */
+      pinNote: (
+        sessionId: string,
+        notePath: string,
+      ) => Promise<{ ok: boolean; pinnedNotes: string[]; error?: string }>;
+      /** ROADMAP 6.5: unpin note from session. */
+      unpinNote: (
+        sessionId: string,
+        notePath: string,
+      ) => Promise<{ ok: boolean; pinnedNotes: string[] }>;
       /** Fires when the vault configuration changes. */
       onChanged: (cb: (view: import('../main/maker-ipc/vaultNotes').VaultConfigView) => void) => () => void;
+      /** Fires when pinned vault notes change for a session. */
+      onPinnedChanged: (cb: (payload: { sessionId: string; pinnedNotes: string[] }) => void) => () => void;
     };
     chatAutosave: {
       /** ROADMAP 5.5: chat auto-save settings (~/.cindy-harness/chat-autosave.json) + last result. */

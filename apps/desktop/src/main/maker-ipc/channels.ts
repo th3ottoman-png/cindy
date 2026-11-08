@@ -61,6 +61,14 @@ export const MAKER_INVOKE = {
   VAULT_SYNTHESIZE_MEMORY: 'maker:vault:synthesize-memory',
   /** ROADMAP 6.4: get vault tag explorer index and backlink graph. */
   VAULT_GET_GRAPH: 'maker:vault:get-graph',
+  /** ROADMAP 6.5: quick capture note into vault. */
+  VAULT_QUICK_CAPTURE: 'maker:vault:quick-capture',
+  /** ROADMAP 6.5: get pinned vault notes for session. */
+  VAULT_GET_PINNED_NOTES: 'maker:vault:get-pinned-notes',
+  /** ROADMAP 6.5: pin note to session. */
+  VAULT_PIN_NOTE: 'maker:vault:pin-note',
+  /** ROADMAP 6.5: unpin note from session. */
+  VAULT_UNPIN_NOTE: 'maker:vault:unpin-note',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */
   CHAT_AUTOSAVE_GET_CONFIG: 'maker:chat-autosave:get-config',
   /** ROADMAP 5.5: set chat auto-save `{ enabled?, folder? }`. */
@@ -1042,6 +1050,8 @@ export const MAKER_PUSH = {
   SKILLS_CHANGED: 'maker:skills:changed',
   /** ROADMAP 5.1: local notes vault configuration changed; payload is fresh VaultConfigView. */
   VAULT_CHANGED: 'maker:vault:changed',
+  /** ROADMAP 6.5: pinned notes configuration changed for a session; payload `{ sessionId, pinnedNotes }`. */
+  VAULT_PINNED_CHANGED: 'maker:vault:pinned-changed',
   /** ROADMAP 5.5: a chat auto-save failed; sent once per failure streak; payload `{ message }`. */
   CHAT_AUTOSAVE_FAILED: 'maker:chat-autosave:failed',
   /** ROADMAP 5.6: a chat auto-summary was written; payload `{ sessionId, path, model, routeName }`. */

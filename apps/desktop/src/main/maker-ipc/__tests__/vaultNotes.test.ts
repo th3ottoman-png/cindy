@@ -11,11 +11,13 @@ import { IpcHarness } from './helpers/ipcHarness';
 let dir: string;
 let vaultDir: string;
 let configFile: string;
+let pinnedNotesConfigFile: string;
 
 beforeEach(() => {
   dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'vault-host-')));
   vaultDir = path.join(dir, 'my-vault');
   configFile = path.join(dir, 'vault.json');
+  pinnedNotesConfigFile = path.join(dir, 'pinned-vault-notes.json');
   fs.mkdirSync(vaultDir, { recursive: true });
   fs.writeFileSync(path.join(vaultDir, 'a.md'), 'Note A\n');
   fs.writeFileSync(path.join(vaultDir, 'b.md'), 'Note B\n');
@@ -105,6 +107,7 @@ describe('VaultNotesHost (ROADMAP 5.1)', () => {
     const harness = new IpcHarness();
     const host = new VaultNotesHost({
       configFile,
+      pinnedNotesConfigFile,
       showOpenDialog: vi.fn().mockResolvedValue({ canceled: false, filePaths: [vaultDir] }),
     });
     const broadcast = vi.fn();
@@ -164,7 +167,46 @@ Synthesize test overview.
     expect(graphRes.graph?.totalNotes).toBeGreaterThan(0);
     expect(graphRes.graph?.nodes['Cindy/Memory/Synthesis.md']).toBeDefined();
 
-    expect(assertTrusted).toHaveBeenCalledTimes(6);
+    // Quick capture
+    const captureRes = (await harness.invoke(MAKER_INVOKE.VAULT_QUICK_CAPTURE, {
+      content: 'Quick note content',
+      title: 'Captured Item',
+      tags: ['quick', 'ipc'],
+    })) as { ok: boolean; relPath?: string };
+    expect(captureRes.ok).toBe(true);
+    expect(captureRes.relPath).toBe('Inbox.md');
+    expect(fs.readFileSync(path.join(vaultDir, 'Inbox.md'), 'utf8')).toContain('Quick note content');
+
+    // Pinning via IPC
+    const pinRes = (await harness.invoke(MAKER_INVOKE.VAULT_PIN_NOTE, {
+      sessionId: 'sess-1',
+      notePath: 'a.md',
+    })) as { ok: boolean; pinnedNotes: string[] };
+    expect(pinRes.ok).toBe(true);
+    expect(pinRes.pinnedNotes).toEqual(['a.md']);
+    expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.VAULT_PINNED_CHANGED, {
+      sessionId: 'sess-1',
+      pinnedNotes: ['a.md'],
+    });
+
+    // Get pinned notes
+    const pinned = await harness.invoke(MAKER_INVOKE.VAULT_GET_PINNED_NOTES, 'sess-1');
+    expect(pinned).toEqual(['a.md']);
+
+    // Preamble formatting on host
+    const preamble = host.getPinnedNotesPreamble('sess-1');
+    expect(preamble).toContain('[Pinned Vault Note: a.md]');
+    expect(preamble).toContain('Note A');
+
+    // Unpin via IPC
+    const unpinRes = (await harness.invoke(MAKER_INVOKE.VAULT_UNPIN_NOTE, {
+      sessionId: 'sess-1',
+      notePath: 'a.md',
+    })) as { ok: boolean; pinnedNotes: string[] };
+    expect(unpinRes.ok).toBe(true);
+    expect(unpinRes.pinnedNotes).toEqual([]);
+
+    expect(assertTrusted).toHaveBeenCalledTimes(10);
   });
 });
 
