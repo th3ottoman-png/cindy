@@ -44,6 +44,11 @@ import { usePendingAlertAttention } from '@/hooks/usePendingAlertAttention';
 import { FeatureSidebarSlotProvider } from '@/features/feature-context';
 import { useAppShortcut } from '@/hooks/useAppShortcut';
 import { QuickSwitcherDialog } from '@/components/quick-switcher';
+import { CapabilitiesDialog } from '@/components/capabilities/CapabilitiesDialog';
+import {
+  setCapabilitiesHubOpen,
+  useCapabilitiesHubOpen,
+} from '@/components/capabilities/capabilitiesHubStore';
 import { isAppInteractionLocked } from '@/lib/appInteractionLock';
 import { useCloseShortcutShellOwner } from '@/hooks/useCloseWindowShortcut';
 import {
@@ -369,6 +374,7 @@ export function MainLayout() {
     deviceLinkDeviceId?: string | null;
   }>({ workdir: '', remoteHostId: null, deviceLinkDeviceId: undefined });
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+  const capabilitiesHubOpen = useCapabilitiesHubOpen();
   const rightSidebarWorkdirInfoRef = useRef(rightSidebarWorkdirInfo);
   rightSidebarWorkdirInfoRef.current = rightSidebarWorkdirInfo;
   const rightSidebarSubagentsAvailableRef = useRef(rightSidebarSubagentsAvailable);
@@ -1982,6 +1988,11 @@ export function MainLayout() {
         onOpenChange={setQuickSwitcherOpen}
         activeSessionId={rightSidebarSessionId}
         navigate={navigate}
+      />
+      {/* ROADMAP 8.1: one sidebar row opens the unified capability list. */}
+      <CapabilitiesDialog
+        open={capabilitiesHubOpen}
+        onOpenChange={setCapabilitiesHubOpen}
       />
     </FeatureSidebarSlotProvider>
   );

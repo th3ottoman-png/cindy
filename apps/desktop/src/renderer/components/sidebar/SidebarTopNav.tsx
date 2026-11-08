@@ -26,6 +26,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Boxes,
   CirclePlus,
   Ellipsis,
   SlidersHorizontal,
@@ -50,6 +51,10 @@ import { GhostMainViewNavEntry, MAIN_VIEW_ICONS } from './GhostMainViewNavEntrie
 import { makeGenericNewMakerRouteState } from '@/features/cc-agent/lib/genericNewMakerRouteState';
 import { NEW_MAKER_DRAFT_KEY } from '@/features/cc-agent/newMakerDraftKeys';
 import { discardDraft } from '@/lib/composerDraftStore';
+import {
+  openCapabilitiesHub,
+  useCapabilitiesHubOpen,
+} from '@/components/capabilities/capabilitiesHubStore';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -430,6 +435,7 @@ export function SidebarTopNav({
   const [customizing, setCustomizing] = useState(false);
   const [showHiddenSearch, setShowHiddenSearch] = useState(false);
   const [searchOpenSignal, setSearchOpenSignal] = useState(0);
+  const capabilitiesOpen = useCapabilitiesHubOpen();
   const actions = useSidebarNavigationActions(() => {
     setShowHiddenSearch(true);
     setSearchOpenSignal((signal) => signal + 1);
@@ -612,6 +618,29 @@ export function SidebarTopNav({
             className="shrink-0 text-[var(--sidebar-nav-text)]"
           />
           <span className="leading-none">{t('ccAgent.layout.new')}</span>
+        </button>
+      )}
+      {/* ROADMAP 8.1: always-on hub entry. Deliberately outside the Customize
+          preference list so one row cannot be hidden by stale saved prefs. */}
+      {showPinned && (
+        <button
+          type="button"
+          onClick={openCapabilitiesHub}
+          className={cn(ROW_CLASS, capabilitiesOpen && ROW_ACTIVE_CLASS)}
+          aria-label="Capabilities"
+          aria-current={capabilitiesOpen ? 'page' : undefined}
+        >
+          <Boxes
+            size={15}
+            strokeWidth={1.8}
+            className={cn(
+              'shrink-0',
+              capabilitiesOpen
+                ? 'text-sidebar-item-active-foreground'
+                : 'text-[var(--sidebar-nav-text)]',
+            )}
+          />
+          <span className="leading-none">Capabilities</span>
         </button>
       )}
       {showScrollable &&
