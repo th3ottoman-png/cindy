@@ -39,8 +39,8 @@ This is not a product. There is no marketing surface, no onboarding funnel, no o
 | Hermes home | **`~/.hermes-cindy`** — isolated. **`~/.hermes` is off-limits, always.** |
 | Hermes launcher | `~/.local/bin/hermes-cindy` (pins `HERMES_HOME`) |
 | Hermes daemon state | `~/.hermes-cindy/hermes-mgr/sessions.json` |
-| Harness user files | `~/.cindy-harness/{providers.yaml, routing.yaml, experts/, plugins/, plugins.json, vault.json, chat-autosave.json, expert-sessions.json}` |
-| Notes vault | `/Users/turko/Bishi-memory` (from `vault.json`). Chat auto-save (5.5, **on**) writes `Cindy/Chats/<date>-<slug>-<8-char id>.md`, one file per conversation, rewritten after each turn |
+| Harness user files | `~/.cindy-harness/{providers.yaml, routing.yaml, experts/, plugins/, plugins.json, vault.json, chat-autosave.json, chat-summary.json, expert-sessions.json}` |
+| Notes vault | `/Users/turko/Bishi-memory` (from `vault.json`). Chat auto-save (5.5, **on**) writes `Cindy/Chats/<date>-<slug>-<8-char id>.md`; Auto-summary (5.6) writes `Cindy/Memory/<date>-<slug>-<8-char id>-summary.md` on idle or close |
 | Vendored agent binaries | `tools/` — untracked, required at runtime, **keep** |
 | CDP debugging | dev app binds `127.0.0.1:9222` (fixed; `XDT_CDP_PORT` overrides, dev-only — `docs/dev-rules/desktop-development.md`) |
 

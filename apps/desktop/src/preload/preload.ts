@@ -804,6 +804,8 @@ const fanOutMakerMcpCatalogChanged = createIpcFanOut('maker:mcp-catalog:changed'
 const fanOutMakerSkillsChanged = createIpcFanOut('maker:skills:changed');
 const fanOutMakerVaultChanged = createIpcFanOut('maker:vault:changed');
 const fanOutMakerChatAutosaveFailed = createIpcFanOut('maker:chat-autosave:failed');
+const fanOutMakerChatSummaryWritten = createIpcFanOut('maker:chat-summary:written');
+const fanOutMakerChatSummaryFailed = createIpcFanOut('maker:chat-summary:failed');
 const fanOutMakerScheduledSessionsChanged = createIpcFanOut('maker:scheduled-sessions:changed');
 const fanOutMakerTurnChangeSetUpdated = createIpcFanOut('maker:turn-change-set:updated');
 const fanOutMakerStatusChanged = createIpcFanOut('maker:status-changed');
@@ -6390,6 +6392,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }): Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView> =>
         ipcRenderer.invoke('maker:chat-autosave:set-config', patch),
       onFailed: fanOutMakerChatAutosaveFailed,
+    },
+    chatSummary: {
+      getConfig: (): Promise<import('../main/maker-ipc/chatSummary').ChatSummaryView> =>
+        ipcRenderer.invoke('maker:chat-summary:get-config'),
+      setConfig: (patch: {
+        enabled?: boolean;
+        folder?: string;
+        idleMinutes?: number;
+      }): Promise<import('../main/maker-ipc/chatSummary').ChatSummaryView> =>
+        ipcRenderer.invoke('maker:chat-summary:set-config', patch),
+      triggerNow: (sessionId: string): Promise<void> =>
+        ipcRenderer.invoke('maker:chat-summary:trigger-now', sessionId),
+      onWritten: fanOutMakerChatSummaryWritten,
+      onFailed: fanOutMakerChatSummaryFailed,
     },
     scheduledSessions: {
       getConfig: (): Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView> =>

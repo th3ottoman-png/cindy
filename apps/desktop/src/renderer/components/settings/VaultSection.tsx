@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import type { ChatAutosaveView } from '../../../main/maker-ipc/chatAutosave';
+import type { ChatSummaryView } from '../../../main/maker-ipc/chatSummary';
 import type { VaultConfigView } from '../../../main/maker-ipc/vaultNotes';
 
 import {
@@ -311,6 +312,173 @@ export function VaultSection() {
         onPickFolder={handlePickFolder}
       />
       <ChatAutosaveSettings />
+      <ChatSummarySettings />
     </div>
+  );
+}
+
+export function ChatSummaryCard({
+  view,
+  saving,
+  onToggle,
+  onSaveConfig,
+}: {
+  view: ChatSummaryView;
+  saving: boolean;
+  onToggle: (enabled: boolean) => void;
+  onSaveConfig: (patch: { folder?: string; idleMinutes?: number }) => void;
+}) {
+  const [draftFolder, setDraftFolder] = useState(view.folder);
+  const [draftIdle, setDraftIdle] = useState(String(view.idleMinutes ?? 10));
+
+  useEffect(() => {
+    setDraftFolder(view.folder);
+    setDraftIdle(String(view.idleMinutes ?? 10));
+  }, [view.folder, view.idleMinutes]);
+
+  const changed =
+    draftFolder.trim() !== view.folder.trim() ||
+    parseInt(draftIdle, 10) !== view.idleMinutes;
+  const noVault = !view.vaultDir;
+
+  const handleSave = () => {
+    const idleNum = parseInt(draftIdle, 10);
+    onSaveConfig({
+      folder: draftFolder,
+      idleMinutes: Number.isInteger(idleNum) ? idleNum : view.idleMinutes,
+    });
+  };
+
+  return (
+    <div className={SETTINGS_CARD_CLASS} data-testid="settings-chat-summary">
+      <div className={SETTINGS_ROW_CLASS}>
+        <div className="flex flex-col gap-1 flex-1 min-w-0 pr-4">
+          <span className={SETTINGS_ROW_LABEL_CLASS}>Auto-summary</span>
+          <span className={SETTINGS_ROW_HINT_CLASS}>
+            After a conversation is idle or closed, the routed summary model writes a short Markdown note
+            of decisions, facts learned, open questions, and next steps to this folder in the vault.
+          </span>
+        </div>
+        <Switch
+          checked={view.enabled}
+          disabled={saving}
+          onCheckedChange={(v) => onToggle(v)}
+          aria-label={view.enabled ? 'Turn auto-summary off' : 'Turn auto-summary on'}
+        />
+      </div>
+      <div className={SETTINGS_ROW_CLASS}>
+        <div className="flex flex-col gap-2 flex-1 min-w-0 pr-4">
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <span className={SETTINGS_ROW_LABEL_CLASS}>Folder in the vault</span>
+              <input
+                type="text"
+                value={draftFolder}
+                onChange={(e) => setDraftFolder(e.target.value)}
+                placeholder="Cindy/Memory"
+                className={cn(
+                  'w-full rounded-md border px-3 py-1.5 text-12 mt-1',
+                  'bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-primary)]',
+                  'focus:outline-none focus:ring-1 focus:ring-[var(--focus-ring)]',
+                )}
+                data-testid="chat-summary-folder-input"
+              />
+            </div>
+            <div className="w-28">
+              <span className={SETTINGS_ROW_LABEL_CLASS}>Idle (minutes)</span>
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                value={draftIdle}
+                onChange={(e) => setDraftIdle(e.target.value)}
+                className={cn(
+                  'w-full rounded-md border px-3 py-1.5 text-12 mt-1',
+                  'bg-[var(--input-bg)] border-[var(--input-border)] text-[var(--text-primary)]',
+                  'focus:outline-none focus:ring-1 focus:ring-[var(--focus-ring)]',
+                )}
+                data-testid="chat-summary-idle-input"
+              />
+            </div>
+          </div>
+          {view.issue && <span className="text-11 text-amber-400">{view.issue}</span>}
+          {view.enabled && noVault && (
+            <span className="text-11 text-amber-400">
+              No vault folder is set above, so nothing is saved yet.
+            </span>
+          )}
+          {view.lastError && (
+            <span className="text-11 text-red-400">Last summary failed: {view.lastError}</span>
+          )}
+          {view.lastSummaryPath && !view.lastError && (
+            <span className="text-11 text-emerald-400 flex items-center gap-1">
+              <Check size={12} aria-hidden="true" />
+              <span>
+                Last summary: {view.lastSummaryPath}
+                {view.lastSummaryModel ? ` (${view.lastSummaryModel})` : ''}
+              </span>
+            </span>
+          )}
+        </div>
+        <div className="shrink-0 flex items-center">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={!changed || saving}
+            data-testid="chat-summary-save"
+          >
+            Save
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChatSummarySettings() {
+  const [view, setView] = useState<ChatSummaryView | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!window.electronAPI?.maker?.chatSummary?.getConfig) return;
+    try {
+      setView(await window.electronAPI.maker.chatSummary.getConfig());
+    } catch {
+      // Ignore read failure; the card stays hidden.
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const offVault = window.electronAPI?.maker?.vault?.onChanged?.(() => void refresh());
+    const offWritten = window.electronAPI?.maker?.chatSummary?.onWritten?.(() => void refresh());
+    const offFailed = window.electronAPI?.maker?.chatSummary?.onFailed?.(() => void refresh());
+    return () => {
+      offVault?.();
+      offWritten?.();
+      offFailed?.();
+    };
+  }, [refresh]);
+
+  const save = useCallback(async (patch: { enabled?: boolean; folder?: string; idleMinutes?: number }) => {
+    if (!window.electronAPI?.maker?.chatSummary?.setConfig) return;
+    setSaving(true);
+    try {
+      setView(await window.electronAPI.maker.chatSummary.setConfig(patch));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save auto-summary settings');
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
+  if (!view) return null;
+  return (
+    <ChatSummaryCard
+      view={view}
+      saving={saving}
+      onToggle={(enabled) => void save({ enabled })}
+      onSaveConfig={(patch) => void save(patch)}
+    />
   );
 }

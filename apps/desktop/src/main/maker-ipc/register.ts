@@ -924,6 +924,7 @@ import { registerProvidersHandlers } from './providersHandlers.js';
 import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNotes.js';
 import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
+import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
 import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
 import {
   getDesktopScheduledSessionsHost,
@@ -2531,16 +2532,21 @@ export function broadcastSessionCreated(sessionId: string): void {
 function markTurnEndedAfterPersistDrain(sessionId: string): void {
   const drained = drainPersistQueue();
   markSessionTurnEndedAfterBarrier(sessionId, drained);
-  // ROADMAP 5.5: auto-save the conversation to the vault once this turn's rows are durable.
-  // Never awaited and never throws into the turn; the host is a no-op when the feature is off.
+  // ROADMAP 5.5 / 5.6: auto-save and auto-summary once this turn's rows are durable.
+  // Never awaited and never throws into the turn; the hosts are no-ops when the features are off.
   void drained.then(
-    () => chatAutosaveHolder?.onTurnEnded(sessionId),
+    () => {
+      chatAutosaveHolder?.onTurnEnded(sessionId);
+      chatSummaryHolder?.onTurnEnded(sessionId);
+    },
     () => undefined,
   );
 }
 
 // ROADMAP 5.5: set in registerMakerIpc; read at every turn end.
 let chatAutosaveHolder: ChatAutosaveHost | null = null;
+// ROADMAP 5.6: set in registerMakerIpc; read at every turn end and on session close.
+let chatSummaryHolder: ChatSummaryHost | null = null;
 
 // ─── Orca collab service holder ───────────────────────────────────────────
 // 让其它 main 模块(典型: mcp-integrations/mcp-providers 的 cindy_helper
@@ -22334,8 +22340,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     // 同时覆盖"主动 closeSession"和"内部异常关闭"两条路径。
     // opts.preserveWorkspace=true(/clear、鉴权重连等软重启)时抑制这些重副作用,
     // 业务体与选项解析见 closeSessionRequest.ts。
-    await withSendToSessionLock(sessionId, () =>
-      handleCloseSessionRequest(
+    await withSendToSessionLock(sessionId, async () => {
+      await handleCloseSessionRequest(
         {
           closeSession: (sid) => maker.closeSession(sid),
           withRehydrateCloseSuppressed,
@@ -22344,8 +22350,10 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         },
         sessionId,
         opts,
-      ),
-    );
+      );
+      // ROADMAP 5.6: auto-summary note when conversation is closed.
+      chatSummaryHolder?.onSessionClosed(sessionId);
+    });
   });
 
   ipcMain.handle(MAKER_INVOKE.LIST_ACTIVE, (_event, options?: unknown) => {
@@ -25679,6 +25687,28 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   });
   registerChatAutosaveHandlers(createElectronIpcHandlerRegistry(), {
     host: chatAutosaveHolder,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+
+  // ── Auto-summary note per conversation (ROADMAP 5.6) ───────────────────
+  chatSummaryHolder?.dispose();
+  chatSummaryHolder = new ChatSummaryHost({
+    getVaultDir: () => {
+      const view = vaultNotesHost.getConfig();
+      return view.issue ? '' : view.vaultDir;
+    },
+    getAutosaveFolder: () => {
+      const view = chatAutosaveHolder?.getConfig();
+      return view?.folder || 'Cindy/Chats';
+    },
+    getSessionRow: (sessionId) => getSessionRowSnapshot(sessionId),
+    listMessages: (sessionId) => listMessagesForAgentHandoff(sessionId, null),
+    onWritten: (info) => broadcastToAllWindows(MAKER_PUSH.CHAT_SUMMARY_WRITTEN, info),
+    onFailure: ({ message }) => broadcastToAllWindows(MAKER_PUSH.CHAT_SUMMARY_FAILED, { message }),
+    log,
+  });
+  registerChatSummaryHandlers(createElectronIpcHandlerRegistry(), {
+    host: chatSummaryHolder,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
 

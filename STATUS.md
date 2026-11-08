@@ -10,6 +10,13 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-08 — 5.6a: Auto-summary note per conversation (`unit-tested`)
+
+- **Changed:** new `packages/maker-core/src/summary/conversation-summary.ts` (+ subpath `./conversation-summary` in `packages/maker-core/package.json`) and tests; new `apps/desktop/src/main/maker-ipc/chatSummary.ts` (host + IPC) and tests; `register.ts` (`markTurnEndedAfterPersistDrain` resets idle timer on turn end, `CLOSE_SESSION` triggers immediate summary on close); `channels.ts` (`CHAT_SUMMARY_GET_CONFIG`, `_SET_CONFIG`, `_TRIGGER_NOW`, push `CHAT_SUMMARY_WRITTEN`, `_FAILED`); `preload.ts` + `vite-env.d.ts` (`maker.chatSummary`); `VaultSection.tsx` (`ChatSummaryCard`) + tests; `App.tsx` (toasts on written and failed); `docs/design-rules/design-inventory.md` regenerated.
+- **Design:** settings in `~/.cindy-harness/chat-summary.json` (`{ "enabled": false, "folder": "Cindy/Memory", "idleMinutes": 10 }`), separate from `vault.json`. One file per conversation (`YYYY-MM-DD-<slug>-<8-char id>-summary.md`), found by short id plus `session_id` frontmatter (survives title renames). Atomic temp + rename write within vault bounds. Links to the 5.5 chat note (`Cindy/Chats/...`). Dirty-check via frontmatter `turns_summarized`: skips generation if turns count hasn't increased since last summary. Fails closed when unrouted (no silent fallback).
+- **Verified:** `unit-tested` — 18 core + 9 desktop host + 10 UI render tests (37 tests total); all passing. `test:runner` (607 pass, 0 fail), `check:test-hygiene` (PASS, 361 files within baseline), typecheck for touched files and suites clean under Node 22.23.4.
+- **Open for 5.6b:** Live proof in the running app against the owner's real vault (`/Users/turko/Bishi-memory`), with idle timer firing, summary note written to `<vault>/Cindy/Memory/`, and verified discoverable via `search_notes`.
+
 ## 2026-11-07 (late night, 5) — Handover to a new agent (docs only)
 
 - **Changed:** new `docs/handoff/2026-11-07-eod-handover.md` + `docs/handoff/2026-11-07-eod-next-agent-prompt.md` (supersede the 2026-11-06 pair); `ROADMAP.md` header points at them and names 5.6 as next; ROADMAP 1.13 parent row flipped to ✅ `live-proven` (owner closed it; Deny after a hold stays `unit-tested` by choice); 3.7's stale "Hermes as a worker" note struck (3.9a did it); `HANDOVER.md` §2 (current handover, harness files incl. `chat-autosave.json`, notes vault + auto-save), §8 (four new traps: surface-hash ledger, formatter hook, dev launcher env, BSD `env -i`), §9 pointer (was still 2026-11-04).

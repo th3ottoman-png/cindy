@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { ChatAutosaveCard, VaultView } from '../VaultSection';
+import { ChatAutosaveCard, ChatSummaryCard, VaultView } from '../VaultSection';
 
 describe('Settings VaultSection (ROADMAP 5.1)', () => {
   it('renders configured vault directory with note count badge', () => {
@@ -127,5 +127,74 @@ describe('Settings ChatAutosaveCard (ROADMAP 5.5)', () => {
     );
     expect(html).toContain('aria-label="Turn chat auto-save on"');
     expect(html).not.toContain('No vault folder is set above');
+  });
+});
+
+describe('ChatSummaryCard (ROADMAP 5.6)', () => {
+  const noop = () => undefined;
+
+  it('renders switch, folder input, idle duration input, and last summary line', () => {
+    const html = renderToStaticMarkup(
+      <ChatSummaryCard
+        view={{
+          enabled: true,
+          folder: 'Cindy/Memory',
+          idleMinutes: 10,
+          vaultDir: '/v',
+          lastSummaryPath: '/v/Cindy/Memory/s.md',
+          lastSummaryModel: 'summary-route',
+        }}
+        saving={false}
+        onToggle={noop}
+        onSaveConfig={noop}
+      />,
+    );
+    expect(html).toContain('Auto-summary');
+    expect(html).toContain('value="Cindy/Memory"');
+    expect(html).toContain('value="10"');
+    expect(html).toContain('aria-label="Turn auto-summary off"');
+    expect(html).toContain('Last summary: /v/Cindy/Memory/s.md (summary-route)');
+  });
+
+  it('warns when on with no vault, and shows the last error instead of last summary path', () => {
+    const noVault = renderToStaticMarkup(
+      <ChatSummaryCard
+        view={{ enabled: true, folder: 'M', idleMinutes: 5, vaultDir: '' }}
+        saving={false}
+        onToggle={noop}
+        onSaveConfig={noop}
+      />,
+    );
+    expect(noVault).toContain('No vault folder is set above');
+
+    const failed = renderToStaticMarkup(
+      <ChatSummaryCard
+        view={{
+          enabled: true,
+          folder: 'M',
+          idleMinutes: 5,
+          vaultDir: '/v',
+          lastSummaryPath: '/v/M/s.md',
+          lastError: 'HTTP 500',
+        }}
+        saving={false}
+        onToggle={noop}
+        onSaveConfig={noop}
+      />,
+    );
+    expect(failed).toContain('Last summary failed: HTTP 500');
+    expect(failed).not.toContain('Last summary:');
+  });
+
+  it('is labelled to turn on when off', () => {
+    const html = renderToStaticMarkup(
+      <ChatSummaryCard
+        view={{ enabled: false, folder: 'M', idleMinutes: 10, vaultDir: '' }}
+        saving={false}
+        onToggle={noop}
+        onSaveConfig={noop}
+      />,
+    );
+    expect(html).toContain('aria-label="Turn auto-summary on"');
   });
 });

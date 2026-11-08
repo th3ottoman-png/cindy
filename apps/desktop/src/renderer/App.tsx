@@ -438,6 +438,20 @@ export function App() {
     });
   }, []);
 
+  // ROADMAP 5.6: main pushes when a summary note is written (no hidden state) or fails.
+  useEffect(() => {
+    const offWritten = window.electronAPI?.maker?.chatSummary?.onWritten?.(({ model, routeName }) => {
+      toast.success(`Summary note saved (${routeName || model})`);
+    });
+    const offFailed = window.electronAPI?.maker?.chatSummary?.onFailed?.(({ message }) => {
+      toast.error(`Summary failed: ${message}`);
+    });
+    return () => {
+      offWritten?.();
+      offFailed?.();
+    };
+  }, []);
+
   return (
     <ThemeProvider>
       <FontSettingsProvider>

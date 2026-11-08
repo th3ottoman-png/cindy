@@ -61,6 +61,12 @@ export const MAKER_INVOKE = {
   CHAT_AUTOSAVE_GET_CONFIG: 'maker:chat-autosave:get-config',
   /** ROADMAP 5.5: set chat auto-save `{ enabled?, folder? }`. */
   CHAT_AUTOSAVE_SET_CONFIG: 'maker:chat-autosave:set-config',
+  /** ROADMAP 5.6: get auto-summary settings (~/.cindy-harness/chat-summary.json) and last result. */
+  CHAT_SUMMARY_GET_CONFIG: 'maker:chat-summary:get-config',
+  /** ROADMAP 5.6: set auto-summary `{ enabled?, folder?, idleMinutes? }`. */
+  CHAT_SUMMARY_SET_CONFIG: 'maker:chat-summary:set-config',
+  /** ROADMAP 5.6: trigger immediate auto-summary for a session. */
+  CHAT_SUMMARY_TRIGGER_NOW: 'maker:chat-summary:trigger-now',
   /** ROADMAP 5.4b: get local scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
   SCHEDULED_SESSIONS_GET_CONFIG: 'maker:scheduled-sessions:get-config',
   /** ROADMAP 5.4b: set local scheduled sessions directory path. */
@@ -1034,6 +1040,10 @@ export const MAKER_PUSH = {
   VAULT_CHANGED: 'maker:vault:changed',
   /** ROADMAP 5.5: a chat auto-save failed; sent once per failure streak; payload `{ message }`. */
   CHAT_AUTOSAVE_FAILED: 'maker:chat-autosave:failed',
+  /** ROADMAP 5.6: a chat auto-summary was written; payload `{ sessionId, path, model, routeName }`. */
+  CHAT_SUMMARY_WRITTEN: 'maker:chat-summary:written',
+  /** ROADMAP 5.6: a chat auto-summary failed; sent once per failure streak; payload `{ sessionId, message }`. */
+  CHAT_SUMMARY_FAILED: 'maker:chat-summary:failed',
   /** ROADMAP 5.4b: scheduled sessions configuration or state changed; no payload — renderer refetches. */
   SCHEDULED_SESSIONS_CHANGED: 'maker:scheduled-sessions:changed',
   TURN_CHANGE_SET_UPDATED: 'maker:turn-change-set:updated',

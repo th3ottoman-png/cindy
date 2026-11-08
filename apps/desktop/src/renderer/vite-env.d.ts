@@ -5638,6 +5638,18 @@ interface ElectronAPI {
       /** Fires once per failure streak when a save fails. */
       onFailed: (cb: (payload: { message: string }) => void) => () => void;
     };
+    chatSummary: {
+      /** ROADMAP 5.6: auto-summary settings (~/.cindy-harness/chat-summary.json) + last result. */
+      getConfig: () => Promise<import('../main/maker-ipc/chatSummary').ChatSummaryView>;
+      /** Turn auto-summary on/off, change folder, or change idle duration. */
+      setConfig: (patch: { enabled?: boolean; folder?: string; idleMinutes?: number }) => Promise<import('../main/maker-ipc/chatSummary').ChatSummaryView>;
+      /** Manually trigger auto-summary for a conversation. */
+      triggerNow: (sessionId: string) => Promise<void>;
+      /** Fires when a conversation summary note is successfully written. */
+      onWritten: (cb: (payload: { sessionId: string; path: string; model: string; routeName: string }) => void) => () => void;
+      /** Fires once per failure streak when a summary fails. */
+      onFailed: (cb: (payload: { sessionId: string; message: string }) => void) => () => void;
+    };
     scheduledSessions: {
       /** ROADMAP 5.4b: get scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
       getConfig: () => Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView>;
