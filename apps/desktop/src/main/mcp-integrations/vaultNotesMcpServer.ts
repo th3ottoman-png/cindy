@@ -20,6 +20,7 @@ import {
   searchNotes,
 } from '@cindy/maker-core/vault-notes';
 import { runVaultSynthesis } from '@cindy/maker-core/vault-synthesis';
+import { scanVaultGraph } from '@cindy/maker-core/vault-graph';
 import { resolveLiziMcpSessionContext, type LiziMcpSessionContext } from '@cindy/mcps';
 
 export const CINDY_VAULT_NOTES_MCP_SERVER_NAME = 'cindy_vault_notes';
@@ -28,6 +29,7 @@ export const SEARCH_NOTES_TOOL = 'search_notes';
 export const APPEND_NOTE_TOOL = 'append_note';
 export const LIST_NOTES_TOOL = 'list_notes';
 export const SYNTHESIZE_VAULT_MEMORY_TOOL = 'synthesize_vault_memory';
+export const EXPLORE_VAULT_GRAPH_TOOL = 'explore_vault_graph';
 
 export const VAULT_NOTES_TOOLS = [
   READ_NOTE_TOOL,
@@ -35,6 +37,7 @@ export const VAULT_NOTES_TOOLS = [
   APPEND_NOTE_TOOL,
   LIST_NOTES_TOOL,
   SYNTHESIZE_VAULT_MEMORY_TOOL,
+  EXPLORE_VAULT_GRAPH_TOOL,
 ] as const;
 
 export interface VaultNotesMcpDeps {
@@ -192,6 +195,72 @@ export function createVaultNotesMcpServer(deps: VaultNotesMcpDeps): McpServer {
         return refused({ code: res.reason.toUpperCase(), message: res.message });
       }
       return reply({ ...res });
+    },
+  );
+
+  server.tool(
+    EXPLORE_VAULT_GRAPH_TOOL,
+    'Explores vault tags, note connections, and backlinks across notes in the vault.',
+    {
+      tag: z.string().optional().describe('Filter notes by tag (e.g. "summary", "orca", "cindy")'),
+      notePath: z.string().optional().describe('Inspect connections and backlinks for a specific relative note path (e.g. "Cindy/Memory/Synthesis.md")'),
+    },
+    async ({ tag, notePath }) => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, EXPLORE_VAULT_GRAPH_TOOL)) {
+        return refused({ code: 'FORBIDDEN', message: `expert does not permit tool "${EXPLORE_VAULT_GRAPH_TOOL}"` });
+      }
+      const vaultDir = deps.getVaultDir()?.trim();
+      if (!vaultDir) {
+        return refused({ code: 'NO_VAULT', message: 'no notes vault configured; configure a vault folder in Settings -> Notes Vault' });
+      }
+
+      const graph = scanVaultGraph(vaultDir);
+
+      if (notePath) {
+        const cleanPath = notePath.trim().replace(/^\/+/, '');
+        const node = graph.nodes[cleanPath];
+        if (!node) {
+          return reply({
+            found: false,
+            message: `Note not found in graph: ${cleanPath}`,
+            totalNotes: graph.totalNotes,
+          });
+        }
+        return reply({
+          found: true,
+          node,
+          backlinks: graph.backlinks[cleanPath] ?? [],
+        });
+      }
+
+      if (tag) {
+        const cleanTag = tag.trim().replace(/^#+/, '').toLowerCase();
+        const matchingNotes = graph.tags[cleanTag] ?? [];
+        return reply({
+          tag: cleanTag,
+          count: matchingNotes.length,
+          notes: matchingNotes.map((p) => ({
+            path: p,
+            title: graph.nodes[p]?.title ?? p,
+          })),
+        });
+      }
+
+      // Neither specified: return high-level tag summary
+      const topTags = Object.entries(graph.tags)
+        .map(([t, arr]) => ({ tag: t, count: arr.length }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 30);
+
+      return reply({
+        totalNotes: graph.totalNotes,
+        totalTags: Object.keys(graph.tags).length,
+        topTags,
+      });
     },
   );
 

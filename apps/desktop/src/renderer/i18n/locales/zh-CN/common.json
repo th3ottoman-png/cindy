@@ -8277,7 +8277,8 @@
         "browser": "在面板中浏览网页",
         "terminal": "运行命令，查看输出",
         "worktreeManager": "检查、切换与管理任务的工作区 Git Worktree",
-        "artifacts": "查看对话轮次中生成的产物与文件"
+        "artifacts": "查看对话轮次中生成的产物与文件",
+        "vaultGraph": "浏览笔记库标签、笔记关联与反向链接"
       },
       "kinds": {
         "fileBrowser": "文件浏览器",
@@ -8289,6 +8290,7 @@
         "resourceUsage": "资源监视器",
         "worktreeManager": "Worktrees",
         "artifacts": "Artifacts",
+        "vaultGraph": "笔记关系图",
         "collaboration": "协同",
         "unknown": "未知标签页",
         "ghostPanel": "插件面板",

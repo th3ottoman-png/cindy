@@ -8277,7 +8277,8 @@
         "browser": "在面板中瀏覽網頁",
         "terminal": "執行命令，查看輸出",
         "worktreeManager": "檢查、切換與管理任務的工作區 Git Worktree",
-        "artifacts": "檢視對話輪次中產出的成果與檔案"
+        "artifacts": "檢視對話輪次中產出的成果與檔案",
+        "vaultGraph": "瀏覽筆記庫標籤、筆記關聯與反向連結"
       },
       "kinds": {
         "fileBrowser": "檔案瀏覽器",
@@ -8289,6 +8290,7 @@
         "resourceUsage": "資源監視器",
         "worktreeManager": "Worktrees",
         "artifacts": "Artifacts",
+        "vaultGraph": "筆記關係圖",
         "collaboration": "協同",
         "unknown": "未知標籤頁",
         "ghostPanel": "插件面板",

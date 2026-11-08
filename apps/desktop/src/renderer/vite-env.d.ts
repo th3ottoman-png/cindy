@@ -5633,6 +5633,10 @@ interface ElectronAPI {
       synthesizeMemory: (
         opts?: { limit?: number; targetFile?: string },
       ) => Promise<import('@cindy/maker-core/vault-synthesis').VaultSynthesisResult>;
+      /** ROADMAP 6.4: get vault tag explorer index and backlink graph. */
+      getGraph: (
+        force?: boolean,
+      ) => Promise<{ ok: boolean; graph?: import('@cindy/maker-core/vault-graph').VaultGraph; error?: string }>;
       /** Fires when the vault configuration changes. */
       onChanged: (cb: (view: import('../main/maker-ipc/vaultNotes').VaultConfigView) => void) => () => void;
     };

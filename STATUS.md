@@ -10,6 +10,45 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-08 (part 9) — 6.4 Vault Tag Explorer & Backlink Graph Visualizer (`live-proven`)
+
+- **6.4 Vault Tag Explorer & Backlink Graph Visualizer:**
+  - Implemented pure graph indexing module in `packages/maker-core/src/notes/vault-graph.ts` (subpath `@cindy/maker-core/vault-graph`):
+    - `parseNoteLinksAndTags`: Parses YAML frontmatter tags/titles, extracts inline `#tag` tokens (ignoring code blocks, URLs, and numeric hashes), wikilinks `[[target]]` / `[[target|alias]]`, and markdown links `[text](target.md)`.
+    - `scanVaultGraph`: Scans all notes in the vault via `listNotes`, extracts tags and outgoing links, resolves targets to relative paths, and builds bidirectional incoming backlinks map.
+    - Exported subpath `./vault-graph` in `packages/maker-core/package.json`.
+  - Added agent MCP tool `explore_vault_graph` to `cindy_vault_notes` MCP server (`apps/desktop/src/main/mcp-integrations/vaultNotesMcpServer.ts`):
+    - Accepts `{ tag?: string, notePath?: string }`.
+    - Filters by tag, returns incoming backlinks and outgoing connections for a specific note, or summarizes overall tag distribution.
+    - Authorized for `vault-researcher` expert and general sessions when `allSessionsSearch` is enabled.
+  - Added desktop host caching & IPC method `VaultNotesHost.getGraph(forceRefresh?: boolean)` in `apps/desktop/src/main/maker-ipc/vaultNotes.ts` with automatic cache invalidation on vault watcher mutations. Added channel `MAKER_INVOKE.VAULT_GET_GRAPH` in `channels.ts`, exposed preload API `window.electronAPI.maker.vault.getGraph` in `preload.ts`, and added renderer types in `vite-env.d.ts`.
+  - Implemented Right Sidebar tab plugin `vault-graph`:
+    - Registered `'vault-graph'` in `BuiltinTabKindId` (`apps/desktop/src/renderer/features/right-sidebar/types.ts`) and mapped `Network` icon in `TabBar.tsx`.
+    - Created `VaultGraphTabBody.tsx` (`apps/desktop/src/renderer/features/right-sidebar/plugins/vault-graph/VaultGraphTabBody.tsx`) with search filter input, tag cloud pills with counts, note list with backlink count badges, and detail connections inspector displaying outgoing wikilinks and incoming backlinks.
+    - Created plugin registration in `index.tsx` and programmatic opener `openVaultGraphTab.ts`. Registered in `plugins/index.ts`.
+    - Added localization strings across all 5 supported locales (`en`, `ja`, `ko`, `zh-CN`, `zh-TW`).
+- **Verification:**
+  - Unit tests:
+    - `packages/maker-core/src/notes/__tests__/vault-graph.test.ts` (4 tests: link and tag parsing, wikilinks extraction, markdown link resolution, bidirectional backlinks indexing).
+    - `apps/desktop/src/main/mcp-integrations/__tests__/vaultNotesMcpServer.test.ts` (11 tests: `explore_vault_graph` tool invocation, tag filtering, note connection inspection, access control).
+    - `apps/desktop/src/main/maker-ipc/__tests__/vaultNotes.test.ts` (7 tests: host `getGraph` caching and watcher invalidation).
+    - `apps/desktop/src/renderer/features/right-sidebar/plugins/vault-graph/__tests__/vaultGraphPlugin.test.tsx` (4 tests: registry metadata, node rendering, tag cloud, backlink inspector, empty vault message, programmatic tab opening).
+    - Updated `docs/design-rules/design-inventory.md` via `scripts/design-inventory.mjs`.
+  - All four gates green under Node 22:
+    - `pnpm typecheck` PASS
+    - `pnpm test:runner` PASS (608 passed)
+    - `pnpm test:unit:related` PASS (related tests across apps and packages)
+    - `pnpm check:test-hygiene` PASS (361 files within baseline)
+  - **Live-proven in running dev app via CDP against real vault `/Users/turko/Bishi-memory`:**
+    - Connected to dev app main window via CDP (`ws://127.0.0.1:9222/...`).
+    - Evaluated `window.electronAPI.maker.vault.getGraph()`: returned `ok: true`, 273 notes, 95 tags (`#project` in 22 files, `#turkey` in 18, `#turkfin` in 16, `#legal` in 13, etc.), 140 backlinks.
+    - Dispatched click sequence on Right Sidebar "Add tab" button and clicked "Vault Graph" menuitem.
+    - Observed: `Vault Graph` tab pill rendered in Right Sidebar; `VaultGraphTabBody` rendered tag cloud pills with counts (e.g. `#project (22)`).
+    - Filtered notes by "Forecast ledger", clicked `Forecast ledger.md`, and inspected the detail pane: verified outgoing links (0) and 2 incoming backlinks (`← Bishi-memory — vault index` and `← Economic history — episode database`).
+- **Roadmap:** Row 6.4 closed as ✅ `live-proven`.
+
+---
+
 ## 2026-11-08 (part 8) — 6.3 Cross-Session Vault Memory Synthesis (`live-proven`)
 
 - **6.3 Cross-Session Vault Memory Synthesis:**

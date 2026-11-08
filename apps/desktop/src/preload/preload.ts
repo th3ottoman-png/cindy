@@ -6385,6 +6385,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
         opts?: { limit?: number; targetFile?: string },
       ): Promise<import('@cindy/maker-core/vault-synthesis').VaultSynthesisResult> =>
         ipcRenderer.invoke('maker:vault:synthesize-memory', opts),
+      getGraph: (
+        force?: boolean,
+      ): Promise<{ ok: boolean; graph?: import('@cindy/maker-core/vault-graph').VaultGraph; error?: string }> =>
+        ipcRenderer.invoke('maker:vault:get-graph', force),
       onChanged: fanOutMakerVaultChanged,
     },
     chatAutosave: {

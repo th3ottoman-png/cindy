@@ -8277,7 +8277,8 @@
         "browser": "패널에서 웹페이지 탐색",
         "terminal": "명령 실행 및 출력 확인",
         "worktreeManager": "작업의 Git Worktree 확인, 전환 및 관리",
-        "artifacts": "대화 중 생성된 산출물 및 파일 확인"
+        "artifacts": "대화 중 생성된 산출물 및 파일 확인",
+        "vaultGraph": "보관소 태그, 노트 연결 및 백링크 탐색"
       },
       "kinds": {
         "fileBrowser": "파일 브라우저",
@@ -8289,6 +8290,7 @@
         "resourceUsage": "활성 상태 보기",
         "worktreeManager": "Worktrees",
         "artifacts": "Artifacts",
+        "vaultGraph": "보관소 그래프",
         "collaboration": "협업",
         "unknown": "알 수 없는 탭",
         "ghostPanel": "플러그인 패널",

@@ -8277,7 +8277,8 @@
         "browser": "パネル内でウェブページを閲覧",
         "terminal": "コマンドを実行して出力を確認",
         "worktreeManager": "タスクの Git Worktree を確認・切り替え・管理",
-        "artifacts": "会話中に生成された成果物やファイルを確認"
+        "artifacts": "会話中に生成された成果物やファイルを確認",
+        "vaultGraph": "保管庫のタグ、ノートの接続、バックリンクを探索"
       },
       "kinds": {
         "fileBrowser": "ファイルブラウザ",
@@ -8289,6 +8290,7 @@
         "resourceUsage": "アクティビティモニタ",
         "worktreeManager": "Worktrees",
         "artifacts": "Artifacts",
+        "vaultGraph": "保管庫グラフ",
         "collaboration": "コラボ",
         "unknown": "不明なタブ",
         "ghostPanel": "プラグインパネル",

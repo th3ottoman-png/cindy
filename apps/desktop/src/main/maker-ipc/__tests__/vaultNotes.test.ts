@@ -155,7 +155,16 @@ Synthesize test overview.
     expect(synthRes.relPath).toBe('Cindy/Memory/Synthesis.md');
     expect(fs.existsSync(path.join(vaultDir, 'Cindy', 'Memory', 'Synthesis.md'))).toBe(true);
 
-    expect(assertTrusted).toHaveBeenCalledTimes(5);
+    // Get graph index
+    const graphRes = (await harness.invoke(MAKER_INVOKE.VAULT_GET_GRAPH)) as {
+      ok: boolean;
+      graph?: { totalNotes: number; nodes: Record<string, unknown> };
+    };
+    expect(graphRes.ok).toBe(true);
+    expect(graphRes.graph?.totalNotes).toBeGreaterThan(0);
+    expect(graphRes.graph?.nodes['Cindy/Memory/Synthesis.md']).toBeDefined();
+
+    expect(assertTrusted).toHaveBeenCalledTimes(6);
   });
 });
 

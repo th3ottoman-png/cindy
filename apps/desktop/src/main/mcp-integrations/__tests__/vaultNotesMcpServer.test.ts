@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   APPEND_NOTE_TOOL,
   createVaultNotesMcpServer,
+  EXPLORE_VAULT_GRAPH_TOOL,
   LIST_NOTES_TOOL,
   READ_NOTE_TOOL,
   SEARCH_NOTES_TOOL,
@@ -135,6 +136,33 @@ Tested MCP synthesis.
     const res = await call(deps(), READ_NOTE_TOOL, { path: '../outside.md' });
     expect(res.isError).toBe(true);
     expect(res.body.errorCode).toBe('OUTSIDE-VAULT');
+  });
+
+  it('explores vault graph with tags and backlinks', async () => {
+    fs.writeFileSync(
+      path.join(vault, 'note1.md'),
+      `---
+title: "First Note"
+tags: [alpha, docs]
+---
+# First Note
+Links to [[sub/note2]]
+`,
+    );
+
+    const summaryRes = await call(deps(), EXPLORE_VAULT_GRAPH_TOOL);
+    expect(summaryRes.isError).toBe(false);
+    expect(summaryRes.body.totalNotes).toBe(2);
+
+    const tagRes = await call(deps(), EXPLORE_VAULT_GRAPH_TOOL, { tag: 'alpha' });
+    expect(tagRes.isError).toBe(false);
+    expect(tagRes.body.tag).toBe('alpha');
+    expect(tagRes.body.count).toBe(1);
+
+    const noteRes = await call(deps(), EXPLORE_VAULT_GRAPH_TOOL, { notePath: 'sub/note2.md' });
+    expect(noteRes.isError).toBe(false);
+    expect(noteRes.body.found).toBe(true);
+    expect(noteRes.body.backlinks).toContain('note1.md');
   });
 
   it('live-exercises read, search, and append against real vault when present', async () => {

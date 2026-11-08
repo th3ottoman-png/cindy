@@ -8309,7 +8309,8 @@
         "browser": "Browse web pages in the panel",
         "terminal": "Run commands and view output",
         "worktreeManager": "Inspect, switch, and manage active Git worktrees across tasks",
-        "artifacts": "Inspect deliverables and files created during the conversation"
+        "artifacts": "Inspect deliverables and files created during the conversation",
+        "vaultGraph": "Explore vault tags, note connections, and backlinks"
       },
       "kinds": {
         "fileBrowser": "File browser",
@@ -8321,6 +8322,7 @@
         "resourceUsage": "Activity Monitor",
         "worktreeManager": "Worktrees",
         "artifacts": "Artifacts",
+        "vaultGraph": "Vault Graph",
         "collaboration": "Team",
         "unknown": "Unknown tab",
         "ghostPanel": "Plugin panel",

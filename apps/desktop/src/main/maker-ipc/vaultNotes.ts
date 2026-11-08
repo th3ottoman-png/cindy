@@ -16,6 +16,7 @@ import {
   type VaultWatcher,
 } from '@cindy/maker-core/vault-notes';
 import { runVaultSynthesis, type VaultSynthesisResult } from '@cindy/maker-core/vault-synthesis';
+import { scanVaultGraph, type VaultGraph } from '@cindy/maker-core/vault-graph';
 
 import { MAKER_INVOKE, MAKER_PUSH } from './channels.js';
 import type { IpcHandlerRegistry } from './ipcHandlerRegistry.js';
@@ -45,6 +46,7 @@ export class VaultNotesHost {
   private readonly watchDebounceMs: number;
   private watcher: VaultWatcher | null = null;
   private currentWatchedDir: string = '';
+  private cachedGraph: VaultGraph | null = null;
 
   constructor(deps: VaultNotesHostDeps = {}) {
     this.configFile = deps.configFile ?? defaultVaultConfigFile();
@@ -62,11 +64,13 @@ export class VaultNotesHost {
     }
     this.watcher?.close();
     this.watcher = null;
+    this.cachedGraph = null;
     this.currentWatchedDir = targetDir;
     if (targetDir) {
       this.watcher = watchVault(
         targetDir,
         () => {
+          this.cachedGraph = null;
           this.notifyChanged?.();
         },
         this.watchDebounceMs,
@@ -150,6 +154,17 @@ export class VaultNotesHost {
     }
     return runVaultSynthesis(cfg.vaultDir, opts);
   }
+
+  getGraph(forceRefresh?: boolean): { ok: boolean; graph?: VaultGraph; error?: string } {
+    const cfg = this.getConfig();
+    if (cfg.issue || !cfg.vaultDir) {
+      return { ok: false, error: 'no-vault' };
+    }
+    if (!this.cachedGraph || forceRefresh) {
+      this.cachedGraph = scanVaultGraph(cfg.vaultDir);
+    }
+    return { ok: true, graph: this.cachedGraph };
+  }
 }
 
 export interface VaultNotesHandlerDeps {
@@ -194,6 +209,10 @@ export function registerVaultNotesHandlers(
       deps.broadcast(MAKER_PUSH.VAULT_CHANGED, deps.host.getConfig());
     }
     return res;
+  });
+  registry.handle(MAKER_INVOKE.VAULT_GET_GRAPH, async (event: unknown, force?: unknown) => {
+    deps.assertTrusted(event);
+    return deps.host.getGraph(Boolean(force));
   });
 }
 

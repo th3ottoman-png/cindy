@@ -19,13 +19,13 @@ describe('docs/experts-examples', () => {
     }
   });
 
-  it('only the expert creator (draft_expert, 3.8), Options first (project reader, 3.10d), the orchestrator (list_experts, 3.9b), and vault researcher (search/read/list notes, 6.1, synthesis, 6.3) list tools', () => {
+  it('only the expert creator (draft_expert, 3.8), Options first (project reader, 3.10d), the orchestrator (list_experts, 3.9b), and vault researcher (search/read/list notes, 6.1, synthesis, 6.3, graph, 6.4) list tools', () => {
     const withTools = loadExperts(EXAMPLES).filter((e) => (e.expert?.tools.length ?? 0) > 0);
     expect(withTools.map((e) => [e.slug, e.expert!.tools])).toEqual([
       ['expert-creator', ['draft_expert']],
       ['options-first', ['read_project_file', 'search_project']],
       ['orchestrator', ['list_experts']],
-      ['vault-researcher', ['search_notes', 'read_note', 'list_notes', 'synthesize_vault_memory']],
+      ['vault-researcher', ['search_notes', 'read_note', 'list_notes', 'synthesize_vault_memory', 'explore_vault_graph']],
     ]);
   });
 

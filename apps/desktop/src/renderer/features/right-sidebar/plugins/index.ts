@@ -25,3 +25,4 @@ import './plugin-view';
 import './plugin-task';
 import './worktree-manager';
 import './artifacts';
+import './vault-graph';
