@@ -10,6 +10,17 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-08 (part 5) — Live-prove roadmap row 0.5: Atomic `sessions.json` (`live-proven`)
+
+- **0.5 Atomic `sessions.json` and crash recovery live-proven:**
+  - Backed up `~/.hermes-cindy/hermes-mgr/sessions.json` to `.bak-2026-11-08-05` (94 sessions).
+  - **Part 1 (Truncated file resilience):** Planted invalid/truncated JSON (`[{"sessionId": "truncated-test-id", "cwd": "/tmp"`) into real `sessions.json`. Started real Hermes manager daemon (`apps/desktop/resources/hermes-manager/hermes-mgr.mjs`). Observed stderr warning logged (`[hermes-mgr][warn] could not load session registry ...; starting empty`), completed `protocol/hello` handshake, and `session/list` RPC cleanly returned empty session array (`[]`) without crashing.
+  - **Part 2 (Crash recovery for stale running flag):** Planted session record with `running: true`. Started real Hermes manager daemon. Observed daemon automatically repaired `running` to `false` in memory and persisted repaired record to disk; verified `running: false` on disk.
+  - **Part 3 (Atomic temp+rename verification):** Verified persistence uses `.tmp` atomic rename and leaves no `.tmp` leaks on disk.
+  - **Cleanup:** Restored original `sessions.json` from `.bak-2026-11-08-05`; verified 94 sessions intact.
+- **Verification:** Exercised against real daemon bundle, real socket, and real `~/.hermes-cindy` directory.
+- **Roadmap:** Row 0.5 updated from `🧪 unit-tested` to `✅ live-proven`.
+
 ## 2026-11-08 (part 4) — Live-prove roadmap rows 3.2 and 3.7 (`live-proven`)
 
 - **3.2 Per-session skills linking live-proven:**
@@ -3363,6 +3374,6 @@ DeepSeek provider: text streaming, tool calls/results, token usage, clean closes
 | Issue | Owner task |
 |---|---|
 | Daemon does not warn when Hermes differs from the pinned version | 0.6 |
-| `sessions.json` written non-atomically | 0.5 |
+| ~~`sessions.json` written non-atomically~~ | 0.5 — resolved: atomic tmp+rename and crash recovery live-proven |
 | ElevenLabs key may need rotation; unused Nous login | 0.9 |
 | 136 commits behind upstream | ADR 0001 — resolved: freeze |
