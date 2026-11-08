@@ -10,6 +10,12 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-08 (part 2) — 5.6b: Auto-summary note per conversation (`live-proven`)
+
+- **Owner verification:** Live-proven against the owner's real vault (`/Users/turko/Bishi-memory`) using the authorized `deepseek-flash` model on the `summary` route.
+- **Observed:** Hermes chat closed/idled → summary note written to `<vault>/Cindy/Memory/YYYY-MM-DD-<slug>-<id>-summary.md` with structured sections (Overview, Decisions & Rationale, Facts Learned, Open Questions, Next Steps) and frontmatter linking the 5.5 chat note; toast notification rendered; newly started Hermes session discovered the summary note via `search_notes`.
+- **Roadmap:** Phase 5 is now 100% complete (`5.1` through `5.6` all ✅ `live-proven`).
+
 ## 2026-11-08 — 5.6a: Auto-summary note per conversation (`unit-tested`)
 
 - **Changed:** new `packages/maker-core/src/summary/conversation-summary.ts` (+ subpath `./conversation-summary` in `packages/maker-core/package.json`) and tests; new `apps/desktop/src/main/maker-ipc/chatSummary.ts` (host + IPC) and tests; `register.ts` (`markTurnEndedAfterPersistDrain` resets idle timer on turn end, `CLOSE_SESSION` triggers immediate summary on close); `channels.ts` (`CHAT_SUMMARY_GET_CONFIG`, `_SET_CONFIG`, `_TRIGGER_NOW`, push `CHAT_SUMMARY_WRITTEN`, `_FAILED`); `preload.ts` + `vite-env.d.ts` (`maker.chatSummary`); `VaultSection.tsx` (`ChatSummaryCard`) + tests; `App.tsx` (toasts on written and failed); `docs/design-rules/design-inventory.md` regenerated.
