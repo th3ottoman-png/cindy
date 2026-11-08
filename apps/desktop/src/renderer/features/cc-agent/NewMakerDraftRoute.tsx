@@ -139,8 +139,10 @@ import {
   plainTextToTiptapDoc,
   restoreRemoteOptimisticDraft,
   saveDraft as saveComposerDraft,
+  subscribeDraftContent,
 } from '@/lib/composerDraftStore';
 import { useProvisionalDraftEmptyCleanup } from './hooks/useProvisionalDraftEmptyCleanup';
+import { ExpertSuggestionSlot } from './ExpertSuggestionChip';
 import {
   canOpenProvisionalDraftTask,
   composerDocPlainText,
@@ -5875,6 +5877,15 @@ export function NewMakerDraftRoute() {
                 className={cn('flex w-full flex-col items-start gap-0', isDraftNarrow && 'order-3')}
               >
                 <div className="w-full">
+                  {/* ROADMAP 7.2: non-intrusive one-click expert suggestion above the composer. */}
+                  <ExpertSuggestionSlot
+                    getText={() =>
+                      composerDocPlainText(getComposerDraft(NEW_MAKER_DRAFT_KEY)?.text)
+                    }
+                    subscribe={(onChange) =>
+                      subscribeDraftContent(NEW_MAKER_DRAFT_KEY, onChange)
+                    }
+                  />
                   <ChatInput
                     onSend={handleSend}
                     onComposerTyping={openProvisionalDraftTask}
