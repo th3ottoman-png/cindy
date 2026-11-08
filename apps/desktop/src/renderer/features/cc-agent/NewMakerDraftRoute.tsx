@@ -3547,8 +3547,7 @@ export function NewMakerDraftRoute() {
       },
     ): Promise<boolean | undefined> => {
       if (sendInFlightRef.current) return false;
-      // hermes Lead v1 不接 Orca Worker:遗留的协同开关不能阻塞/改写 hermes 发送。
-      const collabRequested = effectiveCollab.enabled && persistedAgentKind !== 'hermes';
+      const collabRequested = effectiveCollab.enabled;
       if (collabRequested && collabPolicy.loading) {
         toast.warning(t('newChat.collaboration.loadingHint'));
         return false;
@@ -4910,8 +4909,7 @@ export function NewMakerDraftRoute() {
             throw new Error(t('newChat.collaboration.disabledHint'));
           }
         }
-        const shouldEnableCollab = effectiveCollab.enabled && collabPolicyEligible && policyEnabled
-          && persistedAgentKind !== 'hermes';
+        const shouldEnableCollab = effectiveCollab.enabled && collabPolicyEligible && policyEnabled;
         // 同 handleSend:remoteDraftState 未就绪时不得放行,否则提交 capability 兜底值而非该设备的
         // 草稿值(缓存已热时另两个 loading 会立刻为 false,拦不住)。
         if (usesDeviceCatalog && remoteModelListStatus === 'error') {
@@ -5934,8 +5932,10 @@ export function NewMakerDraftRoute() {
                             disabled={wtCreating}
                             hiddenVendors={hiddenSwitcherVendors}
                           />
-                          {/* ROADMAP 3.2a: start this Hermes task as an expert. Auto-selects expert's model in draft. */}
-                          {draft.vendor === 'hermes' ? <HermesExpertPicker onSelectModel={handleModelDidChange} /> : null}
+                          {/* ROADMAP 3.2: start task as an expert. Auto-selects expert's model in draft. */}
+                          {['hermes', 'claude-code', 'codex', 'pi'].includes(draft.vendor) ? (
+                            <HermesExpertPicker activeVendor={draft.vendor} onSelectModel={handleModelDidChange} />
+                          ) : null}
                         </>
                       )
                     }
@@ -5948,8 +5948,7 @@ export function NewMakerDraftRoute() {
                     // 走它而非简单 worker popover。ON 态点击 onChange(enabled:false) 关闭协同。
                     // createSession 后按本次策略校验结果用 workerConfig 拉起 Worker。
                     collaboration={
-                      // hermes Lead v1 不接 Orca Worker;不展示注定失败的协同入口。
-                      collabPolicyEligible && persistedAgentKind !== 'hermes'
+                      collabPolicyEligible
                         ? {
                             enabled: effectiveCollab.enabled,
                             worker: effectiveCollab.worker,

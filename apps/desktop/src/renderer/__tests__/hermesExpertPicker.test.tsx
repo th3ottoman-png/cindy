@@ -46,7 +46,7 @@ describe('Hermes expert picker (ROADMAP 3.2a)', () => {
         disabled: false,
         title: 'Reviews diffs\nModel route: local-backup\n/home/o/.cindy-harness/experts/code-reviewer',
       },
-      { slug: 'codex-one', label: 'Codex One (codex, not supported yet)', disabled: true, title: 'Only Hermes experts can be started yet.' },
+      { slug: 'codex-one', label: 'Codex One (codex)', disabled: true, title: 'Configured for codex; current agent is hermes.' },
       { slug: 'broken', label: 'broken (broken)', disabled: true, title: 'frontmatter "name" is required' },
     ]);
 
@@ -57,6 +57,22 @@ describe('Hermes expert picker (ROADMAP 3.2a)', () => {
     expect(html).toContain('<option value="">No expert</option>');
     expect(html).toMatch(/<option value="codex-one" disabled=""/);
     expect(html).toMatch(/<option value="code-reviewer"[^>]*selected=""/);
+  });
+
+  it('offers experts matching the active vendor (ROADMAP 3.2)', () => {
+    const options = buildExpertOptions([
+      expert('code-reviewer', { name: 'Code Reviewer', agent: 'hermes' }),
+      expert('codex-one', { name: 'Codex One', agent: 'codex', description: 'Codex helper' }),
+    ], 'codex');
+    expect(options).toEqual([
+      { slug: 'code-reviewer', label: 'Code Reviewer (hermes)', disabled: true, title: 'Configured for hermes; current agent is codex.' },
+      {
+        slug: 'codex-one',
+        label: 'Codex One',
+        disabled: false,
+        title: 'Codex helper\n/home/o/.cindy-harness/experts/codex-one',
+      },
+    ]);
   });
 
   it('renders nothing when there are no experts, so the toolbar is unchanged', () => {

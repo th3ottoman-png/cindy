@@ -39,18 +39,21 @@ export function resolveExpertDraftModel(
   return trimmed;
 }
 
-export function buildExpertOptions(entries: readonly ExpertEntry[]): ExpertOption[] {
+export function buildExpertOptions(
+  entries: readonly ExpertEntry[],
+  activeVendor: string = 'hermes',
+): ExpertOption[] {
   return entries.map((entry) => {
     const expert = entry.expert;
     if (!expert) {
       return { slug: entry.slug, label: `${entry.slug} (broken)`, disabled: true, title: entry.error ?? 'cannot load' };
     }
-    if (expert.agent !== 'hermes') {
+    if (expert.agent !== activeVendor) {
       return {
         slug: entry.slug,
-        label: `${expert.name} (${expert.agent}, not supported yet)`,
+        label: `${expert.name} (${expert.agent})`,
         disabled: true,
-        title: 'Only Hermes experts can be started yet.',
+        title: `Configured for ${expert.agent}; current agent is ${activeVendor}.`,
       };
     }
     const parts = [expert.description, expert.model ? `Model route: ${expert.model}` : '', entry.dir].filter(Boolean);
@@ -89,11 +92,13 @@ export function HermesExpertPickerView({
 }
 
 export interface HermesExpertPickerProps {
+  /** The active agent vendor for the draft ('hermes', 'claude-code', 'codex', 'pi'). Default 'hermes'. */
+  activeVendor?: string;
   /** Optional callback to notify parent view when expert's model route should be selected. */
   onSelectModel?: (model: string) => void;
 }
 
-export function HermesExpertPicker({ onSelectModel }: HermesExpertPickerProps = {}) {
+export function HermesExpertPicker({ activeVendor = 'hermes', onSelectModel }: HermesExpertPickerProps = {}) {
   const [entries, setEntries] = useState<ExpertEntry[]>([]);
   const [pending, setPending] = useState<string | null>(null);
   const [routing, setRouting] = useState<{ routes?: Record<string, { model?: string }> } | null>(null);
@@ -123,9 +128,9 @@ export function HermesExpertPicker({ onSelectModel }: HermesExpertPickerProps = 
     if (onSelectModel) {
       onSelectModel(resolved);
     } else {
-      patchVendorPrefs('hermes', { model: resolved });
+      patchVendorPrefs(activeVendor as any, { model: resolved });
     }
-  }, [onSelectModel]);
+  }, [activeVendor, onSelectModel]);
 
   useEffect(() => {
     const experts = window.electronAPI?.maker?.experts;
@@ -159,7 +164,7 @@ export function HermesExpertPicker({ onSelectModel }: HermesExpertPickerProps = 
 
   return (
     <HermesExpertPickerView
-      options={buildExpertOptions(entries)}
+      options={buildExpertOptions(entries, activeVendor)}
       value={pending}
       onChange={(slug) => {
         setPending(slug);

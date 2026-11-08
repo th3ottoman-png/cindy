@@ -102,7 +102,9 @@ describe('ExpertSessionStore (ROADMAP 3.2a)', () => {
 
     store.setPending('codex-one');
     expect(() => store.resolveFirstTurnPreamble({ sessionId: 'b', model: 'm' }, anyRoute))
-      .toThrow('Only Hermes experts can be started yet');
+      .toThrow('is set to agent "codex", but this session is running on "hermes"');
+    const codexPreamble = store.resolveFirstTurnPreamble({ sessionId: 'b', model: 'm', agent: 'codex' }, anyRoute);
+    expect(codexPreamble).toContain('[Cindy expert: Codex One]');
 
     store.setPending('routed');
     const wrongRoute: RouteMatcher = (route, model) => ({ ok: false, message: `wants ${route}, has ${model}` });

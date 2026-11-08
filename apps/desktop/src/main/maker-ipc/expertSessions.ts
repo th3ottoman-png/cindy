@@ -293,8 +293,24 @@ export class ExpertSessionStore {
     return entry.expert.agent === 'hermes' ? entry.expert.toolsets ?? null : null;
   }
 
+  /**
+   * The expert skills directory (`skills/`) for this session, or null if the expert has no skills
+   * (ROADMAP 3.2). `includePending` as in `expertAllowsTool`.
+   */
+  expertSkillsDir(sessionId: string, opts: { includePending?: boolean } = {}): string | null {
+    const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
+    if (!slug) return null;
+    const dir = path.join(this.opts.rootDir, slug);
+    const entry = loadExpert(dir);
+    if (entry.expert && entry.expert.skillFiles.length > 0) {
+      const skillsDir = path.join(dir, 'skills');
+      return fs.existsSync(skillsDir) ? skillsDir : null;
+    }
+    return null;
+  }
+
   resolveFirstTurnPreamble(
-    input: { sessionId: string; model: string; toolsets?: string[] },
+    input: { sessionId: string; model: string; agent?: string; toolsets?: string[] },
     matchRoute: RouteMatcher,
   ): string | null {
     let slug = this.getBoundSlug(input.sessionId);
@@ -312,8 +328,9 @@ export class ExpertSessionStore {
       throw new Error(`Expert "${slug}" cannot be loaded: ${entry.error ?? 'unknown error'}. Fix ${path.join(dir, 'expert.md')} and send again.`);
     }
     const expert = entry.expert;
-    if (expert.agent !== 'hermes') {
-      throw new Error(`Expert "${expert.name}" is set to agent "${expert.agent}". Only Hermes experts can be started yet (ROADMAP 3.2a).`);
+    const expectedAgent = input.agent ?? 'hermes';
+    if (expert.agent !== expectedAgent) {
+      throw new Error(`Expert "${expert.name}" is set to agent "${expert.agent}", but this session is running on "${expectedAgent}".`);
     }
     if (expert.model) {
       const match = matchRoute(expert.model, input.model);
@@ -321,10 +338,12 @@ export class ExpertSessionStore {
     }
     // The lock is applied when the session starts; an expert picked or edited after that must
     // not run with other tools than it declares (ROADMAP 3.10).
-    const want = [...(expert.toolsets ?? [])].sort().join(',');
-    const have = [...(input.toolsets ?? [])].sort().join(',');
-    if (want !== have) {
-      throw new Error(`Expert "${expert.name}" locks this chat to toolsets [${want || 'none'}], but the chat started with [${have || 'none'}]. Start a new chat with the expert picked first.`);
+    if (expert.agent === 'hermes') {
+      const want = [...(expert.toolsets ?? [])].sort().join(',');
+      const have = [...(input.toolsets ?? [])].sort().join(',');
+      if (want !== have) {
+        throw new Error(`Expert "${expert.name}" locks this chat to toolsets [${want || 'none'}], but the chat started with [${have || 'none'}]. Start a new chat with the expert picked first.`);
+      }
     }
     const memory = expert.memory ? readExpertMemory(expert, { maxChars: EXPERT_MEMORY_PREAMBLE_CHARS }) : undefined;
     return buildExpertPreamble(expert, memory);

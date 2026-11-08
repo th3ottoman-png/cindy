@@ -416,6 +416,11 @@ export class HermesAgent extends BaseAgent {
       const targetBaseUrl = route?.baseUrl;
       const targetApiKey = route?.apiKey;
 
+      let expertSkillsDir: string | undefined;
+      if (this.deps.resolveHermesExpertSkillsDir && opts.sessionId) {
+        expertSkillsDir = this.deps.resolveHermesExpertSkillsDir(opts.sessionId) ?? undefined;
+      }
+
       const startResult = await transport.request<HermesQueryStartResult>(
         HERMES_METHODS.QUERY_START,
         {
@@ -429,6 +434,7 @@ export class HermesAgent extends BaseAgent {
           ...(permissionMode ? { permissionMode } : {}),
           ...(opts.vendorOptions?.orcaRole === 'worker' ? { maxTurns: HERMES_ORCA_WORKER_MAX_TURNS } : {}),
           ...(toolsets ? { toolsets } : {}),
+          ...(expertSkillsDir ? { expertSkillsDir } : {}),
           // Provider keys ride per-session env (the daemon's own env is
           // deliberately secret-free). Hermes reads provider credentials from
           // env; without this a DeepSeek-direct home cannot authenticate.

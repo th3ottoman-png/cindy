@@ -324,17 +324,21 @@ export class HermesManager {
     const previous = this.inFlightHomePrepares.get(sessionId) ?? Promise.resolve('');
     const preparePromise: Promise<string> = previous.catch(() => '').then(async () => {
       try {
-        const autoReview = this.registry.get(sessionId)?.permissionMode === 'auto';
+        const sessionRecord = this.registry.get(sessionId);
+        const autoReview = sessionRecord?.permissionMode === 'auto';
+        const expertSkillsDir = sessionRecord?.expertSkillsDir;
         const base = this.sessionHomes!;
         const hookCommand = this.hookCommandFor(sessionId);
-        const options: SessionHomeOptions =
-          autoReview && hookCommand
+        const options: SessionHomeOptions = {
+          ...base,
+          ...(expertSkillsDir ? { expertSkillsDir } : {}),
+          ...(autoReview && hookCommand
             ? {
-                ...base,
                 transformConfig: (text, ctx) =>
                   injectAutoReviewHook(base.transformConfig ? base.transformConfig(text, ctx) : text, hookCommand),
               }
-            : base;
+            : {}),
+        };
         const prepared = await prepareSessionHome(this.hermesHome, sessionId, options);
         if (autoReview && hookCommand) {
           let review = this.autoReviewTurnEnv.get(sessionId);
@@ -421,6 +425,7 @@ export class HermesManager {
         ...(p.systemPromptPreamble ? { preamble: p.systemPromptPreamble } : {}),
         ...(p.maxTurns !== undefined ? { maxTurns: p.maxTurns } : {}),
         ...(p.toolsets ? { toolsets: [...p.toolsets] } : {}),
+        ...(p.expertSkillsDir ? { expertSkillsDir: p.expertSkillsDir } : {}),
       });
       if (!created) {
         throw rpcError('SESSION_ALREADY_EXISTS', `session ${p.sessionId} already exists`);

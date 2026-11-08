@@ -2913,6 +2913,9 @@ export function getMaker(): Maker {
         // keeps Cindy tools off. The pending pick only applies to a session starting fresh.
         resolveHermesToolsets: ({ sessionId, fresh }) =>
           getDesktopExpertSessionStore().expertToolsets(sessionId, { includePending: fresh }),
+        // ROADMAP 3.2: expert's skills/ directory linked into per-session HERMES_HOME/skills
+        resolveHermesExpertSkillsDir: (sessionId) =>
+          getDesktopExpertSessionStore().expertSkillsDir(sessionId, { includePending: true }),
         // Orca (ROADMAP 3.7a): Hermes has no system-prompt slot, so the lead/worker
         // instructions Cindy gives Claude Code/Codex/Pi ride the next Hermes turn.
         resolveHermesOrcaPreamble: ({ sessionId, vendorOptions }) =>
@@ -3126,6 +3129,20 @@ export function getMaker(): Maker {
             getActiveCatalog(),
           );
           await preparePersistedOrcaSessionStart(sessionId, opts as MakerSessionCreateOpts);
+          // ROADMAP 3.2: start Claude Code, Codex, or Pi session as an expert
+          if (opts.agentKind && opts.agentKind !== 'hermes') {
+            const expertStore = getDesktopExpertSessionStore();
+            const preamble = expertStore.resolveFirstTurnPreamble(
+              { sessionId, model: opts.model ?? '', agent: opts.agentKind },
+              createRouteMatcher((model) => resolveModelRoute(model)),
+            );
+            if (preamble) {
+              const createOpts = opts as MakerSessionCreateOpts;
+              createOpts.userPrompt = createOpts.userPrompt
+                ? `${preamble}\n\n${createOpts.userPrompt}`
+                : preamble;
+            }
+          }
           if (opts.agentKind === 'pi' && opts.thinkingEnabled === undefined) {
             const thinkingEnabled = getThinkingEnabledFromMemory(
               opts.agentKind,

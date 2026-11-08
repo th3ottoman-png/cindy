@@ -119,4 +119,63 @@ describe('adapter extensions (ROADMAP 4.1b)', () => {
       createAdapterAgent('hermes', minimalDeps as ConstructorParameters<typeof HermesAgent>[0], reg),
     ).toBeInstanceOf(HermesAgent);
   });
+
+  describe('Maker dynamic adapter consumption (ROADMAP 4.1)', () => {
+    it('lists dynamic adapters and resolves them when requested', async () => {
+      const shared = getExtensionRegistry();
+      const mockAgent = {
+        getAuthState: vi.fn(async () => ({ authenticated: true, identity: 'test-user' })),
+        getBinaryPath: vi.fn(() => '/bin/test-agent'),
+        capabilities: {},
+      };
+      const unregister = shared.register({
+        kind: ADAPTER_EXTENSION_KIND,
+        id: 'plugin-custom-agent',
+        source: 'plugin:test',
+        value: vi.fn(() => mockAgent),
+      });
+
+      try {
+        const storage = {
+          create: vi.fn(),
+          get: vi.fn(),
+          list: vi.fn(),
+          update: vi.fn(),
+          compareAndClearSdkSessionId: vi.fn(),
+          delete: vi.fn(),
+        };
+        const { Maker } = await import('../../maker.js');
+        const maker = new Maker({ agents: {}, storage: storage as never, logger });
+        expect(maker.listAvailableAgents()).toContain('plugin-custom-agent');
+
+        const status = await maker.getAgentStatus('plugin-custom-agent' as never);
+        expect(status).toEqual({
+          binaryReady: true,
+          binaryPath: '/bin/test-agent',
+          authReady: true,
+          identity: 'test-user',
+        });
+      } finally {
+        unregister();
+      }
+
+      const storage2 = {
+        create: vi.fn(),
+        get: vi.fn(),
+        list: vi.fn(),
+        update: vi.fn(),
+        compareAndClearSdkSessionId: vi.fn(),
+        delete: vi.fn(),
+      };
+      const { Maker } = await import('../../maker.js');
+      const maker2 = new Maker({ agents: {}, storage: storage2 as never, logger });
+      expect(maker2.listAvailableAgents()).not.toContain('plugin-custom-agent');
+      const statusAfter = await maker2.getAgentStatus('plugin-custom-agent' as never);
+      expect(statusAfter).toEqual({
+        binaryReady: false,
+        binaryPath: null,
+        authReady: false,
+      });
+    });
+  });
 });

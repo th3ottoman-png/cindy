@@ -157,6 +157,28 @@ describe('prepareSessionHome', () => {
     expect(fs.lstatSync(path.join(home, 'skills')).isSymbolicLink()).toBe(false);
   });
 
+  it('links base skills and expert skills into session skills when expertSkillsDir is provided', async () => {
+    const expertDir = fs.mkdtempSync(path.join(os.tmpdir(), 'expert-skills-'));
+    try {
+      fs.writeFileSync(path.join(expertDir, 'expert-skill.md'), 'expert-doc');
+      const { home } = await prepareSessionHome(base, 's-expert', {
+        expertSkillsDir: expertDir,
+      });
+      const skillsDir = path.join(home, 'skills');
+      expect(fs.lstatSync(skillsDir).isDirectory()).toBe(true);
+      expect(fs.lstatSync(skillsDir).isSymbolicLink()).toBe(false);
+      // Base skill should be symlinked
+      expect(fs.existsSync(path.join(skillsDir, 'one.md'))).toBe(true);
+      expect(fs.lstatSync(path.join(skillsDir, 'one.md')).isSymbolicLink()).toBe(true);
+      // Expert skill should be symlinked
+      expect(fs.existsSync(path.join(skillsDir, 'expert-skill.md'))).toBe(true);
+      expect(fs.lstatSync(path.join(skillsDir, 'expert-skill.md')).isSymbolicLink()).toBe(true);
+      expect(fs.readFileSync(path.join(skillsDir, 'expert-skill.md'), 'utf8')).toBe('expert-doc');
+    } finally {
+      fs.rmSync(expertDir, { recursive: true, force: true });
+    }
+  });
+
   it('refuses the configured daily home, and anything inside it, before touching the filesystem', async () => {
     const daily = path.join(base, 'fake-daily');
     const inside = path.join(daily, 'cindy-never-created');

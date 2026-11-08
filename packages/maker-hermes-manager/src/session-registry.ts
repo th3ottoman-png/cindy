@@ -47,6 +47,8 @@ export interface HermesSessionRecord {
   maxTurns?: number;
   /** Built-in toolsets for every run (`-t`), set at query/start (ROADMAP 3.10). */
   toolsets?: string[];
+  /** Extra skills directory from expert (ROADMAP 3.2). */
+  expertSkillsDir?: string;
   lastSeq: number;
   startedAt: string;
   lastEventAt: string | null;

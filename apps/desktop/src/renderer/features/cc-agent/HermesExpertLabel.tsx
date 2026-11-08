@@ -39,7 +39,7 @@ export function HermesExpertLabel({ agentKind, sessionId }: { agentKind: string;
   useEffect(() => {
     setBinding(null);
     const experts = window.electronAPI?.maker?.experts;
-    if (agentKind !== 'hermes' || !sessionId || !experts) return undefined;
+    if (!sessionId || !experts) return undefined;
     let alive = true;
     const refresh = (): void => {
       void experts.getSessionBinding(sessionId)

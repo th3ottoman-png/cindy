@@ -10,6 +10,29 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-08 (part 3) — Complete roadmap rows 3.2, 3.7, and 4.1 (`unit-tested`)
+
+- **Changed:**
+  - `packages/maker-hermes-manager/src/session-home.ts`: `prepareSessionHome` links base skills and expert skills into `<session-home>/skills/` when `opts.expertSkillsDir` is provided. Preserves real directories when `opts.expertSkillsDir` is absent.
+  - `packages/maker-hermes-manager/src/hermes-manager.ts`: passed `expertSkillsDir` into `SessionHomeOptions` in `homeForSession`.
+  - `packages/maker-hermes-manager/src/protocol.ts` & `session-registry.ts`: added `expertSkillsDir?: string` to `HermesQueryStartParams` and `HermesSessionRecord`.
+  - `packages/maker-core/src/agents/base-agent.ts` & `packages/maker-core/src/agents/hermes/agent.ts`: added and wired `resolveHermesExpertSkillsDir` into `HERMES_METHODS.QUERY_START`.
+  - `apps/desktop/src/main/maker-ipc/expertSessions.ts`: added `expertSkillsDir(sessionId, opts)` to `ExpertSessionStore`; generalized `resolveFirstTurnPreamble` to support non-Hermes agents matching `expert.agent`.
+  - `apps/desktop/src/main/maker-host/index.ts`: wired `resolveHermesExpertSkillsDir` into Hermes agent deps; wired expert preamble into `createOpts.userPrompt` for non-Hermes agents in `beforeSessionStart`.
+  - `apps/desktop/src/renderer/features/cc-agent/HermesExpertPicker.tsx`: updated `buildExpertOptions` to accept `activeVendor: string = 'hermes'` and check against `expert.agent`.
+  - `apps/desktop/src/renderer/features/cc-agent/NewMakerDraftRoute.tsx`: allowed `HermesExpertPicker` for all 4 agents (`['hermes', 'claude-code', 'codex', 'pi']`); unhid collaboration toggle for Hermes drafts (removed `persistedAgentKind !== 'hermes'`).
+  - `apps/desktop/src/renderer/features/cc-agent/HermesExpertLabel.tsx`: allowed expert label badge to render for all agents.
+  - `packages/maker-core/src/maker.ts`: dynamically discovers and instantiates registered adapter extensions in `listAvailableAgents()`, `requireAgent()`, and `getAgentStatus()` via `createRegisteredAdapterAgent()`.
+- **Verified:**
+  - `packages/maker-hermes-manager`: 14 files / 197 tests passed.
+  - `packages/maker-core`: `src/agents/__tests__/adapter-extensions.test.ts` passed (8/8).
+  - `apps/desktop`: `src/renderer/__tests__/hermesExpertPicker.test.tsx` and `src/main/maker-ipc/__tests__/expertSessions.test.ts` passed (43/43).
+  - `test:runner` (`scripts/__tests__/test-workspaces.test.mjs`): 89/89 tests passed under `NODE_NO_WARNINGS=1`.
+  - `check:test-hygiene`: PASS (361 files within baseline).
+  - No references to forbidden `~/.hermes` in diff.
+  - No new outbound network calls (`fetch`/`http`) in diff.
+- **Roadmap:** Rows 3.2, 3.7, and 4.1 are completed to `unit-tested`.
+
 ## 2026-11-08 (part 2) — 5.6b: Auto-summary note per conversation (`live-proven`)
 
 - **Owner verification:** Live-proven against the owner's real vault (`/Users/turko/Bishi-memory`) using the authorized `deepseek-flash` model on the `summary` route.

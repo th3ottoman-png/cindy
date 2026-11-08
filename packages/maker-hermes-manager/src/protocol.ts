@@ -200,6 +200,8 @@ export interface HermesQueryStartParams {
   toolsets?: string[];
   /** Wall-clock budget per spawned run in seconds (`--run-budget`). */
   runBudgetSeconds?: number;
+  /** Extra skills directory from expert (ROADMAP 3.2). */
+  expertSkillsDir?: string;
 }
 
 export interface HermesQueryStartResult {

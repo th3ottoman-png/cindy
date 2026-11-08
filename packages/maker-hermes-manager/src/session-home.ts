@@ -42,6 +42,8 @@ export interface SessionHomeOptions {
   prewarmGateway?: boolean;
   /** Startup reap of homes no registered session owns: idle time before removal. Default 24 h. */
   orphanHomeMinAgeMs?: number;
+  /** Expert-specific skills directory to link into the per-session HERMES_HOME/skills (ROADMAP 3.2). */
+  expertSkillsDir?: string;
 }
 
 export function sessionHomesRoot(baseHome: string): string {
@@ -98,6 +100,32 @@ export async function prepareSessionHome(
     const target = path.join(home, item);
     if (!(await lstatOrNull(source))) continue;
     const existing = await lstatOrNull(target);
+    if (item === 'skills' && opts.expertSkillsDir) {
+      if (existing?.isSymbolicLink()) {
+        await fs.unlink(target);
+      }
+      await fs.mkdir(target, { recursive: true, mode: 0o700 });
+      const baseSkillEntries = await fs.readdir(source).catch(() => [] as string[]);
+      for (const entry of baseSkillEntries) {
+        const entryTarget = path.join(target, entry);
+        const entrySource = path.join(source, entry);
+        if (!(await lstatOrNull(entryTarget))) {
+          await fs.symlink(entrySource, entryTarget).catch(() => {});
+        }
+      }
+      const expertSkillEntries = await fs.readdir(opts.expertSkillsDir).catch(() => [] as string[]);
+      for (const entry of expertSkillEntries) {
+        const entryTarget = path.join(target, entry);
+        const entrySource = path.join(opts.expertSkillsDir, entry);
+        const cur = await lstatOrNull(entryTarget);
+        if (cur?.isSymbolicLink()) await fs.unlink(entryTarget).catch(() => {});
+        if (!(await lstatOrNull(entryTarget))) {
+          await fs.symlink(entrySource, entryTarget).catch(() => {});
+        }
+      }
+      linked.push(item);
+      continue;
+    }
     if (existing?.isSymbolicLink()) {
       if ((await fs.readlink(target)) === source) {
         linked.push(item);

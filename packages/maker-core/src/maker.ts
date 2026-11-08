@@ -67,6 +67,8 @@ import type { SessionStorage, SessionMeta } from './interfaces/session-storage.j
 import type { Logger } from './interfaces/logger.js';
 import type { AuthLoginOptions } from './interfaces/auth-adapter.js';
 import type { MakerMemoryManager } from './memory/manager.js';
+import { getExtensionRegistry } from './extensions/registry.js';
+import { ADAPTER_EXTENSION_KIND, createRegisteredAdapterAgent } from './agents/adapter-extensions.js';
 
 /**
  * Session 生命周期钩子 —— host 层声明 session 启动 / 成功发布 / 关闭时的副作用。
@@ -525,9 +527,11 @@ export class Maker {
   protected readonly visionBridge: import('./types/vision-bridge.js').VisionBridgeHook | undefined;
   private readonly toolLoopReviewer: import('./agents/shared/tool-loop-review.js').ToolLoopReviewer | undefined;
   private readonly startDeviceAgentSession: MakerDeps['startDeviceAgentSession'];
+  private readonly initialAgentKinds: Set<AgentKind>;
 
   constructor(deps: MakerDeps) {
     this.agents = deps.agents;
+    this.initialAgentKinds = new Set(Object.keys(deps.agents) as AgentKind[]);
     this.storage = deps.storage;
     this.startDeviceAgentSession = deps.startDeviceAgentSession;
     this.visionBridge = deps.visionBridge;
@@ -1515,9 +1519,15 @@ export class Maker {
     return this.requireAgent(agentKind).capabilities;
   }
 
-  /** 列出已注册的 agent kind */
+  /** 列出已注册的 agent kind (含通过 extension registry 动态注册的 adapter) */
   listAvailableAgents(): AgentKind[] {
-    return Object.keys(this.agents) as AgentKind[];
+    const reg = getExtensionRegistry();
+    const registered = reg.list(ADAPTER_EXTENSION_KIND).map((e) => e.id as AgentKind);
+    const active = Object.keys(this.agents).filter(
+      (k) => this.initialAgentKinds.has(k as AgentKind) || reg.get(ADAPTER_EXTENSION_KIND, k),
+    ) as AgentKind[];
+    const combined = new Set([...active, ...registered]);
+    return Array.from(combined);
   }
 
   /**
@@ -1793,7 +1803,12 @@ export class Maker {
     authReady: boolean;
     identity?: string;
   }> {
-    const agent = this.agents[agentKind];
+    let agent: BaseAgent | undefined;
+    try {
+      agent = this.requireAgent(agentKind);
+    } catch {
+      agent = undefined;
+    }
     // Optional runtimes (currently Pi on unsupported/unprepared platforms) are
     // intentionally not registered. Status is the one discovery API that must
     // represent that state instead of throwing and hiding it as an auth error.
@@ -1823,8 +1838,21 @@ export class Maker {
   }
 
   protected requireAgent(kind: AgentKind): BaseAgent {
-    const agent = this.agents[kind];
+    const reg = getExtensionRegistry();
+    let agent = this.agents[kind];
+    if (agent && !this.initialAgentKinds.has(kind) && !reg.get(ADAPTER_EXTENSION_KIND, kind)) {
+      delete this.agents[kind];
+      agent = undefined;
+    }
     if (!agent) {
+      const descriptor = reg.get<(deps: unknown) => unknown>(ADAPTER_EXTENSION_KIND, kind);
+      if (descriptor && typeof descriptor.value === 'function') {
+        const created = createRegisteredAdapterAgent(kind, { logger: this.logger }, reg) as BaseAgent;
+        if (created && typeof created.getAuthState === 'function') {
+          this.agents[kind] = created;
+          return created;
+        }
+      }
       throw new Error(`Agent '${kind}' is not registered (available: ${this.listAvailableAgents().join(', ')})`);
     }
     return agent;

@@ -782,6 +782,12 @@ export interface AgentDeps {
   resolveHermesToolsets?: (input: { sessionId: string; fresh: boolean }) => string[] | null;
 
   /**
+   * Hermes-only (ROADMAP 3.2): directory containing the expert's skills (if any) to link into
+   * the per-session HERMES_HOME/skills.
+   */
+  resolveHermesExpertSkillsDir?: (sessionId: string) => string | null | undefined;
+
+  /**
    * Hermes-only: registers this Cindy session with the tool bridge and returns
    * the non-secret env (`CINDY_BRIDGE_SESSION`) the shim reads via `${VAR}` in
    * config.yaml. Absent or failing → the session runs without Cindy tools.
