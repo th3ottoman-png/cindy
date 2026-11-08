@@ -3,7 +3,7 @@
 **Single source of truth for task status.** If `STATUS.md` or `HANDOVER.md` disagree with this
 file, this file wins and the other must be corrected.
 
-**Current handover (2026-11-08):** 5.6 (Auto-summary note per conversation) completed and `live-proven`. Phases 0–5 complete (partial extensions remain in 3.2, 3.7, 4.1; see Debt). A newer handover supersedes older
+**Current handover (2026-11-08 EOD):** `docs/handoff/2026-11-08-eod-handover.md` and `docs/handoff/2026-11-08-eod-next-agent-prompt.md`. Rows 3.2, 3.7, and 4.1 completed (`unit-tested`). Phase 5 is 100% `live-proven`. A newer handover supersedes older
 ones; all earlier files in `docs/handoff/` are historical.
 
 ## Goal
