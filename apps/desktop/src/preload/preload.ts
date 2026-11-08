@@ -6381,6 +6381,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('maker:vault:set-config', typeof patch === 'string' ? { vaultDir: patch } : patch),
       pickFolder: (): Promise<string | null> =>
         ipcRenderer.invoke('maker:vault:pick-folder'),
+      synthesizeMemory: (
+        opts?: { limit?: number; targetFile?: string },
+      ): Promise<import('@cindy/maker-core/vault-synthesis').VaultSynthesisResult> =>
+        ipcRenderer.invoke('maker:vault:synthesize-memory', opts),
       onChanged: fanOutMakerVaultChanged,
     },
     chatAutosave: {

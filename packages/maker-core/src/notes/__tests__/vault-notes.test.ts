@@ -200,6 +200,8 @@ describe('watchVault', () => {
     const watcher = watchVault(vault, () => {
       callCount++;
     }, 20);
+    // Allow macOS fs.watch stream to settle before mutating
+    await new Promise((r) => setTimeout(r, 50));
 
     try {
       // 1. Create a note in vault
@@ -207,6 +209,8 @@ describe('watchVault', () => {
       await vi.waitFor(() => {
         expect(callCount).toBeGreaterThan(0);
       }, { timeout: 3000 });
+      // Settle any trailing macOS write/stat events before recording baseline
+      await new Promise((r) => setTimeout(r, 60));
 
       const prevCount = callCount;
 

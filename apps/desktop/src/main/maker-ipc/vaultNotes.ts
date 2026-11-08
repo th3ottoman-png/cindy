@@ -15,6 +15,7 @@ import {
   writeVaultConfig,
   type VaultWatcher,
 } from '@cindy/maker-core/vault-notes';
+import { runVaultSynthesis, type VaultSynthesisResult } from '@cindy/maker-core/vault-synthesis';
 
 import { MAKER_INVOKE, MAKER_PUSH } from './channels.js';
 import type { IpcHandlerRegistry } from './ipcHandlerRegistry.js';
@@ -141,6 +142,14 @@ export class VaultNotesHost {
     }
     return res.filePaths[0];
   }
+
+  synthesizeMemory(opts?: { limit?: number; targetFile?: string }): VaultSynthesisResult {
+    const cfg = this.getConfig();
+    if (cfg.issue || !cfg.vaultDir) {
+      return { ok: false, reason: 'no-vault', message: 'no valid notes vault configured' };
+    }
+    return runVaultSynthesis(cfg.vaultDir, opts);
+  }
 }
 
 export interface VaultNotesHandlerDeps {
@@ -176,6 +185,15 @@ export function registerVaultNotesHandlers(
   registry.handle(MAKER_INVOKE.VAULT_PICK_FOLDER, async (event: unknown) => {
     deps.assertTrusted(event);
     return deps.host.pickFolder();
+  });
+  registry.handle(MAKER_INVOKE.VAULT_SYNTHESIZE_MEMORY, async (event: unknown, opts: unknown) => {
+    deps.assertTrusted(event);
+    const options = (opts && typeof opts === 'object' ? opts : {}) as { limit?: number; targetFile?: string };
+    const res = deps.host.synthesizeMemory(options);
+    if (res.ok) {
+      deps.broadcast(MAKER_PUSH.VAULT_CHANGED, deps.host.getConfig());
+    }
+    return res;
   });
 }
 

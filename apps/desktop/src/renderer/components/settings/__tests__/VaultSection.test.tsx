@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { ChatAutosaveCard, ChatSummaryCard, VaultView } from '../VaultSection';
+import { ChatAutosaveCard, ChatSummaryCard, VaultSynthesisCard, VaultView } from '../VaultSection';
 
 describe('Settings VaultSection (ROADMAP 5.1)', () => {
   it('renders configured vault directory with note count badge', () => {
@@ -212,5 +212,25 @@ describe('ChatSummaryCard (ROADMAP 5.6)', () => {
       />,
     );
     expect(html).toContain('aria-label="Turn auto-summary on"');
+  });
+});
+
+describe('Settings VaultSynthesisCard (ROADMAP 6.3)', () => {
+  it('renders cross-session memory synthesis card with action button', () => {
+    const html = renderToStaticMarkup(
+      <VaultSynthesisCard hasVault={true} />,
+    );
+    expect(html).toContain('Cross-Session Memory Synthesis');
+    expect(html).toContain('Cindy/Memory/Synthesis.md');
+    expect(html).toContain('Synthesize Memory Now');
+    expect(html).not.toContain('disabled=""');
+  });
+
+  it('disables synthesis button when vault is not configured', () => {
+    const html = renderToStaticMarkup(
+      <VaultSynthesisCard hasVault={false} />,
+    );
+    expect(html).toContain('Cross-Session Memory Synthesis');
+    expect(html).toContain('disabled=""');
   });
 });

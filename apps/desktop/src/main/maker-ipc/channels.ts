@@ -57,6 +57,8 @@ export const MAKER_INVOKE = {
   VAULT_SET_CONFIG: 'maker:vault:set-config',
   /** ROADMAP 5.1: native open directory picker for notes vault. */
   VAULT_PICK_FOLDER: 'maker:vault:pick-folder',
+  /** ROADMAP 6.3: synthesize cross-session memory notes in the vault. */
+  VAULT_SYNTHESIZE_MEMORY: 'maker:vault:synthesize-memory',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */
   CHAT_AUTOSAVE_GET_CONFIG: 'maker:chat-autosave:get-config',
   /** ROADMAP 5.5: set chat auto-save `{ enabled?, folder? }`. */

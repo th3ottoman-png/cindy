@@ -2590,7 +2590,7 @@ export function getMaker(): Maker {
         getVaultDir: () => getDesktopVaultNotesHost().getConfig().vaultDir,
         sessionMayUse: (sessionId, tool) => {
           const cfg = getDesktopVaultNotesHost().getConfig();
-          if (cfg.allSessionsSearch && cfg.vaultDir && tool !== 'append_note') {
+          if (cfg.allSessionsSearch && cfg.vaultDir && tool !== 'append_note' && tool !== 'synthesize_vault_memory') {
             return true;
           }
           return getDesktopExpertSessionStore().expertAllowsVaultTool(sessionId, tool);

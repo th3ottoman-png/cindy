@@ -347,6 +347,64 @@ export function VaultSection() {
       />
       <ChatAutosaveSettings />
       <ChatSummarySettings />
+      <VaultSynthesisCard hasVault={Boolean(config.vaultDir && !config.issue)} />
+    </div>
+  );
+}
+
+export function VaultSynthesisCard({
+  hasVault,
+}: {
+  hasVault: boolean;
+}) {
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [lastResult, setLastResult] = useState<{ sourcesCount: number; path: string } | null>(null);
+
+  const handleSynthesize = async () => {
+    if (!window.electronAPI?.maker?.vault?.synthesizeMemory) return;
+    setSynthesizing(true);
+    try {
+      const res = await window.electronAPI.maker.vault.synthesizeMemory();
+      if (res.ok) {
+        setLastResult({ sourcesCount: res.sourcesCount, path: res.relPath });
+        toast.success(`Synthesized memory from ${res.sourcesCount} conversation summaries`);
+      } else {
+        toast.error(`Synthesis failed: ${res.message}`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Synthesis failed');
+    } finally {
+      setSynthesizing(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-primary)] p-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium text-[var(--text-primary)]">
+            Cross-Session Memory Synthesis
+          </span>
+          <span className="text-xs text-[var(--text-secondary)]">
+            Consolidates key decisions, facts, and open questions across conversation summaries into <code>Cindy/Memory/Synthesis.md</code>.
+          </span>
+        </div>
+        <button
+          type="button"
+          disabled={!hasVault || synthesizing}
+          onClick={() => void handleSynthesize()}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-[var(--surface-secondary)] hover:bg-[var(--surface-hover)] text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed border border-[var(--border-subtle)] transition-colors"
+        >
+          {synthesizing ? <Spinner size="sm" /> : null}
+          {synthesizing ? 'Synthesizing…' : 'Synthesize Memory Now'}
+        </button>
+      </div>
+      {lastResult ? (
+        <div className="text-xs text-[var(--text-tertiary)] flex items-center gap-1.5">
+          <span>✓</span>
+          <span>Last synthesized from {lastResult.sourcesCount} summaries → <code>{lastResult.path}</code></span>
+        </div>
+      ) : null}
     </div>
   );
 }

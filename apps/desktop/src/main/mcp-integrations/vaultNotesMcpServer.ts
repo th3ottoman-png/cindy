@@ -19,6 +19,7 @@ import {
   readNote,
   searchNotes,
 } from '@cindy/maker-core/vault-notes';
+import { runVaultSynthesis } from '@cindy/maker-core/vault-synthesis';
 import { resolveLiziMcpSessionContext, type LiziMcpSessionContext } from '@cindy/mcps';
 
 export const CINDY_VAULT_NOTES_MCP_SERVER_NAME = 'cindy_vault_notes';
@@ -26,12 +27,14 @@ export const READ_NOTE_TOOL = 'read_note';
 export const SEARCH_NOTES_TOOL = 'search_notes';
 export const APPEND_NOTE_TOOL = 'append_note';
 export const LIST_NOTES_TOOL = 'list_notes';
+export const SYNTHESIZE_VAULT_MEMORY_TOOL = 'synthesize_vault_memory';
 
 export const VAULT_NOTES_TOOLS = [
   READ_NOTE_TOOL,
   SEARCH_NOTES_TOOL,
   APPEND_NOTE_TOOL,
   LIST_NOTES_TOOL,
+  SYNTHESIZE_VAULT_MEMORY_TOOL,
 ] as const;
 
 export interface VaultNotesMcpDeps {
@@ -162,6 +165,33 @@ export function createVaultNotesMcpServer(deps: VaultNotesMcpDeps): McpServer {
         return refused({ code: res.reason.toUpperCase(), message: res.message });
       }
       return reply({ notes: res, count: res.length });
+    },
+  );
+
+  server.tool(
+    SYNTHESIZE_VAULT_MEMORY_TOOL,
+    'Synthesize cross-session memory from all conversation summaries in the vault into Cindy/Memory/Synthesis.md. Consolidates key decisions, facts, open questions, and indexes all past sessions.',
+    {
+      limit: z.number().int().positive().optional().describe('Maximum number of recent summaries to include (default: 20)'),
+      targetFile: z.string().optional().describe('Relative path for output markdown (default: "Cindy/Memory/Synthesis.md")'),
+    },
+    async ({ limit, targetFile }) => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, SYNTHESIZE_VAULT_MEMORY_TOOL)) {
+        return refused({ code: 'FORBIDDEN', message: `expert does not permit tool "${SYNTHESIZE_VAULT_MEMORY_TOOL}"` });
+      }
+      const vaultDir = deps.getVaultDir()?.trim();
+      if (!vaultDir) {
+        return refused({ code: 'NO_VAULT', message: 'no notes vault configured; configure a vault folder in Settings -> Notes Vault' });
+      }
+      const res = runVaultSynthesis(vaultDir, { limit, targetFile });
+      if (!res.ok) {
+        return refused({ code: res.reason.toUpperCase(), message: res.message });
+      }
+      return reply({ ...res });
     },
   );
 

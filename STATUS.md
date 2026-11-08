@@ -10,6 +10,37 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-08 (part 8) — 6.3 Cross-Session Vault Memory Synthesis (`live-proven`)
+
+- **6.3 Cross-Session Vault Memory Synthesis:**
+  - Implemented core synthesis engine in `packages/maker-core/src/notes/vault-synthesis.ts` (subpath `@cindy/maker-core/vault-synthesis`):
+    - `parseSummaryNote`: Extracts frontmatter metadata (`session_id`, `session_title`, `model`, `date`) and markdown sections (`Overview & Goal`, `Key Decisions & Rationale`, `Facts Learned & Discoveries`, `Open Questions & Blockers`, `Next Steps`).
+    - `collectSessionSummaries`: Safely scans `<vault>/Cindy/Memory/` for `*-summary.md` notes, skipping oversized notes and enforcing vault directory boundary containment (`inside(root, realTarget)`).
+    - `synthesizeVaultNotes`: Consolidates multi-session knowledge with executive summary, categorized bullet points cited back to their source notes via Obsidian wiki backlinks (`[[source-note|Session Title]]`), sensitive API key redaction (`redactSecrets`), and chronological session index table.
+    - `writeVaultSynthesis` / `runVaultSynthesis`: Atomic file persistence via temporary file and rename to `<vault>/Cindy/Memory/Synthesis.md`.
+  - Added agent MCP tool `synthesize_vault_memory` to `cindy_vault_notes` MCP server (`apps/desktop/src/main/mcp-integrations/vaultNotesMcpServer.ts`), protected for authorized experts (`vault-researcher`).
+  - Added desktop host method `VaultNotesHost.synthesizeMemory` and IPC channel `maker:vault:synthesize-memory` (`apps/desktop/src/main/maker-ipc/vaultNotes.ts`), broadcasting `MAKER_PUSH.VAULT_CHANGED` to notify all open windows upon synthesis completion.
+  - Exposed preload method `window.electronAPI.maker.vault.synthesizeMemory()` in `preload.ts` and typings in `vite-env.d.ts`.
+  - Added "Cross-Session Memory Synthesis" card (`VaultSynthesisCard`) to Settings → Notes Vault (`apps/desktop/src/renderer/components/settings/VaultSection.tsx`) with status indicators and a "Synthesize Memory Now" action button.
+  - Added tool authorization for `synthesize_vault_memory` to starter expert `vault-researcher` (`docs/experts-examples/vault-researcher/expert.md` and `~/.cindy-harness/experts/vault-researcher/expert.md`).
+- **Verification:**
+  - Added unit test suite in `packages/maker-core/src/notes/__tests__/vault-synthesis.test.ts` (9 tests covering note parsing, collection, synthesis generation, atomic file writing, secret redaction, and path traversal rejection).
+  - Added unit tests in `apps/desktop/src/main/mcp-integrations/__tests__/vaultNotesMcpServer.test.ts` (tool invocation and expert access controls).
+  - Added unit tests in `apps/desktop/src/main/maker-ipc/__tests__/vaultNotes.test.ts` (host IPC method invocation and error handling).
+  - Added unit tests in `apps/desktop/src/renderer/components/settings/__tests__/VaultSection.test.tsx` (UI card rendering, synthesis action trigger, and result feedback).
+  - Settled macOS `fs.watch` event timing in `packages/maker-core/src/notes/__tests__/vault-notes.test.ts` and updated `starter-experts.test.ts` tool catalog assertions.
+  - All four gates green under Node 22 (`pnpm typecheck`, `pnpm test:runner`, `pnpm test:unit:related`, `pnpm check:test-hygiene` with 361 files within baseline).
+  - **Live-proven in running desktop dev app against real vault `/Users/turko/Bishi-memory`:**
+    - Connected via CDP to dev app main window (`ws://127.0.0.1:9222/devtools/page/...`, `http://localhost:5174/`).
+    - Planted two sample summary notes in `/Users/turko/Bishi-memory/Cindy/Memory/` (`2026-11-08-orch-001-summary.md` and `2026-11-08-vault-002-summary.md`) containing mock secrets, decisions, facts, blockers, and next steps.
+    - Triggered `window.electronAPI.maker.vault.synthesizeMemory()` via CDP.
+    - Observed: Returned `{ ok: true, relPath: "Cindy/Memory/Synthesis.md", bytesWritten: 2454, sourcesCount: 2 }`.
+    - Inspected `/Users/turko/Bishi-memory/Cindy/Memory/Synthesis.md`: Verified valid YAML frontmatter, executive summary, key decisions with backlinks (`[[2026-11-08-vault-002-summary|Summary: Vault Knowledge Search and Watcher]]`), sensitive key redaction (`[redacted]`), open questions, next steps, and complete session history table.
+    - Cleaned up test summaries and confirmed re-synthesis runs cleanly.
+- **Roadmap:** Row 6.3 closed as ✅ `live-proven`.
+
+---
+
 ## 2026-11-08 (part 7) — 6.2 Real-time Vault File Watcher / Hot Auto-Sync (`live-proven`)
 
 - **6.2 Real-time Vault File Watcher / Hot Auto-Sync:**

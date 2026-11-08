@@ -12,6 +12,7 @@ import {
   LIST_NOTES_TOOL,
   READ_NOTE_TOOL,
   SEARCH_NOTES_TOOL,
+  SYNTHESIZE_VAULT_MEMORY_TOOL,
   type VaultNotesMcpDeps,
 } from '../vaultNotesMcpServer';
 
@@ -85,6 +86,28 @@ describe('cindy_vault_notes MCP server (ROADMAP 5.1)', () => {
     expect(res.body.count).toBe(2);
     const notes = res.body.notes as Array<{ path: string }>;
     expect(notes.map((n) => n.path)).toEqual(expect.arrayContaining(['note1.md', 'sub/note2.md']));
+  });
+
+  it('synthesizes memory notes inside the vault', async () => {
+    const memoryDir = path.join(vault, 'Cindy', 'Memory');
+    fs.mkdirSync(memoryDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(memoryDir, '2026-11-08-test-summary.md'),
+      `---
+session_id: "s1"
+title: "MCP Test"
+---
+## Overview
+Tested MCP synthesis.
+## Decisions & Rationale
+- Decision MCP
+`,
+    );
+
+    const res = await call(deps(), SYNTHESIZE_VAULT_MEMORY_TOOL, { limit: 5 });
+    expect(res.isError).toBe(false);
+    expect(res.body).toMatchObject({ ok: true, relPath: 'Cindy/Memory/Synthesis.md', sourcesCount: 1 });
+    expect(fs.existsSync(path.join(vault, 'Cindy', 'Memory', 'Synthesis.md'))).toBe(true);
   });
 
   it('refuses when no session context is available', async () => {

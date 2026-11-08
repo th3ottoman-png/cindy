@@ -128,7 +128,34 @@ describe('VaultNotesHost (ROADMAP 5.1)', () => {
     // Pick folder
     const picked = await harness.invoke(MAKER_INVOKE.VAULT_PICK_FOLDER);
     expect(picked).toBe(vaultDir);
-    expect(assertTrusted).toHaveBeenCalledTimes(4);
+
+    // Synthesize memory
+    const memoryDir = path.join(vaultDir, 'Cindy', 'Memory');
+    fs.mkdirSync(memoryDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(memoryDir, '2026-11-08-task1-summary.md'),
+      `---
+session_id: "s1"
+title: "Task One"
+---
+## Overview
+Synthesize test overview.
+## Decisions & Rationale
+- Decided on IPC test
+`,
+    );
+
+    const synthRes = (await harness.invoke(MAKER_INVOKE.VAULT_SYNTHESIZE_MEMORY, { limit: 10 })) as {
+      ok: boolean;
+      sourcesCount: number;
+      relPath: string;
+    };
+    expect(synthRes.ok).toBe(true);
+    expect(synthRes.sourcesCount).toBe(1);
+    expect(synthRes.relPath).toBe('Cindy/Memory/Synthesis.md');
+    expect(fs.existsSync(path.join(vaultDir, 'Cindy', 'Memory', 'Synthesis.md'))).toBe(true);
+
+    expect(assertTrusted).toHaveBeenCalledTimes(5);
   });
 });
 

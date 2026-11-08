@@ -5629,6 +5629,10 @@ interface ElectronAPI {
       ) => Promise<import('../main/maker-ipc/vaultNotes').VaultConfigView>;
       /** Native open directory picker. */
       pickFolder: () => Promise<string | null>;
+      /** ROADMAP 6.3: synthesize cross-session memory into Cindy/Memory/Synthesis.md. */
+      synthesizeMemory: (
+        opts?: { limit?: number; targetFile?: string },
+      ) => Promise<import('@cindy/maker-core/vault-synthesis').VaultSynthesisResult>;
       /** Fires when the vault configuration changes. */
       onChanged: (cb: (view: import('../main/maker-ipc/vaultNotes').VaultConfigView) => void) => () => void;
     };

@@ -251,7 +251,8 @@ export class ExpertSessionStore {
       this.expertAllowsVaultTool(sessionId, 'read_note', opts) ||
       this.expertAllowsVaultTool(sessionId, 'search_notes', opts) ||
       this.expertAllowsVaultTool(sessionId, 'append_note', opts) ||
-      this.expertAllowsVaultTool(sessionId, 'list_notes', opts)
+      this.expertAllowsVaultTool(sessionId, 'list_notes', opts) ||
+      this.expertAllowsVaultTool(sessionId, 'synthesize_vault_memory', opts)
     );
   }
 

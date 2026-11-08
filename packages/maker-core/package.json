@@ -29,6 +29,7 @@
     "./chat-autosave": "./src/export/chat-autosave.ts",
     "./conversation-summary": "./src/summary/conversation-summary.ts",
     "./vault-notes": "./src/notes/vault-notes.ts",
+    "./vault-synthesis": "./src/notes/vault-synthesis.ts",
     "./scheduled-sessions": "./src/schedules/scheduled-sessions.ts",
     "./expert-handoff": "./src/experts/expert-handoff.ts",
     "./expert-draft": "./src/experts/expert-draft.ts",
