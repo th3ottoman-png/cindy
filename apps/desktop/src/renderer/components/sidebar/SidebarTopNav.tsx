@@ -26,6 +26,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import {
+  BookOpen,
   Boxes,
   CirclePlus,
   Ellipsis,
@@ -55,6 +56,7 @@ import {
   openCapabilitiesHub,
   useCapabilitiesHubOpen,
 } from '@/components/capabilities/capabilitiesHubStore';
+import { openLibrary, useLibraryOpen } from '@/components/library/libraryStore';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -436,6 +438,7 @@ export function SidebarTopNav({
   const [showHiddenSearch, setShowHiddenSearch] = useState(false);
   const [searchOpenSignal, setSearchOpenSignal] = useState(0);
   const capabilitiesOpen = useCapabilitiesHubOpen();
+  const libraryOpen = useLibraryOpen();
   const actions = useSidebarNavigationActions(() => {
     setShowHiddenSearch(true);
     setSearchOpenSignal((signal) => signal + 1);
@@ -641,6 +644,28 @@ export function SidebarTopNav({
             )}
           />
           <span className="leading-none">Capabilities</span>
+        </button>
+      )}
+      {/* ROADMAP 8.5: Library workspace, same always-on treatment as 8.1. */}
+      {showPinned && (
+        <button
+          type="button"
+          onClick={openLibrary}
+          className={cn(ROW_CLASS, libraryOpen && ROW_ACTIVE_CLASS)}
+          aria-label="Library"
+          aria-current={libraryOpen ? 'page' : undefined}
+        >
+          <BookOpen
+            size={15}
+            strokeWidth={1.8}
+            className={cn(
+              'shrink-0',
+              libraryOpen
+                ? 'text-sidebar-item-active-foreground'
+                : 'text-[var(--sidebar-nav-text)]',
+            )}
+          />
+          <span className="leading-none">Library</span>
         </button>
       )}
       {showScrollable &&

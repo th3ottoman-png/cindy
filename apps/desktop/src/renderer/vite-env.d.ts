@@ -5658,6 +5658,10 @@ interface ElectronAPI {
       /** Fires when pinned vault notes change for a session. */
       onPinnedChanged: (cb: (payload: { sessionId: string; pinnedNotes: string[] }) => void) => () => void;
     };
+    library: {
+      /** ROADMAP 8.5: one local index over vault notes, chat transcripts and summaries. */
+      scan: () => Promise<import('../main/maker-ipc/library').LibraryScanResult>;
+    };
     chatAutosave: {
       /** ROADMAP 5.5: chat auto-save settings (~/.cindy-harness/chat-autosave.json) + last result. */
       getConfig: () => Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView>;

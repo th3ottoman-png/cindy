@@ -69,6 +69,8 @@ export const MAKER_INVOKE = {
   VAULT_PIN_NOTE: 'maker:vault:pin-note',
   /** ROADMAP 6.5: unpin note from session. */
   VAULT_UNPIN_NOTE: 'maker:vault:unpin-note',
+  /** ROADMAP 8.5: one local index over vault notes, chat transcripts and summaries. */
+  LIBRARY_SCAN: 'maker:library:scan',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */
   CHAT_AUTOSAVE_GET_CONFIG: 'maker:chat-autosave:get-config',
   /** ROADMAP 5.5: set chat auto-save `{ enabled?, folder? }`. */

@@ -922,6 +922,7 @@ import { getDesktopExpertSessionStore } from './expertSessions.js';
 import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
 import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNotes.js';
+import { registerLibraryHandlers } from './library.js';
 import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
@@ -25660,6 +25661,11 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     host: vaultNotesHost,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
     broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
+  });
+  // ROADMAP 8.5: one index over the vault for the Library workspace.
+  registerLibraryHandlers(createElectronIpcHandlerRegistry(), {
+    getVaultDir: () => vaultNotesHost.getConfig().vaultDir,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
 
   // ── Session export to Markdown (ROADMAP 5.2b) ───────────────────────────

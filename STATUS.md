@@ -10,6 +10,23 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-09 (part 18) - 8.5 Library workspace (`live-proven`, artifacts split to 8.5b)
+
+- **What shipped.** One search over the local content this fork actually produces.
+  - `packages/maker-core/src/library/library-index.ts`, new subpath `@cindy/maker-core/library-index`. Pure. `classifyLibraryPath` (Cindy/Chats to chat, Cindy/Memory to summary, everything else to note), `libraryExcerpt` (frontmatter and fence stripping, bounded to 240 chars), `buildLibraryIndex` (citations by scanning chat transcript bodies for a note path or title), `searchLibrary`, `libraryKindSummary`, `libraryEntryToken` (reuses the 8.4 token grammar and id encoder).
+  - `apps/desktop/src/main/maker-ipc/library.ts` plus channel `maker:library:scan`, registered next to the vault handlers. It reads the vault through the existing `scanVaultGraph` and adds each body, so no second markdown walker exists.
+  - `apps/desktop/src/renderer/components/library/{libraryStore.ts,LibraryPanel.tsx}` and one always-on sidebar row. The panel has no backdrop and no focus trap on purpose: a row can be dragged onto the composer behind it.
+  - Preload and `vite-env.d.ts` gained `maker.library.scan()`.
+- **Narrowed, stated plainly.** The row asked for artifacts as a fourth family. This fork has no artifact store: no IPC channel, no DB table, no folder. The Library ships notes, chats and summaries, and artifacts moved to new row 8.5b, which stays `Open` until a real source exists.
+- **Why citations are a text scan.** The auto-saved chat transcripts contain no wiki links (`grep` found zero in eight transcripts), so the graph's link-based `backlinks` would report nothing. `buildLibraryIndex` scans transcript bodies for a note's path or title instead. That is the honest source of truth here.
+- **Surprising.** Closing and reopening the panel kept the previous query and selection, because `LibraryPanel` stays mounted and only returns null. Reopening then showed a filtered vault. A fresh open now clears query, kind and selection before the scan.
+- **Verification.** 29 core tests (`packages/maker-core/src/library/__tests__/library-index.test.ts`) and 11 jsdom tests (`apps/desktop/src/renderer/components/library/__tests__/LibraryPanel.test.tsx`), both green as direct runs.
+  - Live-proven via CDP 9222, 12/12 checks PASS. 274 items across note, chat and summary; a search for "Project" narrowed 274 to 57 with `memory/Project — Cindy.md` first; selecting it named two citing sessions; a real `dragstart` set `@vault-note:memory/Project-—-Cindy.md` and dispatching `drop` on the composer produced a `vault-note` chip whose `data-source` is `/Users/turko/Bishi-memory/memory/Project — Cindy.md`; the close button hid the panel. No Hermes turn was sent.
+  - Gates under Node 22.23.4 in a canonical Terminal (`NODE_OPTIONS=[]`, `PS_PROBE=/sbin/launchd`, pnpm 10.33.2): `ALL_GATES_GREEN=YES METHOD=8_shards`. `pnpm typecheck` PASS (37 projects), `pnpm test:runner` PASS, `pnpm check:test-hygiene` PASS, ink-ladder PASS, design-inventory 54 surfaces. The parallel and serial unit tiers both hit the known `apps/desktop` `SIGSEGV` with zero `FAIL` lines, so the sanctioned `HANDOVER.md` §5 form resolved it: non-desktop PASS, all eight shards PASS with no reruns.
+- **Still open.** 8.5b, 8.6, 8.7, plus 7.3 and 7.4.
+
+---
+
 ## 2026-11-09 (part 17) - 8.4 Turn-scoped `@` attach (`live-proven`)
 
 - **What shipped.** A capability attached to one message, with no session change.

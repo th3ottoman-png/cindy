@@ -45,6 +45,7 @@ import { FeatureSidebarSlotProvider } from '@/features/feature-context';
 import { useAppShortcut } from '@/hooks/useAppShortcut';
 import { QuickSwitcherDialog } from '@/components/quick-switcher';
 import { CapabilitiesDialog } from '@/components/capabilities/CapabilitiesDialog';
+import { LibraryPanel } from '@/components/library/LibraryPanel';
 import {
   setCapabilitiesHubOpen,
   useCapabilitiesHubOpen,
@@ -1994,6 +1995,9 @@ export function MainLayout() {
         open={capabilitiesHubOpen}
         onOpenChange={setCapabilitiesHubOpen}
       />
+      {/* ROADMAP 8.5: non-modal Library workspace, so a row can be dragged onto
+          the composer behind it. */}
+      <LibraryPanel />
     </FeatureSidebarSlotProvider>
   );
 }

@@ -6409,6 +6409,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       onChanged: fanOutMakerVaultChanged,
       onPinnedChanged: fanOutMakerVaultPinnedChanged,
     },
+    library: {
+      /** ROADMAP 8.5: one local index over vault notes, chat transcripts and summaries. */
+      scan: (): Promise<import('../main/maker-ipc/library').LibraryScanResult> =>
+        ipcRenderer.invoke('maker:library:scan'),
+    },
     chatAutosave: {
       getConfig: (): Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView> =>
         ipcRenderer.invoke('maker:chat-autosave:get-config'),
