@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-09 (part 21) - 9.2a Worktree merge safety and diff summary (`unit-tested`)
+
+- **What shipped.** `packages/maker-core/src/session/worktree-merge.ts`, new subpath `@cindy/maker-core/worktree-merge`. `assessWorktreeMerge` takes the facts a host can read cheaply (base branch, worktree branch, dirty file count, ahead and behind counts, whether base is an ancestor, and an optional known conflict) and returns an allowed flag, a method, a reason, a one-sentence message, the exact `git` argv and an `abortOnFailure` flag. The argv travels with the decision, so the UI text and the command cannot drift. `parseWorktreeNumstat` and `summariseWorktreeDiff` read `git diff --numstat` (binary files, braced and top-level renames) and total a bounded summary.
+- **Safety choices, stated plainly.** A dirty base is always refused, and a non-finite dirty count is treated as dirty, never as clean. A same-branch merge, an empty branch and a known conflict are refused with no argv at all. A fast-forward is preferred when base is an ancestor; otherwise the merge is allowed but `abortOnFailure` is set so a conflict leaves nothing half-applied. Nothing in this module runs git, reads the clock or touches the network.
+- **Why 9.2 was split.** Worktree creation, the per-session binding, branch sync and the recycle ledger already exist under `apps/desktop/src/main/worktree/` (`gitExec`, `WorktreeManager`, `branchSync`, `dirty`, `safety`), so the row's first half is upstream and already live. The gap is exactly two git writes plus a view: a `worktree:diff` and a `worktree:merge` IPC, and a header or composer strip with "Review diff" and "Merge into working tree". A merge into the owner's working tree is the one destructive action here, so the guards are shipped and tested first rather than bolted on after the UI.
+- **Verification.** 19 core tests pass as a direct run and in the canonical Terminal. Gates under Node 22.23.4 (`NODE_OPTIONS=[]`, `PS_PROBE=/sbin/launchd`, pnpm 10.33.2): `ALL_GATES_GREEN=YES METHOD=shards`. Typecheck (37 projects), `test:runner`, `test:check-hygiene` (361 files), design-inventory (54 surfaces), ink-ladder and the new suite all exit 0. The default parallel and the serial unit tier both died with the documented V8-GC `SIGSEGV` (one occurrence each, zero assertion failures), so the sanctioned 8-shard form ran: non-desktop plus all eight shards green, no reruns.
+- **Not started.** 9.2b (host, IPC, strip, temp-repo test, CDP proof), 9.3, 9.4, 9.5, 8.6b, 8.7, 7.3, 7.4.
+
+---
+
 ## 2026-11-09 (part 20) - 9.1 Interactive next-turn suggestion pill (`live-proven`)
 
 - **What shipped.** `packages/maker-core/src/session/next-turn-suggestion.ts`, new subpath `@cindy/maker-core/next-turn-suggestion`. Pure extraction over one assistant message: fenced code is stripped first, then in order a `Next action`/`Next step` line, a trailing question, an offer ("shall I", "let me know", "waiting on your go"), and a closing numbered menu under a choice question. A backticked command inside a next-action line wins over its prose. UI instructions ("click the … row"), URLs, long sentences and anything over 160 characters are rejected, so the common outcome is silence. Every suggestion carries `reason`, `sourceLine` and an ellipsised `label`.
