@@ -10,6 +10,20 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-09 (part 19) - 8.6a Operations rail projection (`unit-tested`), session end
+
+- **What shipped.** `packages/maker-core/src/operations/operations-rail.ts`, new subpath `@cindy/maker-core/operations-rail`. Pure projection from injected facts and an injected clock: four kinds (turn, worker, bot, schedule) to one row shape with status, a bounded detail line, `atMs` and a data-driven action list. Running rows first, then failures, then scheduled work, then the rest. `formatRelative`, `operationRailSummary` and `hasRunningOperation` included. 16 unit tests. No UI consumes it yet.
+- **Why 8.6 was split.** The row needs a rail view plus handoff, replay, cancel and a schedule dry-run. Three of those have no plumbing in this fork:
+  - No global stop channel. `channels.ts` has no stop or replay method, and `makerChatStore` exposes no public stop for a session other than the active composer's own handler.
+  - No replay channel. Retry exists only inside the session view.
+  - No sandboxed execution path for a dry-run. `maker.scheduledSessions.runNow` executes for real and writes the result note into the vault, so it cannot stand in for a dry run.
+  Building the view without those actions would be a dashboard, not an operations rail, so the view and the actions stay together in 8.6b.
+- **Findings worth keeping.** A real schedule exists locally: `~/.cindy-harness/schedules/daily-review.md`, last run `success` with note `schedules/daily-review-2026-11-08.md` and session `995928df`. So a rail row can be proven against real data once the view exists. Also, there is **no git read helper anywhere in `apps/desktop/src/main` or `packages/maker-core/src`**: 7.4 needs a new IPC that spawns `git` with a path guard before it can show a diff or a commit list.
+- **Not started.** 8.6b, 8.7, 7.3 and 7.4. The session stopped at a clean boundary: tree clean apart from the owner's unstaged Phase 9 section, `origin/main` at this commit.
+- **Verification.** 16 core tests pass as a direct run. Gates for this commit recorded in its body.
+
+---
+
 ## 2026-11-09 (part 18) - 8.5 Library workspace (`live-proven`, artifacts split to 8.5b)
 
 - **What shipped.** One search over the local content this fork actually produces.

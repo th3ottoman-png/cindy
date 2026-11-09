@@ -43,7 +43,8 @@
     "./turn-timeline": "./src/tasks/turn-timeline.ts",
     "./session-manifest": "./src/session/session-manifest.ts",
     "./turn-attachment": "./src/session/turn-attachment.ts",
-    "./library-index": "./src/library/library-index.ts"
+    "./library-index": "./src/library/library-index.ts",
+    "./operations-rail": "./src/operations/operations-rail.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
