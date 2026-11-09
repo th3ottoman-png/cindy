@@ -143,6 +143,9 @@ import {
 } from '@/lib/composerDraftStore';
 import { useProvisionalDraftEmptyCleanup } from './hooks/useProvisionalDraftEmptyCleanup';
 import { ExpertSuggestionSlot } from './ExpertSuggestionChip';
+import { TurnAttachmentSlot } from '@/components/turn-attachments/TurnAttachmentSlot';
+import { getTurnAttachments } from '@/components/turn-attachments/turnAttachmentStore';
+import { applyTurnAttachments } from '@cindy/maker-core/turn-attachment';
 import {
   canOpenProvisionalDraftTask,
   composerDocPlainText,
@@ -3636,6 +3639,14 @@ export function NewMakerDraftRoute() {
         return false;
       }
 
+      // ROADMAP 8.4: turn-scoped `@` attachments. The `@kind:id` tokens live in
+      // the draft text; here they are removed and replaced by one preamble line
+      // for this message only. No expert, skill, connector or note is enabled
+      // or disabled, so the session header stays exactly as it was. A leading
+      // slash command keeps the first line, so the command routing above and
+      // below still matches it.
+      message = applyTurnAttachments(message, getTurnAttachments(NEW_MAKER_DRAFT_KEY));
+
       // workingDir 为空就是 standalone dialogue;main 端按 workspaceKind='dialogue'
       // 自动分配运行目录。项目不是必填项,只是同一创建页里的可切换上下文。
       const selectedWorkingDir = effectiveWorkingDir?.trim() || undefined;
@@ -5877,6 +5888,29 @@ export function NewMakerDraftRoute() {
                 className={cn('flex w-full flex-col items-start gap-0', isDraftNarrow && 'order-3')}
               >
                 <div className="w-full">
+                  {/* ROADMAP 8.4: turn-scoped `@` attach. Tokens live in the draft
+                      text, so the chips and the message can never disagree. */}
+                  <TurnAttachmentSlot
+                    draftKey={NEW_MAKER_DRAFT_KEY}
+                    getDocument={() => getComposerDraft(NEW_MAKER_DRAFT_KEY)?.text}
+                    subscribe={(onChange) =>
+                      subscribeDraftContent(NEW_MAKER_DRAFT_KEY, onChange)
+                    }
+                    saveDocument={(text) => {
+                      const existing = getComposerDraft(NEW_MAKER_DRAFT_KEY);
+                      saveComposerDraft(
+                        NEW_MAKER_DRAFT_KEY,
+                        {
+                          ...existing,
+                          text,
+                          attachments: existing?.attachments ?? [],
+                          quotes: existing?.quotes ?? [],
+                          browserComments: existing?.browserComments ?? [],
+                        },
+                        { preserveRemoteOptimisticRecovery: true },
+                      );
+                    }}
+                  />
                   {/* ROADMAP 7.2: non-intrusive one-click expert suggestion above the composer. */}
                   <ExpertSuggestionSlot
                     getText={() =>

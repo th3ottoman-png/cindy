@@ -76,6 +76,7 @@ import {
 } from './SlashCommandDecoration';
 
 import { cn } from '@/lib/utils';
+import { isAttachmentKindQuery } from '@cindy/maker-core/turn-attachment';
 import { markComposerTypingActivity } from '@/lib/composerTypingActivity';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/lib/toast';
@@ -1166,6 +1167,10 @@ function detectTrigger(editor: Editor): TriggerState {
     const after = textSoFar.slice(atIdx + 1);
     const from = pos - (textSoFar.length - atIdx);
     if (allowed && !/\s/.test(after)) {
+      // ROADMAP 8.4: a capability query (`@skill:`, `@expert:`, ...) belongs to
+      // the turn-attachment panel, not the file/agent panel. Returning none
+      // hands ownership over at the colon, so the two never open together.
+      if (isAttachmentKindQuery(after)) return { kind: 'none' };
       return {
         kind: 'at',
         query: after,

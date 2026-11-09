@@ -15,6 +15,7 @@ import type { Effort } from '@/lib/userPreferences.types';
 import type { AgentSkillCommand } from '@cindy/maker-core';
 import { plainTextToTiptapDoc, type BuiltInSkillDraftIntent } from '@/lib/composerDraftStore';
 import { leadingSlashInvocation, rebaseInlineRangesAfterSlashCommandRewrite, rewriteBuiltInSkillDraftForSend } from '@/lib/slashCommands';
+import { applyTurnAttachments } from '@cindy/maker-core/turn-attachment';
 
 vi.mock('@/lib/makerTransport', () => ({ makerApiFor: vi.fn() }));
 vi.mock('@/features/device-link/remoteProjectsStore', () => ({ getSessionDeviceId: vi.fn() }));
@@ -226,6 +227,11 @@ async function submit(options: {
     normalizeAutoTitle: () => null,
     isLocalGoalWorktreeCleanupPendingError: () => false,
     plainTextToTiptapDoc, excludeCommentScreenshots: () => [],
+    // ROADMAP 8.4: the route projects turn-scoped `@` attachments into the
+    // outgoing message. These fixtures carry none, so the transform must be a
+    // no-op and every submission below must reach Main byte-identical.
+    applyTurnAttachments,
+    getTurnAttachments: () => [],
     log: { warn: (...args: unknown[]) => errors.push(args), error: (...args: unknown[]) => errors.push(args) },
     toast: { error: toastError, warning: noop },
   };
