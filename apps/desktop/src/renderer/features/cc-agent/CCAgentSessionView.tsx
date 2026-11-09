@@ -166,6 +166,7 @@ import { SessionRouteBlockedBanner } from './SessionRouteBlockedBanner';
 import { SessionContextGuardBanner } from './SessionContextGuardBanner';
 import { LongRunningTurnTimeline } from './LongRunningTurnTimeline';
 import { SessionManifestStrip } from '@/components/session-manifest/SessionManifestStrip';
+import { WorktreeMergeStrip } from '../worktree/WorktreeMergeStrip';
 import { Tip } from '@/components/ui/tooltip';
 import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog-provider';
@@ -5489,6 +5490,11 @@ function CCAgentSessionContent({
             providerId={session.providerId ?? null}
             permissionMode={session.permissionMode}
           />
+        )}
+
+        {/* ROADMAP 9.2b: Worktree diff & merge-back strip for coding tasks */}
+        {ownsRoute && session && (
+          <WorktreeMergeStrip sessionId={session.id} />
         )}
 
         {/* device-link 远程会话状态 banner:断链重连 / 被控离线 / 通路不稳定(degraded,弱网熔断)

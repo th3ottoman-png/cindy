@@ -10,6 +10,23 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-09 (part 22) - 9.2b Worktree diff and merge-back (`unit-tested`)
+
+- **What shipped.** Complete host and UI implementation for git worktree isolation diff and merge-back:
+  - `apps/desktop/src/main/worktree/worktreeMerge.ts`: provides `readWorktreeDiff` and `mergeWorktree` operations over `gitExec` and `@cindy/maker-core/worktree-merge`. `readWorktreeDiff` checks base and worktree branch status, ahead/behind counts via `git rev-list --left-right`, ancestry via `git merge-base --is-ancestor`, conflict risk via `git merge-tree --write-tree`, parses `git diff --numstat` (including untracked worktree edits), and applies `assessWorktreeMerge` guards. `mergeWorktree` auto-commits pending worktree edits with `--no-verify`, verifies base repository cleanliness (`target-dirty` guard), executes the exact verified merge argv, and rolls back with `git merge --abort` on conflict when `abortOnFailure` is set.
+  - `apps/desktop/src/main/worktree/index.ts`: exports `readWorktreeDiff` and `mergeWorktree`, and registers IPC handlers `worktree:diff` and `worktree:merge`.
+  - `apps/desktop/src/preload/preload.ts` & `apps/desktop/src/renderer/vite-env.d.ts`: exposes typed `window.electronAPI.worktreeDiff` and `worktreeMerge` methods.
+  - `apps/desktop/src/renderer/features/worktree/WorktreeMergeStrip.tsx`: pure presentation view (`WorktreeMergeStripView`) and container (`WorktreeMergeStrip`) showing branch indicators (`worktree → base`), diff stats badge (`N files +X -Y`), ahead/behind counts, 1-click "Review diff" drawer with modified file lists, and safe "Merge into working tree" action button with pending and merged states.
+  - `apps/desktop/src/renderer/features/cc-agent/CCAgentSessionView.tsx`: mounts `WorktreeMergeStrip` in the session header area, rendering only when an active worktree is bound to the session.
+- **Verification.**
+  - 6 real git integration tests in `apps/desktop/src/main/worktree/__tests__/worktreeMerge.test.ts` exercising temp repo init, branch creation, worktree creation, diff detection, clean fast-forward merge, dirty base refusal (`target-dirty`), empty branch refusal (`nothing-to-merge`), and conflict rollback abort.
+  - 9 jsdom component tests in `apps/desktop/src/renderer/features/worktree/__tests__/WorktreeMergeStrip.test.tsx` verifying conditional rendering, diff drawer toggle, button state gating, merge invocation, and error/success badges.
+  - 19 pure core tests in `packages/maker-core/src/session/__tests__/worktree-merge.test.ts` (34 related tests total, all 34 passing).
+  - Gates: `pnpm test:runner` (607 tests passing, exit 0), `pnpm check:test-hygiene` (361 files within baseline, exit 0), `node scripts/design-inventory.mjs --check` (54 surfaces, exit 0).
+- **Not started.** Phase 9 continuation: 9.3 (Interactive inline diff visualizer in chat), 9.4, 9.5, 8.6b, 8.7, 7.3, 7.4.
+
+---
+
 ## 2026-11-09 (part 21) - 9.2a Worktree merge safety and diff summary (`unit-tested`)
 
 - **What shipped.** `packages/maker-core/src/session/worktree-merge.ts`, new subpath `@cindy/maker-core/worktree-merge`. `assessWorktreeMerge` takes the facts a host can read cheaply (base branch, worktree branch, dirty file count, ahead and behind counts, whether base is an ancestor, and an optional known conflict) and returns an allowed flag, a method, a reason, a one-sentence message, the exact `git` argv and an `abortOnFailure` flag. The argv travels with the decision, so the UI text and the command cannot drift. `parseWorktreeNumstat` and `summariseWorktreeDiff` read `git diff --numstat` (binary files, braced and top-level renames) and total a bounded summary.

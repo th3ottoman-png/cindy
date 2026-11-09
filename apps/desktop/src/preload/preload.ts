@@ -5307,6 +5307,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     sessionId: string,
   ): Promise<{ ok: boolean; snapshotApplied?: boolean; message?: string }> =>
     ipcRenderer.invoke('worktree:restore-for-session', sessionId),
+  worktreeDiff: (sessionId: string): Promise<unknown> =>
+    ipcRenderer.invoke('worktree:diff', sessionId),
+  worktreeMerge: (sessionId: string): Promise<unknown> =>
+    ipcRenderer.invoke('worktree:merge', sessionId),
   /** worktree 回收完成后，按实际受影响的 sessionId 增量更新 renderer 缓存。 */
   onWorktreeChanged: fanOutWorktreeChanged,
 

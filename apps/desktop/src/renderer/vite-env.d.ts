@@ -4439,6 +4439,8 @@ interface ElectronAPI {
     reason?: 'gone' | 'no-worktree' | 'git-error';
     detail?: string;
   }>;
+  worktreeDiff: (sessionId: string) => Promise<import('../main/worktree').WorktreeDiffResponse>;
+  worktreeMerge: (sessionId: string) => Promise<import('../main/worktree').WorktreeMergeResponse>;
   /** worktree 回收完成后，按实际受影响的 sessionId 增量更新本机缓存。 */
   onWorktreeChanged: (callback: (payload: { sessionId: string }) => void) => () => void;
 

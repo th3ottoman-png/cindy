@@ -16,6 +16,7 @@ import { ipcMain as ipcMainType, type IpcMain, shell } from 'electron';
 import * as WorktreeManager from './WorktreeManager';
 import * as worktreeStore from './worktreeStore';
 import { getWorktreeRestoreStatus, restoreWorktreeForSession } from './restore';
+import { readWorktreeDiff, mergeWorktree } from './worktreeMerge';
 import { createLogger } from '../logger';
 import { throwIpcError } from '../utils/ipcValidate';
 
@@ -46,6 +47,12 @@ export {
   type WorktreeRestoreStatus,
   type WorktreeRestoreResult,
 } from './restore';
+export {
+  readWorktreeDiff,
+  mergeWorktree,
+  type WorktreeDiffResponse,
+  type WorktreeMergeResponse,
+} from './worktreeMerge';
 export * from './types';
 
 /**
@@ -144,5 +151,41 @@ export function registerWorktreeIpc(ipcMain: IpcMain = ipcMainType): void {
       return { ok: false, message: 'invalid sessionId' };
     }
     return restoreWorktreeForSession(sessionId);
+  });
+
+  ipcMain.handle('worktree:diff', async (_e, sessionId: unknown) => {
+    const sid =
+      typeof sessionId === 'string'
+        ? sessionId
+        : sessionId && typeof sessionId === 'object' && 'sessionId' in sessionId
+          ? String((sessionId as { sessionId: unknown }).sessionId)
+          : '';
+    if (!sid) return { ok: false, hasWorktree: false, message: 'invalid sessionId' };
+    return readWorktreeDiff(sid);
+  });
+
+  ipcMain.handle('worktree:merge', async (_e, sessionId: unknown) => {
+    const sid =
+      typeof sessionId === 'string'
+        ? sessionId
+        : sessionId && typeof sessionId === 'object' && 'sessionId' in sessionId
+          ? String((sessionId as { sessionId: unknown }).sessionId)
+          : '';
+    if (!sid) {
+      return {
+        ok: false,
+        method: 'none',
+        message: 'invalid sessionId',
+        decision: {
+          allowed: false,
+          method: 'none',
+          reason: 'nothing-to-merge',
+          message: 'invalid sessionId',
+          args: [],
+          abortOnFailure: false,
+        },
+      };
+    }
+    return mergeWorktree(sid);
   });
 }
