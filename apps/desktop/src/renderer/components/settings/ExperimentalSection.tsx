@@ -21,15 +21,11 @@ import {
 } from '@/hooks/useExperimentalFeatures';
 import { LspBetaCell } from './LspBetaCell';
 import { SETTINGS_CARD_CLASS, SETTINGS_ROW_DIVIDER_CLASS } from './settingsRowClasses';
-import { BetaChannelCell } from './BetaChannelCell';
 
 export function ExperimentalSection() {
   const { t } = useTranslation();
-  const betaChannelSupported =
-    window.electronAPI?.supportsBetaUpdateChannel ?? window.electronAPI?.platform !== 'linux';
   const rows: { key: string; node: ReactNode }[] = [
     { key: 'lsp', node: <LspBetaCell /> },
-    ...(betaChannelSupported ? [{ key: 'beta-channel', node: <BetaChannelCell /> }] : []),
     ...EXPERIMENTAL_FEATURES.map((feature) => ({
       key: feature.key,
       node: <ExperimentalFeatureRow feature={feature} />,

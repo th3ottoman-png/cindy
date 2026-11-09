@@ -10,6 +10,35 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-09 (part 24) - Settings & Skills cleanup: Expert deletion, removed beta channel, local-only Skills view (`unit-tested`)
+
+- **What shipped.** Addressed 3 user feedback items across Settings and Skills:
+  1. **Expert deletion**:
+     - `packages/maker-core/src/experts/expert-draft.ts`: added `deleteExpert(rootDir, slug)` with path traversal guards (`path.relative` check, invalid slug rejection, non-existent folder check) and directory removal.
+     - `apps/desktop/src/main/maker-ipc/expertsHandlers.ts`: handled `op: 'delete'` in `maker:experts:save`, resetting pending expert state if active and broadcasting `MAKER_PUSH.EXPERTS_CHANGED`.
+     - `apps/desktop/src/renderer/components/settings/ExpertsSection.tsx`: added `Delete` action button on expert cards (`variant="secondary"` `tone="danger"` `size="xs"` with `Trash2` icon) and a "Delete expert" button in edit mode, guarded by `useOptionalConfirmDialog` confirmation dialog (`Delete expert "<name>"?`).
+  2. **Removed Beta Channel**:
+     - `apps/desktop/src/renderer/components/settings/ExperimentalSection.tsx`: removed the "Beta channel" toggle cell (Cindy is a private single-user fork with no cloud beta release channels).
+  3. **Local-only Skills page & removal of broken Public SkillHub catalog**:
+     - `apps/desktop/src/renderer/features/skillhub/lib/homeMarketFilter.ts`: updated `visibleHomeCatalogTabs(showOrganization, enableRemote = false)` to default to `['local']`.
+     - `apps/desktop/src/renderer/features/skillhub/hooks/useSkillhubHomeNavigation.ts`: added `defaultTab: HomeCatalogTab = 'local'` parameter so opening Skills navigates straight to local skills.
+     - `apps/desktop/src/renderer/features/skillhub/SkillhubHomeView.tsx` & `SkillhubLocalLayout.tsx`: wired `enableRemoteMarket` prop and `isRemoteEnabled = enableRemoteMarket ?? Boolean(target)`, defaulting to `false` in Cindy desktop so Skills page presents local skills directly with `descriptionLocalOnly`, hiding the dead Public tab, eliminating the `Load failed: 请求失败 (0)` error and preventing unnecessary network requests to nonexistent cloud SkillHub endpoints, while preserving remote device-link catalog capabilities on `RemoteSkillsPage`.
+- **Verification.**
+  - `packages/maker-core/src/experts/__tests__/expert-edit.test.ts`: 3 unit tests added for `deleteExpert` (normal deletion, non-existent slug, path traversal rejection); 14/14 tests pass.
+  - `apps/desktop/src/main/maker-ipc/__tests__/expertsHandlers.test.ts`: tests for `op: 'delete'` IPC handler; 10/10 tests pass.
+  - `apps/desktop/src/renderer/components/settings/__tests__/ExpertsSection.test.tsx`: verified Delete buttons render on valid and broken expert cards; 5/5 tests pass.
+  - `apps/desktop/src/renderer/components/settings/__tests__/SettingsViewEscape.test.tsx`: verified clean mount with `useOptionalConfirmDialog`; 1/1 tests pass.
+  - `apps/desktop/src/renderer/features/skillhub/__tests__/SkillhubHomeNavigation.test.tsx`: verified default local skills view without remote market tabs and verified multi-tab remote catalog navigation; 28/28 tests pass.
+  - `apps/desktop/src/renderer/features/skillhub/__tests__/RemoteSkillsPage.test.tsx`: 18/18 device-link remote catalog tests pass.
+  - All 55 test files in `src/renderer/features/skillhub/` pass (504 tests, exit 0).
+  - All repository gates green under Node 22:
+    - `pnpm typecheck` (37 workspace projects, exit 0)
+    - `pnpm test:runner` (608 tests passing, exit 0)
+    - `pnpm test:unit:related` (related workspaces passing, exit 0)
+    - `pnpm check:test-hygiene` (361 files within baseline, exit 0)
+
+---
+
 ## 2026-11-09 (part 23) - 9.3 Interactive inline visual diff cards in chat (`live-proven`)
 
 - **What shipped.** Complete parser, projection, and interactive visual review cards for unified diffs and file patches in chat:

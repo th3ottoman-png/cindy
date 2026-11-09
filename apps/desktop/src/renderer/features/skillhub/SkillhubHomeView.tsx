@@ -88,6 +88,7 @@ export function SkillhubHomeView(
     active?: boolean;
     navigationLocation?: Location;
     onSelectCatalogTab?: (tab: 'plugins' | 'skills') => void;
+    enableRemoteMarket?: boolean;
   } = {},
 ) {
   return (
@@ -118,6 +119,7 @@ export function SkillhubHomeContent({
   active = true,
   navigationLocation,
   onSelectCatalogTab,
+  enableRemoteMarket,
 }: {
   deviceControl?: CatalogDeviceControl;
   notice?: ReactNode;
@@ -125,19 +127,25 @@ export function SkillhubHomeContent({
   active?: boolean;
   navigationLocation?: Location;
   onSelectCatalogTab?: (tab: 'plugins' | 'skills') => void;
+  enableRemoteMarket?: boolean;
 } = {}) {
   const { t } = useTranslation();
   const target = useSkillhubTarget();
+  const isRemoteEnabled = enableRemoteMarket ?? Boolean(target);
   const navigate = useNavigate();
   const [initialSearch] = useSearchParams();
   const { skills, projects, bootstrapped, syncResults } = useSkillhub();
-  const { catalogTab, query, setCatalogTab, setQuery } = useSkillhubHomeNavigation(navigationLocation);
+  const { catalogTab, query, setCatalogTab, setQuery } = useSkillhubHomeNavigation(
+    navigationLocation,
+    isRemoteEnabled ? 'public' : 'local',
+  );
   const normalizedQuery = query.trim().toLocaleLowerCase();
 
   // 未登录也请求公开 Skill 目录；登录身份只扩大服务端可见范围。
   const { user } = useAuth();
   const marketUpdate = useMarketSkillUpdate();
   const showOrganization = user?.membershipKind === 'org';
+  const homeCatalogTabs = visibleHomeCatalogTabs(showOrganization, isRemoteEnabled);
   const marketFilter: HomeMarketFilter = catalogTab === 'organization' ? 'organization' : 'public';
   const marketRequest = useMemo(() => homeMarketQuery(marketFilter), [marketFilter]);
 
@@ -159,7 +167,7 @@ export function SkillhubHomeContent({
     setVisibility,
     loadMore: loadMoreMarket,
   } = useMarketList('all', {
-    enabled: active && catalogTab !== 'local',
+    enabled: active && catalogTab !== 'local' && homeCatalogTabs.includes(catalogTab),
     initialScope: 'market',
     initialSort: 'trending',
     initialSearchQuery: initialSearch.get('q') ?? '',
@@ -267,7 +275,6 @@ export function SkillhubHomeContent({
   };
   const openMarket = () => target ? target.openMarketList() : navigate('/skillhub/market');
   const openCatalogSkill = (skill: MarketSkill) => target ? target.openMarket(skill) : navigate(buildMarketSkillRoute(skill, returnTo));
-  const homeCatalogTabs = visibleHomeCatalogTabs(showOrganization);
 
   const handleImportSkill = useCallback(async () => {
     if (target || importBusy) return;
@@ -342,7 +349,9 @@ export function SkillhubHomeContent({
                     {t('skillhub.home.title')}
                   </h1>
                   <p className="mt-2 max-w-2xl text-14 leading-6 text-[var(--text-secondary)]">
-                    {t('skillhub.home.description')}
+                    {homeCatalogTabs.includes('public')
+                      ? t('skillhub.home.description')
+                      : t('skillhub.home.descriptionLocalOnly')}
                   </p>
                 </div>
                 {deviceControl && <CatalogTargetControls computer={deviceControl} />}
@@ -371,18 +380,20 @@ export function SkillhubHomeContent({
                         : t(`skillhub.home.catalogFilter.${tab}`),
                   }))}
                 />
-                <button
-                  type="button"
-                  onClick={openMarket}
-                  className={cn(
-                    'inline-flex shrink-0 items-center gap-1 rounded-full px-3.5 py-2 text-12 text-[var(--text-secondary)]',
-                    'transition-colors duration-150 hover:bg-[var(--surface-hover-soft)] hover:text-[var(--text-primary)]',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]',
-                  )}
-                >
-                  {t('skillhub.home.catalogMore')}
-                  <ChevronRight size={13} strokeWidth={1.8} aria-hidden="true" />
-                </button>
+                {homeCatalogTabs.includes('public') ? (
+                  <button
+                    type="button"
+                    onClick={openMarket}
+                    className={cn(
+                      'inline-flex shrink-0 items-center gap-1 rounded-full px-3.5 py-2 text-12 text-[var(--text-secondary)]',
+                      'transition-colors duration-150 hover:bg-[var(--surface-hover-soft)] hover:text-[var(--text-primary)]',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]',
+                    )}
+                  >
+                    {t('skillhub.home.catalogMore')}
+                    <ChevronRight size={13} strokeWidth={1.8} aria-hidden="true" />
+                  </button>
+                ) : null}
               </div>
               {showMarketCatalog && categories.length > 0 ? (
                 <SkillCategoryFilterBar

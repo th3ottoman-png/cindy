@@ -156,6 +156,16 @@ describe('experts IPC', () => {
       expect(broadcast).not.toHaveBeenCalled();
     });
 
+    it('deletes an expert folder and broadcasts the fresh list', async () => {
+      writeExpert('reviewer', HAND);
+      const { harness, broadcast } = setup();
+      expect(loadExperts(root).map((e) => e.slug)).toEqual(['reviewer']);
+      const res = await harness.invoke(MAKER_INVOKE.EXPERTS_SAVE, { op: 'delete', slug: 'reviewer' });
+      expect(res).toMatchObject({ ok: true, slug: 'reviewer' });
+      expect(fs.existsSync(path.join(root, 'reviewer'))).toBe(false);
+      expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.EXPERTS_CHANGED, []);
+    });
+
     it('refuses an untrusted caller and junk requests without writing', async () => {
       const harness = new IpcHarness();
       handle = registerExpertsHandlers(harness, {
@@ -169,7 +179,8 @@ describe('experts IPC', () => {
       await expect(harness.invoke(MAKER_INVOKE.EXPERTS_SAVE, { op: 'create', slug: 'x-y', fields })).rejects.toThrow('untrusted sender');
       handle.dispose();
       const { harness: ok } = setup();
-      expect(await ok.invoke(MAKER_INVOKE.EXPERTS_SAVE, { op: 'delete', slug: 'x' })).toMatchObject({ ok: false, reason: 'invalid' });
+      expect(await ok.invoke(MAKER_INVOKE.EXPERTS_SAVE, { op: 'delete', slug: '../bad' })).toMatchObject({ ok: false, reason: 'invalid' });
+      expect(await ok.invoke(MAKER_INVOKE.EXPERTS_SAVE, { op: 'delete', slug: 'non-existent' })).toMatchObject({ ok: false, reason: 'missing' });
       expect(await ok.invoke(MAKER_INVOKE.EXPERTS_SAVE, null)).toMatchObject({ ok: false, reason: 'invalid' });
       expect(fs.readdirSync(root)).toEqual([]);
     });

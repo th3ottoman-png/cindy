@@ -86,7 +86,7 @@ function SettingsCatalog() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   useSettingsEscape(rootRef, true, () => navigate('/away'));
-  return <div ref={rootRef}><SkillhubHomeView embedded /></div>;
+  return <div ref={rootRef}><SkillhubHomeView embedded enableRemoteMarket={true} /></div>;
 }
 
 function CatalogHarness({ entry = '/skillhub/local' }: {
@@ -96,7 +96,7 @@ function CatalogHarness({ entry = '/skillhub/local' }: {
     <MemoryRouter initialEntries={['/before', entry]}>
       <NavigationControls />
       <Routes>
-        <Route element={<SkillhubLocalLayout />}>
+        <Route element={<SkillhubLocalLayout enableRemoteMarket={true} />}>
           <Route path="/skillhub/detail" element={<DetailNavigation />} />
           <Route path="/skillhub/local">
           <Route index element={null} />
@@ -144,6 +144,21 @@ describe('Skill home navigation', () => {
   it('still opens a fresh catalog on Public', () => {
     renderCatalog();
     expectTab('public');
+  });
+
+  it('defaults to local skills only without remote market tabs when remote market is not enabled', () => {
+    render(
+      <MemoryRouter initialEntries={['/skillhub/local']}>
+        <Routes>
+          <Route element={<SkillhubLocalLayout />}>
+            <Route path="/skillhub/local" element={null} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('radio', { name: 'skillhub.home.catalogFilter.public' })).toBeNull();
+    expect(screen.getByRole('button', { name: /calendar-tools/ })).toBeTruthy();
+    expect(screen.getByText('skillhub.home.descriptionLocalOnly')).toBeTruthy();
   });
 
   it.each([

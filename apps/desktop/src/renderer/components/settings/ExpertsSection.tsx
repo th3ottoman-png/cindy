@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AlertTriangle, Copy, Pencil, Plus, Users } from 'lucide-react';
+import { AlertTriangle, Copy, Pencil, Plus, Trash2, Users } from 'lucide-react';
 
 import type {
   ExpertEditExtras,
@@ -9,6 +9,7 @@ import type {
 import type { ExpertEntry } from '@cindy/maker-core/experts';
 
 import { Button } from '@/components/ui/button';
+import { useOptionalConfirmDialog } from '@/components/ui/confirm-dialog-provider';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
@@ -141,11 +142,13 @@ export function ExpertListView({
   selected,
   onEdit,
   onDuplicate,
+  onDelete,
 }: {
   entries: readonly ExpertEntry[];
   selected: string | null;
   onEdit: (slug: string) => void;
   onDuplicate: (slug: string) => void;
+  onDelete: (slug: string) => void;
 }) {
   if (entries.length === 0) {
     return (
@@ -196,28 +199,40 @@ export function ExpertListView({
                 </span>
               )}
             </div>
-            {expert ? (
-              <div className="flex shrink-0 gap-1.5">
-                <Button
-                  variant="secondary"
-                  size="xs"
-                  data-testid={`expert-edit-${entry.slug}`}
-                  onClick={() => onEdit(entry.slug)}
-                  aria-label={`Edit ${expert.name}`}
-                >
-                  <Pencil size={12} aria-hidden="true" /> Edit
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="xs"
-                  data-testid={`expert-duplicate-${entry.slug}`}
-                  onClick={() => onDuplicate(entry.slug)}
-                  aria-label={`Duplicate ${expert.name}`}
-                >
-                  <Copy size={12} aria-hidden="true" /> Duplicate
-                </Button>
-              </div>
-            ) : null}
+            <div className="flex shrink-0 gap-1.5">
+              {expert ? (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    data-testid={`expert-edit-${entry.slug}`}
+                    onClick={() => onEdit(entry.slug)}
+                    aria-label={`Edit ${expert.name}`}
+                  >
+                    <Pencil size={12} aria-hidden="true" /> Edit
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    data-testid={`expert-duplicate-${entry.slug}`}
+                    onClick={() => onDuplicate(entry.slug)}
+                    aria-label={`Duplicate ${expert.name}`}
+                  >
+                    <Copy size={12} aria-hidden="true" /> Duplicate
+                  </Button>
+                </>
+              ) : null}
+              <Button
+                variant="secondary"
+                tone="danger"
+                size="xs"
+                data-testid={`expert-delete-${entry.slug}`}
+                onClick={() => onDelete(entry.slug)}
+                aria-label={`Delete ${expert ? expert.name : entry.slug}`}
+              >
+                <Trash2 size={12} aria-hidden="true" /> Delete
+              </Button>
+            </div>
           </li>
         );
       })}
@@ -253,6 +268,7 @@ function Field({ label, children, hint }: { label: string; children: ReactNode; 
 }
 
 export function ExpertsSection() {
+  const confirmDialog = useOptionalConfirmDialog();
   const [entries, setEntries] = useState<ExpertEntry[]>([]);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -366,6 +382,34 @@ export function ExpertsSection() {
     await openEdit(newSlug);
   };
 
+  const handleDelete = async (slug: string) => {
+    if (!api) return;
+    const targetName = entries.find((e) => e.slug === slug)?.expert?.name ?? slug;
+    const confirmed = confirmDialog
+      ? await confirmDialog.confirm({
+          title: `Delete expert "${targetName}"?`,
+          description: `This permanently removes ~/.cindy-harness/experts/${slug}. This action cannot be undone.`,
+          confirmText: 'Delete',
+          cancelText: 'Cancel',
+          confirmVariant: 'destructive',
+        })
+      : true;
+    if (!confirmed) return;
+    try {
+      const res = await api.save({ op: 'delete', slug });
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
+      toast.success(`Deleted expert "${targetName}"`);
+      if (editing?.slug === slug) {
+        setEditing(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const handleSave = async () => {
     if (!api || !editing) return;
     setSaving(true);
@@ -434,6 +478,7 @@ export function ExpertsSection() {
           selected={editing?.kind === 'edit' ? editing.slug : null}
           onEdit={(slug) => void openEdit(slug)}
           onDuplicate={(slug) => void handleDuplicate(slug)}
+          onDelete={(slug) => void handleDelete(slug)}
         />
       </div>
 
@@ -561,25 +606,39 @@ export function ExpertsSection() {
           </span>
 
           <div className={SETTINGS_ROW_DIVIDER_CLASS} />
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-8 text-12"
-              onClick={() => setEditing(null)}
-            >
-              Close
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              className="h-8 text-12"
-              data-testid="expert-save"
-              disabled={saving || (editing.kind === 'edit' && (editing.stale || !editing.dirty))}
-              onClick={() => void handleSave()}
-            >
-              {editing.kind === 'create' ? 'Create' : 'Save'}
-            </Button>
+          <div className="flex items-center justify-between gap-2">
+            {editing.kind === 'edit' ? (
+              <Button
+                variant="secondary"
+                tone="danger"
+                size="sm"
+                className="h-8 text-12"
+                data-testid="expert-edit-delete"
+                onClick={() => void handleDelete(editing.slug)}
+              >
+                <Trash2 size={12} aria-hidden="true" /> Delete expert
+              </Button>
+            ) : <div />}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 text-12"
+                onClick={() => setEditing(null)}
+              >
+                Close
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="h-8 text-12"
+                data-testid="expert-save"
+                disabled={saving || (editing.kind === 'edit' && (editing.stale || !editing.dirty))}
+                onClick={() => void handleSave()}
+              >
+                {editing.kind === 'create' ? 'Create' : 'Save'}
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}

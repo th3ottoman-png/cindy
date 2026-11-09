@@ -21,6 +21,7 @@
 import { readFileSync } from 'node:fs';
 
 import {
+  deleteExpert,
   duplicateExpert,
   readExpertSource,
   saveExpertEdit,
@@ -176,7 +177,8 @@ async function buildGoAhead(
 export type ExpertSaveRequest =
   | { op: 'create'; slug: string; fields: unknown }
   | { op: 'duplicate'; from: string; slug: string; name: string }
-  | { op: 'edit'; slug: string; baseHash: string; fields: unknown };
+  | { op: 'edit'; slug: string; baseHash: string; fields: unknown }
+  | { op: 'delete'; slug: string };
 
 const readFileUtf8 = (file: string): string => readFileSync(file, 'utf8');
 
@@ -195,6 +197,8 @@ function saveExpert(rootDir: string, request: unknown): ExpertSaveResult {
       return duplicateExpert(rootDir, str(r.from), { slug: r.slug, name: r.name });
     case 'edit':
       return saveExpertEdit(rootDir, str(r.slug), { baseHash: str(r.baseHash), fields: r.fields });
+    case 'delete':
+      return deleteExpert(rootDir, str(r.slug));
     default:
       return { ok: false, reason: 'invalid', message: 'unknown expert save request' };
   }
@@ -222,7 +226,13 @@ export function registerExpertsHandlers(
     deps.assertTrusted(event);
     const res = saveExpert(deps.rootDir, request);
     // Push at once; the watcher's debounced push follows and is harmless.
-    if (res.ok) deps.broadcast(MAKER_PUSH.EXPERTS_CHANGED, loadExperts(deps.rootDir));
+    if (res.ok) {
+      const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
+      if (r.op === 'delete' && deps.sessions && deps.sessions.getPending() === r.slug) {
+        deps.sessions.setPending(null);
+      }
+      deps.broadcast(MAKER_PUSH.EXPERTS_CHANGED, loadExperts(deps.rootDir));
+    }
     return res;
   });
   const sessions = deps.sessions;

@@ -4,7 +4,7 @@ import * as path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { duplicateExpert, readExpertSource, saveExpertEdit, type ExpertEditFields } from '../expert-draft';
+import { deleteExpert, duplicateExpert, readExpertSource, saveExpertEdit, type ExpertEditFields } from '../expert-draft';
 import { loadExperts } from '../expert-loader';
 
 let root: string;
@@ -180,5 +180,28 @@ describe('readExpertSource memory notes (ROADMAP 3.4b)', () => {
     expect(some.notes.text).toBe(notes);
     // A memory write must never make an open edit form look stale.
     expect(some.hash).toBe(none.hash);
+  });
+});
+
+describe('deleteExpert', () => {
+  it('deletes an existing expert folder and returns ok', () => {
+    writeExpert('to-delete', HAND_WRITTEN);
+    expect(fs.existsSync(path.join(root, 'to-delete'))).toBe(true);
+    const res = deleteExpert(root, 'to-delete');
+    expect(res).toMatchObject({ ok: true, slug: 'to-delete' });
+    expect(fs.existsSync(path.join(root, 'to-delete'))).toBe(false);
+  });
+
+  it('fails closed on non-existent expert', () => {
+    const res = deleteExpert(root, 'does-not-exist');
+    expect(res).toMatchObject({ ok: false, reason: 'missing' });
+  });
+
+  it('fails closed on path traversal or invalid folder name', () => {
+    writeExpert('keep-me', HAND_WRITTEN);
+    expect(deleteExpert(root, '../etc')).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(deleteExpert(root, 'sub/dir')).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(deleteExpert(root, '.hidden')).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(fs.existsSync(path.join(root, 'keep-me'))).toBe(true);
   });
 });

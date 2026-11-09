@@ -438,3 +438,29 @@ export function duplicateExpert(
   if (!res.ok) return res;
   return { ok: true, slug, dir: res.dir, file: res.file, hash: hashExpertMarkdown(fs.readFileSync(res.file, 'utf8')) };
 }
+
+/**
+ * Delete an expert folder by its slug.
+ * Fails closed on invalid folder names, path traversal, or non-existent experts.
+ */
+export function deleteExpert(rootDir: string, slug: string): ExpertSaveResult {
+  if (typeof slug !== 'string' || !/^[^./\\][^/\\]{0,127}$/.test(slug) || slug.includes('..')) {
+    return { ok: false, reason: 'invalid', message: `invalid expert folder name "${String(slug)}"` };
+  }
+  const expertDir = path.join(rootDir, slug);
+  const resolvedExpertDir = path.resolve(expertDir);
+  const resolvedRoot = path.resolve(rootDir);
+  if (!resolvedExpertDir.startsWith(resolvedRoot + path.sep)) {
+    return { ok: false, reason: 'invalid', message: `expert folder outside root: "${slug}"` };
+  }
+  if (!fs.existsSync(resolvedExpertDir)) {
+    return { ok: false, reason: 'missing', message: `no expert "${slug}"` };
+  }
+  try {
+    fs.rmSync(resolvedExpertDir, { recursive: true, force: true });
+    return { ok: true, slug, dir: '', file: '', hash: '' };
+  } catch (err) {
+    return { ok: false, reason: 'invalid', message: err instanceof Error ? err.message : String(err) };
+  }
+}
+

@@ -17,16 +17,20 @@ interface SkillhubNavigationState {
 }
 
 /** Keep list state on the history entry so both detail Back and browser Back restore it. */
-export function useSkillhubHomeNavigation(navigationLocation?: Location) {
+export function useSkillhubHomeNavigation(
+  navigationLocation?: Location,
+  defaultTab: HomeCatalogTab = 'local',
+) {
   const currentLocation = useLocation();
   const location = navigationLocation ?? currentLocation;
   const navigate = useNavigate();
   const navState = location.state as SkillhubNavigationState | null;
   const search = new URLSearchParams(location.search);
   const savedTab = navState?.skillhubHome?.catalogTab ?? search.get('tab');
-  const catalogTab: HomeCatalogTab = savedTab === 'local' || savedTab === 'organization'
-    ? savedTab
-    : 'public';
+  const catalogTab: HomeCatalogTab =
+    savedTab === 'organization' || savedTab === 'public' || savedTab === 'local'
+      ? savedTab
+      : defaultTab;
   const query = typeof navState?.skillhubHome?.query === 'string' ? navState.skillhubHome.query : search.get('q') ?? '';
 
   const updateHomeState = useCallback((patch: Partial<HomeViewState>) => {

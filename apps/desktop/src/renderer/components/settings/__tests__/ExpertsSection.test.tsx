@@ -45,16 +45,19 @@ describe('Settings expert editor (ROADMAP 3.3)', () => {
         selected="code-reviewer"
         onEdit={() => undefined}
         onDuplicate={() => undefined}
+        onDelete={() => undefined}
       />,
     );
     expect(html).toContain('Code Reviewer');
     expect(html).toContain('Reviews diffs');
     expect(html).toContain('data-testid="expert-edit-code-reviewer"');
     expect(html).toContain('data-testid="expert-duplicate-code-reviewer"');
+    expect(html).toContain('data-testid="expert-delete-code-reviewer"');
     expect(html).toContain('frontmatter &quot;name&quot; is required');
     expect(html).toContain('/x/broken/expert.md');
     expect(html).not.toContain('data-testid="expert-edit-broken"');
     expect(html).not.toContain('data-testid="expert-duplicate-broken"');
+    expect(html).toContain('data-testid="expert-delete-broken"');
   });
 
   it('round-trips form fields: tags as a comma list, empty model omitted', () => {

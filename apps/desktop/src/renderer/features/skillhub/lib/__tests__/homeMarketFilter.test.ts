@@ -19,9 +19,11 @@ describe('Skill home market filters', () => {
     });
   });
 
-  it('places local skills after public and the optional organization tab', () => {
-    expect(visibleHomeCatalogTabs(false)).toEqual(['public', 'local']);
-    expect(visibleHomeCatalogTabs(true)).toEqual(['public', 'organization', 'local']);
+  it('returns local-only tabs by default, or places local skills after public when remote is enabled', () => {
+    expect(visibleHomeCatalogTabs(false)).toEqual(['local']);
+    expect(visibleHomeCatalogTabs(true)).toEqual(['local']);
+    expect(visibleHomeCatalogTabs(false, true)).toEqual(['public', 'local']);
+    expect(visibleHomeCatalogTabs(true, true)).toEqual(['public', 'organization', 'local']);
   });
 
   it('does not present a response from the previous tab as current', () => {

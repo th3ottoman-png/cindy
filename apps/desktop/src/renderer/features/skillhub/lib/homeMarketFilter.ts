@@ -11,7 +11,11 @@ export interface HomeMarketQuery {
 
 export function visibleHomeCatalogTabs(
   showOrganization: boolean,
+  enableRemote: boolean = false,
 ): HomeCatalogTab[] {
+  if (!enableRemote) {
+    return ['local'];
+  }
   return showOrganization ? ['public', 'organization', 'local'] : ['public', 'local'];
 }
 

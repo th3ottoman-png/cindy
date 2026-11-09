@@ -5,12 +5,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { SkillhubHomeView } from './SkillhubHomeView';
 
 /** Keep the visited catalog alive only within this owner's local skill routes. */
-export function SkillhubLocalLayout() {
+export function SkillhubLocalLayout(props: { enableRemoteMarket?: boolean } = {}) {
   const { dataOwnerId, mode } = useAuth();
-  return <LocalSkillPages key={JSON.stringify([mode, dataOwnerId])} />;
+  return <LocalSkillPages key={JSON.stringify([mode, dataOwnerId])} enableRemoteMarket={props.enableRemoteMarket} />;
 }
 
-function LocalSkillPages() {
+function LocalSkillPages({ enableRemoteMarket }: { enableRemoteMarket?: boolean }) {
   const location = useLocation();
   const showingCatalog = useMatch({ path: '/skillhub/local', end: true }) !== null;
   const [catalogLocation, setCatalogLocation] = useState<Location | null>(
@@ -32,7 +32,11 @@ function LocalSkillPages() {
         >
           {/* Keep the scroll container's geometry as well as its DOM identity.
               A detail URL must not change the hidden catalog's filters. */}
-          <SkillhubHomeView active={showingCatalog} navigationLocation={catalogLocation} />
+          <SkillhubHomeView
+            active={showingCatalog}
+            navigationLocation={catalogLocation}
+            enableRemoteMarket={enableRemoteMarket}
+          />
         </div>
       )}
       {!showingCatalog && <Outlet />}
