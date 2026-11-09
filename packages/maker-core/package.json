@@ -17,6 +17,7 @@
     "./experts": "./src/experts/expert-loader.ts",
     "./expert-tools": "./src/experts/expert-tools.ts",
     "./intent-classifier": "./src/experts/intent-classifier.ts",
+    "./capability-diff": "./src/experts/capability-diff.ts",
     "./providers-file": "./src/providers/providers-file.ts",
     "./providers-discovery": "./src/providers/discovery.ts",
     "./extensions": "./src/extensions/registry.ts",

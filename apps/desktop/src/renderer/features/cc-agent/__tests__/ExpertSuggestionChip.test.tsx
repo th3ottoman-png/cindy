@@ -5,7 +5,7 @@ import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ExpertSuggestion, ExpertSuggestionCandidate } from '@cindy/maker-core/intent-classifier';
 
-import { ExpertSuggestionChip, ExpertSuggestionSlot } from '../ExpertSuggestionChip';
+import { ExpertSuggestionChip, ExpertSuggestionSlot, type ExpertSuggestionEntry } from '../ExpertSuggestionChip';
 
 const ENTRIES: readonly ExpertSuggestionCandidate[] = [
   { slug: 'code-reviewer', name: 'Code Reviewer', tags: ['code', 'review'] },
@@ -13,6 +13,29 @@ const ENTRIES: readonly ExpertSuggestionCandidate[] = [
     slug: 'vault-researcher',
     name: 'Vault Researcher',
     tags: ['notes', 'vault', 'obsidian', 'search', 'memory', 'graph', 'capture'],
+  },
+];
+
+/** Same two experts, with the declared surface the 8.3 diff compares. */
+const RICH_ENTRIES: readonly ExpertSuggestionEntry[] = [
+  {
+    slug: 'code-reviewer',
+    name: 'Code Reviewer',
+    tags: ['code', 'review'],
+    dir: '/experts/code-reviewer',
+    model: 'local-small',
+    tools: ['read_file', 'search_notes', 'run_tests'],
+    toolsets: ['filesystem'],
+    skills: ['review-checklist'],
+  },
+  {
+    slug: 'vault-researcher',
+    name: 'Vault Researcher',
+    tags: ['notes', 'vault', 'obsidian', 'search', 'memory', 'graph', 'capture'],
+    dir: '/experts/vault-researcher',
+    model: 'local-small',
+    tools: ['search_notes', 'read_note'],
+    skills: ['vault-notes'],
   },
 ];
 
@@ -78,6 +101,29 @@ describe('ExpertSuggestionChip (presentational)', () => {
     expect(onSwitch).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByTestId('expert-suggestion-dismiss'));
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the 8.3 diff line when one is supplied and omits it when not', () => {
+    const { unmount } = render(
+      <ExpertSuggestionChip
+        suggestion={SUGGESTION}
+        diffSummary="Switching adds 9 tools, drops toolset lock, keeps model."
+        onSwitch={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('expert-suggestion-diff').textContent).toBe(
+      'Switching adds 9 tools, drops toolset lock, keeps model.',
+    );
+    expect(screen.getByTestId('expert-suggestion-chip').getAttribute('data-diff-summary')).toBe(
+      'Switching adds 9 tools, drops toolset lock, keeps model.',
+    );
+    unmount();
+
+    render(
+      <ExpertSuggestionChip suggestion={SUGGESTION} onSwitch={vi.fn()} onDismiss={vi.fn()} />,
+    );
+    expect(screen.queryByTestId('expert-suggestion-diff')).toBeNull();
   });
 
   it('has zero modal lock-in (no dialog, no focus trap, no overlay)', () => {
@@ -274,6 +320,69 @@ describe('ExpertSuggestionSlot (container)', () => {
         'code-reviewer',
       ),
     );
+  });
+
+  it('states what switching would change for a plain draft', () => {
+    render(
+      <ExpertSuggestionSlot
+        getText={() => CODE_PROMPT}
+        subscribe={() => () => {}}
+        entries={RICH_ENTRIES}
+        onSwitchExpert={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('expert-suggestion-diff').textContent).toBe(
+      'Switching adds 3 tools, adds toolset lock, adds model route local-small, adds 1 skill.',
+    );
+  });
+
+  it('diffs against the expert already picked for the draft', async () => {
+    stubExpertsApi({
+      getPending: () => Promise.resolve('vault-researcher'),
+      onSessionEvent: (cb) => {
+        cb({ type: 'pending', slug: 'vault-researcher' });
+        return () => {};
+      },
+    });
+    render(
+      <ExpertSuggestionSlot getText={() => CODE_PROMPT} subscribe={() => () => {}} entries={RICH_ENTRIES} />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('expert-suggestion-chip').getAttribute('data-suggested-slug')).toBe(
+        'code-reviewer',
+      ),
+    );
+    expect(screen.getByTestId('expert-suggestion-diff').textContent).toBe(
+      'Switching adds 2 tools, drops 1 tool, adds toolset lock, keeps model, adds 1 skill, drops 1 skill.',
+    );
+  });
+
+  it('says so plainly when nothing would change', () => {
+    render(
+      <ExpertSuggestionSlot
+        getText={() => CODE_PROMPT}
+        subscribe={() => () => {}}
+        entries={ENTRIES}
+        onSwitchExpert={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('expert-suggestion-diff').textContent).toBe('No capability changes.');
+  });
+
+  it('still switches in one click while the diff line is shown', () => {
+    const onSwitchExpert = vi.fn();
+    render(
+      <ExpertSuggestionSlot
+        getText={() => CODE_PROMPT}
+        subscribe={() => () => {}}
+        entries={RICH_ENTRIES}
+        onSwitchExpert={onSwitchExpert}
+      />,
+    );
+    expect(screen.getByTestId('expert-suggestion-diff')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('expert-suggestion-switch'));
+    expect(onSwitchExpert).toHaveBeenCalledTimes(1);
+    expect(onSwitchExpert).toHaveBeenCalledWith('code-reviewer');
   });
 
   it('subscribes once and cleans up on unmount', () => {
