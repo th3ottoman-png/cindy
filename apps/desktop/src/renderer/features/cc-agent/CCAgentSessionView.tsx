@@ -164,6 +164,7 @@ import { ConnectProviderBanner } from '@/components/onboarding/ConnectProviderBa
 import { SessionRouteBlockedBanner } from './SessionRouteBlockedBanner';
 import { SessionContextGuardBanner } from './SessionContextGuardBanner';
 import { LongRunningTurnTimeline } from './LongRunningTurnTimeline';
+import { SessionManifestStrip } from '@/components/session-manifest/SessionManifestStrip';
 import { Tip } from '@/components/ui/tooltip';
 import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog-provider';
@@ -5475,6 +5476,18 @@ function CCAgentSessionContent({
               <span className="min-w-0 truncate">{leadPaneLabel}</span>
             </span>
           </div>
+        )}
+
+        {/* ROADMAP 8.2: no hidden state. The Hermes session header strip lists
+            every capability that affects the agent, with its file behind each chip. */}
+        {ownsRoute && session?.agentKind === 'hermes' && (
+          <SessionManifestStrip
+            sessionId={session.id}
+            agentKind={session.agentKind}
+            model={session.model}
+            providerId={session.providerId ?? null}
+            permissionMode={session.permissionMode}
+          />
         )}
 
         {/* device-link 远程会话状态 banner:断链重连 / 被控离线 / 通路不稳定(degraded,弱网熔断)

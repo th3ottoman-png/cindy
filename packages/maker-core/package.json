@@ -39,7 +39,8 @@
     "./routing-file": "./src/providers/routing-file.ts",
     "./routed-auxiliary": "./src/providers/routed-auxiliary.ts",
     "./model-route-resolver": "./src/providers/model-route-resolver.ts",
-    "./turn-timeline": "./src/tasks/turn-timeline.ts"
+    "./turn-timeline": "./src/tasks/turn-timeline.ts",
+    "./session-manifest": "./src/session/session-manifest.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
