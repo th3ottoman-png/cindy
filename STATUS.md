@@ -10,6 +10,19 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-09 (part 20) - 9.1 Interactive next-turn suggestion pill (`live-proven`)
+
+- **What shipped.** `packages/maker-core/src/session/next-turn-suggestion.ts`, new subpath `@cindy/maker-core/next-turn-suggestion`. Pure extraction over one assistant message: fenced code is stripped first, then in order a `Next action`/`Next step` line, a trailing question, an offer ("shall I", "let me know", "waiting on your go"), and a closing numbered menu under a choice question. A backticked command inside a next-action line wins over its prose. UI instructions ("click the … row"), URLs, long sentences and anything over 160 characters are rejected, so the common outcome is silence. Every suggestion carries `reason`, `sourceLine` and an ellipsised `label`.
+- **UI.** `apps/desktop/src/renderer/features/cc-agent/NextTurnSuggestionPill.tsx`: a pure view (`✦ <label> ✕`) plus a thin container mounted as a sibling of the composer in `CCAgentSessionView.tsx`. It polls `makerChatStore.getSnapshot` once a second, and only uses the final message, and only when it is plain assistant text: a trailing tool bubble, a pending permission or question card, or a streaming turn suppresses it. No dialog, no overlay, no focus trap, no keyboard capture. One click writes the phrase into the draft through `saveDraft` with `focusAtEnd`, appending on a new line when the draft is not empty; the ✕ hides it for that message only, and the next assistant message re-arms it.
+- **Design decision.** The row allows "populates the composer or appends to draft". Appending on a new line was chosen over replacing the draft, because the owner may already be typing and a click must never destroy typed text.
+- **Surprising.** The first live run passed 9/10, and both failures were proof defects, not product defects: the clean check compared against `''` while Tiptap leaves a trailing newline, and the dismiss check ran after insert had already removed the pill. The rerun dismisses after a reload, which is also a stronger test: the suggestion is derived from the persisted message, so it comes back after a restart.
+- **Verification.** 18 core tests, 15 jsdom tests, both green as direct runs. Live via CDP 9222, 13/13 checks on session `8dc79b78`: a real Hermes turn ended with `Next action: say \`go 9.2\``; the pill appeared with `data-reason="next-action"` and text `go 9.2`; one click put `go 9.2` into the composer with the message count unchanged at 2; zero dialogs; the pill survived a reload; dismiss hid it and it stayed hidden across two poll ticks; the composer was left empty. Gates under Node 22.23.4 in a canonical Terminal are recorded in the commit body.
+- **State written.** Two short test sessions exist in the dev sandbox (`9a495642`, `8dc79b78`) from the two proof runs, plus their auto-saved chat notes. Both are additive; no existing session, config file or vault note was modified.
+- **Also in this commit.** The owner's Phase 9 section (rows 9.1 to 9.5) was unstaged in `ROADMAP.md`; it is committed here so the rows are tracked, with 9.1 now closed and 9.2 to 9.5 still `Open`.
+- **Not started.** 9.2 to 9.5, 8.6b, 8.7, 7.3, 7.4.
+
+---
+
 ## 2026-11-09 (part 19) - 8.6a Operations rail projection (`unit-tested`), session end
 
 - **What shipped.** `packages/maker-core/src/operations/operations-rail.ts`, new subpath `@cindy/maker-core/operations-rail`. Pure projection from injected facts and an injected clock: four kinds (turn, worker, bot, schedule) to one row shape with status, a bounded detail line, `atMs` and a data-driven action list. Running rows first, then failures, then scheduled work, then the rest. `formatRelative`, `operationRailSummary` and `hasRunningOperation` included. 16 unit tests. No UI consumes it yet.

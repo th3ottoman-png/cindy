@@ -85,6 +85,7 @@ import { Collapse } from '@/components/ui/collapse';
 import { setRemoteReceiptDisplayReady } from '@/lib/sessionAttentionStore';
 import { shortSessionId } from '@/lib/sessionId';
 import { ChatInput } from '@/components/new-chat/ChatInput';
+import { NextTurnSuggestionPill } from './NextTurnSuggestionPill';
 import { CindyMakeComposerMask } from '@/components/cindy-make/CindyMakeComposerMask';
 import {
   getCindyMakeTestRecovery,
@@ -6258,6 +6259,16 @@ function CCAgentSessionContent({
                 />
                 </div>
               )}
+
+              {/* ROADMAP 9.1: one-click continuation taken from the agent's closing line.
+                Sibling of the composer, so it never traps focus or captures Enter. */}
+              {!botChatIdentity &&
+              !readOnly &&
+              session?.source !== 'review' &&
+              sessionId &&
+              composerDraftKey ? (
+                <NextTurnSuggestionPill sessionId={sessionId} draftKey={composerDraftKey} />
+              ) : null}
 
               {/* F-FP-5: workingDir — always rendered to prevent layout shift
                 worktree-parallel-sessions:worktree 创建过程的反馈(creating/failed)
