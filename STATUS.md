@@ -10,6 +10,35 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-09 (part 23) - 9.3 Interactive inline visual diff cards in chat (`live-proven`)
+
+- **What shipped.** Complete parser, projection, and interactive visual review cards for unified diffs and file patches in chat:
+  - `packages/maker-core/src/diff/inline-diff-card.ts`, new subpath `@cindy/maker-core/inline-diff-card`: pure parser and split projection model (`parseUnifiedDiff`, `extractDiffFilePath`, `buildSplitDiffRows`). Parses standard unified diff headers (`diff --git`, `---`, `+++`, `Index:`), hunk coordinates (`@@ -oldStart,oldLines +newStart,newLines @@`), line numbers for old and new file versions, totals additions/deletions statistics, and produces aligned side-by-side (split) row sequences pairing modifications while aligning single-sided additions/deletions with empty spacers.
+  - `apps/desktop/src/renderer/components/chat/MarkdownDiffBlock.tsx`: upgrades raw `<pre>` diff rendering into an interactive visual review card:
+    - Card header with `FileCode` icon, truncated filename, tooltip, and `+N` and `-M` addition/deletion count badges.
+    - View mode switch: `Unified` vs `Split` (side-by-side) with active pressed styling.
+    - 1-click clipboard copy button for raw diff content with checkmark feedback.
+    - Collapse / expand chevron toggle for diff content body.
+    - Fullscreen inspection modal dialog (`dialog` with backdrop blur, file title, stats, and close button).
+    - Preserves all F2 static tokens and CSS variables (`--diff-add-bg`, `--diff-del-bg`, `--diff-add-fg`, `--diff-del-fg`, `--diff-line-num`, `--msg-code-block-border`, `.diff-hscroll`).
+  - `apps/desktop/src/renderer/components/chat/MarkdownRenderer.tsx`: updated code block language matching to `/\b(language-)?(diff|patch)\b/` routing both `diff` and `patch` code blocks into `MarkdownDiffBlock`.
+  - `docs/design-rules/design-inventory.md`: refreshed via `pnpm design:inventory` accounting for updated component token/radii metrics.
+- **Verification.**
+  - 8 core unit tests in `packages/maker-core/src/diff/__tests__/inline-diff-card.test.ts` covering git diffs, multi-hunk diffs, function header annotations, quoted paths with spaces, plain unprefixed diffs, blank input handling, and side-by-side row alignment.
+  - 5 jsdom component tests in `apps/desktop/src/renderer/components/chat/__tests__/MarkdownDiffBlock.test.tsx` verifying card header & stats badges, Unified/Split toggle, collapse/expand chevron, fullscreen dialog open/close, and clipboard copy.
+  - 22 static regression tests in `apps/desktop/src/renderer/__tests__/markdownDiffBlock.test.ts` (all F1-F5 structural/token contracts passing).
+  - 10 horizontal scroll tests in `apps/desktop/src/renderer/__tests__/diffHorizontalScroll.test.tsx` (all passing).
+  - **Live-proven via CDP 9222 (5/5 checks PASS):** In the running dev app on port 9222, rendered a 3-addition 1-deletion unified diff block in the active window DOM:
+    1. Card mounts header with file path `src/math/calculator.ts`, additions badge `+3`, deletions badge `-1`, and Unified mode active by default.
+    2. Click Split button (`[data-testid="diff-mode-split"]`) switches view to side-by-side split mode with aligned addition rows.
+    3. Click Unified button (`[data-testid="diff-mode-unified"]`) switches view back to unified mode.
+    4. Click collapse chevron hides diff content body; second click restores body.
+    5. Click fullscreen button (`[data-testid="diff-card-fullscreen"]`) opens accessible dialog modal; click close button dismisses dialog cleanly.
+  - Gates: `pnpm typecheck` (37 workspace projects, exit 0), `pnpm test:runner` (608 tests passing, exit 0), `pnpm check:test-hygiene` (361 files within baseline, exit 0), `pnpm test:unit:related` (all related workspaces passing, exit 0).
+- **Not started.** Phase 9 continuation: 9.4 (Local tool-call JSON repair & misformat guard), 9.5 (Deep research & local document ingestion for Notes Vault), 8.6b, 8.7, 7.3, 7.4.
+
+---
+
 ## 2026-11-09 (part 22) - 9.2b Worktree diff and merge-back (`live-proven`)
 
 - **What shipped.** Complete host and UI implementation for git worktree isolation diff and merge-back:

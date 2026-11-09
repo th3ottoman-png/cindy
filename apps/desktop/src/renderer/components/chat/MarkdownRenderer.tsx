@@ -169,7 +169,7 @@ function omitMarkdownInternalProps(props: Record<string, unknown>): Record<strin
 function isDiffCodeChild(child: ReactNode): boolean {
   if (!isValidElement(child)) return false;
   const className = (child.props as { className?: string })?.className ?? '';
-  return /\b(language-)?diff\b/.test(className);
+  return /\b(language-)?(diff|patch)\b/.test(className);
 }
 
 /**
