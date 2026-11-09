@@ -10,7 +10,7 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
-## 2026-11-09 (part 22) - 9.2b Worktree diff and merge-back (`unit-tested`)
+## 2026-11-09 (part 22) - 9.2b Worktree diff and merge-back (`live-proven`)
 
 - **What shipped.** Complete host and UI implementation for git worktree isolation diff and merge-back:
   - `apps/desktop/src/main/worktree/worktreeMerge.ts`: provides `readWorktreeDiff` and `mergeWorktree` operations over `gitExec` and `@cindy/maker-core/worktree-merge`. `readWorktreeDiff` checks base and worktree branch status, ahead/behind counts via `git rev-list --left-right`, ancestry via `git merge-base --is-ancestor`, conflict risk via `git merge-tree --write-tree`, parses `git diff --numstat` (including untracked worktree edits), and applies `assessWorktreeMerge` guards. `mergeWorktree` auto-commits pending worktree edits with `--no-verify`, verifies base repository cleanliness (`target-dirty` guard), executes the exact verified merge argv, and rolls back with `git merge --abort` on conflict when `abortOnFailure` is set.
@@ -22,7 +22,8 @@ was weaker, the weaker label is used and the roadmap row reflects it.
   - 6 real git integration tests in `apps/desktop/src/main/worktree/__tests__/worktreeMerge.test.ts` exercising temp repo init, branch creation, worktree creation, diff detection, clean fast-forward merge, dirty base refusal (`target-dirty`), empty branch refusal (`nothing-to-merge`), and conflict rollback abort.
   - 9 jsdom component tests in `apps/desktop/src/renderer/features/worktree/__tests__/WorktreeMergeStrip.test.tsx` verifying conditional rendering, diff drawer toggle, button state gating, merge invocation, and error/success badges.
   - 19 pure core tests in `packages/maker-core/src/session/__tests__/worktree-merge.test.ts` (34 related tests total, all 34 passing).
-  - Gates: `pnpm test:runner` (607 tests passing, exit 0), `pnpm check:test-hygiene` (361 files within baseline, exit 0), `node scripts/design-inventory.mjs --check` (54 surfaces, exit 0).
+  - Gates: `pnpm typecheck` (37 projects passing, exit 0), `pnpm test:runner` (608 tests passing, exit 0), `pnpm check:test-hygiene` (361 files within baseline, exit 0), `node scripts/design-inventory.mjs --check` (54 surfaces, exit 0), `node scripts/test-workspaces.mjs --tier unit --related` (all related workspaces passing, exit 0).
+  - **Live-proven via CDP 9222 (9/9 checks PASS):** In the running Electron dev app on port 9222, verified renderer `window.electronAPI` methods (`worktreeDiff`, `worktreeMerge`), created an isolated worktree `cindy/agent-feature` in a real git repository, made agent edits (`agent_file.txt`, `README.md`) inside the worktree while base repo git status stayed strictly clean (`""`), fetched `worktreeDiff` via renderer IPC (`fileCount: 2, added: 2, allowed: true, method: "fast-forward"`), triggered 1-click `worktreeMerge` via renderer IPC, verified base repo working tree integrated changes and remained clean, and confirmed post-merge diff returned 0 files changed.
 - **Not started.** Phase 9 continuation: 9.3 (Interactive inline diff visualizer in chat), 9.4, 9.5, 8.6b, 8.7, 7.3, 7.4.
 
 ---
