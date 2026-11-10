@@ -119,31 +119,35 @@ export function registerArtifactsHandlers(
 ): ArtifactsHost {
   const host = new ArtifactsHost(deps);
 
-  registry.handle(MAKER_INVOKE.ARTIFACTS_LIST, async (event: unknown, args?: { vaultDir?: string }) => {
+  registry.handle(MAKER_INVOKE.ARTIFACTS_LIST, async (event: unknown, rawArgs: unknown) => {
     deps.assertTrusted(event);
+    const args = rawArgs as { vaultDir?: string } | undefined;
     return host.list(args?.vaultDir);
   });
 
   registry.handle(
     MAKER_INVOKE.ARTIFACTS_SAVE,
-    async (event: unknown, args: { payload: SaveArtifactInput; vaultDir?: string }) => {
+    async (event: unknown, rawArgs: unknown) => {
       deps.assertTrusted(event);
+      const args = rawArgs as { payload: SaveArtifactInput; vaultDir?: string };
       return host.save(args.payload, args.vaultDir);
     },
   );
 
   registry.handle(
     MAKER_INVOKE.ARTIFACTS_READ,
-    async (event: unknown, args: { idOrPath: string; vaultDir?: string }) => {
+    async (event: unknown, rawArgs: unknown) => {
       deps.assertTrusted(event);
+      const args = rawArgs as { idOrPath: string; vaultDir?: string };
       return host.read(args.idOrPath, args.vaultDir);
     },
   );
 
   registry.handle(
     MAKER_INVOKE.ARTIFACTS_DELETE,
-    async (event: unknown, args: { idOrPath: string; vaultDir?: string }) => {
+    async (event: unknown, rawArgs: unknown) => {
       deps.assertTrusted(event);
+      const args = rawArgs as { idOrPath: string; vaultDir?: string };
       return host.delete(args.idOrPath, args.vaultDir);
     },
   );

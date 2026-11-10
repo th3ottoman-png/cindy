@@ -101,6 +101,8 @@ export const MAKER_INVOKE = {
   ARTIFACTS_READ: 'maker:artifacts:read',
   /** ROADMAP 8.5b: delete artifact by id or path. */
   ARTIFACTS_DELETE: 'maker:artifacts:delete',
+  /** ROADMAP 8.8: get audited chat inventory (tools, files, skills, tokens) for a session. */
+  CHAT_INVENTORY_GET: 'maker:chat-inventory:get',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */
   CHAT_AUTOSAVE_GET_CONFIG: 'maker:chat-autosave:get-config',
   /** ROADMAP 5.5: set chat auto-save `{ enabled?, folder? }`. */

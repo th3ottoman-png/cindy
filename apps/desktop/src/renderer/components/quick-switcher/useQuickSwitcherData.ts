@@ -5,6 +5,7 @@ import { openVaultGraphTab } from '@/features/right-sidebar/lib/openVaultGraphTa
 import { openWorktreeManagerTab } from '@/features/right-sidebar/lib/openWorktreeManagerTab';
 import { openArtifactsTab } from '@/features/right-sidebar/lib/openArtifactsTab';
 import { openTerminalTab } from '@/features/right-sidebar/lib/openTerminalTab';
+import { openChatInventoryTab } from '@/features/right-sidebar/lib/openChatInventoryTab';
 
 export function formatRelativeTime(dateInput: number | string | undefined): string {
   if (!dateInput) return '';
@@ -195,6 +196,21 @@ export function useQuickSwitcherData({
         const targetSessionId = activeSessionId || sessions[0]?.id;
         if (targetSessionId) {
           void openArtifactsTab(targetSessionId);
+        }
+      },
+    });
+
+    list.push({
+      id: 'action-chat-inventory',
+      category: 'action',
+      title: 'Open Chat Inventory & Audit',
+      subtitle: 'Inspect tools invoked, files touched, and token usage',
+      badge: 'Audit',
+      onSelect: () => {
+        onClose();
+        const targetSessionId = activeSessionId || sessions[0]?.id;
+        if (targetSessionId) {
+          void openChatInventoryTab(targetSessionId);
         }
       },
     });

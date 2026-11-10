@@ -5701,6 +5701,10 @@ interface ElectronAPI {
       /** ROADMAP 8.5b: delete artifact by id or path. */
       delete: (params: { idOrPath: string; vaultDir?: string }) => Promise<{ ok: boolean; deleted: boolean; error?: string }>;
     };
+    chatInventory: {
+      /** ROADMAP 8.8: get audited chat inventory for a session. */
+      get: (params: { sessionId: string }) => Promise<{ ok: boolean; inventory?: import('@cindy/maker-core/chat-inventory').ChatInventory; error?: string }>;
+    };
     ruleLearner: {
       /** ROADMAP 7.5: detect user corrections in chat text and extract rule candidates. */
       detect: (params: { text: string }) => Promise<import('@cindy/maker-core/rule-learner').CorrectionDetection>;

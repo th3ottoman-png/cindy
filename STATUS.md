@@ -10,6 +10,39 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - 8.8 Chat Inventory & Session Audit Panel (`live-proven`)
+
+- **What shipped.** Right sidebar inspector tab ("In This Chat" / `chat-inventory`) aggregating all live session resources, tools invoked, files read/modified/created, active skills, MCP connectors, and token breakdown, satisfying AGENTS.md §6 ("no hidden state"):
+  - `packages/maker-core/src/session/chat-inventory.ts` (subpath `@cindy/maker-core/chat-inventory`):
+    - `aggregateChatInventory`: computes tool counts with categories (`file`, `command`, `mcp`, `agent`, `other`) and server names, touched files (`read`/`modified`/`created`) with priority ordering and deduping, active attached skills (`@skill:`), active MCP connectors, token metrics (`promptTokens`, `completionTokens`, `totalTokens`, `contextWindow`), and context utilization percentage.
+  - `apps/desktop/src/main/maker-ipc/chatInventory.ts` & `channels.ts`:
+    - Registered IPC channel `maker:chat-inventory:get` (`MAKER_INVOKE.CHAT_INVENTORY_GET`).
+    - Added `ChatInventoryHost` reading from active session row and messages.
+  - `apps/desktop/src/preload/preload.ts` & `apps/desktop/src/renderer/vite-env.d.ts`:
+    - Exposed `window.electronAPI.maker.chatInventory.get` with full TypeScript declarations.
+  - `apps/desktop/src/renderer/features/right-sidebar/plugins/chat-inventory/`:
+    - Registered right sidebar plugin with `BuiltinTabKindId` `'chat-inventory'`, `Boxes` icon, and singleton policy.
+    - `ChatInventoryTabBody.tsx`: renders context utilization percentage bar, prompt/completion/capacity breakdown, tools invoked list with category badges, files touched with action chips and 1-click open file and reveal in folder actions, and active attached skills and MCP connector badges.
+    - Subscribes to `makerChatStore` for live updates on turn completion.
+  - `apps/desktop/src/renderer/features/right-sidebar/lib/openChatInventoryTab.ts`:
+    - Helper function to programmatically open and focus the Chat Inventory tab in the right sidebar.
+  - `apps/desktop/src/renderer/components/quick-switcher/useQuickSwitcherData.ts`:
+    - Added `> Open Chat Inventory & Audit` action to global quick-switcher.
+- **Verification.**
+  - 4 unit tests in `packages/maker-core/src/session/__tests__/chat-inventory.test.ts` (4/4 PASS).
+  - 3 desktop host tests in `apps/desktop/src/main/maker-ipc/__tests__/chatInventory.test.ts` (3/3 PASS).
+  - 4 renderer plugin tests in `apps/desktop/src/renderer/features/right-sidebar/plugins/chat-inventory/__tests__/chatInventoryPlugin.test.tsx` (4/4 PASS).
+  - **Live-proven (`live-proven`):**
+    - `apps/desktop/src/main/maker-ipc/__tests__/chatInventoryLive.test.ts`:
+      1. Verified live session aggregation across multi-turn conversation with file edits (`src/main.ts`, `docs/spec.md`), tool runs (`bash`, `mcp__cindy_vault_notes__read_note`), attached skills (`@skill:code-review`), and token usage metrics.
+      2. Verified token utilization, total files touched, tool counts, and category classification (1/1 checks PASS).
+  - Pre-commit gates:
+    - Scoped `tsc`: 0 errors.
+    - `pnpm check:test-hygiene`: PASS (361 files within baseline).
+    - `node --test scripts/__tests__/design-inventory.test.mjs`: PASS (52/52 tests pass).
+
+---
+
 ## 2026-11-10 - 8.5b Library Artifacts (`live-proven`)
 
 - **What shipped.** Local-first, file-backed artifact store and full integration into the Library workspace, enabling conversation deliverables (code snippets, architecture diagrams, schemas, markdown docs) to be stored, discovered, searched, and dragged alongside vault notes, chats, and summaries:

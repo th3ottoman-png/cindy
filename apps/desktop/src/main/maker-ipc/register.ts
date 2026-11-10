@@ -928,6 +928,7 @@ import { getScreenShareHost, registerScreenShareHandlers } from './screenShare.j
 import { getSessionHandoffHost, registerSessionHandoffHandlers } from './sessionHandoff.js';
 import { registerLibraryHandlers } from './library.js';
 import { registerArtifactsHandlers } from './artifacts.js';
+import { ChatInventoryHost, registerChatInventoryHandlers } from './chatInventory.js';
 import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
@@ -25709,13 +25710,36 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   // ROADMAP 7.8: session compaction & clean handoff.
   const sessionHandoffHost = getSessionHandoffHost({
     getSessionRow: (sessionId) => getSessionRowSnapshot(sessionId),
-    listMessages: (sessionId) => listMessagesForAgentHandoff(sessionId, null),
+    listMessages: (sessionId) => listMessagesForAgentHandoff(sessionId, null) as any,
   });
   registerSessionHandoffHandlers(
     ipcMain,
     () => sessionHandoffHost,
     (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   );
+
+  // ROADMAP 8.8: Chat Inventory & Session Audit.
+  const chatInventoryHost = new ChatInventoryHost({
+    getSessionRow: async (sessionId) => {
+      const row = await getSessionRowSnapshot(sessionId);
+      if (!row) return null;
+      const anyRow = row as unknown as Record<string, unknown>;
+      return {
+        id: sessionId,
+        contextWindow: typeof anyRow.contextWindow === 'number' ? anyRow.contextWindow : undefined,
+        model: typeof row.model === 'string' ? row.model : undefined,
+        expertSlug: typeof anyRow.expertSlug === 'string' ? anyRow.expertSlug : undefined,
+      };
+    },
+    listMessages: async (sessionId) => {
+      const msgs = await listMessagesForAgentHandoff(sessionId, null);
+      return (msgs || []) as any;
+    },
+  });
+  registerChatInventoryHandlers(createElectronIpcHandlerRegistry(), {
+    getHost: () => chatInventoryHost,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
 
   // ── Session export to Markdown (ROADMAP 5.2b) ───────────────────────────
   const sessionExportHost = new SessionExportHost({
