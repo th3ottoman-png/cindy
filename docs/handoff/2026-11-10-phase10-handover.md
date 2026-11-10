@@ -55,9 +55,10 @@ Five commits changed behaviour; each has a `STATUS.md` entry with the evidence:
 | 10.1 | Runtime prompt-injection & dangerous-command guard | 🔲 |
 | 10.2 | Response style + thinking display | 🔲 |
 | 10.3 | Chat-only mode (no tools, no MCP) | 🔲 |
+| 10.4 | Per-turn usage & latency card | 🔲 |
 
-Order matters: 10.1 first (it changes risk), then 10.2 + 10.3 as one small "composer ergonomics" pass. One task per
-session per `AGENTS.md` §4.
+Order matters: 10.1 first (it changes risk), then 10.2 + 10.4 as one small "composer ergonomics" pass (both are
+renderer-only and share the same preference/formatting plumbing), then 10.3. One task per session per `AGENTS.md` §4.
 
 ### 10.1 — design brief
 
@@ -111,6 +112,25 @@ the exact string), and the session manifest (ROADMAP 8.2, `manifest.json`). Chat
 not another permission mode: it must survive resume, be visible in the header, and never silently widen an expert's
 lock. `--safe-mode` also disables MCP but refuses to run without an explicit model — supply `-m`/`--provider` from the
 session's route (the daemon already freezes the launch route in the registry).
+
+### 10.4 — design brief
+
+A hover/focus popover on a turn's token line: input, cache read (+ share of input), cache write, output, total,
+first-token time, total time, tok/s, cost with `reported` / `estimated` / `cost unknown`.
+
+**The data already exists — this is a UI row.** Read first, do not widen blindly:
+
+- `apps/desktop/src/renderer/features/cc-agent/SessionUsagePanel.tsx` — session-level totals incl. cache-read.
+- `apps/desktop/src/renderer/components/settings/usage/UsageBreakdownTables.tsx` and
+  `features/provider-share/ProviderUsageSection.tsx` — aggregate breakdowns; the formatting helpers there are the ones
+  to reuse rather than reinvent.
+- The transcript's per-message token line (the store keeps per-message usage) — that is where the trigger lives.
+- The session chip's cost (e.g. `44.7k tok · $0.0073`) — reuse its price table and its rounding.
+
+Check whether **cache write** is actually carried per message before adding any IPC; if it is absent, prefer omitting
+the field over inventing a new event. Same for first-token time: the store stamps receipt, the raw `maker:event` has no
+timestamp (see 5.3b's notes), so the card must say "since turn start (receipt time)" rather than implying Hermes's own
+ttft. Accessible by keyboard (focus opens, Esc closes); hover is a shortcut, never the only way in.
 
 ---
 
