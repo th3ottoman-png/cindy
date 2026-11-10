@@ -20,6 +20,7 @@ import {
   READ_NOTE_TOOL,
   SEARCH_NOTES_TOOL,
   SYNTHESIZE_VAULT_MEMORY_TOOL,
+  SYNC_WORKSPACE_GIT_TOOL,
   UNPIN_VAULT_NOTE_TOOL,
   type VaultNotesMcpDeps,
 } from '../vaultNotesMcpServer';
@@ -239,6 +240,43 @@ Links to [[sub/note2]]
     // Verify empty
     const listAfter = await call(deps(), LIST_PINNED_NOTES_TOOL);
     expect(listAfter.body.pinnedNotes).toEqual([]);
+  });
+
+  it('syncs workspace git progress to project note (ROADMAP 7.4)', async () => {
+    // 1. Refuses when session is forbidden
+    const forbidden = await call(
+      deps({ sessionMayUse: (_id, tool) => tool !== SYNC_WORKSPACE_GIT_TOOL }),
+      SYNC_WORKSPACE_GIT_TOOL,
+    );
+    expect(forbidden.isError).toBe(true);
+    expect(forbidden.body.errorCode).toBe('FORBIDDEN');
+
+    // 2. Refuses when no vault configured
+    const noVault = await call(deps({ getVaultDir: () => null }), SYNC_WORKSPACE_GIT_TOOL);
+    expect(noVault.isError).toBe(true);
+    expect(noVault.body.errorCode).toBe('NO_VAULT');
+
+    // 3. Executes successfully via syncWorkspaceGit callback
+    const syncWorkspaceGitMock = async (opts: {
+      workspaceDir?: string;
+      targetNotePath?: string;
+      summaryNote?: string;
+    }) => ({
+      ok: true,
+      path: opts.targetNotePath || 'memory/Project — Cindy.md',
+      created: false,
+      block: '### Progress (2026-11-10)\n\n- Commits: test',
+    });
+
+    const success = await call(
+      deps({ syncWorkspaceGit: syncWorkspaceGitMock }),
+      SYNC_WORKSPACE_GIT_TOOL,
+      { summary: 'Milestone verified' },
+    );
+    expect(success.isError).toBe(false);
+    expect(success.body.synced).toBe(true);
+    expect(success.body.path).toBe('memory/Project — Cindy.md');
+    expect(success.body.block).toContain('### Progress');
   });
 
   it('live-exercises read, search, and append against real vault when present', async () => {

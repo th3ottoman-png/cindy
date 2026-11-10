@@ -2585,13 +2585,20 @@ export function getMaker(): Maker {
       createProjectReaderMcpProvider({
         sessionMayRead: (sessionId, tool) => getDesktopExpertSessionStore().expertAllowsTool(sessionId, tool),
       }),
-      // ROADMAP 5.1 / 6.1 / 7.3: local notes vault bridge for experts and optional all-sessions search.
+      // ROADMAP 5.1 / 6.1 / 7.3 / 7.4: local notes vault bridge for experts and optional all-sessions search.
       createVaultNotesMcpProvider({
         getVaultDir: () => getDesktopVaultNotesHost().getConfig().vaultDir,
         getSemanticIndex: () => getDesktopVaultNotesHost().getSemanticIndex(),
+        syncWorkspaceGit: (opts) => getDesktopVaultNotesHost().applyGitWorkspaceSync(opts),
         sessionMayUse: (sessionId, tool) => {
           const cfg = getDesktopVaultNotesHost().getConfig();
-          if (cfg.allSessionsSearch && cfg.vaultDir && tool !== 'append_note' && tool !== 'synthesize_vault_memory') {
+          if (
+            cfg.allSessionsSearch &&
+            cfg.vaultDir &&
+            tool !== 'append_note' &&
+            tool !== 'synthesize_vault_memory' &&
+            tool !== 'sync_workspace_git_to_project_note'
+          ) {
             return true;
           }
           return getDesktopExpertSessionStore().expertAllowsVaultTool(sessionId, tool);

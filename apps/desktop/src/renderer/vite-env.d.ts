@@ -5662,6 +5662,26 @@ interface ElectronAPI {
       ) => Promise<import('@cindy/maker-core/vault-notes').SearchHit[]>;
       /** ROADMAP 7.3: sync note embeddings cache. */
       indexEmbeddings: () => Promise<{ indexed: number; skipped: number; pruned: number }>;
+      /** ROADMAP 7.4: inspect active workspace git status for vault project note sync. */
+      gitSyncInspect: (workspaceDir?: string) => Promise<{
+        ok: boolean;
+        inspection?: import('@cindy/maker-core/vault-git-sync').GitWorkspaceInspection;
+        targetNotePath?: string;
+        matchType?: 'exact' | 'heuristic' | 'default';
+        error?: string;
+      }>;
+      /** ROADMAP 7.4: append workspace progress and commit log to matching vault project note. */
+      gitSyncApply: (opts?: {
+        workspaceDir?: string;
+        targetNotePath?: string;
+        summaryNote?: string;
+      }) => Promise<{
+        ok: boolean;
+        path?: string;
+        created?: boolean;
+        block?: string;
+        error?: string;
+      }>;
       /** Fires when the vault configuration changes. */
       onChanged: (cb: (view: import('../main/maker-ipc/vaultNotes').VaultConfigView) => void) => () => void;
       /** Fires when pinned vault notes change for a session. */

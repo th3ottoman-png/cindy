@@ -26,3 +26,4 @@ import './plugin-task';
 import './worktree-manager';
 import './artifacts';
 import './vault-graph';
+import './vault-git-sync';

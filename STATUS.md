@@ -10,6 +10,48 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - 7.4 Git Workspace ↔ Vault Project Note Auto-Sync (`live-proven`)
+
+- **What shipped.** Right sidebar inspector tab and agent tool in `cindy_vault_notes` MCP server that inspects the active git workspace (recent commits, branch, working tree status) and synchronizes progress to `<vault>/memory/Project — <Name>.md`:
+  - `packages/maker-core/src/notes/vault-git-sync.ts` (subpath `@cindy/maker-core/vault-git-sync`):
+    - `resolveProjectName`: extracts project name from workspace git directory.
+    - `parseGitLogOneline`: parses `git log -n <limit> --oneline` output into commit records with short hash and subject.
+    - `parseGitStatusShort`: summarizes modified, staged, untracked, and deleted working tree changes.
+    - `matchVaultProjectNote`: locates `<vault>/memory/Project — <Name>.md` with robust heuristic matching (exact em-dash `\u2014`, hyphen, en-dash, case-insensitive, slug substring matching, or fallback to default project note path).
+    - `formatGitProgressBlock`: generates a clean, dated markdown section with workspace, branch, recent commit bullets, working tree count, and optional user summary text.
+    - `syncGitProgressToVault`: performs atomic append write (`writeAtomic`) ensuring existing note contents are preserved.
+  - `packages/maker-core/package.json`: exposed export subpath `./vault-git-sync`.
+  - `apps/desktop/src/main/maker-ipc/vaultNotes.ts` & `channels.ts`:
+    - Registered IPC channels `maker:vault:git-sync-inspect` and `maker:vault:git-sync-apply`.
+    - Added `inspectGitWorkspace` and `applyGitWorkspaceSync` on `VaultNotesHost`.
+    - Broadcasts `MAKER_PUSH.VAULT_CHANGED` on successful sync.
+  - `apps/desktop/src/preload/preload.ts` & `apps/desktop/src/renderer/vite-env.d.ts`:
+    - Exposed `window.electronAPI.maker.vault.gitSyncInspect` and `gitSyncApply` to renderer with full TypeScript types.
+  - `apps/desktop/src/main/mcp-integrations/vaultNotesMcpServer.ts` & `maker-host/index.ts`:
+    - Registered `sync_workspace_git_to_project_note` agent tool in `cindy_vault_notes` MCP server.
+    - Wired `syncWorkspaceGit` to desktop host `applyGitWorkspaceSync`.
+    - Allowed tool access in `sessionHasVaultAccess`.
+  - `apps/desktop/src/renderer/features/right-sidebar/`:
+    - Registered `'vault-git-sync'` tab kind in `types.ts` and `TabBar.tsx` with `GitBranch` icon and tooltip.
+    - Created `VaultGitSyncTabBody.tsx` in `plugins/vault-git-sync/` with auto-inspection on mount, project badge, commit preview list, working tree summary, user summary textarea, and 1-click sync button with loading and success feedback.
+  - `docs/design-rules/design-inventory.md`: updated design inventory ledger via `pnpm design:inventory`.
+- **Verification.**
+  - 16 pure unit tests in `packages/maker-core/src/notes/__tests__/vault-git-sync.test.ts` (16/16 PASS).
+  - 7 desktop host IPC tests in `apps/desktop/src/main/maker-ipc/__tests__/vaultNotes.test.ts` (7/7 PASS).
+  - 15 MCP integration tests in `apps/desktop/src/main/mcp-integrations/__tests__/vaultNotesMcpServer.test.ts` (15/15 PASS).
+  - 4 renderer plugin component tests in `apps/desktop/src/renderer/features/right-sidebar/plugins/vault-git-sync/__tests__/vaultGitSyncPlugin.test.tsx` (4/4 PASS).
+  - **Live-proven against real git workspace and real notes vault (`live-proven`):**
+    - `apps/desktop/src/main/maker-ipc/__tests__/vaultGitSyncLive.test.ts`:
+      1. Inspects `/home/antigravity/th3ottoman-png/cindy`, resolving project `cindy`, branch `main`, 5 recent commits, and matched vault note `memory/Project — Cindy.md`.
+      2. 1-click sync appends formatted progress block to `/home/antigravity/Bishi-memory/memory/Project — Cindy.md`.
+      3. Agent tool call `sync_workspace_git_to_project_note` via MCP client successfully appends progress block and verifies on-disk file contents (2/2 PASS).
+  - Pre-commit gates:
+    - `pnpm test:runner`: PASS (607 pass, 0 fail).
+    - `pnpm check:test-hygiene`: PASS (361 files within baseline).
+    - 7.4 unit and live test suites: 100% PASS (44 tests total).
+
+---
+
 ## 2026-11-10 - 7.3 Local Semantic & Hybrid Search for Notes Vault (`live-proven`)
 
 - **What shipped.** Local SQLite-backed embedding cache and Reciprocal Rank Fusion (RRF) hybrid search for the Obsidian Notes Vault:

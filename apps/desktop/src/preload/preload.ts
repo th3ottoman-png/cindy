@@ -6419,6 +6419,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
       /** ROADMAP 7.3: sync note embeddings cache. */
       indexEmbeddings: (): Promise<{ indexed: number; skipped: number; pruned: number }> =>
         ipcRenderer.invoke('maker:vault:index-embeddings'),
+      /** ROADMAP 7.4: inspect active workspace git status for vault project note sync. */
+      gitSyncInspect: (workspaceDir?: string): Promise<{
+        ok: boolean;
+        inspection?: import('@cindy/maker-core/vault-git-sync').GitWorkspaceInspection;
+        targetNotePath?: string;
+        matchType?: 'exact' | 'heuristic' | 'default';
+        error?: string;
+      }> => ipcRenderer.invoke('maker:vault:git-sync-inspect', workspaceDir),
+      /** ROADMAP 7.4: append workspace progress and commit log to matching vault project note. */
+      gitSyncApply: (opts?: {
+        workspaceDir?: string;
+        targetNotePath?: string;
+        summaryNote?: string;
+      }): Promise<{
+        ok: boolean;
+        path?: string;
+        created?: boolean;
+        block?: string;
+        error?: string;
+      }> => ipcRenderer.invoke('maker:vault:git-sync-apply', opts),
       onChanged: fanOutMakerVaultChanged,
       onPinnedChanged: fanOutMakerVaultPinnedChanged,
     },

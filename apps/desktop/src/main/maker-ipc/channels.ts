@@ -73,6 +73,10 @@ export const MAKER_INVOKE = {
   VAULT_SEARCH_NOTES: 'maker:vault:search-notes',
   /** ROADMAP 7.3: index note embeddings into SQLite cache. */
   VAULT_INDEX_EMBEDDINGS: 'maker:vault:index-embeddings',
+  /** ROADMAP 7.4: inspect active workspace git status for vault project note sync. */
+  VAULT_GIT_SYNC_INSPECT: 'maker:vault:git-sync-inspect',
+  /** ROADMAP 7.4: append workspace progress and commit log to matching vault project note. */
+  VAULT_GIT_SYNC_APPLY: 'maker:vault:git-sync-apply',
   /** ROADMAP 8.5: one local index over vault notes, chat transcripts and summaries. */
   LIBRARY_SCAN: 'maker:library:scan',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */

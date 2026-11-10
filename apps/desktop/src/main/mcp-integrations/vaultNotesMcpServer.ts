@@ -44,6 +44,7 @@ export const QUICK_CAPTURE_TOOL = 'quick_capture';
 export const PIN_VAULT_NOTE_TOOL = 'pin_vault_note';
 export const UNPIN_VAULT_NOTE_TOOL = 'unpin_vault_note';
 export const LIST_PINNED_NOTES_TOOL = 'list_pinned_notes';
+export const SYNC_WORKSPACE_GIT_TOOL = 'sync_workspace_git_to_project_note';
 
 export const VAULT_NOTES_TOOLS = [
   READ_NOTE_TOOL,
@@ -56,6 +57,7 @@ export const VAULT_NOTES_TOOLS = [
   PIN_VAULT_NOTE_TOOL,
   UNPIN_VAULT_NOTE_TOOL,
   LIST_PINNED_NOTES_TOOL,
+  SYNC_WORKSPACE_GIT_TOOL,
 ] as const;
 
 export function defaultPinnedNotesConfigFile(): string {
@@ -72,6 +74,12 @@ export interface VaultNotesMcpDeps {
   pinnedNotesConfigFile?: string;
   /** Semantic embedding index provider for hybrid search (ROADMAP 7.3). */
   getSemanticIndex?: () => VaultSemanticIndex | null;
+  /** Sync workspace git progress to project note (ROADMAP 7.4). */
+  syncWorkspaceGit?: (opts: {
+    workspaceDir?: string;
+    targetNotePath?: string;
+    summaryNote?: string;
+  }) => Promise<{ ok: boolean; path?: string; created?: boolean; block?: string; error?: string }>;
 }
 
 type Refusal = { code: string; message: string };
@@ -388,6 +396,46 @@ export function createVaultNotesMcpServer(deps: VaultNotesMcpDeps): McpServer {
       const configFile = deps.pinnedNotesConfigFile ?? defaultPinnedNotesConfigFile();
       const pinned = getPinnedNotesForSession(configFile, ctx.sessionId);
       return reply({ count: pinned.length, pinnedNotes: pinned });
+    },
+  );
+
+  server.tool(
+    SYNC_WORKSPACE_GIT_TOOL,
+    'Inspect the active workspace git status (commits, modified/untracked files) and append a formatted progress section into the matching vault project note (e.g. memory/Project — <Name>.md).',
+    {
+      workspaceDir: z.string().optional().describe('Workspace directory to inspect (defaults to current working directory)'),
+      targetNote: z.string().optional().describe('Optional relative path of target project note in vault'),
+      summary: z.string().optional().describe('Optional summary or milestone progress note to append'),
+    },
+    async ({ workspaceDir, targetNote, summary }) => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, SYNC_WORKSPACE_GIT_TOOL)) {
+        return refused({ code: 'FORBIDDEN', message: `expert does not permit tool "${SYNC_WORKSPACE_GIT_TOOL}"` });
+      }
+      const vaultDir = deps.getVaultDir()?.trim();
+      if (!vaultDir) {
+        return refused({ code: 'NO_VAULT', message: 'no notes vault configured; configure a vault folder in Settings -> Notes Vault' });
+      }
+      if (!deps.syncWorkspaceGit) {
+        return refused({ code: 'NOT_SUPPORTED', message: 'workspace git sync is not available in this environment' });
+      }
+      const res = await deps.syncWorkspaceGit({
+        workspaceDir,
+        targetNotePath: targetNote,
+        summaryNote: summary,
+      });
+      if (!res.ok) {
+        return refused({ code: 'SYNC_FAILED', message: res.error ?? 'failed to sync workspace git to project note' });
+      }
+      return reply({
+        synced: true,
+        path: res.path,
+        created: res.created,
+        block: res.block,
+      });
     },
   );
 

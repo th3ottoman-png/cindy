@@ -36,7 +36,17 @@ import {
   type EmbeddingClient,
   type HybridSearchOptions,
 } from '@cindy/maker-core/vault-semantic';
+import {
+  resolveProjectName,
+  parseGitLogOneline,
+  parseGitStatusShort,
+  matchVaultProjectNote,
+  formatGitProgressBlock,
+  syncGitProgressToVault,
+  type GitWorkspaceInspection,
+} from '@cindy/maker-core/vault-git-sync';
 
+import { gitExec } from '../worktree/gitExec.js';
 import { MAKER_INVOKE, MAKER_PUSH } from './channels.js';
 import type { IpcHandlerRegistry } from './ipcHandlerRegistry.js';
 
@@ -56,6 +66,7 @@ export interface VaultNotesHostDeps {
   showOpenDialog?: (options: { properties: ('openDirectory' | 'createDirectory')[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   notifyChanged?: () => void;
   watchDebounceMs?: number;
+  gitExecFn?: typeof gitExec;
 }
 
 export function defaultVaultConfigFile(): string {
@@ -79,6 +90,7 @@ export class VaultNotesHost {
   private readonly showOpenDialog?: (options: { properties: ('openDirectory' | 'createDirectory')[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   private readonly notifyChanged?: () => void;
   private readonly watchDebounceMs: number;
+  private readonly gitExecFn?: typeof gitExec;
   private watcher: VaultWatcher | null = null;
   private currentWatchedDir: string = '';
   private cachedGraph: VaultGraph | null = null;
@@ -98,6 +110,7 @@ export class VaultNotesHost {
     this.showOpenDialog = deps.showOpenDialog;
     this.notifyChanged = deps.notifyChanged;
     this.watchDebounceMs = deps.watchDebounceMs ?? 150;
+    this.gitExecFn = deps.gitExecFn;
     this.armWatcher();
   }
 
@@ -276,6 +289,108 @@ export class VaultNotesHost {
     if (!idx) return { indexed: 0, skipped: 0, pruned: 0 };
     return idx.syncVault(cfg.vaultDir);
   }
+
+  async inspectGitWorkspace(workspaceDir?: string): Promise<{
+    ok: boolean;
+    inspection?: GitWorkspaceInspection;
+    targetNotePath?: string;
+    matchType?: 'exact' | 'heuristic' | 'default';
+    error?: string;
+  }> {
+    const cwd = workspaceDir?.trim() || process.cwd();
+    const runGit = this.gitExecFn ?? gitExec;
+    try {
+      const topLevelRes = await runGit(['rev-parse', '--show-toplevel'], cwd, { timeoutMs: 5000 });
+      const rootDir = topLevelRes.stdout.trim() || cwd;
+      const branchRes = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], rootDir, { timeoutMs: 5000 });
+      const branch = branchRes.stdout.trim() || 'HEAD';
+      const logRes = await runGit(['log', '-n', '5', '--pretty=format:%h%x09%s%x09%an%x09%cs'], rootDir, { timeoutMs: 5000 });
+      const statusRes = await runGit(['status', '--porcelain=v1'], rootDir, { timeoutMs: 5000 });
+
+      const commits = parseGitLogOneline(logRes.stdout, 5);
+      const status = parseGitStatusShort(statusRes.stdout);
+      const projectName = resolveProjectName(rootDir);
+
+      const inspection: GitWorkspaceInspection = {
+        projectName,
+        workspaceDir: rootDir,
+        branch,
+        recentCommits: commits,
+        staged: status.staged,
+        modified: status.modified,
+        untracked: status.untracked,
+        totalDirty: status.totalDirty,
+      };
+
+      const cfg = this.getConfig();
+      let targetNotePath = `memory/Project — ${projectName}.md`;
+      let matchType: 'exact' | 'heuristic' | 'default' = 'default';
+
+      if (cfg.vaultDir && !cfg.issue) {
+        const notes = listNotes(cfg.vaultDir);
+        if (Array.isArray(notes)) {
+          const matched = matchVaultProjectNote(
+            notes.map((n) => n.path),
+            projectName,
+          );
+          targetNotePath = matched.notePath;
+          matchType = matched.matchType;
+        }
+      }
+
+      return {
+        ok: true,
+        inspection,
+        targetNotePath,
+        matchType,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        error: (err as Error).message || 'Failed to inspect git workspace',
+      };
+    }
+  }
+
+  async applyGitWorkspaceSync(options: {
+    workspaceDir?: string;
+    targetNotePath?: string;
+    summaryNote?: string;
+  } = {}): Promise<{
+    ok: boolean;
+    path?: string;
+    created?: boolean;
+    block?: string;
+    error?: string;
+  }> {
+    const inspected = await this.inspectGitWorkspace(options.workspaceDir);
+    if (!inspected.ok || !inspected.inspection) {
+      return { ok: false, error: inspected.error ?? 'Failed to inspect git workspace' };
+    }
+
+    const cfg = this.getConfig();
+    if (cfg.issue || !cfg.vaultDir) {
+      return { ok: false, error: cfg.issue || 'No notes vault configured in Settings -> Notes Vault' };
+    }
+
+    const targetNote = options.targetNotePath?.trim() || inspected.targetNotePath;
+    const syncRes = syncGitProgressToVault(cfg.vaultDir, inspected.inspection, {
+      targetNotePath: targetNote,
+      summaryNote: options.summaryNote,
+    });
+
+    if (!syncRes.ok) {
+      return { ok: false, error: syncRes.message };
+    }
+
+    this.notifyChanged?.();
+    return {
+      ok: true,
+      path: syncRes.path,
+      created: syncRes.created,
+      block: syncRes.block,
+    };
+  }
 }
 
 export interface VaultNotesHandlerDeps {
@@ -375,6 +490,23 @@ export function registerVaultNotesHandlers(
   registry.handle(MAKER_INVOKE.VAULT_INDEX_EMBEDDINGS, async (event: unknown) => {
     deps.assertTrusted(event);
     return deps.host.indexEmbeddings();
+  });
+  registry.handle(MAKER_INVOKE.VAULT_GIT_SYNC_INSPECT, async (event: unknown, workspaceDir?: unknown) => {
+    deps.assertTrusted(event);
+    return deps.host.inspectGitWorkspace(typeof workspaceDir === 'string' ? workspaceDir : undefined);
+  });
+  registry.handle(MAKER_INVOKE.VAULT_GIT_SYNC_APPLY, async (event: unknown, options?: unknown) => {
+    deps.assertTrusted(event);
+    const opts = (options && typeof options === 'object' ? options : {}) as {
+      workspaceDir?: string;
+      targetNotePath?: string;
+      summaryNote?: string;
+    };
+    const res = await deps.host.applyGitWorkspaceSync(opts);
+    if (res.ok) {
+      deps.broadcast(MAKER_PUSH.VAULT_CHANGED, deps.host.getConfig());
+    }
+    return res;
   });
 }
 

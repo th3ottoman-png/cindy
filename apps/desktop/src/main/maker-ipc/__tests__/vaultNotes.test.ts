@@ -222,7 +222,49 @@ Synthesize test overview.
     expect(indexRes).toBeDefined();
     expect(typeof indexRes.indexed).toBe('number');
 
-    expect(assertTrusted).toHaveBeenCalledTimes(12);
+    // Git sync inspect via IPC (ROADMAP 7.4)
+    const fakeGitExec = vi.fn(async (args: string[]) => {
+      if (args.includes('--show-toplevel')) return { stdout: '/Users/turko/projects/Cindy\n', stderr: '', exitCode: 0 };
+      if (args.includes('--abbrev-ref')) return { stdout: 'feat/test\n', stderr: '', exitCode: 0 };
+      if (args.includes('log')) return { stdout: 'c123456\tfeat: initial work\tTester\t2026-11-10\n', stderr: '', exitCode: 0 };
+      if (args.includes('status')) return { stdout: ' M src/app.ts\n?? new.ts\n', stderr: '', exitCode: 0 };
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const hostWithGit = new VaultNotesHost({
+      configFile,
+      gitExecFn: fakeGitExec as any,
+    });
+    const harnessWithGit = new IpcHarness();
+    registerVaultNotesHandlers(harnessWithGit, {
+      host: hostWithGit,
+      assertTrusted,
+      broadcast,
+    });
+
+    const inspectRes = (await harnessWithGit.invoke(MAKER_INVOKE.VAULT_GIT_SYNC_INSPECT)) as {
+      ok: boolean;
+      inspection?: { projectName: string; branch: string; recentCommits: Array<{ hash: string }> };
+      targetNotePath?: string;
+    };
+    expect(inspectRes.ok).toBe(true);
+    expect(inspectRes.inspection?.projectName).toBe('Cindy');
+    expect(inspectRes.inspection?.branch).toBe('feat/test');
+    expect(inspectRes.targetNotePath).toBe('memory/Project — Cindy.md');
+
+    // Git sync apply via IPC (ROADMAP 7.4)
+    const applyRes = (await harnessWithGit.invoke(MAKER_INVOKE.VAULT_GIT_SYNC_APPLY, {
+      summaryNote: 'Verified IPC auto-sync',
+    })) as { ok: boolean; path?: string; created?: boolean };
+    expect(applyRes.ok).toBe(true);
+    expect(applyRes.path).toBe('memory/Project — Cindy.md');
+    expect(applyRes.created).toBe(true);
+
+    const savedContent = fs.readFileSync(path.join(vaultDir, 'memory/Project — Cindy.md'), 'utf8');
+    expect(savedContent).toContain('Verified IPC auto-sync');
+    expect(savedContent).toContain('c123456');
+
+    expect(assertTrusted).toHaveBeenCalledTimes(14);
   });
 });
 

@@ -19,7 +19,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Activity, MessagesSquare, Bot, FolderTree, Globe, Terminal, GitPullRequestArrow, UsersRound, ListTodo, Pin, Plus, Puzzle, X, Maximize2, Minimize2, PanelRightClose, PictureInPicture2, Wrench, FolderGit2, Layers, Network } from 'lucide-react';
+import { Activity, MessagesSquare, Bot, FolderTree, Globe, Terminal, GitPullRequestArrow, UsersRound, ListTodo, Pin, Plus, Puzzle, X, Maximize2, Minimize2, PanelRightClose, PictureInPicture2, Wrench, FolderGit2, Layers, Network, GitBranch } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -158,6 +158,7 @@ const KIND_ICON: Record<BuiltinTabKindId, LucideIcon> = {
   'worktree-manager': FolderGit2,
   artifacts: Layers,
   'vault-graph': Network,
+  'vault-git-sync': GitBranch,
   'plugin-view': Puzzle,
   'plugin-task': Puzzle,
 };
@@ -179,6 +180,7 @@ const KIND_LABEL_KEY: Record<BuiltinTabKindId, string> = {
   'worktree-manager': 'rightSidebar.tabs.kinds.worktreeManager',
   artifacts: 'rightSidebar.tabs.kinds.artifacts',
   'vault-graph': 'rightSidebar.tabs.kinds.vaultGraph',
+  'vault-git-sync': 'rightSidebar.tabs.kinds.vaultGitSync',
   'plugin-view': 'rightSidebar.tabs.kinds.pluginView',
   'plugin-task': 'rightSidebar.tabs.kinds.pluginTask',
 };

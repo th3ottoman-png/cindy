@@ -257,7 +257,8 @@ export class ExpertSessionStore {
       this.expertAllowsVaultTool(sessionId, 'quick_capture', opts) ||
       this.expertAllowsVaultTool(sessionId, 'pin_vault_note', opts) ||
       this.expertAllowsVaultTool(sessionId, 'unpin_vault_note', opts) ||
-      this.expertAllowsVaultTool(sessionId, 'list_pinned_notes', opts)
+      this.expertAllowsVaultTool(sessionId, 'list_pinned_notes', opts) ||
+      this.expertAllowsVaultTool(sessionId, 'sync_workspace_git_to_project_note', opts)
     );
   }
 
