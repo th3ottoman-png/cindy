@@ -206,7 +206,23 @@ Synthesize test overview.
     expect(unpinRes.ok).toBe(true);
     expect(unpinRes.pinnedNotes).toEqual([]);
 
-    expect(assertTrusted).toHaveBeenCalledTimes(10);
+    // Hybrid search via IPC (ROADMAP 7.3)
+    const searchRes = (await harness.invoke(MAKER_INVOKE.VAULT_SEARCH_NOTES, {
+      query: 'Note A',
+    })) as Array<{ path: string; matchType?: string }>;
+    expect(Array.isArray(searchRes)).toBe(true);
+    expect(searchRes.some((h) => h.path === 'a.md')).toBe(true);
+
+    // Index embeddings via IPC (ROADMAP 7.3)
+    const indexRes = (await harness.invoke(MAKER_INVOKE.VAULT_INDEX_EMBEDDINGS)) as {
+      indexed: number;
+      skipped: number;
+      pruned: number;
+    };
+    expect(indexRes).toBeDefined();
+    expect(typeof indexRes.indexed).toBe('number');
+
+    expect(assertTrusted).toHaveBeenCalledTimes(12);
   });
 });
 

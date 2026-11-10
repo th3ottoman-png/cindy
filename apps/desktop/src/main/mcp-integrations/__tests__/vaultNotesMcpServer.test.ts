@@ -1,10 +1,13 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import Database from 'better-sqlite3';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { VaultSemanticIndex } from '@cindy/maker-core/vault-semantic';
 
 import {
   APPEND_NOTE_TOOL,
@@ -74,6 +77,25 @@ describe('cindy_vault_notes MCP server (ROADMAP 5.1)', () => {
     expect(res.body.count).toBe(2);
     const hits = res.body.hits as Array<{ path: string }>;
     expect(hits.map((h) => h.path)).toEqual(expect.arrayContaining(['note1.md', 'sub/note2.md']));
+  });
+
+  it('searches notes with hybrid semantic relevance (ROADMAP 7.3)', async () => {
+    const memDb = new Database(':memory:');
+    const semanticIndex = new VaultSemanticIndex(memDb);
+    semanticIndex.init();
+    await semanticIndex.syncVault(vault);
+
+    const res = await call(
+      deps({ getSemanticIndex: () => semanticIndex }),
+      SEARCH_NOTES_TOOL,
+      { query: 'keyword alpha' },
+    );
+    expect(res.isError).toBe(false);
+    expect(res.body.count).toBeGreaterThanOrEqual(1);
+    const hits = res.body.hits as Array<{ path: string; matchType?: string }>;
+    expect(hits[0]!.path).toBe('note1.md');
+    expect(hits[0]!.matchType).toBe('hybrid');
+    memDb.close();
   });
 
   it('appends notes inside the vault', async () => {
@@ -243,6 +265,25 @@ Links to [[sub/note2]]
 
     // Clean up test note
     fs.rmSync(path.join(realVault, testRelPath), { force: true });
+
+    // Live hybrid semantic search verification (ROADMAP 7.3)
+    const memDb = new Database(':memory:');
+    const semanticIndex = new VaultSemanticIndex(memDb);
+    semanticIndex.init();
+    const syncResult = await semanticIndex.syncVault(realVault);
+    expect(syncResult.indexed).toBeGreaterThan(0);
+
+    // Conceptual query without exact title keyword match
+    const semSearchRes = await call(
+      deps({ getVaultDir: () => realVault, getSemanticIndex: () => semanticIndex }),
+      SEARCH_NOTES_TOOL,
+      { query: 'autonomous agents orchestration and task planning' },
+    );
+    expect(semSearchRes.isError).toBe(false);
+    expect(semSearchRes.body.count).toBeGreaterThan(0);
+    const semHits = semSearchRes.body.hits as Array<{ path: string; matchType?: string; similarity?: number }>;
+    expect(semHits.some((h) => h.matchType === 'semantic' || h.matchType === 'hybrid')).toBe(true);
+    memDb.close();
   });
 });
 

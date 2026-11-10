@@ -102,6 +102,8 @@ export interface SearchHit {
   score: number;
   /** Up to `maxSnippets` matching lines, trimmed, with 1-based line numbers. */
   snippets: { line: number; text: string }[];
+  similarity?: number;
+  matchType?: 'keyword' | 'semantic' | 'hybrid';
 }
 
 /**

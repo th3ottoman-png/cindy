@@ -34,12 +34,12 @@ This is not a product. There is no marketing surface, no onboarding funnel, no o
 | Repo | `/Users/turko/=ai space=/=PROJECTS_MAIN=/Cindy` — path has spaces and `=`; **quote it**. macOS FS is case-insensitive, so older docs spelling it `=Projects_Main=` resolve to the same place |
 | Remote | private GitHub, `origin main`. Upstream remote `upstream` (strategy: see `docs/decisions/0001`) |
 | Dev app data | `~/Library/Application Support/CindyGlobal-dev2-private`; the isolated `…/CindyGlobal-dev2-dev` sandbox is what `restart:desktop:remote` uses |
-| Current handover | `docs/handoff/2026-11-08-eod-handover.md` and `docs/handoff/2026-11-08-eod-next-agent-prompt.md`. All older handover files are historical |
+| Current handover | `docs/handoff/2026-11-10-cloud-migration-handover.md` (cloud migration & Phase 7/8/9 execution). All older handover files are historical |
 | Owner vault note | `/Users/turko/Bishi-memory/memory/Project — Cindy.md` — append one dated line per session at the end |
 | Hermes home | **`~/.hermes-cindy`** — isolated. **`~/.hermes` is off-limits, always.** |
 | Hermes launcher | `~/.local/bin/hermes-cindy` (pins `HERMES_HOME`) |
 | Hermes daemon state | `~/.hermes-cindy/hermes-mgr/sessions.json` |
-| Harness user files | `~/.cindy-harness/{providers.yaml, routing.yaml, experts/, plugins/, plugins.json, vault.json, chat-autosave.json, chat-summary.json, expert-sessions.json, schedules-config.json, schedules-state.json, pinned-vault-notes.json}` |
+| Harness user files | `~/.cindy-harness/{providers.yaml, routing.yaml, experts/, plugins/, plugins.json, vault.json, chat-autosave.json, chat-summary.json, expert-sessions.json, schedules-config.json, schedules-state.json, pinned-vault-notes.json, vault-embeddings.db}` |
 | Notes vault | `/Users/turko/Bishi-memory` (from `vault.json`). Chat auto-save (5.5, **on**) writes `Cindy/Chats/<date>-<slug>-<8-char id>.md`; Auto-summary (5.6) writes `Cindy/Memory/<date>-<slug>-<8-char id>-summary.md` on idle or close |
 | Vendored agent binaries | `tools/` — untracked, required at runtime, **keep** |
 | CDP debugging | dev app binds `127.0.0.1:9222` (fixed; `XDT_CDP_PORT` overrides, dev-only — `docs/dev-rules/desktop-development.md`) |

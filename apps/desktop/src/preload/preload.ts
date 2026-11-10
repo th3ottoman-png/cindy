@@ -6410,6 +6410,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
         notePath: string,
       ): Promise<{ ok: boolean; pinnedNotes: string[] }> =>
         ipcRenderer.invoke('maker:vault:unpin-note', { sessionId, notePath }),
+      /** ROADMAP 7.3: hybrid keyword + semantic search for notes vault. */
+      searchNotes: (
+        query: string,
+        opts?: { limit?: number; minSimilarity?: number },
+      ): Promise<import('@cindy/maker-core/vault-notes').SearchHit[]> =>
+        ipcRenderer.invoke('maker:vault:search-notes', { query, ...opts }),
+      /** ROADMAP 7.3: sync note embeddings cache. */
+      indexEmbeddings: (): Promise<{ indexed: number; skipped: number; pruned: number }> =>
+        ipcRenderer.invoke('maker:vault:index-embeddings'),
       onChanged: fanOutMakerVaultChanged,
       onPinnedChanged: fanOutMakerVaultPinnedChanged,
     },

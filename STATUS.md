@@ -10,6 +10,40 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - 7.3 Local Semantic & Hybrid Search for Notes Vault (`live-proven`)
+
+- **What shipped.** Local SQLite-backed embedding cache and Reciprocal Rank Fusion (RRF) hybrid search for the Obsidian Notes Vault:
+  - `packages/maker-core/src/notes/vault-semantic.ts` (subpath `@cindy/maker-core/vault-semantic`):
+    - `DeterministicLocalEmbedder`: 128-dimensional pure term and n-gram vectorizer with L2 unit normalization, completely offline and zero-process fallback (fail-open convenience per `AGENTS.md` §6).
+    - `HttpEmbeddingClient`: local HTTP embedding client connecting to local Ollama or LM Studio OpenAI-compatible `/embeddings` endpoints without external internet dependencies.
+    - `VaultSemanticIndex`: SQLite store (`~/.cindy-harness/vault-embeddings.db`) with `better-sqlite3`, tracking note path, file mtime, SHA-256 hash, and embedding vector blobs. Automatically updates on note changes and prunes deleted notes.
+    - `hybridSearchVault`: Reciprocal Rank Fusion `RRF(k=60)` combining keyword search from `searchNotes` and vector cosine similarity from `VaultSemanticIndex`. Returns `SearchHit` with `similarity` score and `matchType` (`'keyword' | 'semantic' | 'hybrid'`).
+  - `packages/maker-core/package.json`: exposed export subpath `./vault-semantic`.
+  - `packages/maker-core/src/notes/vault-notes.ts`: extended `SearchHit` with optional `similarity?: number; matchType?: 'keyword' | 'semantic' | 'hybrid'`.
+  - `apps/desktop/src/main/maker-ipc/vaultNotes.ts`:
+    - Registered IPC handlers `maker:vault:search-notes` and `maker:vault:index-embeddings`.
+    - Wired `getSemanticIndex()` lazy singleton opening `~/.cindy-harness/vault-embeddings.db`.
+  - `apps/desktop/src/main/maker-ipc/channels.ts`: added `VAULT_SEARCH_NOTES` and `VAULT_INDEX_EMBEDDINGS`.
+  - `apps/desktop/src/preload/preload.ts` & `apps/desktop/src/renderer/vite-env.d.ts`: exposed `searchNotes` and `indexEmbeddings` to renderer.
+  - `apps/desktop/src/main/mcp-integrations/vaultNotesMcpServer.ts` & `maker-host/index.ts`:
+    - Integrated `getSemanticIndex()` into `cindy_vault_notes` MCP server.
+    - Updated `search_notes` tool description and execution to run `hybridSearchVault` when semantic index is available.
+- **Verification.**
+  - 10 unit tests in `packages/maker-core/src/notes/__tests__/vault-semantic.test.ts` covering cosine similarity, deterministic embeddings, SQLite index lifecycle (indexing, pruning, cache hits), and RRF hybrid search (10/10 PASS).
+  - 64 unit tests across all `packages/maker-core/src/notes/__tests__/` passing (64/64 PASS).
+  - 7 desktop host IPC tests in `apps/desktop/src/main/maker-ipc/__tests__/vaultNotes.test.ts` passing (7/7 PASS).
+  - 14 MCP integration tests in `apps/desktop/src/main/mcp-integrations/__tests__/vaultNotesMcpServer.test.ts` passing (14/14 PASS).
+  - **Live-proven against real vault `/Users/turko/Bishi-memory`:**
+    - Live-tested against real vault directory with 275+ notes.
+    - Querying conceptual phrase `"system architecture and agent foundation"` with zero exact text matches returned `memory/Project — Cindy.md` as top hit (`similarity: 0.698`, `matchType: 'semantic'`).
+  - All repository gates green under Node 22:
+    - `pnpm typecheck` (tsc exited 0)
+    - `pnpm test:runner` (608 passed, 0 failed, 2 skipped)
+    - `pnpm test:unit:related` (apps/desktop, apps/cindy-headless, packages/maker-core, packages/maker-hermes-manager, packages/lizi-mcps, packages/orca-workflow all PASS)
+    - `pnpm check:test-hygiene` (361 files within baseline, exit 0)
+
+---
+
 ## 2026-11-09 (part 24) - Settings & Skills cleanup: Expert deletion, removed beta channel, local-only Skills view (`unit-tested`)
 
 - **What shipped.** Addressed 3 user feedback items across Settings and Skills:

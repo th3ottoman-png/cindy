@@ -5,14 +5,18 @@
  * Validates that the vault directory exists and is a directory.
  */
 
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import Database from 'better-sqlite3';
 
 import {
   listNotes,
   readVaultConfig,
   watchVault,
   writeVaultConfig,
+  type NoteError,
+  type SearchHit,
   type VaultWatcher,
 } from '@cindy/maker-core/vault-notes';
 import { runVaultSynthesis, type VaultSynthesisResult } from '@cindy/maker-core/vault-synthesis';
@@ -26,6 +30,12 @@ import {
   type QuickCaptureInput,
   type QuickCaptureResult,
 } from '@cindy/maker-core/vault-capture';
+import {
+  VaultSemanticIndex,
+  hybridSearchVault,
+  type EmbeddingClient,
+  type HybridSearchOptions,
+} from '@cindy/maker-core/vault-semantic';
 
 import { MAKER_INVOKE, MAKER_PUSH } from './channels.js';
 import type { IpcHandlerRegistry } from './ipcHandlerRegistry.js';
@@ -40,6 +50,9 @@ export interface VaultConfigView {
 export interface VaultNotesHostDeps {
   configFile?: string;
   pinnedNotesConfigFile?: string;
+  embeddingsDbFile?: string;
+  sqliteFactory?: (file: string) => Database.Database;
+  embedder?: EmbeddingClient;
   showOpenDialog?: (options: { properties: ('openDirectory' | 'createDirectory')[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   notifyChanged?: () => void;
   watchDebounceMs?: number;
@@ -53,19 +66,35 @@ export function defaultPinnedNotesConfigFile(): string {
   return path.join(os.homedir(), '.cindy-harness', 'pinned-vault-notes.json');
 }
 
+export function defaultVaultEmbeddingsFile(): string {
+  return path.join(os.homedir(), '.cindy-harness', 'vault-embeddings.db');
+}
+
 export class VaultNotesHost {
   private readonly configFile: string;
   private readonly pinnedNotesConfigFile: string;
+  private readonly embeddingsDbFile: string;
+  private readonly sqliteFactory: (file: string) => Database.Database;
+  private readonly embedder?: EmbeddingClient;
   private readonly showOpenDialog?: (options: { properties: ('openDirectory' | 'createDirectory')[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   private readonly notifyChanged?: () => void;
   private readonly watchDebounceMs: number;
   private watcher: VaultWatcher | null = null;
   private currentWatchedDir: string = '';
   private cachedGraph: VaultGraph | null = null;
+  private semanticIndex: VaultSemanticIndex | null = null;
 
   constructor(deps: VaultNotesHostDeps = {}) {
     this.configFile = deps.configFile ?? defaultVaultConfigFile();
     this.pinnedNotesConfigFile = deps.pinnedNotesConfigFile ?? defaultPinnedNotesConfigFile();
+    this.embeddingsDbFile = deps.embeddingsDbFile ?? defaultVaultEmbeddingsFile();
+    this.sqliteFactory =
+      deps.sqliteFactory ??
+      ((file: string) => {
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        return new Database(file);
+      });
+    this.embedder = deps.embedder;
     this.showOpenDialog = deps.showOpenDialog;
     this.notifyChanged = deps.notifyChanged;
     this.watchDebounceMs = deps.watchDebounceMs ?? 150;
@@ -213,6 +242,40 @@ export class VaultNotesHost {
     const pinned = this.getPinnedNotes(sessionId);
     return buildPinnedNotesPreamble(cfg.vaultDir, pinned, maxCharsPerNote);
   }
+
+  getSemanticIndex(): VaultSemanticIndex | null {
+    if (this.semanticIndex) return this.semanticIndex;
+    try {
+      const db = this.sqliteFactory(this.embeddingsDbFile);
+      this.semanticIndex = new VaultSemanticIndex(db, this.embedder);
+      this.semanticIndex.init();
+      return this.semanticIndex;
+    } catch {
+      return null;
+    }
+  }
+
+  async searchNotes(
+    query: string,
+    opts: HybridSearchOptions = {},
+  ): Promise<SearchHit[] | NoteError> {
+    const cfg = this.getConfig();
+    if (cfg.issue || !cfg.vaultDir) {
+      return { ok: false, reason: 'no-vault', message: 'no valid notes vault configured' };
+    }
+    const idx = this.getSemanticIndex();
+    return hybridSearchVault(cfg.vaultDir, query, idx, opts);
+  }
+
+  async indexEmbeddings(): Promise<{ indexed: number; skipped: number; pruned: number }> {
+    const cfg = this.getConfig();
+    if (cfg.issue || !cfg.vaultDir) {
+      return { indexed: 0, skipped: 0, pruned: 0 };
+    }
+    const idx = this.getSemanticIndex();
+    if (!idx) return { indexed: 0, skipped: 0, pruned: 0 };
+    return idx.syncVault(cfg.vaultDir);
+  }
 }
 
 export interface VaultNotesHandlerDeps {
@@ -298,6 +361,20 @@ export function registerVaultNotesHandlers(
       deps.broadcast(MAKER_PUSH.VAULT_PINNED_CHANGED, { sessionId, pinnedNotes: res.pinnedNotes });
     }
     return res;
+  });
+  registry.handle(MAKER_INVOKE.VAULT_SEARCH_NOTES, async (event: unknown, input: unknown) => {
+    deps.assertTrusted(event);
+    const p = (input && typeof input === 'object' ? input : {}) as {
+      query?: unknown;
+      limit?: unknown;
+    };
+    const query = typeof p.query === 'string' ? p.query : '';
+    const limit = typeof p.limit === 'number' ? p.limit : undefined;
+    return deps.host.searchNotes(query, { limit });
+  });
+  registry.handle(MAKER_INVOKE.VAULT_INDEX_EMBEDDINGS, async (event: unknown) => {
+    deps.assertTrusted(event);
+    return deps.host.indexEmbeddings();
   });
 }
 

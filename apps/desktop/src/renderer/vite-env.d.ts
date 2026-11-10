@@ -5655,6 +5655,13 @@ interface ElectronAPI {
         sessionId: string,
         notePath: string,
       ) => Promise<{ ok: boolean; pinnedNotes: string[] }>;
+      /** ROADMAP 7.3: hybrid keyword + semantic search for notes vault. */
+      searchNotes: (
+        query: string,
+        opts?: { limit?: number; minSimilarity?: number },
+      ) => Promise<import('@cindy/maker-core/vault-notes').SearchHit[]>;
+      /** ROADMAP 7.3: sync note embeddings cache. */
+      indexEmbeddings: () => Promise<{ indexed: number; skipped: number; pruned: number }>;
       /** Fires when the vault configuration changes. */
       onChanged: (cb: (view: import('../main/maker-ipc/vaultNotes').VaultConfigView) => void) => () => void;
       /** Fires when pinned vault notes change for a session. */

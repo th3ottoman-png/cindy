@@ -22,6 +22,7 @@ import {
   readNote,
   searchNotes,
 } from '@cindy/maker-core/vault-notes';
+import { hybridSearchVault, type VaultSemanticIndex } from '@cindy/maker-core/vault-semantic';
 import { runVaultSynthesis } from '@cindy/maker-core/vault-synthesis';
 import { scanVaultGraph } from '@cindy/maker-core/vault-graph';
 import {
@@ -69,6 +70,8 @@ export interface VaultNotesMcpDeps {
   sessionMayUse(sessionId: string, tool: string): boolean;
   /** File path to pinned notes config. */
   pinnedNotesConfigFile?: string;
+  /** Semantic embedding index provider for hybrid search (ROADMAP 7.3). */
+  getSemanticIndex?: () => VaultSemanticIndex | null;
 }
 
 type Refusal = { code: string; message: string };
@@ -133,7 +136,8 @@ export function createVaultNotesMcpServer(deps: VaultNotesMcpDeps): McpServer {
       if (!vaultDir) {
         return refused({ code: 'NO_VAULT', message: 'no notes vault configured; configure a vault folder in Settings -> Notes Vault' });
       }
-      const res = searchNotes(vaultDir, query, { limit });
+      const semanticIndex = deps.getSemanticIndex ? deps.getSemanticIndex() : null;
+      const res = await hybridSearchVault(vaultDir, query, semanticIndex, { limit });
       if (!Array.isArray(res)) {
         return refused({ code: res.reason.toUpperCase(), message: res.message });
       }

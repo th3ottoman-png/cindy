@@ -2585,9 +2585,10 @@ export function getMaker(): Maker {
       createProjectReaderMcpProvider({
         sessionMayRead: (sessionId, tool) => getDesktopExpertSessionStore().expertAllowsTool(sessionId, tool),
       }),
-      // ROADMAP 5.1 / 6.1: local notes vault bridge for experts and optional all-sessions search.
+      // ROADMAP 5.1 / 6.1 / 7.3: local notes vault bridge for experts and optional all-sessions search.
       createVaultNotesMcpProvider({
         getVaultDir: () => getDesktopVaultNotesHost().getConfig().vaultDir,
+        getSemanticIndex: () => getDesktopVaultNotesHost().getSemanticIndex(),
         sessionMayUse: (sessionId, tool) => {
           const cfg = getDesktopVaultNotesHost().getConfig();
           if (cfg.allSessionsSearch && cfg.vaultDir && tool !== 'append_note' && tool !== 'synthesize_vault_memory') {
