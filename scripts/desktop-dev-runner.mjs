@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { resolvePnpmInvocation, usablePnpmExecPath } from './shared/pnpm-invocation.mjs';
+import { resolveDesktopDevHermesHome } from './shared/desktop-dev-hermes-home.mjs';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mode = process.argv[2];
@@ -49,6 +50,9 @@ function startChild() {
     cwd: rootDir,
     env: {
       ...process.env,
+      // Deep-link: an agent harness or dev shell may export HERMES_HOME=~/.hermes; the
+      // fail-closed guard in the desktop main would then kill every Hermes surface.
+      HERMES_HOME: resolveDesktopDevHermesHome(),
       COREPACK_ENABLE_AUTO_PIN: '0',
       XDT_DESKTOP_DEV_RELAUNCH_SIGNAL_FILE: relaunchSignalPath,
       ...(invocation.env ?? {}),

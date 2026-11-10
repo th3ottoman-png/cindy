@@ -10,6 +10,46 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - Dogfood takeover: dev launcher pins Cindy's Hermes home; new RSB panels live-checked (`live-proven`)
+
+- **Context.** Took over from `docs/handoff/2026-11-10-master-handover.md` and started dogfooding with the
+  canonical wrapper. The dev app that the previous agent had started was up, but **Hermes was dead inside it**:
+  every 60 s the log repeated `hermes-mgr configuration invalid` /
+  `refusing to use the daily Hermes home (or any path inside it) as Cindy's HERMES_HOME (/Users/turko/.hermes)`.
+- **Root cause.** Not a guard bug: `resolveHermesHome()` only reads `process.env.HERMES_HOME`, and the dev app
+  inherits whatever the launching shell exports. An agent harness (or a dev shell) that exports
+  `HERMES_HOME=~/.hermes` therefore poisons the app at exec time, and the app has no way back — the daemon never
+  forks, so `maker:hermes-config:*` fails, expert sessions cannot start, and a scheduled run at 17:44 recorded
+  `Failed to create session: hermes daemon not provisioned: AgentDeps.resolveHermesManagerSocketPath returned no
+  socket path` in `~/.cindy-harness/schedules-state.json`. `env -u HERMES_HOME` and an explicit
+  `HERMES_HOME=~/.hermes-cindy` on the `pnpm restart` command did **not** survive the
+  `osascript → do script → script(1)` launch path; the value came back as `~/.hermes` both times.
+- **What changed.** New `scripts/shared/desktop-dev-hermes-home.mjs` (`resolveDesktopDevHermesHome`) and
+  `scripts/desktop-dev-runner.mjs` now passes an explicit `HERMES_HOME` to the Forge child: Cindy's own
+  `~/.hermes-cindy` by default, an explicit override only when it is outside the daily home (a scratch home for a
+  probe), and never the daily home or anything under it (case-folded, darwin/win32). 5 tests in
+  `scripts/__tests__/desktop-dev-hermes-home.test.mjs`.
+- **Verification (`live-proven`).** `pnpm restart:desktop:remote --region=global` → `DESKTOP_DEV_VERDICT=ready`
+  (pid 33651, `mode=isolated sandbox=dev commit=9284f1274f`); the Electron main now carries
+  `HERMES_HOME=/Users/turko/.hermes-cindy`; the log shows `hermes-mgr forked` → `hermes-mgr ready` and **zero**
+  `configuration invalid` lines (was one per 60 s). Dogfooded the new right-sidebar panels over CDP 9222 in the
+  running app: the panels menu lists the new kinds and all three opened —
+  **Chat Inventory** (`In This Chat`: context/token utilization 0 %, capacity 200k, tools 0, files 0, no attached
+  skills/connectors), **Operations Rail** (1 schedule `daily-review`, `Run Now` / `Dry-Run` / `Open`; its recorded
+  last run is the stale 17:44 daemon error, not a new failure), **Git Sync** (`Git Workspace ↔ Vault Sync`, target
+  note `memory/Project — Cindy.md` `EXACT MATCH`, branch `main`, working tree 1 modified / 6 untracked, 5 recent
+  commits read from real git).
+- **Gates.** Node v22.23.4: `pnpm typecheck` exit 0 (all projects), `pnpm check:test-hygiene` PASS (361 files
+  within baseline); `node --test scripts/__tests__/desktop-dev-hermes-home.test.mjs` 5/5.
+- **Open.** No Hermes chat turn has been sent since the fix (a turn would run on the pinned `deepseek-flash`
+  default = paid; owner approval needed). The session header shows `Model Details Unavailable` for session
+  `eb8a1ec5` — cause not yet traced (no such string in `apps/desktop/src`; it is an i18n value). The schedules
+  engine has not produced a successful run since the fix.
+- **ROADMAP.** No row changes: 7.4 / 8.6b / 8.8 were already ✅ `live-proven`; this session re-verified them in
+  the running app and fixed the launcher that made an agent-started dev app unable to reach Hermes at all.
+
+---
+
 ## 2026-11-10 - Takeover housekeeping: residue cleanup, branch removal, gate-repair commit pushed (`unit-tested`)
 
 - **Context.** Took over from `docs/handoff/2026-11-10-master-handover.md`. The prior local agent had
