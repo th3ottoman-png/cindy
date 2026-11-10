@@ -201,6 +201,22 @@ export function modelTagDensityForWidth(width: number | null): ModelTagDensity {
 // (它从 './ModelSelector' import categorize / CATEGORY_LABEL_KEY / ModelCategory 做跨厂商确认弹窗)。
 export { categorize, CATEGORY_LABEL_KEY, type ModelCategory } from './sourceSwitch';
 
+/**
+ * Hermes has no static catalog: a session's model id is whatever the home route (or a
+ * per-session override) names, and the picker lists the route's model as the
+ * "Hermes home default" sentinel row instead of a row with that id. Without this fallback a
+ * perfectly valid session shows the "model details unavailable" label, because no descriptor
+ * carries its id. Showing the raw id is honest and matches how discovered models are labelled.
+ */
+export function hermesModelDisplayFallback(
+  agentKind: AgentKind | null | undefined,
+  modelId: string | null | undefined,
+): string | undefined {
+  if (agentKind !== 'hermes' || typeof modelId !== 'string') return undefined;
+  const id = modelId.trim();
+  return id && id !== 'hermes-default' ? id : undefined;
+}
+
 export function isForeignHermesModelId(modelId: string | null | undefined): boolean {
   if (typeof modelId !== 'string') return false;
   return (
@@ -4401,7 +4417,8 @@ export function ModelSelector({
     ? modelDisplayProvider(providers, currentProviderId, modelId, agentKind, actualRoute)
     : undefined;
   const resolvedModelName = (agentKind ? findCatalogModel(displayProvider, modelId, agentKind)?.name : undefined)
-    ?? currentModel?.displayName;
+    ?? currentModel?.displayName
+    ?? hermesModelDisplayFallback(agentKind, modelId);
   const labelKey = JSON.stringify([deviceId ?? null, currentProviderId ?? null, agentKind, modelId]);
   const lastModelName = useRef<{ key: string; name: string | undefined } | null>(null);
   const modelName = resolvedModelName

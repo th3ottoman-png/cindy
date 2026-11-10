@@ -10,6 +10,24 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - Hermes model header shows the model id instead of "Model Details Unavailable" (`live-proven`)
+
+- **Symptom.** A Hermes session's composer chip read `Hermes · Model Details Unavailable` even though the turn ran
+  fine on a real model.
+- **Cause.** `newChat.modelSelector.trigger.unresolved` is picked when `modelId` is set but no descriptor carries that
+  id. For Hermes the picker's first row is the `hermes-default` sentinel labelled "Hermes home default (<model>)", and
+  `buildHermesDescriptors` deliberately skips a row whose id equals the route model — so a session sitting on the home
+  route (e.g. `deepseek-flash`) matched no row and fell through to the "unavailable" label. Nothing was actually
+  unavailable.
+- **Fix.** New pure `hermesModelDisplayFallback(agentKind, modelId)` in `new-chat/ModelSelector.tsx`, used as the last
+  step of `resolvedModelName`: for a Hermes session with a real id (not the sentinel, not blank) the id is shown as the
+  label — honest, and the same convention discovered models use. 4 tests in
+  `renderer/__tests__/hermesModelDisplayFallback.test.ts`.
+- **Verified live.** HMR on the running dev app: the chip's accessible name changed from
+  `Select model. Current: Hermes · Model Details Unavailable` to `Select model. Current: Hermes · deepseek-flash`.
+
+---
+
 ## 2026-11-10 - Harness endpoint discovery can use the Hermes home `.env` keys (`live-proven`)
 
 - **Reported by the owner.** "I logged in and looked at the provider section and I couldn't see anything about
