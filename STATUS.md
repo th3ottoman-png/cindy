@@ -10,6 +10,28 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - Takeover housekeeping: residue cleanup, branch removal, gate-repair commit pushed (`unit-tested`)
+
+- **Context.** Took over from `docs/handoff/2026-11-10-master-handover.md`. The prior local agent had
+  fixed the cloud agent's 13 typecheck errors, the `parse_local_document` argument bug in
+  `vaultNotesMcpServer.ts`, and the missing i18n keys, but stopped before committing.
+- **What changed.**
+  - Removed the two leftover runner scripts from `~/.hermes/cache/scratch/`
+    (`cindy-check.sh`, `cindy-check.sh.bak`) — `~/.hermes` now has 0 cindy references.
+  - Deleted the stale local branch `cindy/7.4-local-duplicate` (was `1b79122f79`, duplicate of
+    the pushed cloud 7.4 `602d38db68`).
+  - Committed the 14 unstaged gate-repair files as `fc4e4f5596`
+    ("fix(gates): repair typecheck errors, mcp argument bug, and i18n keys") and the 2026-11-10
+    handoff docs as `aa53b57e75`, pushed to `origin main`. No `.kimi-code/`, `.serena/`,
+    `.specify/`, `.workbuddy-ai/` staged.
+- **Verification.** Node v22.23.4, `NODE_OPTIONS` unset (no agent-shell shim): `pnpm typecheck`
+  exit 0 (all 37 projects), `pnpm test:runner` 608 pass / 0 fail / 2 skipped, exit 0;
+  `pnpm check:test-hygiene` PASS (361 files within baseline).
+- **Open.** Nothing. Working tree clean; ready for dogfooding (`pnpm dev:desktop` /
+  `pnpm release:package`) or the next owner task.
+
+---
+
 ## 2026-11-10 - Gate repair after cloud takeover: typecheck + i18n completeness (`unit-tested`)
 
 - **Context.** This session started from the post-roadmap takeover prompt, but the local checkout was
