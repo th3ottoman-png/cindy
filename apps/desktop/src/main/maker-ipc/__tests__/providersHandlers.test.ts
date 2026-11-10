@@ -52,6 +52,30 @@ describe('providers IPC', () => {
     expect(result.issues).toHaveLength(1);
   });
 
+  it('resolves keyEnv against the injected discovery env (Hermes home .env keys)', async () => {
+    const port = await serveModels();
+    fs.writeFileSync(
+      file,
+      `providers:\n  - id: keyed\n    kind: openai-compatible\n    baseUrl: http://127.0.0.1:${port}/v1\n    keyEnv: TOKENHUB_API_KEY\n`,
+    );
+    const seen: Array<Record<string, string | undefined>> = [];
+    const harness = new IpcHarness();
+    registerProvidersHandlers(harness, {
+      file,
+      assertTrusted: vi.fn(),
+      discoveryEnv: () => ({ TOKENHUB_API_KEY: 'sk-injected' }),
+      discover: ((_providers: unknown, options?: { env?: Record<string, string | undefined> }) => {
+        seen.push(options?.env ?? {});
+        return Promise.resolve([{ id: 'keyed', status: 'online', models: ['hy4'], latencyMs: 1 }]);
+      }) as never,
+    });
+
+    await harness.invoke(MAKER_INVOKE.PROVIDERS_DISCOVER);
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.TOKENHUB_API_KEY).toBe('sk-injected');
+  });
+
   it('probes every configured endpoint: one online with its models, one dead and offline', async () => {
     const port = await serveModels();
     fs.writeFileSync(

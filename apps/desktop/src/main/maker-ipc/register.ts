@@ -161,7 +161,7 @@ import { MAX_CONTEXT_WINDOW_BUDGET, MIN_CONTEXT_WINDOW_BUDGET } from '../../shar
 import { getCodexHome } from '../maker-host/auth-adapters.js';
 import { getCachedBinaryStatus } from '../agent-binaries/index.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { promises as fsp } from 'node:fs';
+import { promises as fsp, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -725,7 +725,11 @@ import {
   removeHermesMcpServer,
   withHermesManagerDaemon,
 } from '../maker-host/hermes-manager-client.js';
-import { METHODS as HERMES_MGR_METHODS, readHermesDefaultRoute } from '@cindy/maker-hermes-manager';
+import {
+  METHODS as HERMES_MGR_METHODS,
+  parseHermesDotEnv,
+  readHermesDefaultRoute,
+} from '@cindy/maker-hermes-manager';
 import {
   readMemorySettingsState,
   resetMemorySettings,
@@ -25705,6 +25709,19 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   registerProvidersHandlers(createElectronIpcHandlerRegistry(), {
     file: path.join(os.homedir(), '.cindy-harness', 'providers.yaml'),
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    // A `keyEnv` name is resolved against this env. Cindy's main never loads the Hermes
+    // home `.env`, so an endpoint whose key the owner stored for Hermes (e.g. TOKENHUB_API_KEY)
+    // would probe as HTTP 401 and vanish from the picker. Merge that file over process.env,
+    // re-read per probe so a new key needs no restart. Hermes's home never enters Cindy's
+    // own config, and the key still only goes to the endpoint's own host.
+    discoveryEnv: () => {
+      try {
+        const body = readFileSync(path.join(resolveHermesHome(), '.env'), 'utf8');
+        return { ...process.env, ...parseHermesDotEnv(body) };
+      } catch {
+        return process.env;
+      }
+    },
   });
 
   // ── Notes vault (ROADMAP 5.1): read/write ~/.cindy-harness/vault.json ──

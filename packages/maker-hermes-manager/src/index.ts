@@ -1,4 +1,5 @@
 export * from './protocol.js';
+export { parseHermesDotEnv, hermesHomeApiKey } from './hermes-models.js';
 export { NDJSONDecoder, encodeMessage, type NDJSONDecoderOptions } from './codec.js';
 export { RpcClient, RpcClientError, type RpcClientOptions, type RpcRequestOptions } from './client.js';
 export { ManagerServer, type ManagerLogger, type ManagerServerOptions, type ClientCtx, type MethodHandler } from './server.js';

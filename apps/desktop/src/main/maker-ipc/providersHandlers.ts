@@ -30,6 +30,13 @@ export interface ProvidersHandlerDeps {
   /** Production default: the real `discoverEndpoints`. Injected so tests can pass a fake `fetch`. */
   discover?: typeof discoverEndpoints;
   discoveryOptions?: DiscoveryOptions;
+  /**
+   * Keys for the `keyEnv` lookup, read per call. Production merges the Hermes home
+   * `.env` (`~/.hermes-cindy/.env`) over `process.env`, so a key the owner stored
+   * for Hermes also authenticates provider discovery here — the desktop main never
+   * loads that file itself.
+   */
+  discoveryEnv?: () => Record<string, string | undefined>;
   /** Production default: the real `requestRoutedTaskText`. */
   requestRoutedTask?: typeof requestRoutedTaskText;
   routedTaskDeps?: RoutedTaskTextDeps;
@@ -46,7 +53,11 @@ export function registerProvidersHandlers(registry: IpcHandlerRegistry, deps: Pr
   registry.handle(MAKER_INVOKE.PROVIDERS_DISCOVER, async (event): Promise<EndpointProbe[]> => {
     deps.assertTrusted(event);
     const { providers } = loadProvidersFile(deps.file);
-    return (deps.discover ?? discoverEndpoints)(providers, deps.discoveryOptions);
+    const discoveryEnv = deps.discoveryEnv?.();
+    return (deps.discover ?? discoverEndpoints)(providers, {
+      ...deps.discoveryOptions,
+      ...(discoveryEnv ? { env: discoveryEnv } : {}),
+    });
   });
   registry.handle(MAKER_INVOKE.ROUTING_GET, (event): RoutingParseResult => {
     deps.assertTrusted(event);

@@ -10,6 +10,33 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - Harness endpoint discovery can use the Hermes home `.env` keys (`live-proven`)
+
+- **Reported by the owner.** "I logged in and looked at the provider section and I couldn't see anything about
+  tencent." Two separate causes, both fixed/explained:
+  1. Settings → **Providers** lists only the `claude-code` / `codex` / `pi` accounts. TokenHub is a **Hermes
+     endpoint**, so it lives in Settings → **General → Hermes Harness** as the "Provider Registry" card plus the
+     model picker. It could never appear in the Providers tab: `maker:provider:custom:create` rejects runtime
+     `hermes` (`invalid runtime 'hermes'` — user-defined providers support those three runtimes only).
+  2. Even where it should have shown, it probed **offline**. `maker:providers:discover` resolved `keyEnv` against
+     `process.env` of the desktop main, which never loads `~/.hermes-cindy/.env`; without `TOKENHUB_API_KEY` the
+     `/v1/models` probe answered HTTP 401, so the endpoint surfaced no models and the picker stayed empty.
+- **What changed.** `registerProvidersHandlers` gained an optional `discoveryEnv` hook
+  (`apps/desktop/src/main/maker-ipc/providersHandlers.ts`); `register.ts` supplies one that merges the Hermes home
+  `.env` (`parseHermesDotEnv`, newly exported from `@cindy/maker-hermes-manager`) over `process.env`, re-read per
+  probe so a new key needs no app restart. The desktop main still never persists the key: it is read from the file
+  the owner already maintains for Hermes and sent only to that endpoint's own host. +1 test.
+- **Verification (`live-proven`).** After `pnpm restart:desktop:remote --region=global`: `providers.list()` returns
+  `[lmstudio-local, ollama-local, tokenhub]` with no issues; `providers.discover()` reports **tokenhub = online,
+  101 models**; the Hermes model picker in the running app renders **100 rows labelled `(tokenhub)`**, e.g.
+  `hy4 (tokenhub)`, plus the two DeepSeek rows from the active route.
+- **Also restored.** The owner does not want TokenHub as the daily driver: `model.default` is back to
+  `deepseek-flash` / `deepseek` / `https://api.deepseek.com/v1` (written through `config/setDefaultRoute`), with
+  TokenHub available on demand from the picker. `fallback_model` stays `mimo-v2.6-pro` (TokenHub).
+- **Open.** Session header still reads `Hermes · Model Details Unavailable`; cause not traced.
+
+---
+
 ## 2026-11-10 - Tencent TokenHub provider, `hy4` default model and `mimo-v2.6-pro` fallback (`live-proven`)
 
 - **What shipped.**
