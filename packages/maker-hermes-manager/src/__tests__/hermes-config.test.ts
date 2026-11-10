@@ -8,6 +8,9 @@ import {
   parseHermesDefaultRoute,
   readHermesDefaultRoute,
   writeHermesDefaultRoute,
+  parseHermesFallbackModel,
+  readHermesFallbackModel,
+  writeHermesFallbackModel,
   parseHermesMcpServers,
   readHermesMcpServers,
   writeHermesMcpServer,
@@ -37,6 +40,86 @@ describe('parseHermesDefaultRoute', () => {
   it('stops at a dedented line so later sections cannot leak in', () => {
     const yaml = 'model:\n  default: a/b\nagent:\n  provider: not-this-one\n  model: other\n';
     expect(parseHermesDefaultRoute(yaml)).toEqual({ model: 'a/b' });
+  });
+});
+
+describe('parseHermesFallbackModel', () => {
+  it('returns null when the block is absent or nested', () => {
+    expect(parseHermesFallbackModel('model:\n  default: a/b\n')).toBeNull();
+    expect(parseHermesFallbackModel('agent:\n  fallback_model:\n    model: x\n')).toBeNull();
+  });
+
+  it('reads provider, model, base_url and key_env, unquoted', () => {
+    const yaml = [
+      'fallback_model:',
+      '  provider: tokenhub',
+      '  model: "mimo-v2.6-pro"',
+      '  base_url: https://tokenhub-intl.tencentcloudmaas.com/v1',
+      '  key_env: TOKENHUB_API_KEY',
+      'agent:\n  reasoning_effort: medium',
+      '',
+    ].join('\n');
+    expect(parseHermesFallbackModel(yaml)).toEqual({
+      provider: 'tokenhub',
+      model: 'mimo-v2.6-pro',
+      baseUrl: 'https://tokenhub-intl.tencentcloudmaas.com/v1',
+      keyEnv: 'TOKENHUB_API_KEY',
+    });
+  });
+});
+
+describe('writeHermesFallbackModel', () => {
+  async function withHome(initial: string | null): Promise<string> {
+    const home = await mkdtemp(path.join(tmpdir(), 'hermes-fallback-'));
+    if (initial !== null) await writeFile(path.join(home, 'config.yaml'), initial, 'utf8');
+    return home;
+  }
+
+  it('appends the block and preserves every existing byte', async () => {
+    const initial = '# heading\nmodel:\n  default: hy4\n  provider: tokenhub\nagent:\n  max_turns: 150\n';
+    const home = await withHome(initial);
+    const written = await writeHermesFallbackModel(home, {
+      provider: 'tokenhub',
+      model: 'mimo-v2.6-pro',
+      baseUrl: 'https://tokenhub-intl.tencentcloudmaas.com/v1',
+      keyEnv: 'TOKENHUB_API_KEY',
+    });
+    const after = await readFile(path.join(home, 'config.yaml'), 'utf8');
+
+    expect(written).toEqual({
+      provider: 'tokenhub',
+      model: 'mimo-v2.6-pro',
+      baseUrl: 'https://tokenhub-intl.tencentcloudmaas.com/v1',
+      keyEnv: 'TOKENHUB_API_KEY',
+    });
+    expect(after.startsWith(initial.trimEnd())).toBe(true);
+    expect(after).toContain('fallback_model:');
+    expect(after.endsWith('\n')).toBe(true);
+  });
+
+  it('replaces an existing block in place without touching neighbours', async () => {
+    const initial =
+      'model:\n  default: hy4\nfallback_model:\n  provider: openrouter\n  model: old/model\nagent:\n  max_turns: 150\n';
+    const home = await withHome(initial);
+    await writeHermesFallbackModel(home, { provider: 'tokenhub', model: 'mimo-v2.6-pro' });
+    const after = await readFile(path.join(home, 'config.yaml'), 'utf8');
+
+    expect(after).toBe(
+      'model:\n  default: hy4\nfallback_model:\n  provider: tokenhub\n  model: mimo-v2.6-pro\nagent:\n  max_turns: 150\n',
+    );
+    expect(after).not.toContain('old/model');
+  });
+
+  it('deletes the block and keeps the rest of the file', async () => {
+    const initial = 'model:\n  default: hy4\nfallback_model:\n  provider: tokenhub\n  model: mimo-v2.6-pro\nagent:\n  max_turns: 150\n';
+    const home = await withHome(initial);
+    const cleared = await writeHermesFallbackModel(home, null);
+
+    expect(cleared).toBeNull();
+    expect(await readFile(path.join(home, 'config.yaml'), 'utf8')).toBe(
+      'model:\n  default: hy4\nagent:\n  max_turns: 150\n',
+    );
+    expect(await readHermesFallbackModel(home)).toBeNull();
   });
 });
 

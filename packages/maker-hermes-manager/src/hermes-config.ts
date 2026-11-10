@@ -202,6 +202,117 @@ function escapeRegex(str: string): string {
 }
 
 /**
+ * `fallback_model:` block — Hermes's automatic provider failover on 429/5xx/
+ * connection failures. Same surgical rules as the `model:` block: read and
+ * rewrite only that top-level block, keep every other byte of the file.
+ */
+export interface HermesFallbackModel {
+  provider?: string;
+  model?: string;
+  baseUrl?: string;
+  /** NAME of the environment variable holding the key (custom endpoints). */
+  keyEnv?: string;
+}
+
+const FALLBACK_FIELDS: ReadonlyArray<readonly [keyof HermesFallbackModel, string]> = [
+  ['provider', 'provider'],
+  ['model', 'model'],
+  ['baseUrl', 'base_url'],
+  ['keyEnv', 'key_env'],
+];
+
+/** Parse only the top-level `fallback_model:` block; null when absent. */
+export function parseHermesFallbackModel(configYaml: string): HermesFallbackModel | null {
+  const lines = configYaml.split(/\r?\n/);
+  const start = lines.findIndex((line) => /^fallback_model\s*:(\s|#|$)/.test(line));
+  if (start === -1) return null;
+  const fallback: HermesFallbackModel = {};
+  let blockIndent: number | null = null;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const rawLine = lines[index]!;
+    if (!rawLine.trim() || rawLine.trimStart().startsWith('#')) continue;
+    const indent = rawLine.length - rawLine.trimStart().length;
+    if (blockIndent === null) blockIndent = indent;
+    if (indent < blockIndent) break;
+    const match = /^([A-Za-z0-9_]+)\s*:\s*(.*)$/.exec(rawLine.trim());
+    if (!match) continue;
+    const parsed = unquote(match[2]!);
+    if (!parsed) continue;
+    if (match[1] === 'provider') fallback.provider = parsed;
+    else if (match[1] === 'model') fallback.model = parsed;
+    else if (match[1] === 'base_url') fallback.baseUrl = parsed;
+    else if (match[1] === 'key_env') fallback.keyEnv = parsed;
+  }
+  return fallback;
+}
+
+/** Read the home's fallback model; never throws. */
+export async function readHermesFallbackModel(hermesHome: string): Promise<HermesFallbackModel | null> {
+  try {
+    const yaml = await readFile(path.join(hermesHome, 'config.yaml'), 'utf8');
+    return parseHermesFallbackModel(yaml);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write (or, with `null`, delete) the top-level `fallback_model:` block,
+ * preserving every other line of the config byte-for-byte. Returns the block
+ * as re-parsed from the written file.
+ */
+export async function writeHermesFallbackModel(
+  hermesHome: string,
+  fallback: HermesFallbackModel | null,
+): Promise<HermesFallbackModel | null> {
+  const configPath = path.join(hermesHome, 'config.yaml');
+  let yaml = '';
+  try {
+    yaml = await readFile(configPath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+  }
+
+  const newline = yaml.includes('\r\n') ? '\r\n' : '\n';
+  const lines = yaml.split(/\r?\n/);
+  const block = fallback
+    ? [
+        'fallback_model:',
+        ...FALLBACK_FIELDS.filter(([field]) => fallback[field] !== undefined).map(
+          ([field, key]) => `  ${key}: ${yamlScalar(fallback[field]!)}`,
+        ),
+      ]
+    : [];
+
+  const start = lines.findIndex((line) => /^fallback_model\s*:(\s|#|$)/.test(line));
+  if (start === -1) {
+    if (!block.length) return null; // nothing to delete
+    while (lines.length > 0 && !lines[lines.length - 1]!.trim()) lines.pop();
+    if (lines.length > 0) lines.push('');
+    lines.push(...block);
+  } else {
+    // The block owns every following indented line (and blank lines inside it);
+    // a column-0 line starts the next top-level key.
+    let end = start;
+    for (let index = start + 1; index < lines.length; index += 1) {
+      const rawLine = lines[index]!;
+      if (!rawLine.trim()) {
+        end = index;
+        continue;
+      }
+      if (rawLine.length === rawLine.trimStart().length) break;
+      end = index;
+    }
+    lines.splice(start, end - start + 1, ...block);
+  }
+
+  while (lines.length > 0 && !lines[lines.length - 1]!.trim()) lines.pop();
+  const next = lines.length > 0 ? lines.join(newline) + newline : '';
+  await writeFileAtomic(configPath, next);
+  return parseHermesFallbackModel(next);
+}
+
+/**
  * Parse only the top-level `mcp_servers:` block of a Hermes config.yaml body.
  * Tolerates comments, blank lines, and nested structures (args, headers, env).
  */

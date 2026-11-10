@@ -6623,6 +6623,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
         input: { model: string; provider: string; baseUrl?: string },
       ): Promise<{ route: { model?: string; provider?: string; baseUrl?: string } }> =>
         ipcRenderer.invoke('maker:hermes-config:set-default-route', input),
+      getFallbackModel: (): Promise<{
+        fallback: { provider?: string; model?: string; baseUrl?: string; keyEnv?: string } | null;
+      }> => ipcRenderer.invoke('maker:hermes-config:get-fallback-model'),
+      setFallbackModel: (input: {
+        model?: string;
+        provider?: string;
+        baseUrl?: string;
+        keyEnv?: string;
+        clear?: boolean;
+      }): Promise<{
+        fallback: { provider?: string; model?: string; baseUrl?: string; keyEnv?: string } | null;
+      }> => ipcRenderer.invoke('maker:hermes-config:set-fallback-model', input),
       listModels: (): Promise<{
         route: { model?: string; provider?: string; baseUrl?: string };
         models: string[];

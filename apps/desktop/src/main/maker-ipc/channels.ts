@@ -15,6 +15,8 @@ export const MAKER_INVOKE = {
   CREATE_SESSION: 'maker:create-session',
   HERMES_CONFIG_GET_DEFAULT_ROUTE: 'maker:hermes-config:get-default-route',
   HERMES_CONFIG_SET_DEFAULT_ROUTE: 'maker:hermes-config:set-default-route',
+  HERMES_CONFIG_GET_FALLBACK_MODEL: 'maker:hermes-config:get-fallback-model',
+  HERMES_CONFIG_SET_FALLBACK_MODEL: 'maker:hermes-config:set-fallback-model',
   HERMES_CONFIG_LIST_MODELS: 'maker:hermes-config:list-models',
   HERMES_CONFIG_GET_STATUS: 'maker:hermes-config:get-status',
   HERMES_CONFIG_SET_MCP_SERVER: 'maker:hermes-config:set-mcp-server',

@@ -13,6 +13,8 @@ import { encodeMessage } from './codec.js';
 import {
   readHermesDefaultRoute,
   writeHermesDefaultRoute,
+  readHermesFallbackModel,
+  writeHermesFallbackModel,
   readHermesMcpServers,
   writeHermesMcpServer,
   removeHermesMcpServer,
@@ -819,6 +821,43 @@ export class HermesManager {
           model,
           provider,
           ...(baseUrl ? { baseUrl } : {}),
+        }),
+      };
+    });
+
+    s.setHandler(METHODS.CONFIG_GET_FALLBACK_MODEL, async () => {
+      return { fallback: await readHermesFallbackModel(this.hermesHome) };
+    });
+
+    s.setHandler(METHODS.CONFIG_SET_FALLBACK_MODEL, async (raw) => {
+      // `null` clears the block; otherwise provider + model are required, and
+      // baseUrl/keyEnv describe a custom OpenAI-compatible endpoint.
+      if (raw === null) {
+        return { fallback: await writeHermesFallbackModel(this.hermesHome, null) };
+      }
+      const p = raw as {
+        model?: string;
+        provider?: string;
+        baseUrl?: string;
+        keyEnv?: string;
+        clear?: boolean;
+      };
+      if (p?.clear === true) {
+        return { fallback: await writeHermesFallbackModel(this.hermesHome, null) };
+      }
+      const model = typeof p?.model === 'string' ? p.model.trim() : '';
+      const provider = typeof p?.provider === 'string' ? p.provider.trim() : '';
+      const baseUrl = typeof p?.baseUrl === 'string' ? p.baseUrl.trim() : '';
+      const keyEnv = typeof p?.keyEnv === 'string' ? p.keyEnv.trim() : '';
+      if (!model || !provider) {
+        throw rpcError('INVALID_PARAMS', 'model and provider are required');
+      }
+      return {
+        fallback: await writeHermesFallbackModel(this.hermesHome, {
+          provider,
+          model,
+          ...(baseUrl ? { baseUrl } : {}),
+          ...(keyEnv ? { keyEnv } : {}),
         }),
       };
     });

@@ -109,6 +109,8 @@ export const METHODS = {
   CONFIG_STATUS: 'config/status',
   CONFIG_GET_DEFAULT_ROUTE: 'config/getDefaultRoute',
   CONFIG_SET_DEFAULT_ROUTE: 'config/setDefaultRoute',
+  CONFIG_GET_FALLBACK_MODEL: 'config/getFallbackModel',
+  CONFIG_SET_FALLBACK_MODEL: 'config/setFallbackModel',
   CONFIG_LIST_MODELS: 'config/listModels',
   CONFIG_LIST_MCP_SERVERS: 'config/listMcpServers',
   CONFIG_SET_MCP_SERVER: 'config/setMcpServer',

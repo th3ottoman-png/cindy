@@ -10,6 +10,46 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - Tencent TokenHub provider, `hy4` default model and `mimo-v2.6-pro` fallback (`live-proven`)
+
+- **What shipped.**
+  - `~/.cindy-harness/providers.yaml`: new `tokenhub` entry (`kind: openai-compatible`,
+    `baseUrl: https://tokenhub-intl.tencentcloudmaas.com/v1`, `keyEnv: TOKENHUB_API_KEY`, tools on).
+  - Hermes home route set **through the daemon RPC** (`config/setDefaultRoute`), not by hand:
+    `model.default: hy4`, `provider: tokenhub`, `base_url: …tokenhub-intl…`. Only those three lines changed;
+    backup kept at `~/.hermes-cindy/config.yaml.bak-2026-11-10-tokenhub`.
+  - New daemon RPCs `config/getFallbackModel` / `config/setFallbackModel` (there was no sanctioned way to write
+    `fallback_model:` and AGENTS.md §3 forbids editing `config.yaml` by hand):
+    `writeHermesFallbackModel` / `readHermesFallbackModel` in `hermes-config.ts` (line-surgical, comments and
+    trailing bytes preserved, temp+rename), protocol methods, manager handlers, IPC channels
+    `maker:hermes-config:{get,set}-fallback-model` and preload `hermesConfig.getFallbackModel/setFallbackModel`.
+    Written live via that RPC: `fallback_model: {provider: tokenhub, model: mimo-v2.6-pro, base_url: …intl…,
+    key_env: TOKENHUB_API_KEY}`.
+  - Keys live only in `~/.hermes-cindy/.env` (0600): `TOKENHUB_API_KEY` (custom provider / fallback `key_env`) and
+    `TENCENT_TOKENHUB_API_KEY`. Nothing in the repo, nothing in Cindy's config, no key in a commit.
+- **Verification (`live-proven`).**
+  - `GET /v1/models` with the key: 101 models. `POST /chat/completions` `hy4` → 200 in 1.9 s; `mimo-v2.6-pro`
+    → 200 in 1.7 s.
+  - `listModels` through the daemon (after the route change) returns the same 101-model catalog, so Cindy resolves
+    the provider and the key end-to-end.
+  - `hermes-cindy chat -m hy4 --provider tokenhub` in `~/.hermes-cindy` answered (`REALHOME-OK`) with **no**
+    fallback notice.
+- **Gotcha worth keeping (Hermes 0.22.7).** `hy4` is a models.dev model, so Hermes resolves it to its **built-in**
+  `tencent-tokenhub` provider and authenticates with `TENCENT_TOKENHUB_API_KEY`, ignoring the custom provider id in
+  the route. With that env var missing, the turn silently succeeds on the fallback instead —
+  `⚠️ Model fallback: hy4 via tencent-tokenhub unavailable (authentication failed); using mimo-v2.6-pro via
+  tokenhub`. Verified in throwaway homes both with and without `key_env` in the `model:` block, so `key_env` there
+  does not change provider resolution. The intl key works at the intl base_url, so only the env name mattered.
+- **Open.** A **new Cindy session still launches on the composer's last-selected model** (`deepseek-flash`), even
+  though `config/getDefaultRoute` now returns `hy4`: the picker/DB selection wins over the home route, so the Cindy
+  UI is not yet on TokenHub. Not changed here — it needs a deliberate Cindy-side decision (seed a new session from
+  the route, or set it in the picker). Also open: `hermes` prints `install out of sync (ffmpeg)` on every run.
+- **Gates.** Node v22.23.4: `pnpm typecheck` exit 0, `pnpm check:test-hygiene` PASS (361 files), manager package
+  221/221 (5 new fallback-model tests).
+- **Owner action.** The key was pasted into chat to unblock discovery; rotate it when convenient.
+
+---
+
 ## 2026-11-10 - Dogfood takeover: dev launcher pins Cindy's Hermes home; new RSB panels live-checked (`live-proven`)
 
 - **Context.** Took over from `docs/handoff/2026-11-10-master-handover.md` and started dogfooding with the

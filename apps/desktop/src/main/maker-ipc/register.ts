@@ -13652,6 +13652,49 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       ),
     );
   });
+  ipcMain.handle(MAKER_INVOKE.HERMES_CONFIG_GET_FALLBACK_MODEL, async (event) => {
+    assertTrustedAppRendererEvent(event);
+    return withHermesManagerDaemon((client) =>
+      client.request<{ fallback: unknown }>(
+        HERMES_MGR_METHODS.CONFIG_GET_FALLBACK_MODEL,
+        {},
+        { timeoutMs: 10_000 },
+      ),
+    );
+  });
+  ipcMain.handle(MAKER_INVOKE.HERMES_CONFIG_SET_FALLBACK_MODEL, async (event, input: unknown) => {
+    assertTrustedAppRendererEvent(event);
+    const p = (input ?? {}) as {
+      model?: unknown;
+      provider?: unknown;
+      baseUrl?: unknown;
+      keyEnv?: unknown;
+      clear?: unknown;
+    };
+    if (p.clear === true) {
+      return withHermesManagerDaemon((client) =>
+        client.request<{ fallback: unknown }>(
+          HERMES_MGR_METHODS.CONFIG_SET_FALLBACK_MODEL,
+          { clear: true },
+          { timeoutMs: 10_000 },
+        ),
+      );
+    }
+    const model = typeof p.model === 'string' ? p.model.trim() : '';
+    const provider = typeof p.provider === 'string' ? p.provider.trim() : '';
+    const baseUrl = typeof p.baseUrl === 'string' ? p.baseUrl.trim() : '';
+    const keyEnv = typeof p.keyEnv === 'string' ? p.keyEnv.trim() : '';
+    if (!model || !provider) {
+      throwIpcError('INVALID_PARAMS', 'model and provider are required');
+    }
+    return withHermesManagerDaemon((client) =>
+      client.request<{ fallback: unknown }>(
+        HERMES_MGR_METHODS.CONFIG_SET_FALLBACK_MODEL,
+        { model, provider, ...(baseUrl ? { baseUrl } : {}), ...(keyEnv ? { keyEnv } : {}) },
+        { timeoutMs: 10_000 },
+      ),
+    );
+  });
   ipcMain.handle(
     MAKER_INVOKE.HERMES_CONFIG_SET_MCP_SERVER,
     async (event, input: unknown) => {
