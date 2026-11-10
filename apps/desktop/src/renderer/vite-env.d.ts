@@ -5721,6 +5721,22 @@ interface ElectronAPI {
       /** Subscribe to operations changed push events. */
       onChanged: (callback: (payload: unknown) => void) => () => void;
     };
+    capabilityPacks: {
+      /** ROADMAP 8.7: list all capability packs. */
+      list: () => Promise<import('@cindy/maker-core/capability-pack').CapabilityPack[]>;
+      /** ROADMAP 8.7: export a session manifest as a pack. */
+      export: (params: { sessionId: string; name?: string; description?: string }) => Promise<{ ok: boolean; pack: import('@cindy/maker-core/capability-pack').CapabilityPack; file: string }>;
+      /** ROADMAP 8.7: import a pack into launch recipe. */
+      import: (params: { name?: string; pack?: import('@cindy/maker-core/capability-pack').CapabilityPack }) => Promise<import('@cindy/maker-core/session-manifest').SessionLaunchRecipe>;
+      /** ROADMAP 8.7: security preview. */
+      preview: (params: { name?: string; pack?: import('@cindy/maker-core/capability-pack').CapabilityPack }) => Promise<import('@cindy/maker-core/capability-pack').PackSecurityPreview>;
+      /** ROADMAP 8.7: estimate context budget. */
+      estimateBudget: (params: { name?: string; pack?: import('@cindy/maker-core/capability-pack').CapabilityPack; sessionId?: string; maxContextTokens?: number }) => Promise<import('@cindy/maker-core/capability-budget').CapabilityBudgetReport>;
+      /** ROADMAP 8.7: explain capability in graph. */
+      explain: (params: { name?: string; pack?: import('@cindy/maker-core/capability-pack').CapabilityPack; sessionId?: string; capabilityId: string }) => Promise<{ explanation: string; graph: import('@cindy/maker-core/capability-graph').CapabilityGraph }>;
+      /** Subscribe to packs changed push events. */
+      onChanged: (callback: (payload: unknown) => void) => () => void;
+    };
     ruleLearner: {
       /** ROADMAP 7.5: detect user corrections in chat text and extract rule candidates. */
       detect: (params: { text: string }) => Promise<import('@cindy/maker-core/rule-learner').CorrectionDetection>;

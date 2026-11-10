@@ -6490,6 +6490,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => ipcRenderer.removeListener('maker:operations:changed', handler);
       },
     },
+    capabilityPacks: {
+      /** ROADMAP 8.7: list all capability packs. */
+      list: (): Promise<import('@cindy/maker-core/capability-pack').CapabilityPack[]> =>
+        ipcRenderer.invoke('maker:capability-packs:list'),
+      /** ROADMAP 8.7: export a session manifest as a pack. */
+      export: (params: { sessionId: string; name?: string; description?: string }): Promise<{ ok: boolean; pack: import('@cindy/maker-core/capability-pack').CapabilityPack; file: string }> =>
+        ipcRenderer.invoke('maker:capability-packs:export', params),
+      /** ROADMAP 8.7: import a pack into launch recipe. */
+      import: (params: { name?: string; pack?: import('@cindy/maker-core/capability-pack').CapabilityPack }): Promise<import('@cindy/maker-core/session-manifest').SessionLaunchRecipe> =>
+        ipcRenderer.invoke('maker:capability-packs:import', params),
+      /** ROADMAP 8.7: security preview. */
+      preview: (params: { name?: string; pack?: import('@cindy/maker-core/capability-pack').CapabilityPack }): Promise<import('@cindy/maker-core/capability-pack').PackSecurityPreview> =>
+        ipcRenderer.invoke('maker:capability-packs:preview', params),
+      /** ROADMAP 8.7: estimate context budget. */
+      estimateBudget: (params: { name?: string; pack?: import('@cindy/maker-core/capability-pack').CapabilityPack; sessionId?: string; maxContextTokens?: number }): Promise<import('@cindy/maker-core/capability-budget').CapabilityBudgetReport> =>
+        ipcRenderer.invoke('maker:capability-packs:budget', params),
+      /** ROADMAP 8.7: explain capability in graph. */
+      explain: (params: { name?: string; pack?: import('@cindy/maker-core/capability-pack').CapabilityPack; sessionId?: string; capabilityId: string }): Promise<{ explanation: string; graph: import('@cindy/maker-core/capability-graph').CapabilityGraph }> =>
+        ipcRenderer.invoke('maker:capability-packs:explain', params),
+      /** Subscribe to packs changed push events. */
+      onChanged: (callback: (payload: unknown) => void): (() => void) => {
+        const handler = (_event: unknown, payload: unknown) => callback(payload);
+        ipcRenderer.on('maker:capability-packs:changed', handler);
+        return () => ipcRenderer.removeListener('maker:capability-packs:changed', handler);
+      },
+    },
     ruleLearner: {
       /** ROADMAP 7.5: detect user corrections in chat text and extract rule candidates. */
       detect: (params: { text: string }): Promise<import('@cindy/maker-core/rule-learner').CorrectionDetection> =>

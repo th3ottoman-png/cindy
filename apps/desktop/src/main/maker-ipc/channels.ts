@@ -131,6 +131,18 @@ export const MAKER_INVOKE = {
   OPERATIONS_CANCEL: 'maker:operations:cancel',
   /** ROADMAP 8.6b: replay turn or operation. */
   OPERATIONS_REPLAY: 'maker:operations:replay',
+  /** ROADMAP 8.7: list capability packs. */
+  CAPABILITY_PACKS_LIST: 'maker:capability-packs:list',
+  /** ROADMAP 8.7: export a session manifest as a pack. */
+  CAPABILITY_PACKS_EXPORT: 'maker:capability-packs:export',
+  /** ROADMAP 8.7: import a pack into session launch recipe. */
+  CAPABILITY_PACKS_IMPORT: 'maker:capability-packs:import',
+  /** ROADMAP 8.7: security preview of a capability pack. */
+  CAPABILITY_PACKS_PREVIEW: 'maker:capability-packs:preview',
+  /** ROADMAP 8.7: estimate context budget for pack/manifest. */
+  CAPABILITY_PACKS_BUDGET: 'maker:capability-packs:budget',
+  /** ROADMAP 8.7: explain capability connection in graph. */
+  CAPABILITY_PACKS_EXPLAIN: 'maker:capability-packs:explain',
   /** ROADMAP 5.4b: get state of scheduled sessions (~/.cindy-harness/schedules-state.json). */
   SCHEDULED_SESSIONS_GET_STATE: 'maker:scheduled-sessions:get-state',
   /** ROADMAP 5.2b: export session transcript to Markdown into a directory. */
@@ -1276,6 +1288,8 @@ export const MAKER_PUSH = {
    * 发给除改动发起方之外的所有窗口。payload = RightSidebarTabsChangedPayload。
    */
   RIGHT_SIDEBAR_TABS_CHANGED: 'maker:right-sidebar-tabs:changed',
+  /** ROADMAP 8.7: capability packs directory or selection changed. */
+  CAPABILITY_PACKS_CHANGED: 'maker:capability-packs:changed',
 } as const;
 
 /**

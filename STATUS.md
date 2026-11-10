@@ -10,6 +10,64 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - 8.7 Capability Packs, Graph and Budget (`live-proven`)
+
+- **What shipped.** Complete declarative capability pack engine, dependency graph analysis, pre-turn context budget estimation, and desktop IPC/MCP integration:
+  - `packages/maker-core/src/capabilities/capability-pack.ts` (subpath `@cindy/maker-core/capability-pack`):
+    - `parseCapabilityPack`: validates and parses declarative `pack.yaml` (name format `^[a-z0-9][a-z0-9-_]{0,63}$`, version 1, expert slug, skills, connectors, modelRoute, pinnedNotes, permissions).
+    - `serializeCapabilityPack`: serializes capability packs into human-readable, git-trackable YAML.
+    - `exportSessionToPack`: converts live `SessionManifest` into a declarative, portable `CapabilityPack`.
+    - `importPackToLaunchRecipe`: converts `CapabilityPack` into a `SessionLaunchRecipe` (`expertSlug`, `agentKind`, `model`, `permissionMode`, `pinnedNotes`, `skills`, `tools`, `connectors`, `capabilityIds`) for offline instantiation of new sessions.
+    - `previewPackSecurity`: Phase 4.4 security scan evaluating auto-bash permissions, write access, dangerous capabilities, and returning structured security findings (OK, WARN, DANGEROUS).
+    - `suggestCapabilityPack`: extends Phase 7.2 user prompt intent analysis to suggest complete bundles matching intent keywords.
+  - `packages/maker-core/src/capabilities/capability-graph.ts` (subpath `@cindy/maker-core/capability-graph`):
+    - `buildCapabilityGraph`: builds directed graph connecting expert -> skills/tools/connectors/notes/model routes/permissions with edge types (`requires`, `provides`, `routes_to`, `pins`, `enforces`).
+    - `explainCapability`: answers "Why is this on?" by tracing direct and indirect causal dependency paths to session root.
+    - `findUnusedCapabilities`: analyzes session turn tool invocations to identify skills, connectors, and tools that were loaded but never invoked.
+  - `packages/maker-core/src/capabilities/capability-budget.ts` (subpath `@cindy/maker-core/capability-budget`):
+    - `estimateCapabilityBudget`: computes pre-turn token estimates across active expert prompts, attached skills, connectors, and pinned vault notes; computes percentage utilization against context window and generates human-actionable optimization suggestions (e.g. "Disabling 1 unused skill frees about 1,400 tokens").
+  - `apps/desktop/src/main/maker-ipc/capabilityPacks.ts`:
+    - `CapabilityPacksHost`: local file-backed persistence under `~/.cindy-harness/packs/<name>.yaml` using atomic writes (`.tmp` + rename). Provides:
+      - `listPacks`: lists stored capability packs.
+      - `exportSession`: exports session manifest to pack file.
+      - `importPack`: imports pack file into launch recipe.
+      - `previewSecurity`: evaluates Phase 4.4 security findings.
+      - `estimateBudget`: calculates pre-turn token budget for session or pack.
+      - `explainCapability`: explains active node dependency trail.
+    - Registered IPC invoke channels in `channels.ts` and `register.ts`:
+      - `MAKER_INVOKE.CAPABILITY_PACKS_LIST`: `maker:capability-packs:list`
+      - `MAKER_INVOKE.CAPABILITY_PACKS_EXPORT`: `maker:capability-packs:export`
+      - `MAKER_INVOKE.CAPABILITY_PACKS_IMPORT`: `maker:capability-packs:import`
+      - `MAKER_INVOKE.CAPABILITY_PACKS_PREVIEW`: `maker:capability-packs:preview`
+      - `MAKER_INVOKE.CAPABILITY_PACKS_BUDGET`: `maker:capability-packs:budget`
+      - `MAKER_INVOKE.CAPABILITY_PACKS_EXPLAIN`: `maker:capability-packs:explain`
+      - `MAKER_PUSH.CAPABILITY_PACKS_CHANGED`: `maker:capability-packs:changed`
+  - Preload & Typings (`preload.ts`, `vite-env.d.ts`):
+    - Exposed `electronAPI.maker.capabilityPacks.{list, export, import, preview, estimateBudget, explain, onChanged}`.
+  - MCP Integration (`vaultNotesMcpServer.ts`):
+    - Registered first-party MCP tools on `cindy_vault_notes`:
+      - `export_capability_pack`: exports active session manifest to `pack.yaml`.
+      - `estimate_context_budget`: calculates pre-turn token budget and optimization suggestions.
+- **Verification.**
+  - 6 unit tests in `packages/maker-core/src/capabilities/__tests__/capability-pack.test.ts` (6/6 PASS).
+  - 3 unit tests in `packages/maker-core/src/capabilities/__tests__/capability-graph.test.ts` (3/3 PASS).
+  - 2 unit tests in `packages/maker-core/src/capabilities/__tests__/capability-budget.test.ts` (2/2 PASS).
+  - 4 unit tests in `apps/desktop/src/main/maker-ipc/__tests__/capabilityPacks.test.ts` (4/4 PASS).
+  - 17 unit tests in `apps/desktop/src/main/mcp-integrations/__tests__/vaultNotesMcpServer.test.ts` (17/17 PASS).
+  - **Live-proven (`live-proven`):**
+    - `apps/desktop/src/main/maker-ipc/__tests__/capabilityPacksLive.test.ts` (1/1 PASS):
+      1. Exported live session manifest to `dev-researcher.yaml` on disk.
+      2. Ran Phase 4.4 security preview: verified non-auto bash is evaluated as safe.
+      3. Calculated pre-turn token budget: detected unused skill `code-formatter` and produced suggestion ("Disabling 1 unused skill frees about 1,400 tokens").
+      4. Explained node dependency: traced `skill:web-search` back to `expert:researcher`.
+      5. Offline-imported `dev-researcher.yaml` into a new launch recipe: verified identical expert, skills, connectors, modelRoute, and pinned notes.
+  - Pre-commit gates:
+    - `check:test-hygiene`: PASS (361 files within baseline).
+    - `test:runner`: PASS (607 pass, 0 fail).
+    - Scoped `tsc --noEmit`: 0 TypeScript errors.
+
+---
+
 ## 2026-11-10 - 8.6b Operations Rail View and Actions (`live-proven`)
 
 - **What shipped.** Non-modal operations rail view and control surfaces rendering live agent turns, background workers, bots, and scheduled sessions in a unified timeline with one-click actions:

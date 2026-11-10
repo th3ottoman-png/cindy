@@ -941,6 +941,10 @@ import {
   getDesktopOperationsRailHost,
   registerOperationsRailHandlers,
 } from './operationsRail.js';
+import {
+  getDesktopCapabilityPacksHost,
+  registerCapabilityPacksHandlers,
+} from './capabilityPacks.js';
 import { MAKER_INVOKE, MAKER_PUSH, MAKER_SEND } from './channels.js';
 import type { CollabDispatchOutcome } from './collabSendOutcome.js';
 import {
@@ -25826,6 +25830,14 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   });
   registerOperationsRailHandlers(createElectronIpcHandlerRegistry(), {
     host: operationsRailHost,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+
+  const capabilityPacksHost = getDesktopCapabilityPacksHost({
+    broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
+  });
+  registerCapabilityPacksHandlers(createElectronIpcHandlerRegistry(), {
+    host: capabilityPacksHost,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
 

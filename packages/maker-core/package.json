@@ -57,7 +57,10 @@
     "./artifact-store": "./src/artifacts/artifact-store.ts",
     "./chat-inventory": "./src/session/chat-inventory.ts",
     "./document-ingestion": "./src/research/document-ingestion.ts",
-    "./deep-research-synthesis": "./src/research/deep-research-synthesis.ts"
+    "./deep-research-synthesis": "./src/research/deep-research-synthesis.ts",
+    "./capability-pack": "./src/capabilities/capability-pack.ts",
+    "./capability-graph": "./src/capabilities/capability-graph.ts",
+    "./capability-budget": "./src/capabilities/capability-budget.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

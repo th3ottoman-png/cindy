@@ -12,6 +12,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -34,6 +35,12 @@ import {
 import { listArtifacts, saveArtifact } from '@cindy/maker-core/artifact-store';
 import { ingestDocument } from '@cindy/maker-core/document-ingestion';
 import { saveLiteratureNote } from '@cindy/maker-core/deep-research-synthesis';
+import {
+  parseCapabilityPack,
+  serializeCapabilityPack,
+  type CapabilityPack,
+} from '@cindy/maker-core/capability-pack';
+import { estimateCapabilityBudget } from '@cindy/maker-core/capability-budget';
 import { resolveLiziMcpSessionContext, type LiziMcpSessionContext } from '@cindy/mcps';
 
 export const CINDY_VAULT_NOTES_MCP_SERVER_NAME = 'cindy_vault_notes';
@@ -52,6 +59,8 @@ export const SAVE_ARTIFACT_TOOL = 'save_artifact';
 export const LIST_ARTIFACTS_TOOL = 'list_artifacts';
 export const PARSE_LOCAL_DOCUMENT_TOOL = 'parse_local_document';
 export const SAVE_RESEARCH_SYNTHESIS_TOOL = 'save_research_synthesis';
+export const EXPORT_CAPABILITY_PACK_TOOL = 'export_capability_pack';
+export const ESTIMATE_CONTEXT_BUDGET_TOOL = 'estimate_context_budget';
 
 export const VAULT_NOTES_TOOLS = [
   READ_NOTE_TOOL,
@@ -69,6 +78,8 @@ export const VAULT_NOTES_TOOLS = [
   LIST_ARTIFACTS_TOOL,
   PARSE_LOCAL_DOCUMENT_TOOL,
   SAVE_RESEARCH_SYNTHESIS_TOOL,
+  EXPORT_CAPABILITY_PACK_TOOL,
+  ESTIMATE_CONTEXT_BUDGET_TOOL,
 ] as const;
 
 export function defaultPinnedNotesConfigFile(): string {
@@ -652,6 +663,131 @@ export function createVaultNotesMcpServer(deps: VaultNotesMcpDeps): McpServer {
       } catch (err) {
         return refused({
           code: 'SAVE_FAILED',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+  );
+
+  // 16. EXPORT_CAPABILITY_PACK
+  server.tool(
+    EXPORT_CAPABILITY_PACK_TOOL,
+    'Export a capability bundle (expert, skills, connectors, model route, pinned notes) to a YAML pack file in the vault.',
+    {
+      name: z.string().describe('Unique name for the capability pack (e.g. "code-review-pack")'),
+      description: z.string().optional().describe('Short summary of what this capability bundle is for'),
+      expert: z.string().optional().describe('Expert slug (e.g. "code-reviewer")'),
+      skills: z.array(z.string()).optional().describe('List of attached skill names'),
+      connectors: z.array(z.string()).optional().describe('List of active MCP connector names'),
+      pinnedNotes: z.array(z.string()).optional().describe('List of vault-relative pinned note paths'),
+      modelRoute: z.string().optional().describe('Preferred model route'),
+    },
+    async (args) => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, EXPORT_CAPABILITY_PACK_TOOL)) {
+        return refused({ code: 'FORBIDDEN', message: `expert does not permit tool "${EXPORT_CAPABILITY_PACK_TOOL}"` });
+      }
+
+      const vaultDir = deps.getVaultDir()?.trim();
+      if (!vaultDir) {
+        return refused({ code: 'NO_VAULT', message: 'no notes vault configured; configure a vault folder in Settings -> Notes Vault' });
+      }
+
+      try {
+        const pack: CapabilityPack = {
+          version: 1,
+          name: args.name,
+          description: args.description,
+          expert: args.expert || 'cindy',
+          skills: args.skills || [],
+          connectors: args.connectors || [],
+          pinnedNotes: args.pinnedNotes || [],
+          modelRoute: args.modelRoute,
+          tags: [args.expert || 'cindy'],
+        };
+
+        const yamlContent = serializeCapabilityPack(pack);
+        const packsFolder = path.join(vaultDir, 'Cindy', 'Packs');
+        if (!fs.existsSync(packsFolder)) {
+          fs.mkdirSync(packsFolder, { recursive: true });
+        }
+
+        const fileName = `${pack.name}.yaml`;
+        const fullPath = path.join(packsFolder, fileName);
+        const tmpPath = path.join(packsFolder, `${fileName}.tmp-${Date.now()}`);
+        fs.writeFileSync(tmpPath, yamlContent, 'utf8');
+        fs.renameSync(tmpPath, fullPath);
+
+        const relPath = path.join('Cindy', 'Packs', fileName);
+
+        return reply({
+          exported: true,
+          name: pack.name,
+          relPath,
+          fullPath,
+          bytesWritten: Buffer.byteLength(yamlContent, 'utf8'),
+        });
+      } catch (err) {
+        return refused({
+          code: 'EXPORT_FAILED',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+  );
+
+  // 17. ESTIMATE_CONTEXT_BUDGET
+  server.tool(
+    ESTIMATE_CONTEXT_BUDGET_TOOL,
+    'Estimate context token budget breakdown and unused capability savings before a turn.',
+    {
+      expert: z.string().optional().describe('Expert slug'),
+      skills: z.array(z.string()).optional().describe('List of skill names attached'),
+      connectors: z.array(z.string()).optional().describe('List of MCP connectors attached'),
+      pinnedNotes: z.array(z.string()).optional().describe('List of vault note paths attached'),
+      invokedTools: z.array(z.string()).optional().describe('Tools already called in this session'),
+      maxContextTokens: z.number().optional().describe('Total model context limit (default: 128,000)'),
+    },
+    async (args) => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, ESTIMATE_CONTEXT_BUDGET_TOOL)) {
+        return refused({ code: 'FORBIDDEN', message: `expert does not permit tool "${ESTIMATE_CONTEXT_BUDGET_TOOL}"` });
+      }
+
+      try {
+        const pack: CapabilityPack = {
+          version: 1,
+          name: 'active-session-budget',
+          expert: args.expert || 'cindy',
+          skills: args.skills || [],
+          connectors: args.connectors || [],
+          pinnedNotes: args.pinnedNotes || [],
+        };
+
+        const budget = estimateCapabilityBudget({
+          packOrManifest: pack,
+          invokedTools: args.invokedTools || [],
+          maxContextTokens: args.maxContextTokens,
+        });
+
+        return reply({
+          totalEstimatedTokens: budget.totalEstimatedTokens,
+          maxContextTokens: budget.maxContextTokens,
+          utilizationPercent: budget.utilizationPercent,
+          unusedTokens: budget.unusedTokens,
+          suggestion: budget.suggestion || 'Context is well-optimized.',
+          recommendations: budget.recommendations,
+          itemCount: budget.breakdown.length,
+        });
+      } catch (err) {
+        return refused({
+          code: 'BUDGET_ESTIMATION_FAILED',
           message: err instanceof Error ? err.message : String(err),
         });
       }
