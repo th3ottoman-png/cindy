@@ -147,7 +147,19 @@ Probed in throwaway homes: adding `key_env:` under the `model:` block does **not
 Both env names are now present, so `hy4` is primary. If you ever see that warning, the env var is missing — not the
 network and not the key.
 
-### 2.5 Housekeeping inherited from the previous agent
+### 2.5 Tencent TokenHub visibility in the UI (`6b74aa552e`)
+
+The owner could not find Tencent anywhere in Settings. Two reasons, one a real bug:
+Settings → **Providers** only lists `claude-code` / `codex` / `pi` accounts and *rejects* a Hermes runtime
+(`invalid runtime 'hermes'`), so a Hermes endpoint can never appear there — it lives in Settings → **General →
+Hermes Harness** ("Provider Registry" card) and in the model picker. And `maker:providers:discover` resolved
+`keyEnv` against the desktop main's `process.env`, which never loads `~/.hermes-cindy/.env`, so the endpoint probed
+HTTP 401, showed no models and filled no picker rows. `registerProvidersHandlers` now takes a `discoveryEnv` hook and
+`register.ts` merges the Hermes home `.env` over `process.env`, re-read per probe. After a restart: registry =
+`[lmstudio-local, ollama-local, tokenhub]`, `tokenhub` online with **101 models**, picker shows ~100 `(tokenhub)` rows.
+The daily route was restored to `deepseek-flash` / `deepseek` / `api.deepseek.com` at the owner's request.
+
+### 2.6 Housekeeping inherited from the previous agent
 
 Residue in `~/.hermes/cache/scratch/` was already removed, branch `cindy/7.4-local-duplicate` was already deleted,
 and the 14 gate-repair files were already committed (`fc4e4f5596`) before this session started. `~/.hermes` was
@@ -178,9 +190,10 @@ never read or written by this session; the only time it appears is the guard's o
    last-selected model wins over `config.yaml`. Decide one: seed a new session's model from `getDefaultRoute`, or
    make the picker's default follow the route. Until then the Cindy UI is **not** on TokenHub even though the CLI
    is. Evidence: `sessions.json` row for session `f4b29286-478a-4202-a4ff-a6b6729ac9d2` (`model: deepseek-flash`).
-2. **`Model Details Unavailable`** in the session header (session `eb8a1ec5…`). The string is an i18n value, not in
-   `apps/desktop/src`. Cause unknown; it predates this session and survived the daemon fix. Probably the model
-   metadata lookup for a model Cindy's catalog does not know. Low risk, visible blemish.
+2. ~~**`Model Details Unavailable`** in the session header.~~ **Fixed 2026-11-10 (`aed7fa5c87`, `live-proven`).** The
+   picker lists a Hermes route's model as the `hermes-default` sentinel and skips a row carrying that id, so a session
+   on the home route matched no descriptor. `hermesModelDisplayFallback` now shows the raw id (the header reads
+   `Hermes · deepseek-flash`).
 3. **Schedules have not run successfully since the fix.** `~/.cindy-harness/schedules-state.json` still holds the
    17:44 error. Exercise `Run Now` on `daily-review` once and confirm a session is created; that closes the loop on
    the daemon-provisioning error. Note the schedule writes into the owner's real vault.
