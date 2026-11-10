@@ -77,6 +77,10 @@ export const MAKER_INVOKE = {
   VAULT_GIT_SYNC_INSPECT: 'maker:vault:git-sync-inspect',
   /** ROADMAP 7.4: append workspace progress and commit log to matching vault project note. */
   VAULT_GIT_SYNC_APPLY: 'maker:vault:git-sync-apply',
+  /** ROADMAP 7.5: detect user corrections in chat text and extract rule candidates. */
+  RULE_LEARNER_DETECT: 'maker:rule-learner:detect',
+  /** ROADMAP 7.5: save learned rule to vault or Hermes SOUL.md. */
+  RULE_LEARNER_SAVE: 'maker:rule-learner:save',
   /** ROADMAP 8.5: one local index over vault notes, chat transcripts and summaries. */
   LIBRARY_SCAN: 'maker:library:scan',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */

@@ -86,6 +86,7 @@ import { setRemoteReceiptDisplayReady } from '@/lib/sessionAttentionStore';
 import { shortSessionId } from '@/lib/sessionId';
 import { ChatInput } from '@/components/new-chat/ChatInput';
 import { NextTurnSuggestionPill } from './NextTurnSuggestionPill';
+import { RuleLearnerChip } from './RuleLearnerChip';
 import { CindyMakeComposerMask } from '@/components/cindy-make/CindyMakeComposerMask';
 import {
   getCindyMakeTestRecovery,
@@ -6273,7 +6274,10 @@ function CCAgentSessionContent({
               session?.source !== 'review' &&
               sessionId &&
               composerDraftKey ? (
-                <NextTurnSuggestionPill sessionId={sessionId} draftKey={composerDraftKey} />
+                <>
+                  <NextTurnSuggestionPill sessionId={sessionId} draftKey={composerDraftKey} />
+                  <RuleLearnerChip sessionId={sessionId} />
+                </>
               ) : null}
 
               {/* F-FP-5: workingDir — always rendered to prevent layout shift

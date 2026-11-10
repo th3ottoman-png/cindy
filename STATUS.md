@@ -10,6 +10,42 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - 7.5 Reflect / Rule Learner from User Corrections (`live-proven`)
+
+- **What shipped.** Heuristic detection of user corrections and recommendations in chat turns, surfacing a 1-click suggestion chip below composer to save the correction as a permanent rule into either Notes Vault (`<vault>/Cindy/Rules/`) or Hermes `SOUL.md`:
+  - `packages/maker-core/src/rules/rule-learner.ts` (subpath `@cindy/maker-core/rule-learner`):
+    - `detectCorrection`: regex-based heuristic detector capturing negative imperatives (`no, don't / never / stop`), explicit error feedback (`wrong / that's wrong / incorrect`), preference and instead statements (`prefer / always use X instead`), explicit rule prompts (`from now on, always / remember: / rule:`), and boundary enforcement (`you must not / you should not`).
+    - `deriveRuleTitle` and `slugifyRule`: extracts concise rule title and filename slug.
+    - `formatVaultRuleMarkdown`: generates Markdown rule with YAML frontmatter (`type: learned-rule`, `source: correction`, timestamp).
+    - `saveRuleToVault`: atomically writes rule to `<vault>/Cindy/Rules/<slug>.md` with path containment guard.
+    - `saveRuleToSoul`: atomically appends rule to `~/.hermes-cindy/SOUL.md` under `## Rules & Corrections`.
+  - `packages/maker-core/package.json`: exposed export subpath `./rule-learner`.
+  - `apps/desktop/src/main/maker-ipc/ruleLearner.ts` & `channels.ts`:
+    - Registered IPC channels `maker:rule-learner:detect` and `maker:rule-learner:save`.
+    - Added `RuleLearnerHost` resolving configured vault path and Hermes home (`~/.hermes-cindy`).
+    - Pushes `MAKER_PUSH.VAULT_CHANGED` on vault rule save.
+  - `apps/desktop/src/preload/preload.ts` & `apps/desktop/src/renderer/vite-env.d.ts`:
+    - Exposed `window.electronAPI.maker.ruleLearner.detect` and `save` with full TypeScript declarations.
+  - `apps/desktop/src/renderer/features/cc-agent/RuleLearnerChip.tsx`:
+    - Component mounted below composer in `CCAgentSessionView.tsx`.
+    - Auto-evaluates latest user turn in active session; when correction detected, surfaces non-intrusive suggestion chip: `💡 Save rule: "<title>"? [Vault] [SOUL.md] [✕]`.
+    - 1-click saves rule with immediate loading state and `✓ Saved to Vault` / `✓ Saved to SOUL.md` feedback.
+    - Dismiss button silences chip for that message.
+- **Verification.**
+  - 13 unit tests in `packages/maker-core/src/rules/__tests__/rule-learner.test.ts` (13/13 PASS).
+  - 5 desktop IPC host tests in `apps/desktop/src/main/maker-ipc/__tests__/ruleLearner.test.ts` (5/5 PASS).
+  - 5 renderer component tests in `apps/desktop/src/renderer/features/cc-agent/__tests__/RuleLearnerChip.test.tsx` (5/5 PASS).
+  - **Live-proven against real vault and real Hermes home (`live-proven`):**
+    - `apps/desktop/src/main/maker-ipc/__tests__/ruleLearnerLive.test.ts`:
+      1. Correctly detects live user correction `"No, don’t run tests under Node 24. Always use Node 22 exclusively."`
+      2. Atomically writes to real vault `/home/antigravity/Bishi-memory/Cindy/Rules/always-use-node-22.md`, confirming frontmatter and body on disk.
+      3. Appends rule to real Hermes home `~/.hermes-cindy/SOUL.md` under `## Rules & Corrections`, confirming section and line on disk (2/2 live checks PASS).
+  - Pre-commit gates:
+    - `pnpm check:test-hygiene`: PASS (361 files within baseline).
+    - 7.5 unit and live test suites: 100% PASS (25 tests total).
+
+---
+
 ## 2026-11-10 - 7.4 Git Workspace ↔ Vault Project Note Auto-Sync (`live-proven`)
 
 - **What shipped.** Right sidebar inspector tab and agent tool in `cindy_vault_notes` MCP server that inspects the active git workspace (recent commits, branch, working tree status) and synchronizes progress to `<vault>/memory/Project — <Name>.md`:

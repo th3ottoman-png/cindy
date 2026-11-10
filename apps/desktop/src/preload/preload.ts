@@ -6447,6 +6447,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       scan: (): Promise<import('../main/maker-ipc/library').LibraryScanResult> =>
         ipcRenderer.invoke('maker:library:scan'),
     },
+    ruleLearner: {
+      /** ROADMAP 7.5: detect user corrections in chat text and extract rule candidates. */
+      detect: (params: { text: string }): Promise<import('@cindy/maker-core/rule-learner').CorrectionDetection> =>
+        ipcRenderer.invoke('maker:rule-learner:detect', params),
+      /** ROADMAP 7.5: save learned rule to vault or Hermes SOUL.md. */
+      save: (params: {
+        target: 'vault' | 'soul';
+        text: string;
+        title?: string;
+      }): Promise<import('@cindy/maker-core/rule-learner').SaveRuleResult> =>
+        ipcRenderer.invoke('maker:rule-learner:save', params),
+    },
     chatAutosave: {
       getConfig: (): Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView> =>
         ipcRenderer.invoke('maker:chat-autosave:get-config'),

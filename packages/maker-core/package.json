@@ -36,6 +36,7 @@
     "./vault-capture": "./src/notes/vault-capture.ts",
     "./vault-semantic": "./src/notes/vault-semantic.ts",
     "./vault-git-sync": "./src/notes/vault-git-sync.ts",
+    "./rule-learner": "./src/rules/rule-learner.ts",
     "./scheduled-sessions": "./src/schedules/scheduled-sessions.ts",
     "./expert-handoff": "./src/experts/expert-handoff.ts",
     "./expert-draft": "./src/experts/expert-draft.ts",

@@ -922,6 +922,7 @@ import { getDesktopExpertSessionStore } from './expertSessions.js';
 import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
 import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNotes.js';
+import { getRuleLearnerHost, registerRuleLearnerHandlers } from './ruleLearner.js';
 import { registerLibraryHandlers } from './library.js';
 import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
@@ -25667,6 +25668,17 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     getVaultDir: () => vaultNotesHost.getConfig().vaultDir,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
+  // ROADMAP 7.5: reflect / rule learner from user corrections.
+  const ruleLearnerHost = getRuleLearnerHost({
+    getVaultDir: () => vaultNotesHost.getConfig().vaultDir,
+    pushEvent: (channel, payload) => broadcastToAllWindows(channel, payload),
+  });
+  registerRuleLearnerHandlers(
+    ipcMain,
+    () => ruleLearnerHost,
+    (channel, payload) => broadcastToAllWindows(channel, payload),
+    (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  );
 
   // ── Session export to Markdown (ROADMAP 5.2b) ───────────────────────────
   const sessionExportHost = new SessionExportHost({
