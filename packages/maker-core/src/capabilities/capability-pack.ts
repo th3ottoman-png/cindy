@@ -6,7 +6,7 @@
  * the Phase 4.4 security scan preview.
  */
 
-import * as yaml from 'js-yaml';
+import yaml from 'js-yaml';
 import type { SessionLaunchRecipe, SessionManifest } from '../session/session-manifest.js';
 
 export const CAPABILITY_PACK_VERSION = 1;

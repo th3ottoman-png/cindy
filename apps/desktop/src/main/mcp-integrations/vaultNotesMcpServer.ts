@@ -548,9 +548,8 @@ export function createVaultNotesMcpServer(deps: VaultNotesMcpDeps): McpServer {
       path: z.string().describe('Absolute or relative file path to the document to parse'),
       maxPages: z.number().optional().describe('Maximum number of PDF pages to extract (default: 50)'),
       maxChars: z.number().optional().describe('Maximum characters of text to return (default: 30000)'),
-      includeChunks: z.boolean().optional().describe('Whether to return extracted semantic text chunks (default: false)'),
     },
-    async ({ path: docPath, maxPages, maxChars, includeChunks }) => {
+    async ({ path: docPath, maxPages, maxChars }) => {
       const ctx = deps.getSessionContext();
       if (!ctx?.sessionId) {
         return refused({ code: 'NO_SESSION', message: 'no session context available' });
@@ -559,7 +558,7 @@ export function createVaultNotesMcpServer(deps: VaultNotesMcpDeps): McpServer {
         return refused({ code: 'FORBIDDEN', message: `expert does not permit tool "${PARSE_LOCAL_DOCUMENT_TOOL}"` });
       }
       try {
-        const doc = await ingestDocument(docPath, { maxPages, maxChars, includeChunks });
+        const doc = await ingestDocument(docPath, undefined, { maxPages, maxChars });
         return reply({
           success: true,
           document: doc,

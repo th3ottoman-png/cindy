@@ -8278,7 +8278,10 @@
         "terminal": "명령 실행 및 출력 확인",
         "worktreeManager": "작업의 Git Worktree 확인, 전환 및 관리",
         "artifacts": "대화 중 생성된 산출물 및 파일 확인",
-        "vaultGraph": "보관소 태그, 노트 연결 및 백링크 탐색"
+        "vaultGraph": "보관소 태그, 노트 연결 및 백링크 탐색",
+        "vaultGitSync": "이 작업의 Git 진행 상황을 보관소 프로젝트 노트에 추가합니다",
+        "chatInventory": "현재 세션 감사: 실행된 도구, 변경된 파일, 스킬 및 토큰",
+        "operationsRail": "실행 중인 턴, 워커, 봇 및 예약 작업 추적"
       },
       "kinds": {
         "fileBrowser": "파일 브라우저",
@@ -8291,6 +8294,9 @@
         "worktreeManager": "Worktrees",
         "artifacts": "Artifacts",
         "vaultGraph": "보관소 그래프",
+        "vaultGitSync": "Git 동기화",
+        "chatInventory": "이 대화",
+        "operationsRail": "작업 현황",
         "collaboration": "협업",
         "unknown": "알 수 없는 탭",
         "ghostPanel": "플러그인 패널",

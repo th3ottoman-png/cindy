@@ -8314,7 +8314,10 @@
         "terminal": "Run commands and view output",
         "worktreeManager": "Inspect, switch, and manage active Git worktrees across tasks",
         "artifacts": "Inspect deliverables and files created during the conversation",
-        "vaultGraph": "Explore vault tags, note connections, and backlinks"
+        "vaultGraph": "Explore vault tags, note connections, and backlinks",
+        "vaultGitSync": "Append this task's git progress to its vault project note",
+        "chatInventory": "Audit the active session: tools run, files touched, skills and tokens",
+        "operationsRail": "Track running turns, workers, bots and scheduled sessions"
       },
       "kinds": {
         "fileBrowser": "File browser",
@@ -8327,6 +8330,9 @@
         "worktreeManager": "Worktrees",
         "artifacts": "Artifacts",
         "vaultGraph": "Vault Graph",
+        "vaultGitSync": "Git Sync",
+        "chatInventory": "In This Chat",
+        "operationsRail": "Operations",
         "collaboration": "Team",
         "unknown": "Unknown tab",
         "ghostPanel": "Plugin panel",

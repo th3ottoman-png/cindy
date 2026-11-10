@@ -176,7 +176,7 @@ describe('CapabilityPacksLive (ROADMAP 8.7)', () => {
 
     // ── STEP 2: Offline import into new task launch recipe ───────────────────
     const launchRecipe = await host.importToLaunchRecipe('live-reviewer-pack');
-    expect(launchRecipe.expert).toBe('code-reviewer');
+    expect(launchRecipe.expertSlug).toBe('code-reviewer');
     expect(launchRecipe.skills).toEqual(['github', 'git-workspace']);
     expect(launchRecipe.pinnedNotes).toEqual(['Cindy/Research/Architecture.md']);
     expect(launchRecipe.model).toBe('claude-3-7-sonnet');

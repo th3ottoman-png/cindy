@@ -8278,7 +8278,10 @@
         "terminal": "运行命令，查看输出",
         "worktreeManager": "检查、切换与管理任务的工作区 Git Worktree",
         "artifacts": "查看对话轮次中生成的产物与文件",
-        "vaultGraph": "浏览笔记库标签、笔记关联与反向链接"
+        "vaultGraph": "浏览笔记库标签、笔记关联与反向链接",
+        "vaultGitSync": "将此任务的 Git 进度追加到笔记库中的项目笔记",
+        "chatInventory": "审计当前会话:运行的工具、改动的文件、技能与令牌",
+        "operationsRail": "跟踪运行中的轮次、工作者、机器人与定时任务"
       },
       "kinds": {
         "fileBrowser": "文件浏览器",
@@ -8291,6 +8294,9 @@
         "worktreeManager": "Worktrees",
         "artifacts": "Artifacts",
         "vaultGraph": "笔记关系图",
+        "vaultGitSync": "Git 同步",
+        "chatInventory": "此对话",
+        "operationsRail": "运营",
         "collaboration": "协同",
         "unknown": "未知标签页",
         "ghostPanel": "插件面板",

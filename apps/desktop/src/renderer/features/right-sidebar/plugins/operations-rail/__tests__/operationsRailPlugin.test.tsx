@@ -79,7 +79,7 @@ describe('OperationsRailTabBody', () => {
   it('renders operations rail header, summary chips, and active operation cards', async () => {
     render(
       <BrowserRouter>
-        <OperationsRailTabBody ctx={{ sessionId: 'test-session' } as any} />
+        <OperationsRailTabBody state={{}} ctx={{ sessionId: 'test-session' } as any} />
       </BrowserRouter>,
     );
 
@@ -95,7 +95,7 @@ describe('OperationsRailTabBody', () => {
   it('triggers cancel action when Cancel button is clicked', async () => {
     render(
       <BrowserRouter>
-        <OperationsRailTabBody ctx={{ sessionId: 'test-session' } as any} />
+        <OperationsRailTabBody state={{}} ctx={{ sessionId: 'test-session' } as any} />
       </BrowserRouter>,
     );
 
@@ -117,7 +117,7 @@ describe('OperationsRailTabBody', () => {
   it('triggers dry-run when Dry-Run button is clicked', async () => {
     render(
       <BrowserRouter>
-        <OperationsRailTabBody ctx={{ sessionId: 'test-session' } as any} />
+        <OperationsRailTabBody state={{}} ctx={{ sessionId: 'test-session' } as any} />
       </BrowserRouter>,
     );
 

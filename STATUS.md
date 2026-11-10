@@ -10,6 +10,53 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - Gate repair after cloud takeover: typecheck + i18n completeness (`unit-tested`)
+
+- **Context.** This session started from the post-roadmap takeover prompt, but the local checkout was
+  **11 commits behind `origin/main`**: the cloud agent had already pushed 7.4 through 8.7, 9.4 and 9.5
+  (`602d38db68` … `5fc7d9c3ca`) plus the completion handover `a6f317e646`. The 7.4 task this session
+  built first was therefore a duplicate of `602d38db68`; it is preserved on the local branch
+  `cindy/7.4-local-duplicate` (not pushed, not merged) and local `main` was fast-forwarded to
+  `origin/main` so no duplicate history is created. Nothing of value was lost: the cloud 7.4 is
+  integrated into `VaultNotesHost` and already labelled ✅ `live-proven`.
+- **What shipped (gate repair on `a6f317e646`).** The takeover prompt claims all gates green; on this
+  machine they were not. `pnpm typecheck` failed with **13 errors** and
+  `i18nCompleteness.test.ts` failed with **3 missing key sets**:
+  - `packages/maker-core/src/capabilities/capability-pack.ts`: `import * as yaml from 'js-yaml'` →
+    the house default import. Under `apps/desktop`'s tsconfig the ambient declaration in
+    `src/main/vendor.d.ts` shadows `@types/js-yaml`, and that declaration typed `dump` as
+    one-argument, so 8.7's `yaml.dump(obj, opts)` could not compile. `vendor.d.ts` now types
+    `dump(obj: unknown, options?: Record<string, unknown>)` (type-only widening, no runtime change).
+  - `apps/desktop/src/renderer/features/right-sidebar/TabBar.tsx`: the exhaustive
+    `Record<BuiltinTabKindId, …>` icon and label maps were missing `chat-inventory` (8.8) and
+    `operations-rail` (8.6b); both added (`Boxes`, `Activity`).
+  - i18n: `rightSidebar.tabs.kinds.*` and `.descriptions.*` for `vaultGitSync` (7.4),
+    `chatInventory` (8.8) and `operationsRail` (8.6b) were missing in **all five** locales, so those
+    tabs would have rendered raw keys. Added to en / ja / zh-CN / zh-TW / ko.
+  - `apps/desktop/src/main/mcp-integrations/vaultNotesMcpServer.ts`: **real bug** —
+    `parse_local_document` called `ingestDocument(docPath, { maxPages, maxChars, includeChunks })`,
+    i.e. the options object was passed as the *content* argument, so every option was silently
+    ignored. Now `ingestDocument(docPath, undefined, { maxPages, maxChars })`, and the invented
+    `includeChunks` parameter was dropped from the tool schema (`IngestOptions` has no such field and
+    `IngestedDocument.chunks` is always returned).
+  - Tests that could not compile: `capabilityPacks.test.ts` and `capabilityPacksLive.test.ts` asserted
+    `recipe.expert` (`SessionLaunchRecipe` exposes `expertSlug`); `sessionHandoff.test.ts` read
+    `res.reason` off the `BuildHandoffResponse` union without narrowing (now `toMatchObject`);
+    `operationsRailPlugin.test.tsx` rendered `<OperationsRailTabBody ctx={…} />` without the required
+    `state` prop.
+- **Verification.** `pnpm typecheck` exit 0; `pnpm test:runner` 608 pass / 0 fail;
+  `pnpm check:test-hygiene` PASS (361 files within baseline); `node scripts/design-inventory.mjs
+  --check` PASS (54 surfaces, no regeneration needed); the 7 directly affected test files green
+  (36 tests, incl. `deepResearchLive`, `vaultNotesMcpServer`, `capabilityPacks`,
+  `capabilityPacksLive`, `sessionHandoff`, `operationsRailPlugin`, `i18nCompleteness`).
+- **Still open.** The unit tier (sanctioned 8-shard form, `env -u HERMES_HOME`) was still running when
+  this entry was written; its result is appended below once finished. `pnpm check:i18n` remains
+  **advisory-red for pre-existing reasons** (4 locales missing
+  `settings.shortcuts.items.open-quick-switcher.*` from the 7.1 work, plus 6 empty-string values) —
+  not touched by this session.
+
+---
+
 ## 2026-11-10 - 8.7 Capability Packs, Graph and Budget (`live-proven`)
 
 - **What shipped.** Complete declarative capability pack engine, dependency graph analysis, pre-turn context budget estimation, and desktop IPC/MCP integration:

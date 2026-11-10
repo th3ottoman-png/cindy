@@ -8278,7 +8278,10 @@
         "terminal": "コマンドを実行して出力を確認",
         "worktreeManager": "タスクの Git Worktree を確認・切り替え・管理",
         "artifacts": "会話中に生成された成果物やファイルを確認",
-        "vaultGraph": "保管庫のタグ、ノートの接続、バックリンクを探索"
+        "vaultGraph": "保管庫のタグ、ノートの接続、バックリンクを探索",
+        "vaultGitSync": "このタスクのGitの進捗を保管庫のプロジェクトノートに追記します",
+        "chatInventory": "実行中のセッションを監査:ツール、変更ファイル、スキル、トークン",
+        "operationsRail": "実行中のターン、ワーカー、ボット、定期実行を追跡"
       },
       "kinds": {
         "fileBrowser": "ファイルブラウザ",
@@ -8291,6 +8294,9 @@
         "worktreeManager": "Worktrees",
         "artifacts": "Artifacts",
         "vaultGraph": "保管庫グラフ",
+        "vaultGitSync": "Git 同期",
+        "chatInventory": "このチャット",
+        "operationsRail": "オペレーション",
         "collaboration": "コラボ",
         "unknown": "不明なタブ",
         "ghostPanel": "プラグインパネル",

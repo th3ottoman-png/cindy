@@ -10,12 +10,10 @@ describe('SessionHandoffHost', () => {
     });
 
     const res1 = await host.buildHandoff('');
-    expect(res1.ok).toBe(false);
-    expect(res1.reason).toBe('no-session');
+    expect(res1).toMatchObject({ ok: false, reason: 'no-session' });
 
     const res2 = await host.buildHandoff('non-existent');
-    expect(res2.ok).toBe(false);
-    expect(res2.reason).toBe('no-session');
+    expect(res2).toMatchObject({ ok: false, reason: 'no-session' });
   });
 
   it('fails when session has no messages', async () => {
@@ -25,8 +23,7 @@ describe('SessionHandoffHost', () => {
     });
 
     const res = await host.buildHandoff('sess-1');
-    expect(res.ok).toBe(false);
-    expect(res.reason).toBe('no-messages');
+    expect(res).toMatchObject({ ok: false, reason: 'no-messages' });
   });
 
   it('builds handoff prompt with decisions, files, and actions', async () => {

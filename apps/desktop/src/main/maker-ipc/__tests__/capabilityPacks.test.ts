@@ -140,7 +140,7 @@ describe('CapabilityPacksHost (ROADMAP 8.7)', () => {
 
     // Can import into launch recipe
     const recipe = await host.importToLaunchRecipe('exported-session-pack');
-    expect(recipe.expert).toBe('code-reviewer');
+    expect(recipe.expertSlug).toBe('code-reviewer');
     expect(recipe.skills).toContain('github');
     expect(recipe.pinnedNotes).toContain('Cindy/Architecture.md');
   });

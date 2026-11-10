@@ -2,7 +2,7 @@
 declare module 'js-yaml' {
   const yaml: {
     load(input: string): unknown;
-    dump(obj: unknown): string;
+    dump(obj: unknown, options?: Record<string, unknown>): string;
   };
   export default yaml;
 }
