@@ -189,4 +189,40 @@ describe('LibraryPanel', () => {
     await waitFor(() => expect(screen.getByTestId('library-error').textContent).toContain('no vault'));
     expect(rows()).toHaveLength(0);
   });
+
+  it('renders artifacts alongside notes, chats and summaries (ROADMAP 8.5b)', async () => {
+    const entriesWithArtifact: LibraryEntry[] = [
+      ...ENTRIES,
+      {
+        kind: 'artifact',
+        id: 'Cindy/Artifacts/diag.md',
+        title: 'System Architecture',
+        path: 'Cindy/Artifacts/diag.md',
+        updatedAt: 3500,
+        tags: ['diagram'],
+        excerpt: 'Client-server pipeline.',
+        citations: [],
+      },
+    ];
+    installScan(entriesWithArtifact);
+    render(<LibraryPanel />);
+    act(() => openLibrary());
+    await waitFor(() => expect(rows()).toHaveLength(4));
+
+    const chips = screen.getAllByTestId('library-kind-chip');
+    expect(chips.map((c) => c.getAttribute('data-kind'))).toEqual([
+      'note',
+      'chat',
+      'summary',
+      'artifact',
+    ]);
+
+    const artifactChip = chips.find((c) => c.getAttribute('data-kind') === 'artifact');
+    expect(artifactChip?.textContent).toContain('artifact 1');
+
+    fireEvent.click(artifactChip!);
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(rows()[0].getAttribute('data-kind')).toBe('artifact');
+    expect(rows()[0].textContent).toContain('System Architecture');
+  });
 });

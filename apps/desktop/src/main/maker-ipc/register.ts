@@ -927,6 +927,7 @@ import { getPromptStructurerHost, registerPromptStructurerHandlers } from './pro
 import { getScreenShareHost, registerScreenShareHandlers } from './screenShare.js';
 import { getSessionHandoffHost, registerSessionHandoffHandlers } from './sessionHandoff.js';
 import { registerLibraryHandlers } from './library.js';
+import { registerArtifactsHandlers } from './artifacts.js';
 import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
@@ -25670,6 +25671,12 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   registerLibraryHandlers(createElectronIpcHandlerRegistry(), {
     getVaultDir: () => vaultNotesHost.getConfig().vaultDir,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+  // ROADMAP 8.5b: artifact store in the vault.
+  registerArtifactsHandlers(createElectronIpcHandlerRegistry(), {
+    getVaultDir: () => vaultNotesHost.getConfig().vaultDir,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
   });
   // ROADMAP 7.5: reflect / rule learner from user corrections.
   const ruleLearnerHost = getRuleLearnerHost({

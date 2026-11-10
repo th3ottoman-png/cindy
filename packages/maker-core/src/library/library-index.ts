@@ -22,15 +22,44 @@ export const LIBRARY_KIND_ORDER: readonly string[] = ['note', 'chat', 'summary',
 
 const CHAT_PREFIX = 'Cindy/Chats/';
 const SUMMARY_PREFIX = 'Cindy/Memory/';
+const ARTIFACT_PREFIX = 'Cindy/Artifacts/';
 
 const MAX_EXCERPT = 240;
 const MAX_BODY_SCAN = 200_000;
 const MIN_CITATION_NEEDLE = 4;
 
+export interface LibraryClassifier {
+  kind: string;
+  prefix?: string;
+  match?: (path: string) => boolean;
+}
+
+const customClassifiers: LibraryClassifier[] = [];
+
+/**
+ * Register a custom library classifier without modifying central code (AGENTS.md §6).
+ */
+export function registerLibraryClassifier(classifier: LibraryClassifier): () => void {
+  customClassifiers.unshift(classifier);
+  return () => {
+    const idx = customClassifiers.indexOf(classifier);
+    if (idx !== -1) customClassifiers.splice(idx, 1);
+  };
+}
+
+/**
+ * Clear custom classifiers (useful for test isolation).
+ */
+export function clearCustomLibraryClassifiers(): void {
+  customClassifiers.length = 0;
+}
+
 export interface LibrarySourceEntry {
   /** Vault-relative path, forward slashes. Stable identity. */
   path: string;
   title: string;
+  /** Explicit kind override (e.g. 'artifact', or dynamic extension kind). */
+  kind?: string;
   tags?: readonly string[];
   mtimeMs?: number;
   /** Raw markdown. Used for the excerpt and for citation matching. */
@@ -54,13 +83,22 @@ function normalisePath(value: string): string {
 }
 
 /**
- * Classify by folder. Everything outside the two Cindy folders is a note, which
- * is the safe default: an unknown path is still useful content.
+ * Classify by registered classifier or known Cindy folder prefixes. Everything outside
+ * known folders is a note, which is the safe default: an unknown path is still useful content.
  */
 export function classifyLibraryPath(path: string): string {
   const normalised = normalisePath(path);
+  for (const classifier of customClassifiers) {
+    if (classifier.prefix && normalised.startsWith(normalisePath(classifier.prefix))) {
+      return classifier.kind;
+    }
+    if (classifier.match && classifier.match(normalised)) {
+      return classifier.kind;
+    }
+  }
   if (normalised.startsWith(CHAT_PREFIX)) return 'chat';
   if (normalised.startsWith(SUMMARY_PREFIX)) return 'summary';
+  if (normalised.startsWith(ARTIFACT_PREFIX)) return 'artifact';
   return 'note';
 }
 
@@ -103,7 +141,7 @@ export function buildLibraryIndex(
   const bodies = new Map<string, string>();
   const index: LibraryEntry[] = entries.map((entry) => {
     const path = normalisePath(entry.path);
-    const kind = classifyLibraryPath(path);
+    const kind = entry.kind || classifyLibraryPath(path);
     const body = (entry.body ?? '').slice(0, MAX_BODY_SCAN);
     if (kind === 'chat' && body) bodies.set(path, body.toLowerCase());
     return {
@@ -215,6 +253,6 @@ export function libraryKindSummary(
  * attachment grammar, including its id encoder, so a dropped note becomes a
  * turn attachment with no second mechanism.
  */
-export function libraryEntryToken(entry: { path: string }): string {
+export function libraryEntryToken(entry: { path: string; kind?: string }): string {
   return `@vault-note:${attachmentTokenId(normalisePath(entry.path))}`;
 }

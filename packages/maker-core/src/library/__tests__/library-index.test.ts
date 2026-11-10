@@ -8,6 +8,7 @@ import {
   libraryEntryToken,
   libraryExcerpt,
   libraryKindSummary,
+  registerLibraryClassifier,
   searchLibrary,
   type LibrarySourceEntry,
 } from '../library-index';
@@ -54,9 +55,24 @@ const ENTRIES: readonly LibrarySourceEntry[] = [
 ];
 
 describe('classifyLibraryPath', () => {
-  it('sorts the two Cindy folders into chat and summary', () => {
+  it('sorts Cindy folders into chat, summary and artifact', () => {
     expect(classifyLibraryPath('Cindy/Chats/2026-11-08-x.md')).toBe('chat');
     expect(classifyLibraryPath('Cindy/Memory/2026-11-08-x-summary.md')).toBe('summary');
+    expect(classifyLibraryPath('Cindy/Artifacts/2026-11-10-diagram.md')).toBe('artifact');
+  });
+
+  it('supports registering custom classifiers without central edit', () => {
+    const unregister = registerLibraryClassifier({
+      kind: 'dataset',
+      prefix: 'Cindy/Datasets/',
+    });
+    try {
+      expect(classifyLibraryPath('Cindy/Datasets/benchmarks.md')).toBe('dataset');
+    } finally {
+      unregister();
+    }
+    // After unregistering, falls back to note
+    expect(classifyLibraryPath('Cindy/Datasets/benchmarks.md')).toBe('note');
   });
 
   it('treats everything else as a note', () => {
@@ -67,6 +83,7 @@ describe('classifyLibraryPath', () => {
   it('normalises backslashes and leading slashes', () => {
     expect(classifyLibraryPath('/Cindy/Chats/x.md')).toBe('chat');
     expect(classifyLibraryPath('Cindy\\Chats\\x.md')).toBe('chat');
+    expect(classifyLibraryPath('/Cindy/Artifacts/doc.md')).toBe('artifact');
   });
 });
 
@@ -221,10 +238,18 @@ describe('grouping and summary', () => {
     ]);
   });
 
-  it('accepts a brand new kind with no central edit', () => {
-    const built = buildLibraryIndex([{ path: 'Cindy/Chats/x.md', title: 'x' }]);
-    expect(built[0].kind).toBe('chat');
-    expect(libraryKindSummary(built)).toEqual([{ kind: 'chat', count: 1 }]);
+  it('accepts a brand new kind with no central edit via entry.kind or classifier', () => {
+    const built = buildLibraryIndex([
+      { path: 'Cindy/Chats/x.md', title: 'x' },
+      { path: 'Cindy/Artifacts/diag.md', title: 'Architecture Diagram', body: 'Service graph.' },
+      { path: 'external/doc.pdf', title: 'Spec', kind: 'external-doc' },
+    ]);
+    expect(built.map((e) => e.kind)).toEqual(['chat', 'artifact', 'external-doc']);
+    expect(libraryKindSummary(built)).toEqual([
+      { kind: 'chat', count: 1 },
+      { kind: 'artifact', count: 1 },
+      { kind: 'external-doc', count: 1 },
+    ]);
   });
 });
 

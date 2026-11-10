@@ -53,7 +53,8 @@
     "./worktree-merge": "./src/session/worktree-merge.ts",
     "./inline-diff-card": "./src/diff/inline-diff-card.ts",
     "./library-index": "./src/library/library-index.ts",
-    "./operations-rail": "./src/operations/operations-rail.ts"
+    "./operations-rail": "./src/operations/operations-rail.ts",
+    "./artifact-store": "./src/artifacts/artifact-store.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

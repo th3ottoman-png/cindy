@@ -10,6 +10,47 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - 8.5b Library Artifacts (`live-proven`)
+
+- **What shipped.** Local-first, file-backed artifact store and full integration into the Library workspace, enabling conversation deliverables (code snippets, architecture diagrams, schemas, markdown docs) to be stored, discovered, searched, and dragged alongside vault notes, chats, and summaries:
+  - `packages/maker-core/src/artifacts/artifact-store.ts` (subpath `@cindy/maker-core/artifact-store`):
+    - `saveArtifact`: saves artifacts atomically (`.tmp.<pid>.<uuid>` + rename) into `<vault>/Cindy/Artifacts/<id>.md` with structured YAML frontmatter (`title`, `type`, `session_id`, `created_at`, `tags`), path traversal containment guards, and credential redaction via `redactSecrets`.
+    - `listArtifacts`: lists all stored artifacts sorted by modification time descending.
+    - `readArtifact`: reads and parses frontmatter metadata and markdown content.
+    - `deleteArtifact`: removes artifact atomically with path containment check.
+  - `packages/maker-core/src/library/library-index.ts`:
+    - Added built-in prefix `Cindy/Artifacts/` classifying files as `kind: 'artifact'`.
+    - Added `registerLibraryClassifier` and `clearCustomLibraryClassifiers` allowing dynamic registration of custom classifiers with no central edit.
+    - Added `entry.kind` support to `LibrarySourceEntry` and `buildLibraryIndex` allowing caller override without touching central switch statements.
+    - Enabled chat citation matching for artifacts.
+  - `apps/desktop/src/main/maker-ipc/artifacts.ts` & `channels.ts`:
+    - Registered IPC channels `maker:artifacts:list`, `save`, `read`, and `delete`.
+    - Added `ArtifactsHost` with `assertTrusted` validation and `MAKER_PUSH.VAULT_CHANGED` broadcast on mutations.
+  - `apps/desktop/src/main/mcp-integrations/vaultNotesMcpServer.ts`:
+    - Added `save_artifact` and `list_artifacts` tools to agent MCP server `cindy_vault_notes`.
+  - `apps/desktop/src/preload/preload.ts` & `apps/desktop/src/renderer/vite-env.d.ts`:
+    - Exposed `window.electronAPI.maker.artifacts` (`list`, `save`, `read`, `delete`) with full TypeScript typings.
+  - `apps/desktop/src/renderer/components/library/LibraryPanel.tsx`:
+    - Renders `artifact` kind filter chip, BookOpen icon, item rows, and drag token `@vault-note:Cindy/Artifacts/<id>.md`.
+- **Verification.**
+  - 6 unit tests in `packages/maker-core/src/artifacts/__tests__/artifact-store.test.ts` (6/6 PASS).
+  - 30 unit tests in `packages/maker-core/src/library/__tests__/library-index.test.ts` (30/30 PASS).
+  - 4 desktop host tests in `apps/desktop/src/main/maker-ipc/__tests__/artifacts.test.ts` (4/4 PASS).
+  - 12 renderer component tests in `apps/desktop/src/renderer/components/library/__tests__/LibraryPanel.test.tsx` (12/12 PASS).
+  - 15 MCP server tests in `apps/desktop/src/main/mcp-integrations/__tests__/vaultNotesMcpServer.test.ts` (15/15 PASS).
+  - **Live-proven (`live-proven`):**
+    - `apps/desktop/src/main/maker-ipc/__tests__/libraryArtifactsLive.test.ts`:
+      1. Verified live artifact saving into vault artifact store with frontmatter and mermaid code block.
+      2. Verified `scanLibrary` indexing note, chat, summary, AND artifact across all 4 kinds.
+      3. Verified kind summary `{ kind: 'artifact', count: 1 }`, keyword search, chat citation resolution, and drag token generation.
+      4. Verified clean deletion updating subsequent scans (1/1 checks PASS).
+  - Pre-commit gates:
+    - `pnpm check:test-hygiene`: PASS (361 files within baseline).
+    - `pnpm test:runner`: PASS (607/607 tests pass).
+    - 8.5b unit and live test suites: 100% PASS (68 tests total).
+
+---
+
 ## 2026-11-10 - 7.8 Session Compaction & Clean Handoff (`live-proven`)
 
 - **What shipped.** 1-click continuation action and `/handoff` workflow that compacts long accumulated session histories, extracts architectural decisions, touched files, and open checklists, and transitions cleanly into a fresh prefilled continuation session:

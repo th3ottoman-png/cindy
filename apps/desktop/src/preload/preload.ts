@@ -6448,6 +6448,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
       scan: (): Promise<import('../main/maker-ipc/library').LibraryScanResult> =>
         ipcRenderer.invoke('maker:library:scan'),
     },
+    artifacts: {
+      /** ROADMAP 8.5b: list stored artifacts in vault. */
+      list: (opts?: { vaultDir?: string }): Promise<{ ok: boolean; artifacts: import('@cindy/maker-core/artifact-store').StoredArtifactHeader[]; error?: string }> =>
+        ipcRenderer.invoke('maker:artifacts:list', opts),
+      /** ROADMAP 8.5b: save artifact atomically to vault. */
+      save: (params: { payload: import('@cindy/maker-core/artifact-store').SaveArtifactInput; vaultDir?: string }): Promise<{ ok: boolean; artifact?: import('@cindy/maker-core/artifact-store').StoredArtifact; error?: string }> =>
+        ipcRenderer.invoke('maker:artifacts:save', params),
+      /** ROADMAP 8.5b: read artifact by id or path. */
+      read: (params: { idOrPath: string; vaultDir?: string }): Promise<{ ok: boolean; artifact?: import('@cindy/maker-core/artifact-store').StoredArtifact; error?: string }> =>
+        ipcRenderer.invoke('maker:artifacts:read', params),
+      /** ROADMAP 8.5b: delete artifact by id or path. */
+      delete: (params: { idOrPath: string; vaultDir?: string }): Promise<{ ok: boolean; deleted: boolean; error?: string }> =>
+        ipcRenderer.invoke('maker:artifacts:delete', params),
+    },
     ruleLearner: {
       /** ROADMAP 7.5: detect user corrections in chat text and extract rule candidates. */
       detect: (params: { text: string }): Promise<import('@cindy/maker-core/rule-learner').CorrectionDetection> =>

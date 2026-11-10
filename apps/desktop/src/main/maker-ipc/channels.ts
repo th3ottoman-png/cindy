@@ -93,6 +93,14 @@ export const MAKER_INVOKE = {
   SESSION_HANDOFF_EXECUTE: 'maker:session-handoff:execute',
   /** ROADMAP 8.5: one local index over vault notes, chat transcripts and summaries. */
   LIBRARY_SCAN: 'maker:library:scan',
+  /** ROADMAP 8.5b: list stored artifacts in vault. */
+  ARTIFACTS_LIST: 'maker:artifacts:list',
+  /** ROADMAP 8.5b: save artifact atomically to vault. */
+  ARTIFACTS_SAVE: 'maker:artifacts:save',
+  /** ROADMAP 8.5b: read artifact by id or path. */
+  ARTIFACTS_READ: 'maker:artifacts:read',
+  /** ROADMAP 8.5b: delete artifact by id or path. */
+  ARTIFACTS_DELETE: 'maker:artifacts:delete',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */
   CHAT_AUTOSAVE_GET_CONFIG: 'maker:chat-autosave:get-config',
   /** ROADMAP 5.5: set chat auto-save `{ enabled?, folder? }`. */
