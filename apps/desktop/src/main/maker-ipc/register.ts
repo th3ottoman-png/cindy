@@ -925,6 +925,7 @@ import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNot
 import { getRuleLearnerHost, registerRuleLearnerHandlers } from './ruleLearner.js';
 import { getPromptStructurerHost, registerPromptStructurerHandlers } from './promptStructurer.js';
 import { getScreenShareHost, registerScreenShareHandlers } from './screenShare.js';
+import { getSessionHandoffHost, registerSessionHandoffHandlers } from './sessionHandoff.js';
 import { registerLibraryHandlers } from './library.js';
 import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
@@ -25696,6 +25697,16 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     ipcMain,
     () => screenShareHost,
     (channel, payload) => broadcastToAllWindows(channel, payload),
+    (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  );
+  // ROADMAP 7.8: session compaction & clean handoff.
+  const sessionHandoffHost = getSessionHandoffHost({
+    getSessionRow: (sessionId) => getSessionRowSnapshot(sessionId),
+    listMessages: (sessionId) => listMessagesForAgentHandoff(sessionId, null),
+  });
+  registerSessionHandoffHandlers(
+    ipcMain,
+    () => sessionHandoffHost,
     (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   );
 

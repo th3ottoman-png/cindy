@@ -5713,6 +5713,12 @@ interface ElectronAPI {
       /** ROADMAP 7.7: listen for screen-share privacy mode toggle. */
       onChanged: (cb: (config: import('../main/maker-ipc/screenShare').ScreenShareConfig) => void) => () => void;
     };
+    sessionHandoff: {
+      /** ROADMAP 7.8: build compact handoff prompt from active session. */
+      build: (params: { sessionId: string }) => Promise<import('../main/maker-ipc/sessionHandoff').BuildHandoffResponse>;
+      /** ROADMAP 7.8: execute session handoff continuation. */
+      execute: (params: { sessionId: string }) => Promise<import('../main/maker-ipc/sessionHandoff').ExecuteHandoffResponse>;
+    };
     chatAutosave: {
       /** ROADMAP 5.5: chat auto-save settings (~/.cindy-harness/chat-autosave.json) + last result. */
       getConfig: () => Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView>;

@@ -6475,6 +6475,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       /** ROADMAP 7.7: listen for screen-share privacy mode toggle. */
       onChanged: fanOutMakerScreenShareChanged,
     },
+    sessionHandoff: {
+      /** ROADMAP 7.8: build compact handoff prompt from active session. */
+      build: (params: { sessionId: string }): Promise<import('../main/maker-ipc/sessionHandoff').BuildHandoffResponse> =>
+        ipcRenderer.invoke('maker:session-handoff:build', params),
+      /** ROADMAP 7.8: execute session handoff continuation. */
+      execute: (params: { sessionId: string }): Promise<import('../main/maker-ipc/sessionHandoff').ExecuteHandoffResponse> =>
+        ipcRenderer.invoke('maker:session-handoff:execute', params),
+    },
     chatAutosave: {
       getConfig: (): Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView> =>
         ipcRenderer.invoke('maker:chat-autosave:get-config'),

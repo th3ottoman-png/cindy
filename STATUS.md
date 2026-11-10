@@ -10,6 +10,38 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - 7.8 Session Compaction & Clean Handoff (`live-proven`)
+
+- **What shipped.** 1-click continuation action and `/handoff` workflow that compacts long accumulated session histories, extracts architectural decisions, touched files, and open checklists, and transitions cleanly into a fresh prefilled continuation session:
+  - `packages/maker-core/src/session/session-compaction-handoff.ts` (subpath `@cindy/maker-core/session-compaction-handoff`):
+    - `extractSessionDecisions`: extracts architectural decisions and agreements made across turns.
+    - `extractTouchedFiles`: identifies modified and referenced files across session messages.
+    - `extractPendingNextActions`: gathers open next steps, checklists, and pending items into a clean checklist.
+    - `assembleHandoffPrompt`: compiles the continuation prompt (`# Session Continuation & Handoff`, previous title, workingDir, context, decisions, touched files, pending next actions checklist) with full secret redaction via `redactSecrets`.
+  - `packages/maker-core/package.json`: exposed export subpath `./session-compaction-handoff`.
+  - `apps/desktop/src/main/maker-ipc/sessionHandoff.ts` & `channels.ts`:
+    - Registered IPC channels `maker:session-handoff:build` and `maker:session-handoff:execute`.
+    - Added `SessionHandoffHost` reading session row metadata and message history to assemble continuation payload.
+  - `apps/desktop/src/preload/preload.ts` & `apps/desktop/src/renderer/vite-env.d.ts`:
+    - Exposed `window.electronAPI.maker.sessionHandoff` (`build`, `execute`) with full TypeScript definitions.
+  - `apps/desktop/src/renderer/features/cc-agent/SessionHandoffButton.tsx`:
+    - Toolbar button mounted in session accessory bar with `ArrowRightLeft` icon, 1-click "Clean Handoff" trigger, and loading state.
+    - Updates native New Maker draft (`NEW_MAKER_DRAFT_KEY`, `plainTextToTiptapDoc`, `workingDir`, `model`) and transitions seamlessly to new draft.
+- **Verification.**
+  - 4 unit tests in `packages/maker-core/src/session/__tests__/session-compaction-handoff.test.ts` (4/4 PASS).
+  - 4 desktop IPC host tests in `apps/desktop/src/main/maker-ipc/__tests__/sessionHandoff.test.ts` (4/4 PASS).
+  - 3 renderer component tests in `apps/desktop/src/renderer/features/cc-agent/__tests__/SessionHandoffButton.test.tsx` (3/3 PASS).
+  - **Live-proven (`live-proven`):**
+    - `apps/desktop/src/main/maker-ipc/__tests__/sessionHandoffLive.test.ts`:
+      1. Verified live assembly of realistic multi-turn chat into structured continuation prompt.
+      2. Validated decisions extraction, touched file identification, pending checklist generation, secret redaction, and execution payload with working directory and model (1/1 checks PASS).
+  - Pre-commit gates:
+    - `pnpm check:test-hygiene`: PASS (361 files within baseline).
+    - `pnpm test:runner`: PASS (607/607 tests pass).
+    - 7.8 unit and live test suites: 100% PASS (12 tests total).
+
+---
+
 ## 2026-11-10 - 7.7 Screen-Share & Recording Privacy Redaction Mode (`live-proven`)
 
 - **What shipped.** Global toolbar toggle and reactive privacy redaction mode (`/screen-share`) that dynamically blurs or masks sensitive data (API keys, tokens, passwords, email addresses, financial amounts, user directories) across active session views:

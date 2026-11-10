@@ -87,6 +87,10 @@ export const MAKER_INVOKE = {
   SCREEN_SHARE_GET_CONFIG: 'maker:screen-share:get-config',
   /** ROADMAP 7.7: set screen-share privacy redaction mode setting. */
   SCREEN_SHARE_SET_CONFIG: 'maker:screen-share:set-config',
+  /** ROADMAP 7.8: build compact handoff prompt from active session. */
+  SESSION_HANDOFF_BUILD: 'maker:session-handoff:build',
+  /** ROADMAP 7.8: initialize fresh session with prefilled handoff prompt. */
+  SESSION_HANDOFF_EXECUTE: 'maker:session-handoff:execute',
   /** ROADMAP 8.5: one local index over vault notes, chat transcripts and summaries. */
   LIBRARY_SCAN: 'maker:library:scan',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */

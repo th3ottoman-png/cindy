@@ -49,6 +49,7 @@
     "./session-manifest": "./src/session/session-manifest.ts",
     "./turn-attachment": "./src/session/turn-attachment.ts",
     "./next-turn-suggestion": "./src/session/next-turn-suggestion.ts",
+    "./session-compaction-handoff": "./src/session/session-compaction-handoff.ts",
     "./worktree-merge": "./src/session/worktree-merge.ts",
     "./inline-diff-card": "./src/diff/inline-diff-card.ts",
     "./library-index": "./src/library/library-index.ts",
