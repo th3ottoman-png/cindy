@@ -6459,6 +6459,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }): Promise<import('@cindy/maker-core/rule-learner').SaveRuleResult> =>
         ipcRenderer.invoke('maker:rule-learner:save', params),
     },
+    promptStructurer: {
+      /** ROADMAP 7.6: refine brain-dump prompt into structured sections. */
+      refine: (params: { text: string }): Promise<import('@cindy/maker-core/prompt-structurer').StructuredPromptResult> =>
+        ipcRenderer.invoke('maker:prompt-structurer:refine', params),
+    },
     chatAutosave: {
       getConfig: (): Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView> =>
         ipcRenderer.invoke('maker:chat-autosave:get-config'),

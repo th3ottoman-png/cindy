@@ -5701,6 +5701,10 @@ interface ElectronAPI {
         title?: string;
       }) => Promise<import('@cindy/maker-core/rule-learner').SaveRuleResult>;
     };
+    promptStructurer: {
+      /** ROADMAP 7.6: refine brain-dump prompt into structured sections. */
+      refine: (params: { text: string }) => Promise<import('@cindy/maker-core/prompt-structurer').StructuredPromptResult>;
+    };
     chatAutosave: {
       /** ROADMAP 5.5: chat auto-save settings (~/.cindy-harness/chat-autosave.json) + last result. */
       getConfig: () => Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView>;

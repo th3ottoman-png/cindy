@@ -923,6 +923,7 @@ import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
 import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNotes.js';
 import { getRuleLearnerHost, registerRuleLearnerHandlers } from './ruleLearner.js';
+import { getPromptStructurerHost, registerPromptStructurerHandlers } from './promptStructurer.js';
 import { registerLibraryHandlers } from './library.js';
 import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
@@ -25677,6 +25678,13 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     ipcMain,
     () => ruleLearnerHost,
     (channel, payload) => broadcastToAllWindows(channel, payload),
+    (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  );
+  // ROADMAP 7.6: brain-dump prompt structurer.
+  const promptStructurerHost = getPromptStructurerHost();
+  registerPromptStructurerHandlers(
+    ipcMain,
+    () => promptStructurerHost,
     (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   );
 

@@ -81,6 +81,8 @@ export const MAKER_INVOKE = {
   RULE_LEARNER_DETECT: 'maker:rule-learner:detect',
   /** ROADMAP 7.5: save learned rule to vault or Hermes SOUL.md. */
   RULE_LEARNER_SAVE: 'maker:rule-learner:save',
+  /** ROADMAP 7.6: refine unstructured brain-dump text into structured prompt sections. */
+  PROMPT_STRUCTURER_REFINE: 'maker:prompt-structurer:refine',
   /** ROADMAP 8.5: one local index over vault notes, chat transcripts and summaries. */
   LIBRARY_SCAN: 'maker:library:scan',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */

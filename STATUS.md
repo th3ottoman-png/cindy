@@ -10,6 +10,38 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - 7.6 Brain-Dump Prompt Structurer (`live-proven`)
+
+- **What shipped.** 1-click composer helper button and global keyboard shortcut (`Cmd+Shift+P` / `Ctrl+Shift+P`) that refines stream-of-consciousness drafts into a disciplined, structured execution prompt (`## Goal`, `## Context & Background`, `## Guardrails & Constraints`, `## Done Criteria`):
+  - `packages/maker-core/src/prompts/prompt-structurer.ts` (subpath `@cindy/maker-core/prompt-structurer`):
+    - `splitThoughts`: breaks down unformatted brain-dumps into sentence and thought fragments.
+    - `structureBrainDumpPrompt`: deterministic categorization of clauses into 4 standard sections (Goal with casual filler stripped, Context & Background for problem/reason statements, Guardrails & Constraints for negative imperatives and security/local bounds, Done Criteria for verification checklist).
+  - `packages/maker-core/package.json`: exposed export subpath `./prompt-structurer`.
+  - `apps/desktop/src/main/maker-ipc/promptStructurer.ts` & `channels.ts`:
+    - Registered IPC channel `maker:prompt-structurer:refine`.
+    - Added `PromptStructurerHost` with optional routed local model fallback and deterministic fail-open guarantee.
+  - `apps/desktop/src/preload/preload.ts` & `apps/desktop/src/renderer/vite-env.d.ts`:
+    - Exposed `window.electronAPI.maker.promptStructurer.refine` with full TypeScript declarations.
+  - `apps/desktop/src/renderer/features/cc-agent/PromptStructurerButton.tsx`:
+    - Component mounted below composer in `CCAgentSessionView.tsx`.
+    - Subscribes to composer draft content (`subscribeDraftContent`); enables when draft text is present.
+    - 1-click button `✨ Structure Prompt` transforms draft into structured markdown sections via atomic draft store update (`saveDraft`, `plainTextToTiptapDoc`, `focusAtEnd: true`).
+    - Global keyboard shortcut `Cmd+Shift+P` / `Ctrl+Shift+P` allows instant structuring while typing.
+- **Verification.**
+  - 5 unit tests in `packages/maker-core/src/prompts/__tests__/prompt-structurer.test.ts` (5/5 PASS).
+  - 4 desktop IPC host tests in `apps/desktop/src/main/maker-ipc/__tests__/promptStructurer.test.ts` (4/4 PASS).
+  - 4 renderer component tests in `apps/desktop/src/renderer/features/cc-agent/__tests__/PromptStructurerButton.test.tsx` (4/4 PASS).
+  - **Live-proven (`live-proven`):**
+    - `apps/desktop/src/main/maker-ipc/__tests__/promptStructurerLive.test.ts`:
+      1. Verified live transformation of realistic unstructured brain dumps with filler and security constraints into valid Markdown sections with headers and checklists.
+      2. Validated casual thought fragments with conversational prefixes and punctuation splits (2/2 live checks PASS).
+  - Pre-commit gates:
+    - `pnpm check:test-hygiene`: PASS (361 files within baseline).
+    - `pnpm test:runner`: PASS (607/607 tests pass).
+    - 7.6 unit and live test suites: 100% PASS (15 tests total).
+
+---
+
 ## 2026-11-10 - 7.5 Reflect / Rule Learner from User Corrections (`live-proven`)
 
 - **What shipped.** Heuristic detection of user corrections and recommendations in chat turns, surfacing a 1-click suggestion chip below composer to save the correction as a permanent rule into either Notes Vault (`<vault>/Cindy/Rules/`) or Hermes `SOUL.md`:
