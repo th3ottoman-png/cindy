@@ -5705,6 +5705,14 @@ interface ElectronAPI {
       /** ROADMAP 7.6: refine brain-dump prompt into structured sections. */
       refine: (params: { text: string }) => Promise<import('@cindy/maker-core/prompt-structurer').StructuredPromptResult>;
     };
+    screenShare: {
+      /** ROADMAP 7.7: get screen-share privacy redaction mode setting. */
+      getConfig: () => Promise<import('../main/maker-ipc/screenShare').ScreenShareConfig>;
+      /** ROADMAP 7.7: set screen-share privacy redaction mode setting. */
+      setConfig: (patch: Partial<import('../main/maker-ipc/screenShare').ScreenShareConfig>) => Promise<import('../main/maker-ipc/screenShare').ScreenShareConfig>;
+      /** ROADMAP 7.7: listen for screen-share privacy mode toggle. */
+      onChanged: (cb: (config: import('../main/maker-ipc/screenShare').ScreenShareConfig) => void) => () => void;
+    };
     chatAutosave: {
       /** ROADMAP 5.5: chat auto-save settings (~/.cindy-harness/chat-autosave.json) + last result. */
       getConfig: () => Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView>;

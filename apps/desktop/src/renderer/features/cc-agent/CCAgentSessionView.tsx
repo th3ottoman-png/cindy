@@ -88,6 +88,7 @@ import { ChatInput } from '@/components/new-chat/ChatInput';
 import { NextTurnSuggestionPill } from './NextTurnSuggestionPill';
 import { RuleLearnerChip } from './RuleLearnerChip';
 import { PromptStructurerButton } from './PromptStructurerButton';
+import { ScreenShareToggle } from './ScreenShareToggle';
 import { CindyMakeComposerMask } from '@/components/cindy-make/CindyMakeComposerMask';
 import {
   getCindyMakeTestRecovery,
@@ -6369,8 +6370,9 @@ function CCAgentSessionContent({
                     </Tip>
                   )}
 
-                  {/* Right: Context capacity indicator */}
+                  {/* Right: Context capacity indicator & Privacy toggle */}
                   <div className="flex shrink-0 items-center gap-3">
+                    <ScreenShareToggle />
                     {session?.usedProjectContext && (
                       <Tip text={t('ccAgent.layout.projectContextLoaded')} side="top">
                         <Brain

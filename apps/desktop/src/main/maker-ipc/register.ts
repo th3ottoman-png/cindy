@@ -924,6 +924,7 @@ import { registerProvidersHandlers } from './providersHandlers.js';
 import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNotes.js';
 import { getRuleLearnerHost, registerRuleLearnerHandlers } from './ruleLearner.js';
 import { getPromptStructurerHost, registerPromptStructurerHandlers } from './promptStructurer.js';
+import { getScreenShareHost, registerScreenShareHandlers } from './screenShare.js';
 import { registerLibraryHandlers } from './library.js';
 import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
@@ -25685,6 +25686,16 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   registerPromptStructurerHandlers(
     ipcMain,
     () => promptStructurerHost,
+    (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  );
+  // ROADMAP 7.7: screen-share privacy redaction mode.
+  const screenShareHost = getScreenShareHost({
+    pushEvent: (channel, payload) => broadcastToAllWindows(channel, payload),
+  });
+  registerScreenShareHandlers(
+    ipcMain,
+    () => screenShareHost,
+    (channel, payload) => broadcastToAllWindows(channel, payload),
     (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   );
 

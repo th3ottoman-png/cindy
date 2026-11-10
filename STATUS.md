@@ -10,6 +10,38 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - 7.7 Screen-Share & Recording Privacy Redaction Mode (`live-proven`)
+
+- **What shipped.** Global toolbar toggle and reactive privacy redaction mode (`/screen-share`) that dynamically blurs or masks sensitive data (API keys, tokens, passwords, email addresses, financial amounts, user directories) across active session views:
+  - `packages/maker-core/src/privacy/screen-redaction.ts` (subpath `@cindy/maker-core/screen-redaction`):
+    - `findRedactionSpans`: detects and categorizes sensitive spans (API keys, credentials, bearer tokens, passwords, emails, financial sums, `/Users/...` and `/home/...` usernames) with non-overlapping index bounds.
+    - `redactSensitiveText`: formats redactions with badges (`[REDACTED:KEY]`), bullets (`••••••••`), or clean placeholders.
+    - `getScreenShareRedactionCss`: generates dynamic CSS rules for `body.screen-share-privacy-active` applying blur filtering and preventing text selection during presentations.
+  - `packages/maker-core/package.json`: exposed export subpath `./screen-redaction`.
+  - `apps/desktop/src/main/maker-ipc/screenShare.ts` & `channels.ts`:
+    - Registered IPC channels `maker:screen-share:get-config` and `maker:screen-share:set-config`, broadcasting `MAKER_PUSH.SCREEN_SHARE_CHANGED`.
+    - Added `ScreenShareHost` with atomic persistence to `~/.cindy-harness/screen-share.json`.
+  - `apps/desktop/src/preload/preload.ts` & `apps/desktop/src/renderer/vite-env.d.ts`:
+    - Exposed `window.electronAPI.maker.screenShare` (`getConfig`, `setConfig`, `onChanged`) with full TypeScript typings.
+  - `apps/desktop/src/renderer/lib/screenShareStore.ts`:
+    - Reactive singleton store managing screen-share state, automatically toggling `screen-share-privacy-active` class on `document.body` and injecting style sheet.
+  - `apps/desktop/src/renderer/features/cc-agent/ScreenShareToggle.tsx`:
+    - Toolbar toggle button mounted in composer bottom accessory bar with `Shield` / `EyeOff` icons, live active badge (`Privacy Active`), and tooltip.
+- **Verification.**
+  - 7 unit tests in `packages/maker-core/src/privacy/__tests__/screen-redaction.test.ts` (7/7 PASS).
+  - 4 desktop IPC host tests in `apps/desktop/src/main/maker-ipc/__tests__/screenShare.test.ts` (4/4 PASS).
+  - 3 renderer component tests in `apps/desktop/src/renderer/features/cc-agent/__tests__/ScreenShareToggle.test.tsx` (3/3 PASS).
+  - **Live-proven (`live-proven`):**
+    - `apps/desktop/src/main/maker-ipc/__tests__/screenShareLive.test.ts`:
+      1. Verified live atomic persistence of privacy settings to `~/.cindy-harness/screen-share.json`.
+      2. Validated live redaction of bearer tokens, API keys, email addresses, financial figures, and user system paths across sample session text (2/2 live checks PASS).
+  - Pre-commit gates:
+    - `pnpm check:test-hygiene`: PASS (361 files within baseline).
+    - `pnpm test:runner`: PASS (607/607 tests pass).
+    - 7.7 unit and live test suites: 100% PASS (16 tests total).
+
+---
+
 ## 2026-11-10 - 7.6 Brain-Dump Prompt Structurer (`live-proven`)
 
 - **What shipped.** 1-click composer helper button and global keyboard shortcut (`Cmd+Shift+P` / `Ctrl+Shift+P`) that refines stream-of-consciousness drafts into a disciplined, structured execution prompt (`## Goal`, `## Context & Background`, `## Guardrails & Constraints`, `## Done Criteria`):

@@ -38,6 +38,7 @@
     "./vault-git-sync": "./src/notes/vault-git-sync.ts",
     "./rule-learner": "./src/rules/rule-learner.ts",
     "./prompt-structurer": "./src/prompts/prompt-structurer.ts",
+    "./screen-redaction": "./src/privacy/screen-redaction.ts",
     "./scheduled-sessions": "./src/schedules/scheduled-sessions.ts",
     "./expert-handoff": "./src/experts/expert-handoff.ts",
     "./expert-draft": "./src/experts/expert-draft.ts",

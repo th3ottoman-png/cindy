@@ -808,6 +808,7 @@ const fanOutMakerChatAutosaveFailed = createIpcFanOut('maker:chat-autosave:faile
 const fanOutMakerChatSummaryWritten = createIpcFanOut('maker:chat-summary:written');
 const fanOutMakerChatSummaryFailed = createIpcFanOut('maker:chat-summary:failed');
 const fanOutMakerScheduledSessionsChanged = createIpcFanOut('maker:scheduled-sessions:changed');
+const fanOutMakerScreenShareChanged = createIpcFanOut('maker:screen-share:changed');
 const fanOutMakerTurnChangeSetUpdated = createIpcFanOut('maker:turn-change-set:updated');
 const fanOutMakerStatusChanged = createIpcFanOut('maker:status-changed');
 const fanOutMakerInputProjection = createIpcFanOut('maker:input:projection');
@@ -6463,6 +6464,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       /** ROADMAP 7.6: refine brain-dump prompt into structured sections. */
       refine: (params: { text: string }): Promise<import('@cindy/maker-core/prompt-structurer').StructuredPromptResult> =>
         ipcRenderer.invoke('maker:prompt-structurer:refine', params),
+    },
+    screenShare: {
+      /** ROADMAP 7.7: get screen-share privacy redaction mode setting. */
+      getConfig: (): Promise<import('../main/maker-ipc/screenShare').ScreenShareConfig> =>
+        ipcRenderer.invoke('maker:screen-share:get-config'),
+      /** ROADMAP 7.7: set screen-share privacy redaction mode setting. */
+      setConfig: (patch: Partial<import('../main/maker-ipc/screenShare').ScreenShareConfig>): Promise<import('../main/maker-ipc/screenShare').ScreenShareConfig> =>
+        ipcRenderer.invoke('maker:screen-share:set-config', patch),
+      /** ROADMAP 7.7: listen for screen-share privacy mode toggle. */
+      onChanged: fanOutMakerScreenShareChanged,
     },
     chatAutosave: {
       getConfig: (): Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView> =>

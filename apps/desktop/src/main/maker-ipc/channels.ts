@@ -83,6 +83,10 @@ export const MAKER_INVOKE = {
   RULE_LEARNER_SAVE: 'maker:rule-learner:save',
   /** ROADMAP 7.6: refine unstructured brain-dump text into structured prompt sections. */
   PROMPT_STRUCTURER_REFINE: 'maker:prompt-structurer:refine',
+  /** ROADMAP 7.7: get screen-share privacy redaction mode setting. */
+  SCREEN_SHARE_GET_CONFIG: 'maker:screen-share:get-config',
+  /** ROADMAP 7.7: set screen-share privacy redaction mode setting. */
+  SCREEN_SHARE_SET_CONFIG: 'maker:screen-share:set-config',
   /** ROADMAP 8.5: one local index over vault notes, chat transcripts and summaries. */
   LIBRARY_SCAN: 'maker:library:scan',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */
@@ -1076,6 +1080,8 @@ export const MAKER_PUSH = {
   CHAT_SUMMARY_FAILED: 'maker:chat-summary:failed',
   /** ROADMAP 5.4b: scheduled sessions configuration or state changed; no payload — renderer refetches. */
   SCHEDULED_SESSIONS_CHANGED: 'maker:scheduled-sessions:changed',
+  /** ROADMAP 7.7: screen-share privacy redaction mode changed; payload `{ enabled: boolean }`. */
+  SCREEN_SHARE_CHANGED: 'maker:screen-share:changed',
   TURN_CHANGE_SET_UPDATED: 'maker:turn-change-set:updated',
   STATUS_CHANGED: 'maker:status-changed',
   /** 用户从独立 Computer Use 授权引导浮窗主动取消。 */
