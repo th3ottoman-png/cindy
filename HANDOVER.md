@@ -34,7 +34,7 @@ This is not a product. There is no marketing surface, no onboarding funnel, no o
 | Repo | `/Users/turko/=ai space=/=PROJECTS_MAIN=/Cindy` — path has spaces and `=`; **quote it**. macOS FS is case-insensitive, so older docs spelling it `=Projects_Main=` resolve to the same place |
 | Remote | private GitHub, `origin main`. Upstream remote `upstream` (strategy: see `docs/decisions/0001`) |
 | Dev app data | `~/Library/Application Support/CindyGlobal-dev2-private`; the isolated `…/CindyGlobal-dev2-dev` sandbox is what `restart:desktop:remote` uses |
-| Current handover | `docs/handoff/2026-11-10-latest-handover.md` (post-roadmap dogfooding: dev-launcher `HERMES_HOME` fix, Tencent TokenHub route + fallback RPC, open items). All older handover files are historical |
+| Current handover | `docs/handoff/2026-11-10-phase10-handover.md` (Phase 10 brief: prompt-injection guard, response style, chat-only mode) — read with `docs/handoff/2026-11-10-latest-handover.md` for the environment history. All older handover files are historical |
 | Owner vault note | `/Users/turko/Bishi-memory/memory/Project — Cindy.md` — append one dated line per session at the end |
 | Hermes home | **`~/.hermes-cindy`** — isolated. **`~/.hermes` is off-limits, always.** |
 | Hermes launcher | `~/.local/bin/hermes-cindy` (pins `HERMES_HOME`) |
