@@ -55,7 +55,9 @@
     "./library-index": "./src/library/library-index.ts",
     "./operations-rail": "./src/operations/operations-rail.ts",
     "./artifact-store": "./src/artifacts/artifact-store.ts",
-    "./chat-inventory": "./src/session/chat-inventory.ts"
+    "./chat-inventory": "./src/session/chat-inventory.ts",
+    "./document-ingestion": "./src/research/document-ingestion.ts",
+    "./deep-research-synthesis": "./src/research/deep-research-synthesis.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

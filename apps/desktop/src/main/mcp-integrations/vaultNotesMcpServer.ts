@@ -32,6 +32,8 @@ import {
   getPinnedNotesForSession,
 } from '@cindy/maker-core/vault-capture';
 import { listArtifacts, saveArtifact } from '@cindy/maker-core/artifact-store';
+import { ingestDocument } from '@cindy/maker-core/document-ingestion';
+import { saveLiteratureNote } from '@cindy/maker-core/deep-research-synthesis';
 import { resolveLiziMcpSessionContext, type LiziMcpSessionContext } from '@cindy/mcps';
 
 export const CINDY_VAULT_NOTES_MCP_SERVER_NAME = 'cindy_vault_notes';
@@ -48,6 +50,8 @@ export const LIST_PINNED_NOTES_TOOL = 'list_pinned_notes';
 export const SYNC_WORKSPACE_GIT_TOOL = 'sync_workspace_git_to_project_note';
 export const SAVE_ARTIFACT_TOOL = 'save_artifact';
 export const LIST_ARTIFACTS_TOOL = 'list_artifacts';
+export const PARSE_LOCAL_DOCUMENT_TOOL = 'parse_local_document';
+export const SAVE_RESEARCH_SYNTHESIS_TOOL = 'save_research_synthesis';
 
 export const VAULT_NOTES_TOOLS = [
   READ_NOTE_TOOL,
@@ -63,6 +67,8 @@ export const VAULT_NOTES_TOOLS = [
   SYNC_WORKSPACE_GIT_TOOL,
   SAVE_ARTIFACT_TOOL,
   LIST_ARTIFACTS_TOOL,
+  PARSE_LOCAL_DOCUMENT_TOOL,
+  SAVE_RESEARCH_SYNTHESIS_TOOL,
 ] as const;
 
 export function defaultPinnedNotesConfigFile(): string {
@@ -518,6 +524,134 @@ export function createVaultNotesMcpServer(deps: VaultNotesMcpDeps): McpServer {
       } catch (err) {
         return refused({
           code: 'LIST_FAILED',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+  );
+
+  server.tool(
+    PARSE_LOCAL_DOCUMENT_TOOL,
+    'Extract, parse, and analyze local documents (PDF, CSV, TSV, Markdown, plain text) for research synthesis.',
+    {
+      path: z.string().describe('Absolute or relative file path to the document to parse'),
+      maxPages: z.number().optional().describe('Maximum number of PDF pages to extract (default: 50)'),
+      maxChars: z.number().optional().describe('Maximum characters of text to return (default: 30000)'),
+      includeChunks: z.boolean().optional().describe('Whether to return extracted semantic text chunks (default: false)'),
+    },
+    async ({ path: docPath, maxPages, maxChars, includeChunks }) => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, PARSE_LOCAL_DOCUMENT_TOOL)) {
+        return refused({ code: 'FORBIDDEN', message: `expert does not permit tool "${PARSE_LOCAL_DOCUMENT_TOOL}"` });
+      }
+      try {
+        const doc = await ingestDocument(docPath, { maxPages, maxChars, includeChunks });
+        return reply({
+          success: true,
+          document: doc,
+        });
+      } catch (err) {
+        return refused({
+          code: 'PARSE_FAILED',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+  );
+
+  server.tool(
+    SAVE_RESEARCH_SYNTHESIS_TOOL,
+    'Assemble and save a multi-source deep research synthesis as a structured literature note with citations in the vault.',
+    {
+      title: z.string().describe('Title of the research topic or literature note'),
+      topic: z.string().optional().describe('Broader subject area or domain'),
+      summary: z.string().describe('Executive summary synthesizing key takeaways'),
+      findings: z
+        .array(
+          z.object({
+            statement: z.string().describe('Key finding statement'),
+            detail: z.string().optional().describe('Additional context or quantitative findings'),
+            sourceIds: z.array(z.string()).optional().describe('IDs or URLs of supporting sources'),
+            confidence: z.enum(['high', 'medium', 'unverified']).optional().describe('Finding confidence'),
+          }),
+        )
+        .describe('Key findings with source attribution'),
+      sources: z
+        .array(
+          z.object({
+            id: z.string().optional().describe('Optional source identifier (e.g. s1, arxiv-1)'),
+            title: z.string().describe('Source title or headline'),
+            url: z.string().optional().describe('Source URL (if web source)'),
+            filePath: z.string().optional().describe('Source file path (if local document)'),
+            sourceType: z.enum(['academic', 'documentation', 'news', 'reference', 'local_document']).optional(),
+            author: z.string().optional().describe('Author or publishing entity'),
+            publishedDate: z.string().optional().describe('Publication date or year'),
+            keyTakeaway: z.string().optional().describe('Core conclusion drawn from source'),
+          }),
+        )
+        .describe('Sources referenced in the research synthesis'),
+      localDocumentAnalysis: z
+        .object({
+          documentTitle: z.string(),
+          documentPath: z.string(),
+          highlights: z.array(z.string()),
+        })
+        .optional()
+        .describe('Optional extracted insights from a local document'),
+      tags: z.array(z.string()).optional().describe('Tags for literature note indexing'),
+      targetFolder: z.string().optional().describe('Target folder in vault (default: Cindy/Research)'),
+      fileName: z.string().optional().describe('Custom file name (.md)'),
+    },
+    async ({ title, topic, summary, findings, sources, localDocumentAnalysis, tags, targetFolder, fileName }) => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, SAVE_RESEARCH_SYNTHESIS_TOOL)) {
+        return refused({ code: 'FORBIDDEN', message: `expert does not permit tool "${SAVE_RESEARCH_SYNTHESIS_TOOL}"` });
+      }
+      const vaultDir = deps.getVaultDir()?.trim();
+      if (!vaultDir) {
+        return refused({ code: 'NO_VAULT', message: 'no notes vault configured; configure a vault folder in Settings -> Notes Vault' });
+      }
+      try {
+        const result = saveLiteratureNote(
+          vaultDir,
+          {
+            title,
+            topic,
+            summary,
+            findings,
+            sources,
+            localDocumentAnalysis,
+            tags,
+            sessionId: ctx.sessionId,
+          },
+          {
+            targetFolder,
+            fileName,
+          },
+        );
+        if (!result.ok) {
+          return refused({
+            code: result.reason.toUpperCase(),
+            message: result.message,
+          });
+        }
+        return reply({
+          saved: true,
+          relPath: result.relPath,
+          fullPath: result.fullPath,
+          citationCount: result.citationCount,
+          sourceCount: result.sourceCount,
+          bytesWritten: result.bytesWritten,
+        });
+      } catch (err) {
+        return refused({
+          code: 'SAVE_FAILED',
           message: err instanceof Error ? err.message : String(err),
         });
       }

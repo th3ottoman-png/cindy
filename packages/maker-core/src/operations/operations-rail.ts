@@ -204,9 +204,9 @@ function scheduleRow(fact: OperationScheduleFact, nowMs: number): OperationRow {
  */
 export function buildOperationsRail(input: OperationsInput): OperationRow[] {
   const rows: OperationRow[] = [
-    ...(input.turns ?? []).map((fact) => turnRow(fact, input.nowMs)),
-    ...(input.workers ?? []).map((fact) => workerRow(fact, input.nowMs)),
-    ...(input.bots ?? []).map((fact) => botRow(fact, input.nowMs)),
+    ...(input.turns ?? []).map((fact) => turnRow(fact)),
+    ...(input.workers ?? []).map((fact) => workerRow(fact)),
+    ...(input.bots ?? []).map((fact) => botRow(fact)),
     ...(input.schedules ?? []).map((fact) => scheduleRow(fact, input.nowMs)),
   ];
 

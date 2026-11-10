@@ -10,6 +10,41 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - 9.5 Deep Research & Local Document Ingestion for Notes Vault (`live-proven`)
+
+- **What shipped.** Complete multi-hop deep research synthesis pipeline and local document ingestion engine compiling web and local document research directly into structured literature notes inside the Obsidian vault (`Bishi-memory`):
+  - `packages/maker-core/src/research/document-ingestion.ts` (subpath `@cindy/maker-core/document-ingestion`):
+    - `ingestDocument`: local-first extractor and parser supporting PDF (page count, metadata, text block extraction), CSV/TSV spreadsheets (header parsing, row extraction, summary Markdown table generation), Markdown, and plain text with YAML frontmatter parsing.
+    - Automatic classification: `academic_paper`, `technical_spec`, `data_sheet`, or `general_document`.
+    - Section segmentation and semantic text chunking for grounded citation analysis.
+  - `packages/maker-core/src/research/deep-research-synthesis.ts` (subpath `@cindy/maker-core/deep-research-synthesis`):
+    - `classifySource`: classifies source targets (`academic`, `documentation`, `news`, `reference`, `local_document`) by URL domain or file path.
+    - `slugifyTitle`: generates clean, deterministic filesystem slugs.
+    - `assembleLiteratureNote`: formats complete Obsidian-style literature notes with YAML frontmatter (`type: literature-note`, tags, sources metadata), executive summary, key findings with numbered inline footnote citations (`[^1]`, `[^2]`), local document analysis section with extracted insights, and structured bibliography.
+    - `saveLiteratureNote`: writes literature notes into `<vault>/Cindy/Research/` or custom folders atomically via temporary file and rename, validating vault containment and automatically redacting API keys and sensitive tokens.
+  - Integration with `cindy_vault_notes` MCP Server (`apps/desktop/src/main/mcp-integrations/vaultNotesMcpServer.ts`):
+    - `parse_local_document`: extracts, parses, and classifies local documents (PDF, CSV, TSV, Markdown, text).
+    - `save_research_synthesis`: compiles multi-source research into a literature note and commits it atomically to the vault.
+    - Added both tools to `VAULT_NOTES_TOOLS` roster.
+  - TypeScript fix:
+    - Fixed argument counts in `packages/maker-core/src/operations/operations-rail.ts` for single-argument row functions `turnRow`, `workerRow`, `botRow`.
+- **Verification.**
+  - 6 unit tests in `packages/maker-core/src/research/__tests__/document-ingestion.test.ts` (6/6 PASS).
+  - 9 unit tests in `packages/maker-core/src/research/__tests__/deep-research-synthesis.test.ts` (9/9 PASS).
+  - 17 MCP server tests in `apps/desktop/src/main/mcp-integrations/__tests__/vaultNotesMcpServer.test.ts` (17/17 PASS).
+  - **Live-proven (`live-proven`):**
+    - `apps/desktop/src/main/mcp-integrations/__tests__/deepResearchLive.test.ts` (1/1 PASS):
+      1. Staged simulated local engineering whitepaper `agent-architecture-spec.md`.
+      2. Called `parse_local_document` tool over MCP InMemoryTransport client; verified Markdown extraction, word count, technical spec classification, sections, and semantic chunks.
+      3. Called `save_research_synthesis` tool over MCP client combining academic source (`arxiv.org`), web documentation, and local document analysis.
+      4. Verified disk persistence of `Cindy/Research/Autonomous-Multi-Agent-Architectural-Patterns-2026.md` in the vault, confirming frontmatter, inline footnote citations (`[^1]`, `[^2]`), executive summary, local document extraction block, and formatted bibliography.
+      5. Read back note content through `read_note` tool and verified search discovery via `search_notes` query `hierarchical planner-worker` returning the exact literature note.
+  - Pre-commit gates:
+    - `check:test-hygiene`: PASS (361 files within baseline).
+    - Scoped `tsc --noEmit`: 0 errors on modified/created packages.
+
+---
+
 ## 2026-11-10 - 9.4 Local Tool-Call JSON Repair & Misformat Guard (`live-proven`)
 
 - **What shipped.** Fail-open input sanitization layer in `@cindy/maker-hermes-manager` automatically fixing malformed JSON arguments from local LLMs (Ollama, LM Studio, vLLM, open-weight models) before tool dispatch, preventing failed turns, syntax exceptions, and costly retry loops on smaller models:

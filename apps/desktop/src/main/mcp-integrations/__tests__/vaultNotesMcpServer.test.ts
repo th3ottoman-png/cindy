@@ -15,9 +15,11 @@ import {
   EXPLORE_VAULT_GRAPH_TOOL,
   LIST_NOTES_TOOL,
   LIST_PINNED_NOTES_TOOL,
+  PARSE_LOCAL_DOCUMENT_TOOL,
   PIN_VAULT_NOTE_TOOL,
   QUICK_CAPTURE_TOOL,
   READ_NOTE_TOOL,
+  SAVE_RESEARCH_SYNTHESIS_TOOL,
   SEARCH_NOTES_TOOL,
   SYNTHESIZE_VAULT_MEMORY_TOOL,
   SYNC_WORKSPACE_GIT_TOOL,
@@ -277,6 +279,54 @@ Links to [[sub/note2]]
     expect(success.body.synced).toBe(true);
     expect(success.body.path).toBe('memory/Project — Cindy.md');
     expect(success.body.block).toContain('### Progress');
+  });
+
+  it('parses local documents (ROADMAP 9.5)', async () => {
+    const docPath = path.join(base, 'data.csv');
+    fs.writeFileSync(docPath, 'model,params,latency\nhermes,7b,45ms\nllama,8b,50ms\n');
+
+    const res = await call(deps(), PARSE_LOCAL_DOCUMENT_TOOL, { path: docPath });
+    expect(res.isError).toBe(false);
+    expect(res.body.success).toBe(true);
+    const doc = res.body.document as { documentType: string; tables?: Array<{ rowCount: number; markdown: string }> };
+    expect(doc.documentType).toBe('spreadsheet');
+    expect(doc.tables?.[0].rowCount).toBe(2);
+    expect(doc.tables?.[0].markdown).toContain('| hermes | 7b | 45ms |');
+  });
+
+  it('saves deep research synthesis literature note to vault (ROADMAP 9.5)', async () => {
+    const res = await call(deps(), SAVE_RESEARCH_SYNTHESIS_TOOL, {
+      title: 'Local LLM Inference Engine Benchmarks',
+      summary: 'Comparison of quantized execution backends.',
+      findings: [
+        {
+          statement: 'vLLM provides highest batch throughput',
+          sourceIds: ['s1'],
+          confidence: 'high',
+        },
+      ],
+      sources: [
+        {
+          id: 's1',
+          title: 'High-Throughput Serving of LLMs with PagedAttention',
+          url: 'https://arxiv.org/abs/2309.06180',
+          sourceType: 'academic',
+        },
+      ],
+      tags: ['inference', 'llm'],
+    });
+
+    expect(res.isError).toBe(false);
+    expect(res.body.saved).toBe(true);
+    expect(res.body.relPath).toBe('Cindy/Research/Local-LLM-Inference-Engine-Benchmarks.md');
+    expect(res.body.citationCount).toBe(1);
+
+    const savedFile = path.join(vault, 'Cindy/Research/Local-LLM-Inference-Engine-Benchmarks.md');
+    expect(fs.existsSync(savedFile)).toBe(true);
+    const noteText = fs.readFileSync(savedFile, 'utf8');
+    expect(noteText).toContain('title: "Local LLM Inference Engine Benchmarks"');
+    expect(noteText).toContain('## References & Citations');
+    expect(noteText).toContain('PagedAttention');
   });
 
   it('live-exercises read, search, and append against real vault when present', async () => {
