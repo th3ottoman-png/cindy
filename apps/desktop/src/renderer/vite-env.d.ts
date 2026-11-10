@@ -5705,6 +5705,22 @@ interface ElectronAPI {
       /** ROADMAP 8.8: get audited chat inventory for a session. */
       get: (params: { sessionId: string }) => Promise<{ ok: boolean; inventory?: import('@cindy/maker-core/chat-inventory').ChatInventory; error?: string }>;
     };
+    operations: {
+      /** ROADMAP 8.6b: list ordered operations across turns, workers, bots, and schedules. */
+      list: () => Promise<{
+        rows: import('@cindy/maker-core/operations-rail').OperationRow[];
+        summary: { kind: string; count: number; running: number }[];
+        hasRunning: boolean;
+      }>;
+      /** ROADMAP 8.6b: cancel an operation. */
+      cancel: (params: { kind: string; id: string }) => Promise<{ ok: boolean; message?: string }>;
+      /** ROADMAP 8.6b: replay turn or operation. */
+      replay: (params: { kind: string; id: string }) => Promise<{ ok: boolean; message?: string }>;
+      /** ROADMAP 8.6b: dry-run a scheduled session against a throwaway home without modifying vault. */
+      dryRunSchedule: (params: { id: string }) => Promise<import('@cindy/maker-core/scheduled-sessions').ScheduleRunRecord>;
+      /** Subscribe to operations changed push events. */
+      onChanged: (callback: (payload: unknown) => void) => () => void;
+    };
     ruleLearner: {
       /** ROADMAP 7.5: detect user corrections in chat text and extract rule candidates. */
       detect: (params: { text: string }) => Promise<import('@cindy/maker-core/rule-learner').CorrectionDetection>;

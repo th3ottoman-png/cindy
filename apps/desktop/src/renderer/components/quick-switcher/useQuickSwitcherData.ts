@@ -6,6 +6,7 @@ import { openWorktreeManagerTab } from '@/features/right-sidebar/lib/openWorktre
 import { openArtifactsTab } from '@/features/right-sidebar/lib/openArtifactsTab';
 import { openTerminalTab } from '@/features/right-sidebar/lib/openTerminalTab';
 import { openChatInventoryTab } from '@/features/right-sidebar/lib/openChatInventoryTab';
+import { openOperationsRailTab } from '@/features/right-sidebar/lib/openOperationsRailTab';
 
 export function formatRelativeTime(dateInput: number | string | undefined): string {
   if (!dateInput) return '';
@@ -211,6 +212,21 @@ export function useQuickSwitcherData({
         const targetSessionId = activeSessionId || sessions[0]?.id;
         if (targetSessionId) {
           void openChatInventoryTab(targetSessionId);
+        }
+      },
+    });
+
+    list.push({
+      id: 'action-operations-rail',
+      category: 'action',
+      title: 'Open Operations Rail',
+      subtitle: 'View running turns, workers, bots, and cron schedules',
+      badge: 'Ops',
+      onSelect: () => {
+        onClose();
+        const targetSessionId = activeSessionId || sessions[0]?.id;
+        if (targetSessionId) {
+          void openOperationsRailTab(targetSessionId);
         }
       },
     });

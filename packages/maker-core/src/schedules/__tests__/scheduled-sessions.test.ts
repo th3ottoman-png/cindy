@@ -20,6 +20,7 @@ import {
   writeSchedulesConfig,
   type CronApi,
   type Schedule,
+  type ScheduleState,
 } from '../scheduled-sessions';
 
 // The real upstream cron implementation, not a fake: the contract is that it satisfies CronApi.
@@ -186,7 +187,7 @@ describe('ScheduleState and SchedulesConfig persistence (ROADMAP 5.4b)', () => {
   });
 
   it('updates firstSeenMs for newly seen schedules without overwriting existing', () => {
-    const state = {
+    const state: ScheduleState = {
       lastRunMs: { known1: 1000 },
       firstSeenMs: { known2: 800 },
     };
@@ -206,7 +207,7 @@ describe('ScheduleState and SchedulesConfig persistence (ROADMAP 5.4b)', () => {
   });
 
   it('records schedule run status and updates lastRunMs', () => {
-    const state = {
+    const state: ScheduleState = {
       lastRunMs: {},
       firstSeenMs: { job1: 500 },
     };

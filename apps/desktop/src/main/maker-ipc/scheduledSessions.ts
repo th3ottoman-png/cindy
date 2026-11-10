@@ -5,6 +5,7 @@
  * saving the results to the configured notes vault.
  */
 
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -226,7 +227,32 @@ export class ScheduledSessionsHost {
     return this.runSchedule(match.schedule, this.now());
   }
 
-  async runSchedule(schedule: Schedule, now: Date): Promise<ScheduleRunRecord> {
+  async dryRunSchedule(scheduleId: string): Promise<ScheduleRunRecord> {
+    const { schedulesDir } = this.getConfig();
+    const entries = loadSchedules(schedulesDir, this.cron);
+    const match = entries.find((e) => (e.ok ? e.schedule.id : e.id) === scheduleId);
+    if (!match) {
+      throw new Error(`Schedule "${scheduleId}" not found in ${schedulesDir}`);
+    }
+    if (!match.ok) {
+      throw new Error(`Schedule "${scheduleId}" is invalid: ${match.error}`);
+    }
+    const throwawayHome = fs.mkdtempSync(path.join(os.tmpdir(), 'cindy-schedule-dry-run-'));
+    try {
+      return await this.runSchedule(match.schedule, this.now(), { dryRun: true, throwawayHome });
+    } finally {
+      try {
+        fs.rmSync(throwawayHome, { recursive: true, force: true });
+      } catch {}
+    }
+  }
+
+  async runSchedule(
+    schedule: Schedule,
+    now: Date,
+    opts?: { dryRun?: boolean; throwawayHome?: string },
+  ): Promise<ScheduleRunRecord> {
+    const isDryRun = opts?.dryRun === true;
     const nowMs = now.getTime();
     if (this.inFlight.has(schedule.id)) {
       return {
@@ -240,15 +266,19 @@ export class ScheduledSessionsHost {
     try {
       const state = this.getState();
       const vaultConfig = readVaultConfig(this.vaultConfigFile);
-      const vaultDir = vaultConfig.config.vaultDir;
+      const vaultDir = isDryRun
+        ? (opts?.throwawayHome || vaultConfig.config.vaultDir || os.tmpdir())
+        : vaultConfig.config.vaultDir;
 
       // 1. Vault validation
       if (!vaultDir) {
         const error = 'Notes vault is not configured; set it in Settings → Notes Vault';
         const record: ScheduleRunRecord = { status: 'error', at: nowMs, error };
-        recordScheduleRun(state, schedule.id, record);
-        writeScheduleState(this.stateFile, state);
-        this.notifyChanged?.();
+        if (!isDryRun) {
+          recordScheduleRun(state, schedule.id, record);
+          writeScheduleState(this.stateFile, state);
+          this.notifyChanged?.();
+        }
         return record;
       }
 
@@ -257,9 +287,11 @@ export class ScheduledSessionsHost {
       if (!expertCheck.ok) {
         const error = expertCheck.message;
         const record: ScheduleRunRecord = { status: 'error', at: nowMs, error };
-        recordScheduleRun(state, schedule.id, record);
-        writeScheduleState(this.stateFile, state);
-        this.notifyChanged?.();
+        if (!isDryRun) {
+          recordScheduleRun(state, schedule.id, record);
+          writeScheduleState(this.stateFile, state);
+          this.notifyChanged?.();
+        }
         return record;
       }
 
@@ -268,9 +300,11 @@ export class ScheduledSessionsHost {
       if (!maker) {
         const error = 'Maker engine is not ready or unavailable';
         const record: ScheduleRunRecord = { status: 'error', at: nowMs, error };
-        recordScheduleRun(state, schedule.id, record);
-        writeScheduleState(this.stateFile, state);
-        this.notifyChanged?.();
+        if (!isDryRun) {
+          recordScheduleRun(state, schedule.id, record);
+          writeScheduleState(this.stateFile, state);
+          this.notifyChanged?.();
+        }
         return record;
       }
 
@@ -280,7 +314,7 @@ export class ScheduledSessionsHost {
       try {
         session = await maker.createSession({
           id: sessionId,
-          title: `Scheduled: ${schedule.id}`,
+          title: `Scheduled: ${schedule.id}${isDryRun ? ' (dry-run)' : ''}`,
           agentKind: 'hermes',
           model: expertCheck.model ?? 'hermes-default',
           workingDir: vaultDir,
@@ -289,9 +323,11 @@ export class ScheduledSessionsHost {
       } catch (err) {
         const error = `Failed to create session: ${err instanceof Error ? err.message : String(err)}`;
         const record: ScheduleRunRecord = { status: 'error', at: nowMs, error, sessionId };
-        recordScheduleRun(state, schedule.id, record);
-        writeScheduleState(this.stateFile, state);
-        this.notifyChanged?.();
+        if (!isDryRun) {
+          recordScheduleRun(state, schedule.id, record);
+          writeScheduleState(this.stateFile, state);
+          this.notifyChanged?.();
+        }
         return record;
       }
 
@@ -335,23 +371,28 @@ export class ScheduledSessionsHost {
         const rawResult = await turnPromise;
         const resultText = rawResult.trim() || '(No output returned by agent)';
 
-        // 6. Write note to vault
+        // 6. Write note to vault (only if not dry run)
         const relPath = resolveOutputPath(schedule, now);
-        const appendResult = appendNote(vaultDir, relPath, resultText, { now });
-        if (!appendResult.ok) {
-          throw new Error(`Failed to append note to vault (${relPath}): ${appendResult.message}`);
+        if (!isDryRun) {
+          const appendResult = appendNote(vaultDir, relPath, resultText, { now });
+          if (!appendResult.ok) {
+            throw new Error(`Failed to append note to vault (${relPath}): ${appendResult.message}`);
+          }
         }
 
-        // 7. Update state with success
+        // 7. Update state with success (only if not dry run)
         const record: ScheduleRunRecord = {
           status: 'success',
           at: nowMs,
           notePath: relPath,
           sessionId,
+          ...(isDryRun ? { dryRun: true, output: resultText } : {}),
         };
-        recordScheduleRun(state, schedule.id, record);
-        writeScheduleState(this.stateFile, state);
-        this.notifyChanged?.();
+        if (!isDryRun) {
+          recordScheduleRun(state, schedule.id, record);
+          writeScheduleState(this.stateFile, state);
+          this.notifyChanged?.();
+        }
         return record;
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
@@ -361,9 +402,11 @@ export class ScheduledSessionsHost {
           error,
           sessionId,
         };
-        recordScheduleRun(state, schedule.id, record);
-        writeScheduleState(this.stateFile, state);
-        this.notifyChanged?.();
+        if (!isDryRun) {
+          recordScheduleRun(state, schedule.id, record);
+          writeScheduleState(this.stateFile, state);
+          this.notifyChanged?.();
+        }
         return record;
       }
     } finally {
@@ -442,6 +485,13 @@ export function registerScheduledSessionsHandlers(
     const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
     const id = typeof r.id === 'string' ? r.id : '';
     return deps.host.runScheduleNow(id);
+  });
+
+  registry.handle(MAKER_INVOKE.SCHEDULED_SESSIONS_DRY_RUN, async (event: unknown, request: unknown) => {
+    deps.assertTrusted(event);
+    const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
+    const id = typeof r.id === 'string' ? r.id : '';
+    return deps.host.dryRunSchedule(id);
   });
 
   registry.handle(MAKER_INVOKE.SCHEDULED_SESSIONS_GET_STATE, async (event: unknown) => {

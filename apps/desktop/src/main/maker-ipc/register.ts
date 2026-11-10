@@ -937,6 +937,10 @@ import {
   getDesktopScheduledSessionsHost,
   registerScheduledSessionsHandlers,
 } from './scheduledSessions.js';
+import {
+  getDesktopOperationsRailHost,
+  registerOperationsRailHandlers,
+} from './operationsRail.js';
 import { MAKER_INVOKE, MAKER_PUSH, MAKER_SEND } from './channels.js';
 import type { CollabDispatchOutcome } from './collabSendOutcome.js';
 import {
@@ -25809,6 +25813,20 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   scheduledSessionsHost.startTicker();
   app.once('before-quit', () => {
     scheduledSessionsHost.stopTicker();
+  });
+
+  // ── Operations rail (ROADMAP 8.6b) ───────────────────────────
+  const operationsRailHost = getDesktopOperationsRailHost({
+    scheduledSessionsHost,
+    onCancelTurn: async (sessionId) => {
+      inputCoordinator.stop(sessionId);
+      return { ok: true };
+    },
+    broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
+  });
+  registerOperationsRailHandlers(createElectronIpcHandlerRegistry(), {
+    host: operationsRailHost,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
 
   // ── Browser automation (Settings →「电脑使用」) ───────────────────────────

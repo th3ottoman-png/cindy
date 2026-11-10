@@ -10,6 +10,51 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - 8.6b Operations Rail View and Actions (`live-proven`)
+
+- **What shipped.** Non-modal operations rail view and control surfaces rendering live agent turns, background workers, bots, and scheduled sessions in a unified timeline with one-click actions:
+  - `packages/maker-core/src/schedules/scheduled-sessions.ts`:
+    - Added `dryRun?: boolean` and `output?: string` to `ScheduleRunRecord`.
+    - Formatted `ScheduleState` and test annotations for strict type hygiene.
+  - `apps/desktop/src/main/maker-ipc/operationsRail.ts`:
+    - `OperationsRailHost`: aggregates running turns, background workers, bots, and scheduled sessions into unified ordered rows using `buildOperationsRail`.
+    - `cancelOperation`: dispatches cancellation to active turn coordinator or worker session, broadcasting change event.
+    - `replayOperation`: dispatches replay event to session coordinator, broadcasting change event.
+    - `dryRunSchedule`: delegates to `scheduledSessionsHost.dryRunSchedule` with change event broadcast.
+    - `registerOperationsRailHandlers`: registered IPC invoke channels in `channels.ts` and `register.ts`:
+      - `MAKER_INVOKE.OPERATIONS_LIST`: `maker:operations:list`
+      - `MAKER_INVOKE.OPERATIONS_CANCEL`: `maker:operations:cancel`
+      - `MAKER_INVOKE.OPERATIONS_REPLAY`: `maker:operations:replay`
+      - `MAKER_PUSH.OPERATIONS_CHANGED`: `maker:operations:changed`
+  - `apps/desktop/src/main/maker-ipc/scheduledSessions.ts`:
+    - `dryRunSchedule`: executes scheduled session in an isolated ephemeral throwaway scratch directory (`fs.mkdtempSync`), bypassing vault mutation (`appendNote`) and persistent state writes, returning `{ status: 'success', dryRun: true, output: ... }`.
+    - Registered `MAKER_INVOKE.SCHEDULED_SESSIONS_DRY_RUN`: `maker:scheduled-sessions:dry-run`.
+  - Desktop Preload & Typings (`preload.ts`, `vite-env.d.ts`):
+    - Exposed `electronAPI.maker.operations.{list, cancel, replay, dryRunSchedule, onChanged}`.
+  - Right Sidebar Plugin (`apps/desktop/src/renderer/features/right-sidebar/plugins/operations-rail/`):
+    - `index.tsx`: registered builtin right sidebar tab plugin `'operations-rail'` with `Activity` icon and singleton policy.
+    - `OperationsRailTabBody.tsx`: renders operations header, active ping badge, summary chips with counts and running badges, and operation cards with status indicators (Running, Success, Failed, Scheduled, Idle), relative elapsed/scheduled times (`formatRelative`), bounded detail text, and one-click action buttons: Cancel (rose), Replay (blue), Run Now (primary), Dry-Run (amber), and Open (external link). Real-time updates via push events (`onChanged`) and 4-second poll interval.
+    - `openOperationsRailTab.ts`: programmatic utility to open/focus the Operations Rail tab and ensure sidebar visibility.
+  - Quick-Switcher (`useQuickSwitcherData.ts`):
+    - Added `> Open Operations Rail` command.
+- **Verification.**
+  - 16 unit tests in `packages/maker-core/src/operations/__tests__/operations-rail.test.ts` (16/16 PASS).
+  - 15 unit tests in `packages/maker-core/src/schedules/__tests__/scheduled-sessions.test.ts` (15/15 PASS).
+  - 5 unit tests in `apps/desktop/src/main/maker-ipc/__tests__/operationsRail.test.ts` (5/5 PASS).
+  - 4 jsdom tests in `apps/desktop/src/renderer/features/right-sidebar/plugins/operations-rail/__tests__/operationsRailPlugin.test.tsx` (4/4 PASS).
+  - **Live-proven (`live-proven`):**
+    - `apps/desktop/src/main/maker-ipc/__tests__/operationsRailLive.test.ts` (1/1 PASS):
+      1. Aggregated running turn (`live-turn-123`, `Reading file: packages/auth/provider.ts`) and cron schedule (`daily-briefing`).
+      2. Verified summary counts (`turn: 1 active`, `hasRunning: true`) and ordered rows.
+      3. Dispatched `cancelOperation` on running turn: verified stop signal delivered to coordinator and `maker:operations:changed` event broadcast.
+      4. Executed `dryRunSchedule`: executed against isolated temporary home with zero bytes written to notes vault, persistent state untouched, and dry-run output returned.
+      5. Dispatched `replayOperation` on turn: verified replay callback fired and event broadcast.
+  - Pre-commit gates:
+    - `check:test-hygiene`: PASS (361 files within baseline).
+    - Scoped `tsc --noEmit`: 0 TypeScript errors.
+
+---
+
 ## 2026-11-10 - 9.5 Deep Research & Local Document Ingestion for Notes Vault (`live-proven`)
 
 - **What shipped.** Complete multi-hop deep research synthesis pipeline and local document ingestion engine compiling web and local document research directly into structured literature notes inside the Obsidian vault (`Bishi-memory`):

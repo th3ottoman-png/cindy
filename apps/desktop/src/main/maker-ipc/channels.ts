@@ -123,6 +123,14 @@ export const MAKER_INVOKE = {
   SCHEDULED_SESSIONS_LIST: 'maker:scheduled-sessions:list',
   /** ROADMAP 5.4b: trigger immediate execution of a scheduled session. */
   SCHEDULED_SESSIONS_RUN_NOW: 'maker:scheduled-sessions:run-now',
+  /** ROADMAP 8.6b: dry-run a scheduled session against a throwaway home without modifying vault. */
+  SCHEDULED_SESSIONS_DRY_RUN: 'maker:scheduled-sessions:dry-run',
+  /** ROADMAP 8.6b: list ordered operations across turns, workers, bots, and schedules. */
+  OPERATIONS_LIST: 'maker:operations:list',
+  /** ROADMAP 8.6b: cancel an operation by kind and id. */
+  OPERATIONS_CANCEL: 'maker:operations:cancel',
+  /** ROADMAP 8.6b: replay turn or operation. */
+  OPERATIONS_REPLAY: 'maker:operations:replay',
   /** ROADMAP 5.4b: get state of scheduled sessions (~/.cindy-harness/schedules-state.json). */
   SCHEDULED_SESSIONS_GET_STATE: 'maker:scheduled-sessions:get-state',
   /** ROADMAP 5.2b: export session transcript to Markdown into a directory. */
@@ -1094,6 +1102,8 @@ export const MAKER_PUSH = {
   CHAT_SUMMARY_FAILED: 'maker:chat-summary:failed',
   /** ROADMAP 5.4b: scheduled sessions configuration or state changed; no payload — renderer refetches. */
   SCHEDULED_SESSIONS_CHANGED: 'maker:scheduled-sessions:changed',
+  /** ROADMAP 8.6b: operations rail events or active tasks changed; payload `{ rows }`. */
+  OPERATIONS_CHANGED: 'maker:operations:changed',
   /** ROADMAP 7.7: screen-share privacy redaction mode changed; payload `{ enabled: boolean }`. */
   SCREEN_SHARE_CHANGED: 'maker:screen-share:changed',
   TURN_CHANGE_SET_UPDATED: 'maker:turn-change-set:updated',

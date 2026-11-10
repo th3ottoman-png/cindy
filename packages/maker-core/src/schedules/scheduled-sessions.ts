@@ -143,6 +143,8 @@ export interface ScheduleRunRecord {
   error?: string;
   notePath?: string;
   sessionId?: string;
+  dryRun?: boolean;
+  output?: string;
 }
 
 export interface ScheduleState {

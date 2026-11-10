@@ -28,3 +28,4 @@ import './artifacts';
 import './vault-graph';
 import './vault-git-sync';
 import './chat-inventory';
+import './operations-rail';
