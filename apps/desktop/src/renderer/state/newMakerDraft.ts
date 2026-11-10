@@ -397,8 +397,18 @@ function sanitize(raw: unknown): NewMakerDraft {
     ) {
       model = fallback.model;
     }
+    const providerId =
+      typeof p.providerId === 'string' && p.providerId.length > 0 ? p.providerId : null;
+    // Hermes: a new task always starts on the Hermes home route (config.yaml), so the home owns
+    // model and source. Otherwise the last-used model rides along — on 2026-11-10 the home route
+    // was `hy4` while every new task still launched `deepseek-flash`, and the remembered
+    // `deepseek` source re-pinned it. An explicit pick still applies to the task being drafted
+    // (that is what `hermes-default` in the picker is for); it just does not become the default
+    // for later tasks. Use "Set ... as the Hermes home default" to change the default itself.
+    const routedModel = v === 'hermes' ? fallback.model : model;
+    const routedProviderId = v === 'hermes' ? null : providerId;
     return {
-      model,
+      model: routedModel,
       effort: typeof p.effort === 'string' ? (p.effort as Effort) : fallback.effort,
       permissionMode:
         typeof p.permissionMode === 'string' && !legacyPlanPermission
@@ -406,8 +416,7 @@ function sanitize(raw: unknown): NewMakerDraft {
           : fallback.permissionMode,
       planMode: p.planMode === true || legacyPlanPermission,
       // providerId: 接受非空 string 或 null;脏数据 / 缺字段一律落 null(跟随默认路由)。
-      providerId:
-        typeof p.providerId === 'string' && p.providerId.length > 0 ? p.providerId : null,
+      providerId: routedProviderId,
     };
   };
   // modelChosenByVendor: 老版本 localStorage 没有这个字段 → 空对象兜底

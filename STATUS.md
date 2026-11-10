@@ -10,6 +10,26 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - New Hermes tasks follow the home route again (`live-proven`)
+
+- **Reported by the owner.** "New sessions take the composer's model instead of the home route."
+- **Reproduced.** With `model.default: hy4`, a brand-new task's composer showed `deepseek-flash` and the turn ran on
+  it. `newMakerDraft.sanitizeVendorPrefs` restored `lastByVendor.hermes` from localStorage verbatim — the last-used
+  model and its `providerId` — so the remembered composer selection silently outranked `config.yaml`, even though the
+  seed default for Hermes was already `hermes-default`. `modelChosenByVendor.hermes` was `true`, so a gate on that
+  flag would not have helped.
+- **Fix.** `sanitizeVendorPrefs` now forces `model: 'hermes-default'` and `providerId: null` for Hermes on every
+  hydration: a new task starts on the home route, and an explicit pick applies to the task being drafted (that is what
+  the `hermes-default` picker row is for), not to later tasks. Changing the default itself stays a deliberate action —
+  the picker's "Set <model> as the Hermes home default" (or `config/setDefaultRoute`).
+- **Verified live.** Route `hy4` → a new draft's chip read `Hermes home default (hy4)`; sending it created session
+  `b6cda1c7` whose daemon `launch` record carried **no** `model` (i.e. the home route), and the turn answered
+  `ROUTE-OK`. Route then restored to `deepseek-flash`: chip reads `Hermes home default (deepseek-flash)`.
+- **Accepted cost.** A Hermes model picked mid-draft no longer survives an app restart; before sending, re-pick it.
+  Pinned per-session models on existing sessions are untouched (`query/setModel`), and the fallback chain is unchanged.
+
+---
+
 ## 2026-11-10 - Hermes model header shows the model id instead of "Model Details Unavailable" (`live-proven`)
 
 - **Symptom.** A Hermes session's composer chip read `Hermes · Model Details Unavailable` even though the turn ran
