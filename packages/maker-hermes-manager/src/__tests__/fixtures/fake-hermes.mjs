@@ -213,6 +213,32 @@ if (behavior === 'happy') {
   });
   process.stderr.write(`Error: ${error}\n\nsession_id:\n`);
   process.exit(1);
+} else if (behavior === 'malformed-tool-call') {
+  emit({ type: 'system', subtype: 'init', model: 'local-qwen-7b', session_id: initSessionId });
+  emit({ type: 'text', text: 'Calling tool with malformed JSON...' });
+  emit({
+    type: 'tool_use',
+    name: 'read_file',
+    tool_call_id: 'call_malformed_1',
+    input: "{path: 'README.md', limit: 10, verbose: True,}",
+  });
+  emit({
+    type: 'tool_result',
+    name: 'read_file',
+    tool_call_id: 'call_malformed_1',
+    output: '# Readme content',
+    duration_ms: 10,
+    is_error: false,
+  });
+  emit({
+    type: 'result',
+    session_id: sessionId,
+    exit_code: 0,
+    text: 'Tool executed successfully',
+    tokens: { input: 20, output: 10, total: 30, cache_read: 0, cache_write: 0 },
+    duration_ms: 50,
+  });
+  process.exit(0);
 } else {
   process.stderr.write(`unknown behavior: ${behavior}\n`);
   process.exit(2);

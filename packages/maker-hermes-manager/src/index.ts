@@ -45,3 +45,9 @@ export {
   type SessionHomeOptions,
   type StopGatewayResult,
 } from './session-home.js';
+export {
+  repairJsonString,
+  repairToolCallArguments,
+  repairHermesToolEvent,
+} from './tool-call-repair.js';
+

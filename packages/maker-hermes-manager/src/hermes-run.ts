@@ -9,6 +9,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
 import type { HermesPermissionMode } from './protocol.js';
+import { repairHermesToolEvent } from './tool-call-repair.js';
 
 export interface HermesSpawnSpec {
   hermesBin: string;
@@ -155,7 +156,8 @@ export function startHermesRun(
       sawResult = true;
       resultEvent = event as Record<string, unknown>;
     }
-    onEvent(event);
+    const sanitized = repairHermesToolEvent(event);
+    onEvent(sanitized);
   });
 
   // A fixture/short-lived child may exit before reading stdin; an EPIPE on our

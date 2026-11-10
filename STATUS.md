@@ -10,6 +10,32 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-10 - 9.4 Local Tool-Call JSON Repair & Misformat Guard (`live-proven`)
+
+- **What shipped.** Fail-open input sanitization layer in `@cindy/maker-hermes-manager` automatically fixing malformed JSON arguments from local LLMs (Ollama, LM Studio, vLLM, open-weight models) before tool dispatch, preventing failed turns, syntax exceptions, and costly retry loops on smaller models:
+  - `packages/maker-hermes-manager/src/tool-call-repair.ts` (subpath `@cindy/maker-hermes-manager/tool-call-repair`):
+    - `repairJsonString`: repairs malformed or raw JSON strings into parsed objects. Fast-paths standard JSON; strips markdown code fences (` ```json `); extracts outermost JSON object/array from conversational prose; strips line and block comments outside quotes; scans and normalizes unquoted keys, single-quoted strings/keys with escaped inner quotes, Python booleans (`True`/`False`/`None`), trailing commas in objects and arrays, unescaped literal newlines/tabs inside strings, and unclosed quotes/braces/brackets. Fails open on unparseable inputs.
+    - `repairToolCallArguments`: sanitizes tool call arguments across null/undefined, raw stringified JSON, and objects with stringified JSON fields.
+    - `repairHermesToolEvent`: repairs `tool_use` stream events before event propagation.
+  - Integration:
+    - `packages/maker-hermes-manager/src/hermes-run.ts`: sanitizes stream `tool_use` events through `repairHermesToolEvent` before forwarding to `onEvent`.
+    - `packages/maker-hermes-manager/src/auto-review-gate.ts`: sanitizes hook payload `toolInput` with `repairToolCallArguments`.
+    - Exported via `index.ts` and `package.json` subpath export.
+- **Verification.**
+  - 18 unit tests in `packages/maker-hermes-manager/src/__tests__/tool-call-repair.test.ts` (18/18 PASS):
+    - Standard JSON, trailing commas, unquoted keys, single quotes, escaped inner quotes, Python booleans/None, markdown code fences, conversational prose extraction, truncated/unclosed braces, comments stripping, unescaped newlines, fail-open handling, and event repair.
+  - **Live-proven (`live-proven`):**
+    - `packages/maker-hermes-manager/src/__tests__/tool-call-repair-live.test.ts`:
+      1. Executed `startHermesRun` with `fake-hermes.mjs` simulating a local open model emitting malformed tool arguments (`{path: 'README.md', limit: 10, verbose: True,}`).
+      2. Verified `tool_use` event input was normalized and repaired before dispatch to `{ path: 'README.md', limit: 10, verbose: true }`.
+      3. Verified turn executed cleanly with exit code 0 and `sawResult: true` (1/1 checks PASS).
+  - Pre-commit gates:
+    - `tsc --noEmit` on `@cindy/maker-hermes-manager`: PASS (0 errors).
+    - `pnpm check:test-hygiene`: PASS (361 files within baseline).
+    - All 16 test files in `@cindy/maker-hermes-manager`: PASS (216/216 tests pass).
+
+---
+
 ## 2026-11-10 - 8.8 Chat Inventory & Session Audit Panel (`live-proven`)
 
 - **What shipped.** Right sidebar inspector tab ("In This Chat" / `chat-inventory`) aggregating all live session resources, tools invoked, files read/modified/created, active skills, MCP connectors, and token breakdown, satisfying AGENTS.md §6 ("no hidden state"):

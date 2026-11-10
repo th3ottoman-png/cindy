@@ -9,7 +9,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./protocol": "./src/protocol.ts",
-    "./codec": "./src/codec.ts"
+    "./codec": "./src/codec.ts",
+    "./tool-call-repair": "./src/tool-call-repair.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

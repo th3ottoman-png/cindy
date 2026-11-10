@@ -27,6 +27,8 @@ import * as fs from 'node:fs/promises';
 import * as nodePath from 'node:path';
 import * as net from 'node:net';
 
+import { repairToolCallArguments } from './tool-call-repair.js';
+
 export const AUTO_REVIEW_SOCKET_ENV = 'CINDY_HERMES_REVIEW_SOCKET';
 export const AUTO_REVIEW_TOKEN_ENV = 'CINDY_HERMES_REVIEW_TOKEN';
 export const AUTO_REVIEW_HOOK_FLAG = '--auto-review-hook';
@@ -156,7 +158,7 @@ export function parseHookPayload(raw: unknown): AutoReviewHookPayload | null {
   const extra = p.extra && typeof p.extra === 'object' ? (p.extra as Record<string, unknown>) : {};
   return {
     toolName: p.tool_name,
-    toolInput: p.tool_input ?? {},
+    toolInput: repairToolCallArguments(p.tool_input ?? {}),
     ...(typeof extra.tool_call_id === 'string' ? { toolCallId: extra.tool_call_id } : {}),
     ...(typeof p.session_id === 'string' ? { hermesSessionId: p.session_id } : {}),
   };
