@@ -10,6 +10,32 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 11.9 `autoReviewRisk` propagation fix (`unit-tested`)
+
+- **Root cause**: `handleStreamEvent`'s `permission_request` case in
+  `apps/desktop/src/renderer/lib/makerChatStore.ts` built `pendingPermission` copying
+  `autoReviewUnavailable`/`autoReviewReason` but never `autoReviewRisk` — the daemon's
+  `reviewToolCall` sets `autoReviewRisk: true` in the approval metadata (unit-tested), the IPC
+  broadcast and ingress payload (`CCAgentPermissionRequestPayload`) carry it, and the
+  `PendingPermission` type declares it; only this reducer dropped it. The card's amber variant
+  (`PermissionPrompt.tsx`, `--warning-accent`/`--warning-bg-soft` + `titleHighRisk`) was already
+  wired to `permission.autoReviewRisk` — it just never saw `true`.
+- **Fix**: one line — `autoReviewRisk: data.autoReviewRisk === true,` in the reducer (+ the local
+  `permission_request` event type gains `autoReviewRisk?: boolean`).
+- **Tests**: `permissionSessionApproval.test.ts` +1 regression case driving
+  `metadata: { autoReviewRisk: true, autoReviewReason: 'High-risk system file…' }` through the
+  real ingress and asserting `pendingPermission.autoReviewRisk === true`; the existing
+  `toEqual` case updated (`autoReviewRisk: false`). 19/19 green. Mutation check: commenting the
+  fix line fails both tests; restored.
+- **Gates** (Node 22, real Terminal, `/tmp/cindy-gates-autoreview.log`): typecheck 0,
+  test:runner 0, desktop shards 1/2/3/5/6/7/8 0; shard 4 SIGSEGV (V8-GC worker teardown, no
+  assertion failed) twice, green on the sanctioned standalone rerun (53s, exit 0) — noted in the
+  existing Debt row; hygiene 0.
+- **Still open**: the amber card has not been observed live yet (dev-app restart + real
+  `write_file` proof is the next step); the card's diff display and the `terminal`-tool
+  `FILE_MODIFY_TOOLS` gap are unchanged. Row label stays `unit-tested` until the amber card is
+  captured.
+
 ## 2026-11-11 - 11.5/11.3/11.9 live-proof session: handoff fix, honest labels
 
 - **Shipped**: `apps/desktop/src/main/maker-ipc/sessionHandoff.ts` now normalises `listMessages`

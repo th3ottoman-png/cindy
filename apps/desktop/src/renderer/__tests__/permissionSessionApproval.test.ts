@@ -212,7 +212,30 @@ describe('permission interaction IPC', () => {
       description: 'Allow the lizi_feishu MCP server to run tool "call_tool"?',
       suggestions,
       autoReviewUnavailable: false,
+      autoReviewRisk: false,
     });
+  });
+
+  it('propagates autoReviewRisk/autoReviewReason to pendingPermission (11.9 amber card)', () => {
+    makerChatStore.initGlobalListeners();
+    listeners.interaction?.({
+      sessionId: SESSION_ID,
+      request: {
+        kind: 'permission',
+        requestId: 'perm-risk-1',
+        toolName: 'write_file',
+        input: { path: '~/.cindy-harness/providers.yaml' },
+        metadata: {
+          autoReviewRisk: true,
+          autoReviewReason:
+            'High-risk system file: ~/.cindy-harness/providers.yaml\nBlast radius: Harness configuration.',
+        },
+      },
+    });
+
+    const pending = makerChatStore.getSnapshot(SESSION_ID).pendingPermission;
+    expect(pending?.autoReviewRisk).toBe(true);
+    expect(pending?.autoReviewReason).toContain('High-risk system file');
   });
 
   it('forwards updatedPermissions back through resolveInteraction', async () => {

@@ -6725,6 +6725,7 @@ export function handleStreamEvent(
         suggestions?: unknown[];
         autoReviewUnavailable?: boolean;
         autoReviewReason?: string;
+        autoReviewRisk?: boolean;
       };
       return {
         ...state,
@@ -6739,6 +6740,7 @@ export function handleStreamEvent(
           suggestions: data.suggestions,
           autoReviewUnavailable: data.autoReviewUnavailable === true,
           autoReviewReason: data.autoReviewReason,
+          autoReviewRisk: data.autoReviewRisk === true,
           ...(state.pendingPermission?.requestId === data.requestId
             ? {
                 submitting: state.pendingPermission.submitting,
