@@ -597,6 +597,40 @@ export class HermesAgent extends BaseAgent {
       const toolName = params.toolName;
       const toolInput = params.input && typeof params.input === 'object' ? params.input : {};
       const requestId = typeof params.requestId === 'string' && params.requestId ? params.requestId : randomUUID();
+      // ROADMAP 11.3 / 11.9: the daemon's deterministic guardrail or high-risk path check already
+      // decided this call needs the owner. Show the card with that reason and skip the model
+      // reviewer entirely, so a blocked `rm -rf /` or `providers.yaml` edit costs zero tokens.
+      const guardReason =
+        typeof (toolInput as Record<string, unknown>).__cindy_guard === 'string'
+          ? String((toolInput as Record<string, unknown>).__cindy_guard).trim()
+          : '';
+      if (guardReason) {
+        const risk = (toolInput as Record<string, unknown>).__cindy_risk === true;
+        const {
+          __cindy_guard: _guard,
+          __cindy_risk: _risk,
+          ...displayInput
+        } = toolInput as Record<string, unknown>;
+        const resolver = interactionState.resolver;
+        if (!resolver) return deny(guardReason);
+        let answer: Awaited<ReturnType<InteractionResolver>>;
+        try {
+          answer = await resolver({
+            kind: 'permission' as const,
+            requestId,
+            toolUseId: requestId,
+            toolName,
+            input: displayInput,
+            metadata: { autoReviewReason: guardReason, ...(risk ? { autoReviewRisk: true } : {}) },
+          });
+        } catch {
+          return deny(guardReason);
+        }
+        if (answer.kind === 'permission' && answer.behavior === 'allow') {
+          return { kind: 'permission', behavior: 'allow' };
+        }
+        return deny((answer.kind === 'permission' && answer.reason?.trim()) || guardReason);
+      }
       if (permissionModeNow !== 'auto') return deny('This task is no longer in Auto-review mode.');
       const action = normalizeHermesToolForAutoReview(toolName, toolInput);
       const request: AutoReviewRequest = {

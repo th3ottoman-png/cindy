@@ -10,6 +10,19 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 11.9 High-Blast-Radius Pre-Check Guard (`unit-tested`)
+
+A write to an auth, schema, payment or harness-config path now opens an owner card with an explicit blast-radius checklist before it runs, even in Full access.
+
+- New `packages/maker-hermes-manager/src/risk-paths.ts`: six categories (auth, database, payment, harness-config, ci, dependencies) with weights, path extraction for `write_file` / `patch` (including paths inside a unified diff), test-path exclusion, and a 0.8 threshold. The four primary categories trigger; `ci` (0.7) and `dependencies` (0.6) are informational.
+- `reviewOrGuard` checks the path classifier after the command guardrail and before the injection guard. A match opens the owner card with `__cindy_risk`, so it renders the amber "High-Risk System File" variant and the checklist.
+- The Hermes adapter now handles `__cindy_guard` / `__cindy_risk` before its auto-mode check and its model reviewer: the card shows directly, zero tokens spent, and works in Full access. Marker keys are stripped from the displayed input.
+- UI: `PendingPermission.autoReviewRisk` mapped from `metadata.autoReviewRisk`; `PermissionPrompt` uses the amber warning border and background plus the new `newChat.permissionPrompt.titleHighRisk` string in all five locales.
+
+Verification: `risk-paths.test.ts` 25; `auto-review-gate.test.ts` 23 (real daemon + hook, `providers.yaml` held with the checklist); `maker-hermes-manager` 343; `maker-core` Hermes adapter 72; `PermissionPrompt` 19. Not yet live-proven with a real model turn, same as 11.3.
+
+---
+
 ## 2026-11-11 - 11.3 Deterministic Command Guardrails (`unit-tested`)
 
 A fixed POSIX-regex denylist now runs before the injection guard and before any reviewer, so a catastrophic command is blocked without a model call.

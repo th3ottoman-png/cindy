@@ -11432,6 +11432,7 @@
       "defer": "今はダウンロードしない"
     },
     "permissionPrompt": {
+      "titleHighRisk": "高リスクのシステムファイル",
       "alwaysAllowScoped": "このセッションでは {{scope}} を常に許可",
       "alwaysAllowScopedHint": "このセッション全体に適用され、ここに挙げた範囲にのみ及びます。",
       "alwaysAllowSessionHint": "この 1 回のリクエストだけでなく、このセッション全体に適用されます。",

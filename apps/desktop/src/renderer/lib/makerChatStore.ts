@@ -816,6 +816,8 @@ export interface PendingPermission {
   suggestions?: unknown[];
   autoReviewUnavailable?: boolean;
   autoReviewReason?: string;
+  /** ROADMAP 11.9: high-blast-radius path; the card renders the amber variant. */
+  autoReviewRisk?: boolean;
   /** Renderer-only delivery state; never part of the permission decision. */
   submitting?: boolean;
   submissionFailed?: boolean;
@@ -8687,6 +8689,7 @@ function initGlobalListeners(options: GlobalListenerOptions = {}): void {
         autoReviewUnavailable: metadata?.autoReviewUnavailable === true,
         autoReviewReason: typeof metadata?.autoReviewReason === 'string' && metadata.autoReviewReason.trim()
           ? metadata.autoReviewReason.trim() : undefined,
+        autoReviewRisk: metadata?.autoReviewRisk === true,
         sourceDescription: typeof metadata?.imSourceDescription === 'string' ? metadata.imSourceDescription : undefined,
       };
       setState(sessionId, (s) =>

@@ -11471,6 +11471,7 @@
       "defer": "Not now"
     },
     "permissionPrompt": {
+      "titleHighRisk": "High-Risk System File",
       "alwaysAllowScoped": "Always Allow {{scope}} in This Session",
       "alwaysAllowScopedHint": "Applies to the whole session, and only to what is listed here.",
       "alwaysAllowSessionHint": "Applies to the whole session, not just this one request.",

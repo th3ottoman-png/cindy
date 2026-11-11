@@ -94,7 +94,7 @@ export function PermissionPrompt({ permission, onRespond, companion }: Permissio
   const { t } = useTranslation();
   const cardRef = useRef<HTMLDivElement>(null);
   const { toolName, input, title, displayName, description, suggestions, autoReviewUnavailable,
-    autoReviewReason, submitting, submissionFailed } = permission;
+    autoReviewReason, autoReviewRisk, submitting, submissionFailed } = permission;
   const isMediaDownload = toolName === 'cindy.media.download';
   // 插件安装确认由 Host 渲染成纯文本：首行是版本与来源，其余是权限清单。手机按原样
   // 逐行显示；这里首行作说明，清单放进可滚动区域，不显示内部参数。
@@ -111,13 +111,15 @@ export function PermissionPrompt({ permission, onRespond, companion }: Permissio
   // Say what will happen ("run this command") instead of an internal tool name or an
   // English harness title; unknown tools keep the previous wording.
   const action = describePermissionAction(toolName, input);
-  const displayTitle = action.kind === 'plugin' && action.subject
-    ? t('newChat.permissionPrompt.titlePlugin', { plugin: action.subject })
-    : action.kind !== 'tool' && action.kind !== 'plugin'
-      ? t(ACTION_TITLE_KEYS[action.kind])
-      : displayName
-        ? t('agentIsland.native.permissionPromptTitleWithTool', { toolName: displayName })
-        : title || t('agentIsland.native.permissionPromptTitleWithTool', { toolName });
+  const displayTitle = autoReviewRisk
+    ? t('newChat.permissionPrompt.titleHighRisk')
+    : action.kind === 'plugin' && action.subject
+      ? t('newChat.permissionPrompt.titlePlugin', { plugin: action.subject })
+      : action.kind !== 'tool' && action.kind !== 'plugin'
+        ? t(ACTION_TITLE_KEYS[action.kind])
+        : displayName
+          ? t('agentIsland.native.permissionPromptTitleWithTool', { toolName: displayName })
+          : title || t('agentIsland.native.permissionPromptTitleWithTool', { toolName });
   const codeContent = isPluginInstallConsent
     ? consentBody.join('\n')
     : formatToolInput(toolName, input);
@@ -197,7 +199,9 @@ export function PermissionPrompt({ permission, onRespond, companion }: Permissio
       ref={cardRef}
       className={cn(
         'w-full max-w-[914px] rounded-xl border p-4',
-        'border-[var(--chat-input-border)] bg-[var(--chat-input-bg)]',
+        autoReviewRisk
+          ? 'border-[var(--warning-accent)] bg-[var(--warning-bg-soft)]'
+          : 'border-[var(--chat-input-border)] bg-[var(--chat-input-bg)]',
       )}
     >
       {/* Keep the request in the conversation, with the exact operation below. */}

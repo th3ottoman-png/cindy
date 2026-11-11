@@ -29,6 +29,7 @@ import {
   loadGuardrailsConfig,
   type GuardrailsConfig,
 } from './guardrails.js';
+import { blastRadiusReason, classifyToolCallRisk } from './risk-paths.js';
 import type { GuardConfig } from '@cindy/maker-core/injection-guard';
 import { activateSkill, buildDiscoveryCatalog, renderDiscoveryManifest } from '@cindy/maker-core/progressive-skills';
 import {
@@ -325,6 +326,25 @@ export class HermesManager {
         ...(reason ? { reason } : {}),
       });
     }
+
+    // ROADMAP 11.9: a write to an auth, schema, payment or harness-config path is high blast
+    // radius even when the command itself is clean. Hold it for the owner with a checklist.
+    const risk = classifyToolCallRisk(payload);
+    if (risk.highRisk) {
+      this.logger?.warn('high-blast-radius change held for owner review', {
+        sessionId,
+        tool: payload.toolName,
+        score: risk.score,
+        paths: risk.paths,
+        categories: risk.matches.map((match) => match.category),
+      });
+      const reason = blastRadiusReason(risk);
+      return this.askClientToReview(sessionId, payload, {
+        allowOutsideAuto: true,
+        risk: true,
+        ...(reason ? { reason } : {}),
+      });
+    }
     const taint = this.taintedSessions.get(sessionId);
     const decision = decideToolCallGuard(payload, taintedGuardConfig(this.guardConfig(), !!taint));
     if (decision.action === 'block') {
@@ -396,7 +416,7 @@ export class HermesManager {
   private async askClientToReview(
     sessionId: string,
     payload: { toolName: string; toolInput: unknown; toolCallId?: string },
-    options: { allowOutsideAuto?: boolean; reason?: string } = {},
+    options: { allowOutsideAuto?: boolean; reason?: string; risk?: boolean } = {},
   ): Promise<AutoReviewVerdict> {
     const rec = this.registry.get(sessionId);
     if (!rec) return { decision: 'block', reason: 'Cindy has no record of this session.' };
@@ -418,7 +438,9 @@ export class HermesManager {
       toolName: payload.toolName,
       // Display-only: the card renders `input`, so the guard's reason rides along with the call it
       // is holding. Hermes runs the original arguments, never this copy.
-      input: options.reason ? { ...input, __cindy_guard: options.reason } : input,
+      input: options.reason
+        ? { ...input, __cindy_guard: options.reason, ...(options.risk ? { __cindy_risk: true } : {}) }
+        : input,
     };
     // Hermes waits ~30 s at most for the hook (1.13f): hold the review open past that.
     return this.reviewHold.review(reviewKey(sessionId, payload), () => this.sendReviewRequest(ctx, params));

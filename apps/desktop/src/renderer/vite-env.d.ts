@@ -789,6 +789,8 @@ interface CCAgentPermissionRequestPayload {
   autoReviewUnavailable?: boolean;
   /** Auto-review's reason for asking; shown as the card's "why". */
   autoReviewReason?: string;
+  /** ROADMAP 11.9: a write to an auth, schema, payment or harness-config path. */
+  autoReviewRisk?: boolean;
 }
 
 interface CCAgentPermissionResult {

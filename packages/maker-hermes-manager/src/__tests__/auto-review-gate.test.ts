@@ -334,6 +334,29 @@ describe('HermesManager auto mode (fake hermes)', () => {
     expect(String(guard?.input?.__cindy_guard)).toContain('guardrail');
   });
 
+  it('holds a write to a high-blast-radius path for owner review (11.9)', async () => {
+    const d = await startDaemon({ hook: true, sessionHomes: true });
+    const asked: ApprovalRequestParams[] = [];
+    d.client.setRequestHandler(SERVER_METHODS.APPROVAL_REQUEST, async (params) => {
+      asked.push(params as ApprovalRequestParams);
+      return { kind: 'permission', behavior: 'deny', reason: 'owner denied' };
+    });
+    await d.client.request(METHODS.QUERY_START, { sessionId: 'risk', cwd: d.dir, permissionMode: 'auto' }, { timeoutMs: 5_000 });
+    await d.client.request(METHODS.SESSION_ATTACH, { sessionId: 'risk' }, { timeoutMs: 5_000 });
+    await d.client.request(METHODS.QUERY_SEND, { sessionId: 'risk', text: 'hi' }, { timeoutMs: 5_000 });
+    await until(() => d.notes.some((n) => n.method === NOTIFICATIONS.SESSION_CLOSED));
+
+    const [spawn] = d.spawns();
+    const env = { [AUTO_REVIEW_SOCKET_ENV]: spawn.reviewSocket!, [AUTO_REVIEW_TOKEN_ENV]: spawn.reviewToken! };
+    const held = await hookWith(env, JSON.stringify(payload('write_file', { path: 'providers.yaml', content: 'x' })));
+    expect(held.exitCode).toBe(2);
+
+    const request = asked.find((a) => a.input?.path === 'providers.yaml');
+    expect(String(request?.input?.__cindy_guard)).toContain('High-risk system file: providers.yaml');
+    expect(String(request?.input?.__cindy_guard)).toContain('Blast radius: Harness configuration');
+    expect(request?.input?.__cindy_risk).toBe(true);
+  });
+
   it('reaches the review through the session home credentials file when the hook has no env (gateway, ROADMAP 1.13d)', async () => {
     const d = await startDaemon({ hook: true, sessionHomes: true });
     d.client.setRequestHandler(SERVER_METHODS.APPROVAL_REQUEST, async (params) => ({
