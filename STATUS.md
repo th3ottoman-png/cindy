@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 11.1b closed: real `activate_skill` turn + booted discovery count (`live-proven`)
+
+The autonomous path is proven end to end on the running dev app, and the daemon bundle crash that blocked it is fixed.
+
+- Real turn: session `e2e7681b-f2c3-49fe-b5da-a3b69fb04f6d` (agent `hermes`, model `deepseek-flash`, `bypassPermissions`, cwd `/tmp/cindy-11-1b-proof`). The model called `mcp__cindy_skills__activate_skill` with `{"skill_slug":"airtable"}`. The tool returned the full `SKILL.md` body (`# Skill Activated: airtable`, `## Instructions`, `# Airtable — Bases, Tables & Records`), and the model replied with `# Airtable — Bases, Tables & Records`. A `done` event arrived with status `Done`.
+- Booted discovery: the session home wrote `skills-manifest.md` at 3,938 bytes / 55 lines, measured at **985 tokens** (`ceil(bytes/4)`), 48 skills listed plus 13 omitted by the 1,000-token budget.
+- Blocker found and fixed: the daemon ESM bundle imported CJS `gray-matter` through the new engine, and esbuild's `__require` shim threw `Dynamic require of "fs" is not supported`, so `hermes-mgr` died before READY. `packages/maker-hermes-manager/build.mjs` now injects `createRequire(import.meta.url)`, and the new `daemon-bundle-smoke.test.ts` builds and spawns the real bundle, asserting it reaches argument parsing. Without the banner the test fails.
+
+Verification: `packages/maker-hermes-manager` 255 tests pass; `typecheck` 0; the live turn and manifest above. The 9 pre-existing failures were cleared in the previous commit.
+
+---
+
 ## 2026-11-11 - Pre-existing unit failures cleared (`unit-tested`)
 
 Closed the 9 deterministic failures that kept `test:unit:related` red for 11.1a. No behaviour change beyond two small UI corrections.
