@@ -56,7 +56,9 @@ const payload = (tool = 'terminal', input: unknown = { command: 'ls' }): Record<
 describe('permission flags', () => {
   it('maps auto to --yolo --accept-hooks and keeps the other modes', () => {
     expect(permissionModeToFlags('auto')).toEqual(['--yolo', '--accept-hooks']);
-    expect(permissionModeToFlags('bypassPermissions')).toEqual(['--yolo']);
+    // ROADMAP 10.1: Full access keeps no prompts, but accepts hooks so the security guard can
+    // score a tool call before Hermes runs it.
+    expect(permissionModeToFlags('bypassPermissions')).toEqual(['--yolo', '--accept-hooks']);
     expect(permissionModeToFlags('default')).toEqual(['--safe-mode']);
     expect(permissionModeToFlags(undefined)).toEqual(['--safe-mode']);
   });
@@ -222,6 +224,9 @@ async function startDaemon(opts: { hook: boolean; sessionHomes: boolean }) {
     registryFile: path.join(home, 'hermes-mgr', 'sessions.json'),
     ...(opts.sessionHomes ? { sessionHomes: { prewarmGateway: false } } : {}),
     ...(opts.hook ? { autoReviewHookArgv: ['node', '/x y/hermes-mgr.mjs', '--auto-review-hook'] } : {}),
+    // ROADMAP 10.1: the guard is armed by default in production (policy `hold`). These tests are
+    // about the Auto-review gate itself, so they run with it off — the guard has its own tests.
+    securityGuardConfig: () => ({ threshold: 0.8, policy: 'off' }),
   });
   await manager.start();
   const socket = net.createConnection(socketPath);
@@ -375,7 +380,7 @@ describe('HermesManager auto mode (fake hermes)', () => {
     expect(JSON.parse(out.stdout).reason).toMatch(/not connected/);
   });
 
-  it('a bypassPermissions session gets no hook and no review env', async () => {
+  it('with the guard off, a bypassPermissions session gets no hook and no review env', async () => {
     const d = await startDaemon({ hook: true, sessionHomes: true });
     await d.client.request(
       METHODS.QUERY_START,
@@ -385,7 +390,9 @@ describe('HermesManager auto mode (fake hermes)', () => {
     await d.client.request(METHODS.QUERY_SEND, { sessionId: 'b', text: 'hi' }, { timeoutMs: 5_000 });
     await until(() => d.notes.some((n) => n.method === NOTIFICATIONS.SESSION_CLOSED));
     const [spawn] = d.spawns();
-    expect(spawn.argv).not.toContain('--accept-hooks');
+    // ROADMAP 10.1: Full access always passes `--accept-hooks` now; with the guard off nothing is
+    // installed for it to accept, which is what this test pins.
+    expect(spawn.argv).toContain('--accept-hooks');
     expect(spawn.reviewToken).toBeNull();
     expect(fs.readFileSync(path.join(spawn.home!, 'config.yaml'), 'utf8')).not.toContain('hooks:');
   });

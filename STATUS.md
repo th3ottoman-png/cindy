@@ -10,6 +10,39 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 10.1 injection guard, step 3: the guard is wired to the hook (`live-proven` for 10.1a; 10.1b open)
+
+- **The seam, corrected twice.** Stream-level `tool_use` events in `hermes-run.ts` are display-only, so the
+  `pre_tool_call` hook is the only interception point — and it turned out Full access had **no hook at all**:
+  `permissionModeToFlags` gave `bypassPermissions` only `--yolo`, and the session home injected the hook solely when
+  `permissionMode === 'auto'`. Arming the guard in Full access therefore meant three changes, not one.
+- **What shipped.** `packages/maker-hermes-manager/src/guard-hook.ts` — `readActiveGuardConfig` (never throws; a broken
+  file leaves the guard at `hold`/0.8 rather than unarmed) and `decideToolCallGuard` (score → action → human reason).
+  `hermes-manager.ts`: the review handler is now `reviewOrGuard` — `block` answers no with the signal in the reason,
+  `hold` opens the review card (**including in Full access**, via a new `allowOutsideAuto` option on
+  `askClientToReview`), `log` records and allows, and a clean Full-access call is allowed immediately so Full access
+  does not turn into Auto-review. Auto sessions keep reviewing every call. The hook is installed when
+  `autoReview || policy !== 'off'`, so `off` installs nothing. `hermes-run.ts`: Full access passes
+  `--accept-hooks`. Guard settings are injectable (`securityGuardConfig`) so no test reads the owner's real
+  `~/.cindy-harness/security.json`. `@cindy/maker-core` is now a workspace dependency of the daemon.
+- **A regression caught by an existing test.** With the guard `off`, a session that left Auto mid-turn would have been
+  allowed instead of blocked; `reviewOrGuard` now fails closed in that case (the hook exists only because the home was
+  prepared while the session was Auto).
+- **Live proof** (dev app, sandbox `dev`, Node v22.23.4, `hermes-mgr.mjs` rebuilt): a fresh Full-access session's
+  `config.yaml` carries `hooks.pre_tool_call` with `fail_closed: true`; `cp ~/.hermes-cindy/.env ~/.hermes-cindy/.env.bak`
+  was **blocked** with the reason in the transcript; `echo aGk= | base64 -d | sh` was **blocked** (score 0.95,
+  "decodes an opaque payload and runs it"); the same command under policy `hold` was **held** and never executed; and
+  `uname -a` returned real output (`Exit code 0`) with no card. Owner chose `hold` as the default over `log`.
+- **Gates.** `pnpm typecheck` 0; `pnpm test:runner` 608 pass / 0 fail / 2 skipped (after regenerating
+  `docs/design-rules/design-inventory.md` — the new Settings card is a tracked surface, so the ledger check is part of
+  the gate); `pnpm check:test-hygiene` PASS; `maker-hermes-manager` 229/229 including 8 new guard tests.
+- **Still open — 10.1b.** `scoreToolResult` is written and tested but nothing calls it: a tool *result* that tries to
+  become instructions still reaches the model unchecked. Row split in `ROADMAP.md` so the shipped half can be trusted.
+- **Accepted trade.** Armed guard = a `fail_closed` hook on every tool call, including Full access: if the hook cannot
+  answer, the call is refused, not run. `policy: off` removes the hook entirely.
+
+---
+
 ## 2026-11-11 - 10.1 injection guard, step 2: `security.json` + Settings row (`unit-tested`; row still open)
 
 - **What shipped.** `packages/maker-core/src/security/guard-config.ts` (subpath `@cindy/maker-core/guard-config`):

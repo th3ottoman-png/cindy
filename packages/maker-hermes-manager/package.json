@@ -19,7 +19,9 @@
     "test:watch": "vitest"
   },
   "license": "Apache-2.0",
-  "dependencies": {},
+  "dependencies": {
+    "@cindy/maker-core": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "*",
     "typescript": "^5.7.0",

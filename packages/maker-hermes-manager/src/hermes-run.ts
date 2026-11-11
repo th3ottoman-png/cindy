@@ -84,7 +84,9 @@ export function isInvalidResumeFailure(result: HermesRunResult): boolean {
  * `--safe-mode` would ignore config (and so the hook), so `auto` never uses it.
  */
 export function permissionModeToFlags(mode?: HermesPermissionMode): string[] {
-  if (mode === 'bypassPermissions') return ['--yolo'];
+  // ROADMAP 10.1: Full access keeps `--yolo` (no prompts, no safe-mode) but accepts hooks, which
+  // is what lets Cindy's security guard score a tool call before Hermes runs it.
+  if (mode === 'bypassPermissions') return ['--yolo', '--accept-hooks'];
   if (mode === 'auto') return ['--yolo', '--accept-hooks'];
   return ['--safe-mode'];
 }

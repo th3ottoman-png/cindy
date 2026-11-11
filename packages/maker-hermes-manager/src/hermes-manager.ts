@@ -21,6 +21,8 @@ import {
   writeHermesLocalContextWindows,
 } from './hermes-config.js';
 import { fetchProviderModels, hermesHomeApiKey, parseHermesDotEnv } from './hermes-models.js';
+import { decideToolCallGuard, readActiveGuardConfig } from './guard-hook.js';
+import type { GuardConfig } from '@cindy/maker-core/injection-guard';
 import {
   HERMES_CLI_PINNED_VERSION,
   readInstalledHermesVersion,
@@ -103,6 +105,11 @@ export interface HermesManagerOptions {
    * own config.yaml, never the shared one).
    */
   autoReviewHookArgv?: string[];
+  /**
+   * ROADMAP 10.1: current guard settings, read per session-home prepare. Injected so tests never
+   * read the owner's real `~/.cindy-harness/security.json`.
+   */
+  securityGuardConfig?: () => GuardConfig;
   /** Socket the hook calls; defaults to `hermes-review.sock` next to `socketPath`. */
   autoReviewSocketPath?: string;
 }
@@ -159,6 +166,7 @@ export class HermesManager {
   /** ROADMAP 1.13f: reviews kept open past Hermes's ~30 s hook wait, and one-time grants. */
   private readonly reviewHold = new ReviewHold();
   private readonly autoReviewHookCommand?: string;
+  private readonly guardConfig: () => GuardConfig;
   private autoReviewHookArgv?: readonly string[];
   /** Per-session hook token + env (memory only; dropped on close). */
   private readonly autoReviewTurnEnv = new Map<string, { token: string; env: Record<string, string> }>();
@@ -169,6 +177,7 @@ export class HermesManager {
   private readonly turnOwners = new Map<string, ClientCtx>();
 
   constructor(opts: HermesManagerOptions) {
+    this.guardConfig = opts.securityGuardConfig ?? (() => readActiveGuardConfig());
     this.hermesHome = opts.hermesHome;
     this.hermesBin = opts.hermesBin ?? 'hermes';
     this.hermesExtraArgs = opts.hermesExtraArgs;
@@ -187,7 +196,7 @@ export class HermesManager {
       this.autoReview = new AutoReviewGate({
         socketPath:
           opts.autoReviewSocketPath ?? nodePath.join(nodePath.dirname(opts.socketPath), 'hermes-review.sock'),
-        handler: (sessionId, payload) => this.askClientToReview(sessionId, payload),
+        handler: (sessionId, payload) => this.reviewOrGuard(sessionId, payload),
       });
     }
     this.wireHandlers();
@@ -242,15 +251,59 @@ export class HermesManager {
   }
 
   /**
+   * Auto-review handler with the security guard in front (ROADMAP 10.1).
+   *
+   * Order matters: a scored `block` never reaches the owner (deterministic danger), a scored
+   * `hold` opens the review card even in Full access, `log` records and behaves like allow, and a
+   * clean call in Full access is allowed immediately — Full access must not turn into Auto-review.
+   * Auto sessions keep their existing behaviour (every call reviewed).
+   */
+  private async reviewOrGuard(
+    sessionId: string,
+    payload: { toolName: string; toolInput: unknown; toolCallId?: string },
+  ): Promise<AutoReviewVerdict> {
+    const decision = decideToolCallGuard(payload, this.guardConfig());
+    if (decision.action === 'block') {
+      return { decision: 'block', reason: decision.reason ?? 'Blocked by the Cindy security guard.' };
+    }
+    if (decision.action === 'log') {
+      this.logger?.warn('security guard: risky tool call allowed by policy=log', {
+        sessionId,
+        tool: payload.toolName,
+        score: decision.verdict.score,
+        signals: decision.verdict.signals.map((s) => s.id),
+      });
+    }
+    const record = this.registry.get(sessionId);
+    const autoReview = record?.permissionMode === 'auto';
+    if (autoReview) return this.askClientToReview(sessionId, payload);
+    const guardArmed = this.guardConfig().policy !== 'off';
+    if (!guardArmed) {
+      // The hook only exists because this session was in Auto when its home was prepared, and the
+      // mode has changed since (ROADMAP 1.13b). Fail closed rather than silently allowing a call
+      // that would have been reviewed a second earlier.
+      return { decision: 'block', reason: 'This session is no longer in Auto-review mode.' };
+    }
+    if (decision.action === 'hold') {
+      return this.askClientToReview(sessionId, payload, { allowOutsideAuto: true });
+    }
+    return { decision: 'allow' };
+  }
+
+  /**
    * ROADMAP 1.13b: one Hermes tool call of an `auto` session, asked of the
    * client attached to it. Anything but a valid `allow` blocks.
    */
   private async askClientToReview(
     sessionId: string,
     payload: { toolName: string; toolInput: unknown; toolCallId?: string },
+    options: { allowOutsideAuto?: boolean } = {},
   ): Promise<AutoReviewVerdict> {
     const rec = this.registry.get(sessionId);
-    if (!rec || rec.permissionMode !== 'auto') {
+    if (!rec) return { decision: 'block', reason: 'Cindy has no record of this session.' };
+    // Auto is the only mode that reviews every call; Full access reaches this path only when the
+    // security guard held a specific call (ROADMAP 10.1).
+    if (!options.allowOutsideAuto && rec.permissionMode !== 'auto') {
       return { decision: 'block', reason: 'This session is no longer in Auto-review mode.' };
     }
     const ctx = this.attached.get(sessionId) ?? this.turnOwners.get(sessionId);
@@ -328,13 +381,18 @@ export class HermesManager {
       try {
         const sessionRecord = this.registry.get(sessionId);
         const autoReview = sessionRecord?.permissionMode === 'auto';
+        // ROADMAP 10.1: Full access carries `--accept-hooks` now, so the guard needs the hook even
+        // when the session is not in Auto-review. `off` installs nothing, so the guard can be
+        // disarmed from Settings without a code change.
+        const guardArmed = this.guardConfig().policy !== 'off';
+        const hookWanted = autoReview || guardArmed;
         const expertSkillsDir = sessionRecord?.expertSkillsDir;
         const base = this.sessionHomes!;
         const hookCommand = this.hookCommandFor(sessionId);
         const options: SessionHomeOptions = {
           ...base,
           ...(expertSkillsDir ? { expertSkillsDir } : {}),
-          ...(autoReview && hookCommand
+          ...(hookWanted && hookCommand
             ? {
                 transformConfig: (text, ctx) =>
                   injectAutoReviewHook(base.transformConfig ? base.transformConfig(text, ctx) : text, hookCommand),
@@ -342,7 +400,7 @@ export class HermesManager {
             : {}),
         };
         const prepared = await prepareSessionHome(this.hermesHome, sessionId, options);
-        if (autoReview && hookCommand) {
+        if (hookWanted && hookCommand) {
           let review = this.autoReviewTurnEnv.get(sessionId);
           if (!review) {
             review = this.autoReview!.registerTurn(sessionId);
