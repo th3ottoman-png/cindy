@@ -34,7 +34,7 @@ This is not a product. There is no marketing surface, no onboarding funnel, no o
 | Repo | `/Users/turko/=ai space=/=PROJECTS_MAIN=/Cindy` — path has spaces and `=`; **quote it**. macOS FS is case-insensitive, so older docs spelling it `=Projects_Main=` resolve to the same place |
 | Remote | private GitHub, `origin main`. Upstream remote `upstream` (strategy: see `docs/decisions/0001`) |
 | Dev app data | `~/Library/Application Support/CindyGlobal-dev2-private`; the isolated `…/CindyGlobal-dev2-dev` sandbox is what `restart:desktop:remote` uses |
-| Current handover | `docs/handoff/2026-11-10-phase10-handover.md` (Phase 10 brief: prompt-injection guard, response style, chat-only mode) — read with `docs/handoff/2026-11-10-latest-handover.md` for the environment history. All older handover files are historical |
+| Current handover | `docs/handoff/2026-11-11-phase11-eod-handover.md` (Phase 11 mid-flight: 11.1, 11.2, 11.4 done; 11.3 and 11.9 unit-tested; 11.5 next), with its paste-ready prompt `docs/handoff/2026-11-11-phase11-eod-next-agent-prompt.md`. All older handover files are historical |
 | Owner vault note | `/Users/turko/Bishi-memory/memory/Project — Cindy.md` — append one dated line per session at the end |
 | Hermes home | **`~/.hermes-cindy`** — isolated. **`~/.hermes` is off-limits, always.** |
 | Hermes launcher | `~/.local/bin/hermes-cindy` (pins `HERMES_HOME`) |
@@ -288,8 +288,8 @@ Authoritative list is `AGENTS.md` §1–§3. Summary:
 
 For a paused handoff, the newest `STATUS.md` entry is the exact resume checklist and takes
 precedence over this generic startup sequence where they differ. The current handover
-(`docs/handoff/2026-11-07-eod-handover.md`) and its matching next-agent prompt carry the exact
-stopping point and the up-to-date open-work order; read them before this generic sequence.
+(`docs/handoff/2026-11-11-phase11-eod-handover.md`) and its matching next-agent prompt carry the
+exact stopping point and the up-to-date open-work order; read them before this generic sequence.
 
 1. Read `AGENTS.md` end to end. Then this file. Then the current phase of `ROADMAP.md` and the
    last two entries of `STATUS.md`.

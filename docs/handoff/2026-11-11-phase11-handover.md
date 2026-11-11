@@ -1,5 +1,9 @@
 # Handover — Cindy Phase 11 & Project System (2026-11-11)
 
+> **Superseded.** Written before 11.1 through 11.4 shipped. The live handover is
+> `2026-11-11-phase11-eod-handover.md`; its "What is Next: 11.1" section is out of date.
+> Kept for the 11.12 project-system record only.
+
 ## Executive Summary
 
 This session accomplished two major milestones:
