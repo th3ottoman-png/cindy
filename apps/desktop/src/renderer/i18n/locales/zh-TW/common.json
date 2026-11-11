@@ -12741,6 +12741,23 @@
       "onToast": "已開啟僅對話:本工作階段不再使用工具與 MCP",
       "offToast": "已恢復本工作階段的工具",
       "failed": "無法切換僅對話模式"
+    },
+    "turnUsage": {
+      "title": "本輪",
+      "input": "輸入",
+      "cacheRead": "快取讀取",
+      "cacheWrite": "快取寫入",
+      "output": "輸出",
+      "total": "合計",
+      "firstTokenReceipt": "首個 token(依接收時間)",
+      "totalTime": "總耗時",
+      "speed": "速度",
+      "ofInput": "占輸入的 {{share}}",
+      "notReported": "本機未回報",
+      "generationOnly": "僅生成階段",
+      "tokensPerSecond": "{{rate}} tok/s",
+      "costUnknown": "費用未知",
+      "openLabel": "查看本輪用量"
     }
   },
   "ccAgent": {

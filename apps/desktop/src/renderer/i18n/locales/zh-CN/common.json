@@ -12741,6 +12741,23 @@
       "onToast": "已开启仅对话:本会话不再使用工具与 MCP",
       "offToast": "已恢复本会话的工具",
       "failed": "无法切换仅对话模式"
+    },
+    "turnUsage": {
+      "title": "本轮",
+      "input": "输入",
+      "cacheRead": "缓存读取",
+      "cacheWrite": "缓存写入",
+      "output": "输出",
+      "total": "合计",
+      "firstTokenReceipt": "首个 token(按接收时间)",
+      "totalTime": "总耗时",
+      "speed": "速度",
+      "ofInput": "占输入的 {{share}}",
+      "notReported": "本机未上报",
+      "generationOnly": "仅生成阶段",
+      "tokensPerSecond": "{{rate}} tok/s",
+      "costUnknown": "费用未知",
+      "openLabel": "查看本轮用量"
     }
   },
   "ccAgent": {

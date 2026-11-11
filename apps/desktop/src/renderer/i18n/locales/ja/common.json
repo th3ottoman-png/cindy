@@ -12741,6 +12741,23 @@
       "onToast": "チャットのみを有効化:ツールと MCP は使いません",
       "offToast": "ツールを元に戻しました",
       "failed": "チャットのみモードを切り替えられませんでした"
+    },
+    "turnUsage": {
+      "title": "このターン",
+      "input": "入力",
+      "cacheRead": "キャッシュ読取",
+      "cacheWrite": "キャッシュ書込",
+      "output": "出力",
+      "total": "合計",
+      "firstTokenReceipt": "最初のトークン(受信基準)",
+      "totalTime": "合計時間",
+      "speed": "速度",
+      "ofInput": "入力の {{share}}",
+      "notReported": "この環境では未報告",
+      "generationOnly": "生成時間のみ",
+      "tokensPerSecond": "{{rate}} tok/s",
+      "costUnknown": "コスト不明",
+      "openLabel": "このターンの使用量を表示"
     }
   },
   "ccAgent": {

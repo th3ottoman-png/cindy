@@ -10,6 +10,27 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 10.4 per-turn usage & latency card (`live-proven`)
+
+- **What shipped.** The usage/cost text under a turn is a **button** now: focus (or hover) opens
+  `components/chat/TurnUsageCard.tsx`, a Radix popover fed by `lib/turnUsageCard.ts` (pure, tested) from
+  `ChatMessage.turnUsageDetails` + `turnMoney` — **no new IPC, no new event**. Rows: input, cache read (+ share of input),
+  cache write, output, total, first-token, total time, speed; header shows `reported` / `estimated` / `cost unknown`.
+- **Honesty rules baked in.** A rate needs a duration the harness reported, else `—` + `not reported by this harness`;
+  first-token is labelled *since receipt* because the raw event has no timestamp; a zero cache read renders `0` with no
+  percentage (and a null share when the denominator is empty); an unpriced turn says **Cost unknown**, never `$0.00`.
+- **One deliberate divergence.** The card formats money with four decimals below one unit (the session usage tables' rule),
+  because a turn that costs $0.0112 read as `$0.01` in the row's two-decimal text. The row keeps the app's existing
+  formatting; the card is where the number has to be exact.
+- **Live proof** (dev app): focusing a turn's usage text opened the card with that turn's real numbers — input 482, cache
+  read 256, cache write 0, output 174, total 912, total time 3.71s, 46.8 tok/s — and Esc closed it. That turn had no
+  priced money, so the header honestly read "Cost unknown".
+- **Not proven live.** `reported` and `estimated` cost states: the pinned route reports no money for these turns. Covered by
+  jsdom tests (reported, estimated with `~`, unknown) rather than claimed as seen.
+- **Gates.** typecheck 0; `pnpm test:runner` 608 pass / 0 fail / 2 skipped; hygiene PASS; 8 new jsdom tests.
+
+---
+
 ## 2026-11-11 - 10.3 chat-only mode (`live-proven`)
 
 - **What shipped.** A session-level switch that runs Hermes with **no tools and no MCP**. The header carries a

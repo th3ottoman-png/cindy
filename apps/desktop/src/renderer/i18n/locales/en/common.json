@@ -12799,6 +12799,23 @@
       "onToast": "Chat-only mode on: no tools, no MCP for this session",
       "offToast": "Tools restored for this session",
       "failed": "Could not change chat-only mode"
+    },
+    "turnUsage": {
+      "title": "This turn",
+      "input": "Input",
+      "cacheRead": "Cache read",
+      "cacheWrite": "Cache write",
+      "output": "Output",
+      "total": "Total",
+      "firstTokenReceipt": "First token (since receipt)",
+      "totalTime": "Total time",
+      "speed": "Speed",
+      "ofInput": "{{share}} of input",
+      "notReported": "not reported by this harness",
+      "generationOnly": "generation only",
+      "tokensPerSecond": "{{rate}} tok/s",
+      "costUnknown": "Cost unknown",
+      "openLabel": "Show this turn's usage"
     }
   },
   "ccAgent": {

@@ -66,6 +66,7 @@ import { formatAbsolute, useRelativeTime } from '@/hooks/useRelativeTime';
 import { SHARE_EXCLUDE_ATTR } from '@/lib/shareConversationImage';
 import { formatCompactTokens, formatTurnCostMoney } from '@/lib/usageFormat';
 import { buildTurnUsageTooltipLines } from '@/lib/turnUsageTooltip';
+import { TurnUsageCard } from './TurnUsageCard';
 import type { TurnUsageDetails } from '../../../shared/turnUsageDetails';
 import {
   legacyUsdMoney,
@@ -547,21 +548,36 @@ export function MessageActionBar({
     'text-[var(--settings-section-desc)] cursor-default',
   );
 
+  // ROADMAP 10.4: the turn's cost/token text opens a card with that turn's numbers. Keyboard
+  // reachable on purpose (focus opens, Esc closes) — the old tooltip was hover-only.
+  const costLabel = displayedMoney && displayedMoney.amount > 0
+    ? (displayedCostIsEstimate
+      ? t('chat.messageActionBar.turnCostEstimatedValue', { cost: formatTurnCostMoney(displayedMoney) })
+      : formatTurnCostMoney(displayedMoney))
+    : turnUsageDetails && turnUsageDetails.totalTokens > 0
+      ? t('chat.messageActionBar.turnTokens', { tokens: formatCompactTokens(turnUsageDetails.totalTokens) })
+      : null;
+
   const costText = displayedMoney && displayedMoney.amount > 0 && (
-    <Tooltip.Root key="cost">
-      <Tooltip.Trigger asChild>
-        <span className={metaTextClassName}>
-          {displayedCostIsEstimate
-            ? t('chat.messageActionBar.turnCostEstimatedValue', {
-                cost: formatTurnCostMoney(displayedMoney),
-              })
-            : formatTurnCostMoney(displayedMoney)}
-        </span>
-      </Tooltip.Trigger>
-      <Tooltip.Content>
-        {turnCostTooltipNode}
-      </Tooltip.Content>
-    </Tooltip.Root>
+    turnUsageDetails && costLabel ? (
+      <TurnUsageCard
+        key="cost"
+        details={turnUsageDetails}
+        money={displayedMoney}
+        isEstimate={displayedCostIsEstimate}
+        label={costLabel}
+        className="ml-1.5"
+      />
+    ) : (
+      <Tooltip.Root key="cost">
+        <Tooltip.Trigger asChild>
+          <span className={metaTextClassName}>{costLabel ?? ''}</span>
+        </Tooltip.Trigger>
+        <Tooltip.Content>
+          {turnCostTooltipNode}
+        </Tooltip.Content>
+      </Tooltip.Root>
+    )
   );
 
   // 金额缺席时的回退:显示本轮 token 总量。成因可能是网关目录整体不下发价格、
@@ -569,21 +585,14 @@ export function MessageActionBar({
   // 钱算不出来不代表用量算不出来:明细由 main 在 turn 结束时落库,与金额同源。
   const tokensText = !(displayedMoney && displayedMoney.amount > 0) &&
     turnUsageDetails &&
-    turnUsageDetails.totalTokens > 0 && (
-      <Tooltip.Root key="tokens">
-        <Tooltip.Trigger asChild>
-          <span className={metaTextClassName}>
-            {t('chat.messageActionBar.turnTokens', {
-              tokens: formatCompactTokens(turnUsageDetails.totalTokens),
-            })}
-          </span>
-        </Tooltip.Trigger>
-        <Tooltip.Content>
-          <span className="whitespace-pre-line">
-            {buildTurnUsageTooltipLines({ details: turnUsageDetails, t }).join('\n')}
-          </span>
-        </Tooltip.Content>
-      </Tooltip.Root>
+    turnUsageDetails.totalTokens > 0 && costLabel && (
+      <TurnUsageCard
+        key="tokens"
+        details={turnUsageDetails}
+        isEstimate={displayedCostIsEstimate}
+        label={costLabel}
+        className="ml-1.5"
+      />
     );
 
   // Edit (Pencil) button — last user message only. Enters the inline edit
