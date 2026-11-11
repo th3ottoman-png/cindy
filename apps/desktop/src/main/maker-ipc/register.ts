@@ -935,6 +935,7 @@ import { registerArtifactsHandlers } from './artifacts.js';
 import { ChatInventoryHost, registerChatInventoryHandlers } from './chatInventory.js';
 import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
+import { SecurityGuardHost, registerSecurityGuardHandlers } from './securityGuard.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
 import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
 import {
@@ -25835,6 +25836,16 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   registerChatAutosaveHandlers(createElectronIpcHandlerRegistry(), {
     host: chatAutosaveHolder,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+
+  // ── Injection guard settings (ROADMAP 10.1) ────────────────────────────
+  registerSecurityGuardHandlers(createElectronIpcHandlerRegistry(), {
+    host: new SecurityGuardHost(),
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    channels: {
+      GET: MAKER_INVOKE.SECURITY_GUARD_GET_CONFIG,
+      SET: MAKER_INVOKE.SECURITY_GUARD_SET_CONFIG,
+    },
   });
 
   // ── Auto-summary note per conversation (ROADMAP 5.6) ───────────────────

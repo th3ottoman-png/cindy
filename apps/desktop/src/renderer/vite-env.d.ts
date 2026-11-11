@@ -5765,6 +5765,13 @@ interface ElectronAPI {
       /** ROADMAP 7.8: execute session handoff continuation. */
       execute: (params: { sessionId: string }) => Promise<import('../main/maker-ipc/sessionHandoff').ExecuteHandoffResponse>;
     };
+    securityGuard: {
+      /** ROADMAP 10.1: injection-guard settings (~/.cindy-harness/security.json). */
+      getConfig: () => Promise<import('../main/maker-ipc/securityGuard').SecurityGuardView>;
+      /** Change the threshold and/or the policy; unknown values are ignored, not fatal. */
+      setConfig: (patch: { threshold?: number; policy?: 'off' | 'log' | 'hold' | 'block' }) =>
+        Promise<import('../main/maker-ipc/securityGuard').SecurityGuardView>;
+    };
     chatAutosave: {
       /** ROADMAP 5.5: chat auto-save settings (~/.cindy-harness/chat-autosave.json) + last result. */
       getConfig: () => Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView>;

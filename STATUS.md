@@ -10,6 +10,24 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 10.1 injection guard, step 2: `security.json` + Settings row (`unit-tested`; row still open)
+
+- **What shipped.** `packages/maker-core/src/security/guard-config.ts` (subpath `@cindy/maker-core/guard-config`):
+  validation + atomic read/write of `~/.cindy-harness/security.json` (`{threshold, policy}`), missing file → defaults,
+  corrupt JSON → defaults plus an `issue` the UI shows, out-of-range threshold clamped rather than rejected (a typo is
+  not a decision), unknown policy ignored. 9 tests. Desktop plumbing: `SecurityGuardHost` + IPC
+  `maker:security-guard:{get,set}-config` (`apps/desktop/src/main/maker-ipc/securityGuard.ts`, `register.ts`),
+  preload `maker.securityGuard.*`, `vite-env.d.ts` types, and a `SecurityGuardSection` card in Settings →
+  Personalization (policy select + threshold field + surfaced `issue`). Keys added to all five locales because
+  `i18nCompleteness` requires parity.
+- **Verification.** `pnpm typecheck` exit 0; `i18nCompleteness` 5/5; `src/security/__tests__` 62/62.
+- **Still open.** Not wired to execution yet — see the seam finding now recorded in the Phase 10 handover: Hermes runs
+  the tool itself, so the `pre_tool_call` hook inside `auto-review-gate.ts` is the only place a verdict can stop a
+  call; the stream events in `hermes-run.ts` are display-only. Until that wiring lands and a live Full-access turn is
+  held, row 10.1 stays 🔲.
+
+---
+
 ## 2026-11-11 - 10.1 injection guard, step 1: the scorer (`unit-tested`; row still open)
 
 - **Why a rewrite.** A previous agent left a draft (`~/injection-guard.ts`, ~430 lines) that could not be shipped. Measured

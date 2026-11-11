@@ -6551,6 +6551,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       execute: (params: { sessionId: string }): Promise<import('../main/maker-ipc/sessionHandoff').ExecuteHandoffResponse> =>
         ipcRenderer.invoke('maker:session-handoff:execute', params),
     },
+    securityGuard: {
+      getConfig: (): Promise<import('../main/maker-ipc/securityGuard').SecurityGuardView> =>
+        ipcRenderer.invoke('maker:security-guard:get-config'),
+      setConfig: (patch: {
+        threshold?: number;
+        policy?: 'off' | 'log' | 'hold' | 'block';
+      }): Promise<import('../main/maker-ipc/securityGuard').SecurityGuardView> =>
+        ipcRenderer.invoke('maker:security-guard:set-config', patch),
+    },
     chatAutosave: {
       getConfig: (): Promise<import('../main/maker-ipc/chatAutosave').ChatAutosaveView> =>
         ipcRenderer.invoke('maker:chat-autosave:get-config'),

@@ -45,6 +45,7 @@ import { StorageManagementCard } from './StorageManagementCard';
 import { UserPromptSection } from './UserPromptSection';
 import { MemorySection } from './MemorySection';
 import { CompactionSection } from './CompactionSection';
+import { SecurityGuardSection } from './SecurityGuardSection';
 import { TerminalShellSection } from './TerminalShellSection';
 import { LinkOpenSection } from './LinkOpenSection';
 import { StreamFadeSection } from './StreamFadeSection';
@@ -610,6 +611,10 @@ export function SettingsView() {
                 </section>
                 <section id="settings-search-target-personalization-compaction" className="pb-[18px]" aria-label={t('settings.sections.compaction')}>
                   <CompactionSection key={`compaction:${mode}:${dataOwnerId ?? 'none'}`} />
+                </section>
+                {/* ROADMAP 10.1 —— 注入/危险命令守卫的阈值与策略 (~/.cindy-harness/security.json) */}
+                <section id="settings-search-target-personalization-security-guard" className="pb-[18px]" aria-label={t('settings.sections.securityGuard')}>
+                  <SecurityGuardSection />
                 </section>
                 {/* RSB 默认终端 shell —— 改默认只影响新建 tab,已有 tab 不动 */}
                 <section id="settings-search-target-personalization-terminal-shell" className="pb-[18px]" aria-label={t('settings.sections.terminalShell')}>

@@ -61,7 +61,8 @@
     "./capability-pack": "./src/capabilities/capability-pack.ts",
     "./capability-graph": "./src/capabilities/capability-graph.ts",
     "./capability-budget": "./src/capabilities/capability-budget.ts",
-    "./injection-guard": "./src/security/injection-guard.ts"
+    "./injection-guard": "./src/security/injection-guard.ts",
+    "./guard-config": "./src/security/guard-config.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

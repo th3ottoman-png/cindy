@@ -67,6 +67,14 @@ dangerous-command approvals (`ROADMAP 1.5b-5d`). `--safe-mode` and the permissio
 so today **nothing** inspects a tool call before it runs. Cindy has no injection detection at all (grep proves it: the
 only "injection" code is Feishu group-context assembly).
 
+**Seam finding (2026-11-10, learned while wiring).** Hermes executes tools itself, so the stream-level
+`tool_use` events in `hermes-run.ts` are **display-only** — scoring there cannot prevent execution. The only
+pre-execution interception point is the `pre_tool_call` hook that `auto-review-gate.ts` already owns (it writes the
+hook into the session home, answers it over its own socket, and Hermes blocks the call when the hook says no). Wire
+10.1 **there**: score the hook payload before answering, `block` → answer no with the signal in the reason, `hold` →
+the existing `ReviewHold` path, `log` → answer allow and record. `hermes-run.ts` scoring stays useful only as a
+second, advisory pass on tool *results* before they reach the renderer.
+
 **Where it hooks in** (all existing seams, in this order):
 
 - `packages/maker-hermes-manager/src/hermes-run.ts` — builds argv and streams events; the turn's tool events pass
