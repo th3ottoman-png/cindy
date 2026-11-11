@@ -1544,7 +1544,8 @@
       "shortcuts": "Keyboard Shortcuts",
       "mcpServers": "Custom MCP",
       "bots": "Teammates",
-      "securityGuard": "Security guard"
+      "securityGuard": "Security guard",
+      "responseStyle": "Response style"
     },
     "remote": {
       "title": "Remote machines",
@@ -7692,6 +7693,27 @@
       "thresholdHint": "Lower means stricter. The guard only acts on turns that reach this score.",
       "saved": "Security guard settings saved",
       "failed": "Could not save security guard settings"
+    },
+    "responseStyle": {
+      "section": "Response style",
+      "title": "Response style",
+      "description": "How tool calls and reasoning are drawn. This only changes the display — the stored transcript is untouched.",
+      "styleLabel": "Tool calls",
+      "styles": {
+        "concise": "Concise",
+        "detailed": "Detailed"
+      },
+      "styleHint": {
+        "concise": "One line per tool call; open one to see its command and output.",
+        "detailed": "Tool calls open with their command and output."
+      },
+      "thinkingLabel": "Thinking",
+      "thinking": {
+        "collapsed": "Collapsed",
+        "expanded": "Expanded",
+        "hidden": "Hidden"
+      },
+      "thinkingHint": "Hidden keeps the thinking in the transcript — switch back to read it."
     }
   },
   "remoteDevice": {

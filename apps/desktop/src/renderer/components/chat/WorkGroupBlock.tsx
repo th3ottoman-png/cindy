@@ -35,6 +35,11 @@ import { useStableTranslation as useTranslation } from '@/hooks/useStableTransla
 
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/lib/makerChatStore';
+import {
+  resolveThinkingVisibility,
+  toolRowDefaultExpanded,
+  useResponsePreferences,
+} from '@/lib/responsePreferences';
 import { useExpandedBlockMemory } from '@/hooks/useExpandedBlockMemory';
 import { Collapse } from '@/components/ui/collapse';
 import { Spinner } from '@/components/ui/spinner';
@@ -121,6 +126,7 @@ export interface WorkGroupBlockProps {
 }
 
 function ToolActivityRow({ activity }: { activity: ProjectedToolActivity }) {
+  const { responseStyle } = useResponsePreferences();
   return (
     <div data-live-work-activity="tool" className="w-full min-w-0">
       <AgentActionRow
@@ -129,17 +135,22 @@ function ToolActivityRow({ activity }: { activity: ProjectedToolActivity }) {
         showRawCommand
         status={activity.status}
         intentOverride={activity.intentOverride}
+        defaultExpanded={toolRowDefaultExpanded(responseStyle)}
       />
     </div>
   );
 }
 
 function ThinkingActivityRow({ activity }: { activity: ProjectedThinkingActivity }) {
+  // ROADMAP 10.2: `hidden` renders nothing here but drops nothing — the message stays in the
+  // store, so switching back to collapsed/expanded brings it straight back.
+  const visibility = resolveThinkingVisibility(useResponsePreferences().thinkingDisplay);
   const rawContent = activity.rawContent;
   const hasExplicitLineBreak = /[\r\n]/.test(rawContent);
   const textRef = useRef<HTMLSpanElement>(null);
   const [canExpand, setCanExpand] = useState(hasExplicitLineBreak);
-  const { expanded, setExpanded } = useExpandedBlockMemory(`thinking:${activity.key}`);
+  const { expanded: rememberedExpanded, setExpanded } = useExpandedBlockMemory(`thinking:${activity.key}`);
+  const expanded = visibility === 'expanded' || rememberedExpanded;
 
   useLayoutEffect(() => {
     if (expanded) {
@@ -157,6 +168,8 @@ function ThinkingActivityRow({ activity }: { activity: ProjectedThinkingActivity
     observer.observe(textElement);
     return () => observer.disconnect();
   }, [activity.content, expanded, hasExplicitLineBreak]);
+
+  if (visibility === 'hidden') return null;
 
   return (
     <button
@@ -250,6 +263,7 @@ function ThinkingLineRow({
   line: Extract<HistoryWorkLine, { kind: 'thinking' }>;
   onActivate: () => void;
 }) {
+  if (resolveThinkingVisibility(useResponsePreferences().thinkingDisplay) === 'hidden') return null;
   return (
     <button
       type="button"
@@ -288,6 +302,7 @@ function ThinkingLineRow({
  *  保证右侧三角槽同一套布局;redacted 仍走 ThinkingCard。 */
 function ExpandedThinkingRow({ message }: { message: ChatMessage }) {
   const activity = thinkingActivityForMessage(message);
+  if (resolveThinkingVisibility(useResponsePreferences().thinkingDisplay) === 'hidden') return null;
   if (!activity) {
     if (!message.thinkingRedacted) return null;
     return (
@@ -350,9 +365,12 @@ export function WorkGroupBlock({
 }: WorkGroupBlockProps) {
   const { t } = useTranslation();
   const { expanded: rememberedExpanded, setExpanded } = useExpandedBlockMemory(blockId);
-  const expanded = deferred?.setVisible
+  // ROADMAP 10.2: `detailed` opens every work group (and, through ToolActivityRow, its rows), so a
+  // finished turn reads as a full log; `concise` returns to what the owner last chose per block.
+  const styleExpanded = toolRowDefaultExpanded(useResponsePreferences().responseStyle);
+  const expanded = styleExpanded || (deferred?.setVisible
     ? rememberedExpanded
-    : (deferred?.expanded ?? rememberedExpanded);
+    : (deferred?.expanded ?? rememberedExpanded));
   const deferredRef = useRef(deferred);
   deferredRef.current = deferred;
   // A Host that projects running lines makes the folded preview need no detail read.

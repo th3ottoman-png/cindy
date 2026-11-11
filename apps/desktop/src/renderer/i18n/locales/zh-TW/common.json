@@ -1515,7 +1515,8 @@
       "shortcuts": "鍵盤快捷鍵",
       "mcpServers": "自定義 MCP",
       "bots": "伙伴",
-      "securityGuard": "安全防護"
+      "securityGuard": "安全防護",
+      "responseStyle": "回覆風格"
     },
     "remote": {
       "title": "遠端機器",
@@ -7656,6 +7657,27 @@
       "thresholdHint": "越低越嚴格。只有達到該分數的輪次才會觸發。",
       "saved": "安全防護設定已儲存",
       "failed": "無法儲存安全防護設定"
+    },
+    "responseStyle": {
+      "section": "回覆風格",
+      "title": "回覆風格",
+      "description": "工具呼叫與思考過程的呈現方式。只影響顯示,不改動已落庫的對話記錄。",
+      "styleLabel": "工具呼叫",
+      "styles": {
+        "concise": "精簡",
+        "detailed": "詳細"
+      },
+      "styleHint": {
+        "concise": "每次工具呼叫佔一行;點開可看具體指令與輸出。",
+        "detailed": "工具呼叫預設展開,直接顯示指令與輸出。"
+      },
+      "thinkingLabel": "思考過程",
+      "thinking": {
+        "collapsed": "折疊",
+        "expanded": "展開",
+        "hidden": "隱藏"
+      },
+      "thinkingHint": "隱藏只是不顯示,內容仍在對話記錄裡,切換回來即可看到。"
     }
   },
   "remoteDevice": {

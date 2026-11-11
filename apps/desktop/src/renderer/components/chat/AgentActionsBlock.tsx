@@ -40,6 +40,7 @@ import {
   formatSummary,
 } from '@/lib/agent-actions/verbAggregator';
 import { useExpandedBlockMemory } from '@/hooks/useExpandedBlockMemory';
+import { toolRowDefaultExpanded, useResponsePreferences } from '@/lib/responsePreferences';
 
 import { AgentActionRow } from './AgentActionRow';
 
@@ -93,7 +94,12 @@ export function AgentActionsBlock({
     return `agent:${toolCalls[0].clientId}`;
   }, [toolCalls]);
 
-  const { expanded, setExpanded } = useExpandedBlockMemory(blockId);
+  const { expanded: rememberedExpanded, setExpanded } = useExpandedBlockMemory(blockId);
+  // ROADMAP 10.2: `detailed` opens the block and its rows. Switching the style re-applies here, so
+  // a conversation that is already on screen follows without a reload; `concise` returns to the
+  // remembered (usually closed) state.
+  const styleExpanded = toolRowDefaultExpanded(useResponsePreferences().responseStyle);
+  const expanded = rememberedExpanded || styleExpanded;
 
   const onToggle = useCallback(() => {
     setExpanded((v) => !v);
@@ -163,6 +169,7 @@ export function AgentActionsBlock({
                 message={msg}
                 toolResult={resultMap.get(msg.clientId)}
                 status={rowStatus(msg.clientId)}
+                defaultExpanded={styleExpanded}
               />
             ))}
           </div>

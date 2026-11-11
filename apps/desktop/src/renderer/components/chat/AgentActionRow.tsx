@@ -742,6 +742,12 @@ export interface AgentActionRowProps {
   /** Codex 一个 commandExecution 拆出的结构化展示子动作。 */
   intentOverride?: CommandIntent;
   /**
+   * ROADMAP 10.2 response style: `detailed` opens the row body (raw command + output) by default.
+   * A change of the preference re-applies here, so an existing conversation re-renders without a
+   * reload; the owner can still collapse any single row afterwards.
+   */
+  defaultExpanded?: boolean;
+  /**
    * 行级执行状态(issue #450)— 由 AgentActionsBlock 依据 result / settled /
    * isSessionStreaming 计算后传入;缺省按已完成渲染(历史消息路径)。
    */
@@ -791,6 +797,7 @@ export function AgentActionRow({
   status = 'done',
   descriptorOverride,
   onActivateOverride,
+  defaultExpanded = false,
 }: AgentActionRowProps) {
   const { t } = useTranslation();
   const processMedia = useMemo(() => readToolProcessMedia(toolResult), [toolResult]);
@@ -950,8 +957,15 @@ export function AgentActionRow({
   const isInlineExpand = !isFilePathTool && !isFileChange;
 
   const [lightbox, setLightbox] = useState<LightboxState>({ kind: 'none' });
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const triggerRef = useRef<HTMLElement | null>(null);
+  // Only a change of the preference moves the row; a manual toggle stays put until the style does.
+  const lastDefaultExpanded = useRef(defaultExpanded);
+  useEffect(() => {
+    if (lastDefaultExpanded.current === defaultExpanded) return;
+    lastDefaultExpanded.current = defaultExpanded;
+    setExpanded(defaultExpanded);
+  }, [defaultExpanded]);
   const fileChipRef = useRef<HTMLSpanElement | null>(null);
 
   /**

@@ -10,6 +10,31 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 10.2 response style + thinking display (`live-proven` for the style, `unit-tested` for thinking)
+
+- **What shipped.** `apps/desktop/src/renderer/lib/responsePreferences.ts`: `{responseStyle: 'concise'|'detailed',
+  thinkingDisplay: 'collapsed'|'expanded'|'hidden'}` in `localStorage` (`cindy.responsePreferences.v1`), parsed
+  tolerantly (garbage → defaults), merged on partial writes, and published through `useSyncExternalStore` so every
+  mounted chat re-renders on the change — no reload, no remount. Wired in three places: `AgentActionsBlock` (opens the
+  block and passes `defaultExpanded` to its rows), `WorkGroupBlock` (opens the finished work groups and, through
+  `ToolActivityRow`, its rows), and `AgentActionRow` (owns a `defaultExpanded` that only a preference change moves, so a
+  manual toggle is not fought). Thinking: `ThinkingActivityRow`, the remote thinking line and `ExpandedThinkingRow`
+  honour the three modes; `hidden` renders nothing and touches nothing — the message stays in the store.
+  Settings → Personalization has the two selects (`ResponseStyleSection`), keys in all five locales.
+- **Live proof** (dev app, real Settings select — not a test seam): a conversation already on screen went from **6 work
+  headers / 0 open** to **10 / 7 open** when the style became `detailed`, and back to **6 / 0** on `concise`. The value
+  survives a reload (read back from localStorage), and the jsdom block test proves a mounted block opens and closes on
+  the change alone.
+- **Not proven live.** The pinned route (`deepseek-flash`) emits no reasoning, so nothing exercises the thinking rows in
+  a real turn; the three modes are `unit-tested` (`resolveThinkingVisibility`, store, and the recovery path). Stated in
+  the row rather than implied.
+- **Untouched by design.** No session field, no IPC, no daemon change: this is a view preference only, and the stored
+  transcript (the audit trail) is identical in all three thinking modes.
+- **Gates.** typecheck 0; `pnpm test:runner` 608 pass / 0 fail / 2 skipped; hygiene PASS; 10 preference tests + 3 block
+  tests.
+
+---
+
 ## 2026-11-11 - 10.1 injection guard, step 4: the result side (`live-proven`; 10.1 closed)
 
 - **What shipped.** `packages/maker-hermes-manager/src/guard-result.ts`: `toolResultOf` (the three shapes Hermes actually

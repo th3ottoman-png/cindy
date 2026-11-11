@@ -1515,7 +1515,8 @@
       "shortcuts": "키보드 단축키",
       "mcpServers": "사용자 지정 MCP",
       "bots": "파트너",
-      "securityGuard": "보안 가드"
+      "securityGuard": "보안 가드",
+      "responseStyle": "응답 스타일"
     },
     "remote": {
       "title": "원격 머신",
@@ -7656,6 +7657,27 @@
       "thresholdHint": "낮을수록 엄격합니다. 이 점수에 도달한 턴에만 작동합니다.",
       "saved": "보안 가드 설정을 저장했습니다",
       "failed": "보안 가드 설정을 저장하지 못했습니다"
+    },
+    "responseStyle": {
+      "section": "응답 스타일",
+      "title": "응답 스타일",
+      "description": "도구 호출과 사고 과정을 표시하는 방식입니다. 표시만 바뀌고 저장된 대화 기록은 그대로입니다.",
+      "styleLabel": "도구 호출",
+      "styles": {
+        "concise": "간결",
+        "detailed": "상세"
+      },
+      "styleHint": {
+        "concise": "도구 호출은 한 줄씩 표시되며, 열면 명령과 출력을 볼 수 있습니다.",
+        "detailed": "도구 호출이 명령과 출력과 함께 펼쳐집니다."
+      },
+      "thinkingLabel": "사고 과정",
+      "thinking": {
+        "collapsed": "접기",
+        "expanded": "펼치기",
+        "hidden": "숨기기"
+      },
+      "thinkingHint": "숨겨도 사고 내용은 기록에 남아 있어 다시 켜면 볼 수 있습니다."
     }
   },
   "remoteDevice": {

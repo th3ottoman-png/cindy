@@ -1515,7 +1515,8 @@
       "shortcuts": "键盘快捷键",
       "mcpServers": "自定义 MCP",
       "bots": "伙伴",
-      "securityGuard": "安全防护"
+      "securityGuard": "安全防护",
+      "responseStyle": "回复风格"
     },
     "remote": {
       "title": "远端机器",
@@ -7656,6 +7657,27 @@
       "thresholdHint": "越低越严格。只有达到该分数的轮次才会触发。",
       "saved": "安全防护设置已保存",
       "failed": "无法保存安全防护设置"
+    },
+    "responseStyle": {
+      "section": "回复风格",
+      "title": "回复风格",
+      "description": "工具调用与思考过程的呈现方式。只影响显示,不改动已落库的对话记录。",
+      "styleLabel": "工具调用",
+      "styles": {
+        "concise": "精简",
+        "detailed": "详细"
+      },
+      "styleHint": {
+        "concise": "每次工具调用占一行;点开可看具体命令与输出。",
+        "detailed": "工具调用默认展开,直接显示命令与输出。"
+      },
+      "thinkingLabel": "思考过程",
+      "thinking": {
+        "collapsed": "折叠",
+        "expanded": "展开",
+        "hidden": "隐藏"
+      },
+      "thinkingHint": "隐藏只是不显示,内容仍在对话记录里,切回来即可看到。"
     }
   },
   "remoteDevice": {

@@ -1515,7 +1515,8 @@
       "shortcuts": "キーボードショートカット",
       "mcpServers": "カスタム MCP",
       "bots": "パートナー",
-      "securityGuard": "セキュリティガード"
+      "securityGuard": "セキュリティガード",
+      "responseStyle": "応答スタイル"
     },
     "remote": {
       "title": "リモートマシン",
@@ -7656,6 +7657,27 @@
       "thresholdHint": "低いほど厳格です。このスコアに達したターンのみ動作します。",
       "saved": "セキュリティガード設定を保存しました",
       "failed": "セキュリティガード設定を保存できませんでした"
+    },
+    "responseStyle": {
+      "section": "応答スタイル",
+      "title": "応答スタイル",
+      "description": "ツール呼び出しと思考の表示方法。表示だけを変え、保存済みの会話記録は変更しません。",
+      "styleLabel": "ツール呼び出し",
+      "styles": {
+        "concise": "簡潔",
+        "detailed": "詳細"
+      },
+      "styleHint": {
+        "concise": "ツール呼び出しは 1 行ずつ。開くとコマンドと出力を表示します。",
+        "detailed": "ツール呼び出しは最初から開き、コマンドと出力を表示します。"
+      },
+      "thinkingLabel": "思考",
+      "thinking": {
+        "collapsed": "折りたたむ",
+        "expanded": "展開",
+        "hidden": "非表示"
+      },
+      "thinkingHint": "非表示でも思考は記録に残ります。戻せば読めます。"
     }
   },
   "remoteDevice": {
