@@ -10,6 +10,78 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 11.5/11.3/11.9 live-proof session: handoff fix, honest labels
+
+- **Shipped**: `apps/desktop/src/main/maker-ipc/sessionHandoff.ts` now normalises `listMessages`
+  output before extraction — DB `content` is JSON-parsed (objects for tool calls), and the
+  extraction helpers assume strings, so `buildHandoff` threw `text2.split is not a function` on
+  real data. Strings pass through, objects are `JSON.stringify`-ed, `text` is kept only when a
+  string. 8/8 host tests. Plus 2 tests in
+  `packages/maker-core/src/agents/hermes/__tests__/auto-review.test.ts`: `__cindy_risk` propagates
+  to `autoReviewRisk`/`autoReviewReason` on the approval request (11.9), and a plain `__cindy_guard`
+  does not set `autoReviewRisk` (11.3 negative); 12/12.
+- **11.5 live evidence — row stays `unit-tested` (honest)**: the payload path was exercised live
+  end to end: `sessionHandoff.cleanSlate` on session `a9a039ed` assembled the 4-section payload
+  (334 tokens, no truncation), seeded fresh Hermes session `00eb4fe9`, which continued the task
+  **without re-asking** — its reply names the single pending item ("prepend
+  `# contextLength reviewed 2026-11-11 …` as line 1 of `~/.cindy-harness/providers.yaml`, changing
+  nothing else"), checks the precondition (920 B / `00c905df…`), performs it and verifies on disk
+  (986 B / `620b62c2…`, everything else byte-identical, YAML still parses), and leaves the
+  `/tmp/proofs/handoff-work` tree untouched because no pending step referenced it. **Not the
+  row's bar**: the source session was not at 95% context (window unknown, usage ~275–306k), and
+  the handoff was driven programmatically (`createSession` + `send`, mirroring
+  `startCleanSlateHandoff`) instead of clicking `clean-slate-handoff-btn` / the header menu item.
+  A real ring-at-95% + UI-click proof is still required before `live-proven`.
+- **11.3 → `live-proven`** (owner-card behaviour on a real turn): prompt "git push --force origin
+  main" to a real Hermes session → the model issued a `terminal` tool call → the deterministic
+  denylist fired and the owner card rendered: "Allow terminal? Auto review needs your decision:
+  Cindy guardrail blocked this command: Force-pushing rewrites remote history. (git-force-push).
+  Allow once to override." (`/tmp/proofs/11-3-guard-card.png`, 332583 B). The command never ran.
+  Caveats kept visible: `sudo rm -rf /` never reached the guard (the model refused it in prose
+  before any tool call — a moralizing model defeats that particular test prompt; use dev-plausible
+  destructive commands), and "zero token cost" was not separately metered — the guard adds no LLM
+  call by construction (regex, 25 unit cases), but the turn itself cost tokens for the model's
+  reply. The card vanished (turn completed) before the Deny click; nothing to clean up afterwards.
+- **11.9 stays `unit-tested`** (partial live evidence, two gaps): a real Hermes `write_file` to
+  `~/.cindy-harness/providers.yaml` in Full access was paused by the pre-check with the
+  blast-radius card ("High-risk system file: ~/.cindy-harness/providers.yaml / Blast radius:
+  Harness configuration … Allow once only after checking the list",
+  `/tmp/proofs/11-9-risk-card.png`, 456660 B) — but the acceptance's **amber "High-Risk System
+  File" card with diff did not render**: the `permission` payload in `makerChatStore` lacks
+  `autoReviewRisk` (CDP fiber probe), although the daemon's `reviewToolCall` sets it in metadata
+  (unit-tested). The drop is between the daemon approval request and the chat store's
+  `permission_request` handling — open bug, recommended next row. Second gap: the **first** live
+  attempt edited `providers.yaml` through the `terminal` tool with no card at all —
+  `FILE_MODIFY_TOOLS` covers `write_file`/`patch` but not `terminal`-driven writes (recorded as a
+  design gap, not silently accepted).
+- **User state**: `~/.cindy-harness/providers.yaml` carries one new line 1,
+  `# contextLength reviewed 2026-11-11 — and nothing else changed.` — this is the continuation
+  session completing the handoff's pending item, byte-identical to the payload the prior session
+  prepared (verified: rest of file unchanged, YAML parses, 28 lines / 986 B). **Kept, not
+  restored.** Backups: `providers.yaml.bak-20261111-11.9` (pre-edit, sha `00c905df…`) and the
+  session's own `providers.yaml.pre-handoff-edit`. The earlier terminal-tool edit from the first
+  11.9 attempt had already been restored and sha-verified before this. Pending approval cards on
+  both sessions: none (checked post-run).
+- **Gates** (Node 22, real Terminal). Full run on the 11.5 tree (`/tmp/cindy-gates-115.log`):
+  typecheck 0, test:runner 0, non-desktop unit full 0, desktop shards 1–3, 5–8 0; **shard 4 died
+  SIGSEGV** and passed its standalone rerun (not counted green while crashed); hygiene 0. Targeted
+  `--related` rerun (`/tmp/cindy-gates-115b.log`): typecheck 0, test:runner 0, hygiene 0,
+  `RELATED_EXIT=1` — root cause is **not** a test failure and **not** the zero-run quirk: the
+  unsharded `apps/desktop` run died `Command was killed with SIGSEGV` at 68.9 s with every visible
+  file green; standalone rerun **PASS** (`apps/desktop unit (329.4s)`, exit 0,
+  `/tmp/cindy-gates-115c.log`). Both SIGSEGVs noted in the existing Debt row.
+- **Lessons**: (1) moralizing models refuse `sudo rm -rf /` before any tool call — hit the
+  denylist with dev-plausible destructive commands instead; (2) `terminal`-tool writes bypass the
+  blast-radius pre-check; (3) DB message `content` arrives JSON-parsed — normalise at the host
+  boundary; (4) the fresh session honors the handoff *and* executes its pending items, which can
+  change user state — snapshot the files you will compare afterwards (that is what caught the
+  providers.yaml change being intentional).
+- **Still open**: 11.5 real 95%-context ring + real button click; 11.9 `autoReviewRisk`
+  propagation (amber card), the diff display, and the `terminal`-tool gap; 11.3 zero-token
+  metering and the `rm -rf /` pattern's path.
+- **Next row (recommended)**: fix `autoReviewRisk` propagation daemon → chat store (smallest diff
+  that closes 11.9's live proof); otherwise 11.6 per ROADMAP order.
+
 ## 2026-11-11 - 11.5 clean-slate session handoff: implementation (`unit-tested`)
 
 Pure module first, tests before wiring. Live proof pending — see what is open below.

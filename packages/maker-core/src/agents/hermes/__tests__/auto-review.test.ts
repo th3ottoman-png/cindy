@@ -232,6 +232,53 @@ describe('HermesAgent auto mode', () => {
     expect(no.result).toMatchObject({ kind: 'permission', behavior: 'deny' });
   });
 
+  it('propagates __cindy_risk to autoReviewRisk in metadata (11.9)', async () => {
+    const seen: AutoReviewRequest[] = [];
+    await startAuto(reviewerReturning('ask', seen, 'unused'));
+    const asked: InteractionRequest[] = [];
+    handle!.setInteractionResolver(async (req) => {
+      asked.push(req);
+      return { kind: 'permission', behavior: 'deny' };
+    });
+    // Simulate the daemon's askClientToReview: __cindy_guard + __cindy_risk in input
+    await daemon!.askApproval({
+      requestId: 'risk1',
+      toolName: 'write_file',
+      input: {
+        path: '~/.cindy-harness/providers.yaml',
+        content: 'x',
+        __cindy_guard: 'High-risk system file: ~/.cindy-harness/providers.yaml\nBlast radius: Harness configuration.',
+        __cindy_risk: true,
+      },
+    });
+    expect(asked).toHaveLength(1);
+    const meta = asked[0].metadata as Record<string, unknown> | undefined;
+    expect(meta?.autoReviewRisk).toBe(true);
+    expect(meta?.autoReviewReason).toContain('High-risk system file');
+  });
+
+  it('does not set autoReviewRisk when __cindy_risk is absent (11.3 guard)', async () => {
+    const seen: AutoReviewRequest[] = [];
+    await startAuto(reviewerReturning('ask', seen, 'unused'));
+    const asked: InteractionRequest[] = [];
+    handle!.setInteractionResolver(async (req) => {
+      asked.push(req);
+      return { kind: 'permission', behavior: 'deny' };
+    });
+    await daemon!.askApproval({
+      requestId: 'guard1',
+      toolName: 'terminal',
+      input: {
+        command: 'git push --force origin main',
+        __cindy_guard: 'Cindy guardrail blocked this command: Force-pushing rewrites remote history. (git-force-push). Allow once to override.',
+      },
+    });
+    expect(asked).toHaveLength(1);
+    const meta = asked[0].metadata as Record<string, unknown> | undefined;
+    expect(meta?.autoReviewRisk).toBeUndefined();
+    expect(meta?.autoReviewReason).toContain('guardrail blocked');
+  });
+
   it('fails closed: no reviewer means ask, and no one to ask means deny', async () => {
     const { events } = await startAuto(undefined);
     const answer = await daemon!.askApproval({ requestId: 'c5', toolName: 'terminal', input: { command: 'npm install' } });

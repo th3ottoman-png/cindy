@@ -201,7 +201,17 @@ export class SessionHandoffHost {
       const session = await this.deps.getSessionRow(sessionId);
       if (!session) return failure(`Session not found: ${sessionId}`);
 
-      const messages = (await this.deps.listMessages(sessionId)) ?? [];
+      const rawMessages = (await this.deps.listMessages(sessionId)) ?? [];
+      // DB content is JSON-parsed (objects for tool calls, strings for prose).
+      // The extraction helpers expect string text; normalise here.
+      const messages: HandoffMessage[] = rawMessages.map((m) => ({
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content
+          : typeof m.content === 'object' && m.content !== null
+            ? JSON.stringify(m.content)
+            : undefined,
+        text: typeof m.text === 'string' ? m.text : undefined,
+      }));
       const [synthesis, tree] = await Promise.all([
         this.deps.readSynthesisNote?.() ?? Promise.resolve(null),
         session.workingDir
