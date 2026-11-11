@@ -1,9 +1,19 @@
 import type { IpcMain } from 'electron';
+import { execFile } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   assembleHandoffPrompt,
+  extractPendingNextActions,
+  extractSessionDecisions,
   type HandoffMessage,
   type SessionHandoffResult,
 } from '@cindy/maker-core/session-compaction-handoff';
+import {
+  assembleSessionHandoff,
+  extractOpenQuestions,
+  type SessionHandoffTruncation,
+} from '@cindy/maker-core/session-handoff';
 import { MAKER_INVOKE } from './channels';
 
 export interface StoredSessionInfo {
@@ -18,6 +28,58 @@ export interface StoredSessionInfo {
 export interface SessionHandoffHostDeps {
   getSessionRow: (sessionId: string) => Promise<StoredSessionInfo | null>;
   listMessages: (sessionId: string) => Promise<HandoffMessage[]>;
+  /** Raw text of the vault `Synthesis.md` note, or null when unconfigured/missing. */
+  readSynthesisNote?: () => Promise<string | null>;
+  /** Uncommitted working tree state of the session workdir. Defaults to real git. */
+  gatherGitState?: (workingDir: string) => Promise<WorkingTreeState>;
+}
+
+export interface WorkingTreeState {
+  gitDiff: string;
+  modifiedFiles: string[];
+}
+
+/**
+ * Uncommitted tracked changes (`git diff HEAD`) plus `git status --porcelain`
+ * paths, gathered with a timeout and capped buffer. A non-git directory or a
+ * git failure yields an empty state, never a rejected handoff: the payload's
+ * other sections still carry the work forward.
+ */
+export function gatherGitWorkingTree(workingDir: string): Promise<WorkingTreeState> {
+  const run = (args: readonly string[]): Promise<string> =>
+    new Promise((resolve) => {
+      execFile(
+        'git',
+        [...args],
+        { cwd: workingDir, timeout: 8_000, maxBuffer: 4 * 1024 * 1024, windowsHide: true },
+        (error, stdout) => resolve(error ? '' : String(stdout)),
+      );
+    });
+  return (async () => {
+    const [status, gitDiff] = await Promise.all([
+      run(['status', '--porcelain']),
+      run(['diff', 'HEAD', '--no-color']),
+    ]);
+    const modifiedFiles = status
+      .split('\n')
+      .map((line) => line.slice(3).trim())
+      .filter(Boolean);
+    return { gitDiff, modifiedFiles };
+  })();
+}
+
+/**
+ * Read the vault `Cindy/Memory/Synthesis.md` note (6.3's cross-session memory
+ * synthesis) as raw markdown. Missing note or unconfigured vault yields null;
+ * the handoff then reports its constraints section as "None recorded.".
+ */
+export function readSynthesisNoteFromVault(vaultDir: string | undefined | null): string | null {
+  if (!vaultDir) return null;
+  try {
+    return readFileSync(join(vaultDir, 'Cindy', 'Memory', 'Synthesis.md'), 'utf8');
+  } catch {
+    return null;
+  }
 }
 
 export type BuildHandoffResponse =
@@ -38,6 +100,18 @@ export interface ExecuteHandoffResponse {
   workingDir?: string;
   model?: string;
   expertSlug?: string;
+  error?: string;
+}
+
+export interface CleanSlateHandoffResponse {
+  ok: boolean;
+  prompt: string;
+  title: string;
+  workingDir?: string;
+  model?: string;
+  /** Estimated tokens of the assembled payload (ROADMAP 11.5 budget guard). */
+  tokenCount: number;
+  truncated?: SessionHandoffTruncation;
   error?: string;
 }
 
@@ -105,6 +179,60 @@ export class SessionHandoffHost {
       expertSlug: session?.expertSlug || undefined,
     };
   }
+
+  /**
+   * ROADMAP 11.5: clean-slate handoff payload. Sources: the vault `Synthesis.md`
+   * note for active decisions/constraints, the session workdir's uncommitted
+   * diff and modified files, and the transcript's unresolved questions and next
+   * steps. Assembly and redaction happen in `@cindy/maker-core/session-handoff`;
+   * this method only gathers.
+   */
+  async buildCleanSlateHandoff(sessionId: string): Promise<CleanSlateHandoffResponse> {
+    const failure = (error: string): CleanSlateHandoffResponse => ({
+      ok: false,
+      prompt: '',
+      title: '',
+      tokenCount: 0,
+      error,
+    });
+    if (!sessionId || typeof sessionId !== 'string') return failure('Invalid or missing sessionId');
+
+    try {
+      const session = await this.deps.getSessionRow(sessionId);
+      if (!session) return failure(`Session not found: ${sessionId}`);
+
+      const messages = (await this.deps.listMessages(sessionId)) ?? [];
+      const [synthesis, tree] = await Promise.all([
+        this.deps.readSynthesisNote?.() ?? Promise.resolve(null),
+        session.workingDir
+          ? (this.deps.gatherGitState ?? gatherGitWorkingTree)(session.workingDir)
+          : Promise.resolve({ gitDiff: '', modifiedFiles: [] } satisfies WorkingTreeState),
+      ]);
+
+      const payload = assembleSessionHandoff({
+        synthesis,
+        gitDiff: tree.gitDiff,
+        modifiedFiles: tree.modifiedFiles,
+        activeDecisions: extractSessionDecisions(messages),
+        pendingNextSteps: extractPendingNextActions(messages),
+        unresolvedQuestions: extractOpenQuestions(messages),
+        workingDir: session.workingDir || null,
+        sessionTitle: session.title || null,
+      });
+
+      return {
+        ok: true,
+        prompt: payload.prompt,
+        title: session.title ? `Clean slate from ${session.title}` : 'Clean Slate Session',
+        workingDir: session.workingDir || undefined,
+        model: session.model || undefined,
+        tokenCount: payload.tokenCount,
+        truncated: payload.truncated,
+      };
+    } catch (err) {
+      return failure((err as Error).message);
+    }
+  }
 }
 
 let singletonHost: SessionHandoffHost | null = null;
@@ -133,4 +261,13 @@ export function registerSessionHandoffHandlers(
     const host = getHost();
     return host.executeHandoff(params?.sessionId || '');
   });
+
+  ipc.handle(
+    MAKER_INVOKE.SESSION_HANDOFF_CLEAN_SLATE,
+    async (event, params: { sessionId: string }) => {
+      assertSenderTrusted?.(event);
+      const host = getHost();
+      return host.buildCleanSlateHandoff(params?.sessionId || '');
+    },
+  );
 }

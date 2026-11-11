@@ -68,6 +68,7 @@ import { GitContextBadge } from './GitContextBadge';
 import { OrcaRemoteLeadBadge } from './OrcaRemoteLeadBadge';
 import { BotTaskOwnerChip } from '@/features/bots/BotTaskOwnerChip';
 import { SessionRenameInput } from './SessionRenameInput';
+import { startCleanSlateHandoff } from './lib/startCleanSlateHandoff';
 import { useSessionBoundSchedules } from '@/features/scheduler/lib/scheduleSessionBinding';
 import {
   archiveConfirmDescription,
@@ -337,6 +338,12 @@ export function SessionContentHeader({
       t,
     ],
   );
+
+  /* ---- Clean-slate handoff (ROADMAP 11.5) ---- */
+  const handleCleanSlateHandoff = useCallback(async () => {
+    const outcome = await startCleanSlateHandoff(session);
+    if (!outcome.ok) toast.error(outcome.error || 'Clean-slate handoff failed.');
+  }, [session]);
 
   /* ---- Pin / Unpin ---- */
   const handleTogglePin = useCallback(async () => {
@@ -843,6 +850,7 @@ export function SessionContentHeader({
             onUnarchive={() => void handleUnarchive()}
             onDelete={() => void handleDelete()}
             onOpenInNewWindow={handleOpenInNewWindow}
+            onCleanSlateHandoff={() => void handleCleanSlateHandoff()}
             tags={tagMenu}
             copy={
               <DropdownMenuItem

@@ -6589,6 +6589,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       /** ROADMAP 7.8: execute session handoff continuation. */
       execute: (params: { sessionId: string }): Promise<import('../main/maker-ipc/sessionHandoff').ExecuteHandoffResponse> =>
         ipcRenderer.invoke('maker:session-handoff:execute', params),
+      /** ROADMAP 11.5: clean-slate handoff payload (constraints, diff, questions). */
+      cleanSlate: (params: { sessionId: string }): Promise<import('../main/maker-ipc/sessionHandoff').CleanSlateHandoffResponse> =>
+        ipcRenderer.invoke('maker:session-handoff:clean-slate', params),
     },
     /** ROADMAP 10.3: conversation-only sessions (no tools, no MCP). */
     chatOnly: {

@@ -16,6 +16,7 @@ import { WINDOW_NO_DRAG_STYLE } from '@/components/layout/windowDrag';
 import type { Session } from '@/lib/ccAgent.types';
 import { makerChatStore, type ChatMessage } from '@/lib/makerChatStore';
 import * as sessionService from '@/lib/sessionService';
+import { startCleanSlateHandoff } from './lib/startCleanSlateHandoff';
 import { formatRouteAlternativeLabel } from './SessionRouteBlockedBanner';
 
 export type MessageForSummariser = Pick<ChatMessage, 'role' | 'content' | 'turnUsageDetails'>;
@@ -170,8 +171,11 @@ export function SessionContextGuardBannerView({
   guard,
   summarising = false,
   summaryError,
+  cleanSlateError,
   onSummariseAndContinue,
   onSelectSummaryAlternative,
+  onCleanSlateHandoff,
+  cleanSlateRunning = false,
   onDismiss,
   style,
   className,
@@ -179,8 +183,11 @@ export function SessionContextGuardBannerView({
   guard: ContextGuardResult | null;
   summarising?: boolean;
   summaryError?: string | null;
+  cleanSlateError?: string | null;
   onSummariseAndContinue: () => void;
   onSelectSummaryAlternative?: (alt: RouteAlternative) => void;
+  onCleanSlateHandoff?: () => void;
+  cleanSlateRunning?: boolean;
   onDismiss?: () => void;
   style?: React.CSSProperties;
   className?: string;
@@ -201,49 +208,67 @@ export function SessionContextGuardBannerView({
       <ErrorNotice
         message={context.message}
         description={
-          summaryError
-            ? `Summarise failed: ${summaryError}`
-            : summarise && !summarise.ok
-              ? `Summary route blocked: ${summarise.message}`
-              : undefined
+          cleanSlateError
+            ? `Clean-slate handoff failed: ${cleanSlateError}`
+            : summaryError
+              ? `Summarise failed: ${summaryError}`
+              : summarise && !summarise.ok
+                ? `Summary route blocked: ${summarise.message}`
+                : undefined
         }
         onDismiss={onDismiss}
         actions={
-          summarise?.ok ? (
-            <Button
-              type="button"
-              size="sm"
-              compact
-              variant="secondary"
-              loading={summarising}
-              disabled={summarising}
-              data-testid="summarise-and-continue-btn"
-              onClick={onSummariseAndContinue}
-            >
-              {`Summarise and continue (${summarise.provider}/${summarise.model})`}
-            </Button>
-          ) : summarise && !summarise.ok && summarise.alternatives.length > 0 ? (
-            <div
-              data-testid="context-guard-summary-alternatives"
-              className="flex flex-wrap items-center gap-1.5"
-            >
-              {summarise.alternatives.map((alt) => (
-                <Button
-                  key={alt.routeName}
-                  type="button"
-                  size="sm"
-                  compact
-                  variant="secondary"
-                  disabled={summarising}
-                  data-testid={`use-summary-alternative-${alt.routeName}`}
-                  data-route-paid={alt.paid ? 'true' : 'false'}
-                  onClick={() => onSelectSummaryAlternative?.(alt)}
-                >
-                  {formatRouteAlternativeLabel(alt)}
-                </Button>
-              ))}
-            </div>
-          ) : null
+          <div className="flex flex-wrap items-center gap-1.5">
+            {onCleanSlateHandoff && (
+              <Button
+                type="button"
+                size="sm"
+                compact
+                variant="secondary"
+                loading={cleanSlateRunning}
+                disabled={cleanSlateRunning || summarising}
+                data-testid="clean-slate-handoff-btn"
+                onClick={onCleanSlateHandoff}
+              >
+                {cleanSlateRunning ? 'Starting clean session…' : 'Clean slate handoff'}
+              </Button>
+            )}
+            {summarise?.ok ? (
+              <Button
+                type="button"
+                size="sm"
+                compact
+                variant="secondary"
+                loading={summarising}
+                disabled={summarising}
+                data-testid="summarise-and-continue-btn"
+                onClick={onSummariseAndContinue}
+              >
+                {`Summarise and continue (${summarise.provider}/${summarise.model})`}
+              </Button>
+            ) : summarise && !summarise.ok && summarise.alternatives.length > 0 ? (
+              <div
+                data-testid="context-guard-summary-alternatives"
+                className="flex flex-wrap items-center gap-1.5"
+              >
+                {summarise.alternatives.map((alt) => (
+                  <Button
+                    key={alt.routeName}
+                    type="button"
+                    size="sm"
+                    compact
+                    variant="secondary"
+                    disabled={summarising}
+                    data-testid={`use-summary-alternative-${alt.routeName}`}
+                    data-route-paid={alt.paid ? 'true' : 'false'}
+                    onClick={() => onSelectSummaryAlternative?.(alt)}
+                  >
+                    {formatRouteAlternativeLabel(alt)}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         }
       />
     </div>
@@ -278,6 +303,8 @@ export function SessionContextGuardBanner({
   const [probes, setProbes] = useState<ProbeLike[]>([]);
   const [summarising, setSummarising] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [cleanSlateRunning, setCleanSlateRunning] = useState(false);
+  const [cleanSlateError, setCleanSlateError] = useState<string | null>(null);
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -400,6 +427,19 @@ export function SessionContextGuardBanner({
     }
   }, [messages, navigate, session]);
 
+  const handleCleanSlateHandoff = useCallback(async () => {
+    setCleanSlateRunning(true);
+    setCleanSlateError(null);
+    try {
+      const outcome = await startCleanSlateHandoff(session, { navigate });
+      if (!outcome.ok) setCleanSlateError(outcome.error ?? 'Clean-slate handoff failed.');
+    } catch (error) {
+      setCleanSlateError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCleanSlateRunning(false);
+    }
+  }, [navigate, session]);
+
   if (session.agentKind !== 'hermes' || !guard) return null;
   if (guard.context.level !== 'warn' && guard.context.level !== 'critical') return null;
 
@@ -411,7 +451,10 @@ export function SessionContextGuardBanner({
       guard={guard}
       summarising={summarising}
       summaryError={summaryError}
+      cleanSlateError={cleanSlateError}
       onSummariseAndContinue={() => void handleSummariseAndContinue()}
+      onCleanSlateHandoff={() => void handleCleanSlateHandoff()}
+      cleanSlateRunning={cleanSlateRunning}
       onDismiss={() => setDismissedKey(currentKey)}
       style={style}
       className={className}

@@ -10,6 +10,53 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 11.5 clean-slate session handoff: implementation (`unit-tested`)
+
+Pure module first, tests before wiring. Live proof pending — see what is open below.
+
+- **Module** (`packages/maker-core/src/tasks/session-handoff.ts`, new subpath `./session-handoff`):
+  `assembleSessionHandoff(sources, options)` builds the structured handoff prompt from the vault
+  `Synthesis.md` note (constraints/questions/next-steps sections; `extractSynthesisSections`
+  classifies hand-edited headings too and keeps an unrecognised note whole rather than dropping it),
+  the uncommitted diff + modified file list, and transcript-derived decisions/steps/questions.
+  `extractOpenQuestions` keeps only the final message's interrogatives — older ones were answered
+  later or dropped on purpose, so claiming them "unresolved" would over-claim. Byte-exact token
+  budget (`estimateHandoffTokens`, UTF-8/4): allocation keeps what cannot be re-derived longest
+  (constraints → questions → steps; the diff is trimmed first because git regenerates it), and
+  every cut is explicit (`[handoff section truncated: …]` marker). Diff is adaptively fenced so
+  author content cannot break the payload structure. 16 tests.
+- **Redactor gap fixed at the source** (`packages/maker-core/src/export/session-markdown.ts`):
+  `redactSecrets` missed `api_key = \"supersecret\"` — backslash-escaped quotes in real diff lines
+  defeated the `["']?` prefix. One regex token (`\\?["']?`), strictly widening; the existing
+  redactor tests still pass (36/36 across both suites). No test pinned the miss, so nothing broke.
+- **Wiring**: host `SessionHandoffHost.buildCleanSlateHandoff` (gathers git state via `execFile`,
+  reads the vault note via `readSynthesisNoteFromVault`, reuses `session-compaction-handoff`'s
+  `extractSessionDecisions`/`extractPendingNextActions` for transcript extraction; a git failure
+  degrades to empty state, never a rejected handoff), `maker:session-handoff:clean-slate` IPC +
+  preload + `vite-env.d.ts`, `startCleanSlateHandoff` renderer starter (spawns fresh session,
+  seeds draft, auto-sends the handoff prompt — the spawn-and-seed mechanic 7.8 already proved),
+  banner action `clean-slate-handoff-btn` in `SessionContextGuardBanner` (deterministic: renders
+  regardless of summary routing, since the payload path needs no model), and the header menu item
+  through the shared `SessionTaskMenu` (parity contract: header/sidebar/SessionCard stay in sync;
+  English label only, per the English-only decision). 4 new host tests; 19 desktop +
+  120 neighbouring handoff tests + `daemon-bundle-smoke` green (the new subpath is desktop-main
+  only — nothing daemon-side imports it, so no CJS drag risk).
+- **Gates** on the full tree, Node 22 real Terminal (`/tmp/cindy-gates-115.log`): typecheck 0,
+  test:runner 0, unit non-desktop **full** tier 0 (ROADMAP.md in the diff → wide-file escalation,
+  which also cleared the zero-run edge from the earlier Debt row), desktop shards 1–3/5–8 0.
+  **Shard 4 died with SIGSEGV** (the documented 8-thread vitest crash, all visible files green
+  before the crash) and passed its standalone rerun — per HANDOVER §5 the crashed shard is not
+  counted green; the rerun is. check:test-hygiene 0.
+- **Surprise**: the session brief's cited CDP live-proof method doc
+  (`docs/design-notes/1.5b-5c-semantic-notes-live-proof.md`) does not exist; the actual 1.5b-5c
+  proof is `docs/evidence/1.5b-5c-live-proof.md` (a different document). The CDP driving pattern
+  lives in `scripts/run-mel-live-proofs.mjs`. No tracked doc referenced the missing path, so no
+  edit needed — recorded here instead.
+- **Still open**: 11.5 stays `unit-tested` until the live proof runs — a real 95%-context session
+  must hand off into a fresh session that continues without re-asking. Requires the app restart
+  (maker-core subpath: Vite pre-bundles it, hot reload will not re-optimise). 11.3 and 11.9
+  live-proof gaps also still open (owner-card evidence on a real turn).
+
 ## 2026-11-11 - 11.4 Multi-Model Council Review (`live-proven`)
 
 One neutral diff brief, sent to one to three owner-picked models in parallel, merged into a

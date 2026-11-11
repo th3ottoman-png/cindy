@@ -5800,6 +5800,8 @@ interface ElectronAPI {
       build: (params: { sessionId: string }) => Promise<import('../main/maker-ipc/sessionHandoff').BuildHandoffResponse>;
       /** ROADMAP 7.8: execute session handoff continuation. */
       execute: (params: { sessionId: string }) => Promise<import('../main/maker-ipc/sessionHandoff').ExecuteHandoffResponse>;
+      /** ROADMAP 11.5: clean-slate handoff payload (constraints, diff, questions). */
+      cleanSlate: (params: { sessionId: string }) => Promise<import('../main/maker-ipc/sessionHandoff').CleanSlateHandoffResponse>;
     };
     /** ROADMAP 10.3: conversation-only sessions (Hermes --safe-mode: no tools, no MCP). */
     chatOnly: {

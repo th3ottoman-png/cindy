@@ -93,6 +93,8 @@ export const MAKER_INVOKE = {
   SESSION_HANDOFF_BUILD: 'maker:session-handoff:build',
   /** ROADMAP 7.8: initialize fresh session with prefilled handoff prompt. */
   SESSION_HANDOFF_EXECUTE: 'maker:session-handoff:execute',
+  /** ROADMAP 11.5: clean-slate handoff payload (constraints, diff, questions). */
+  SESSION_HANDOFF_CLEAN_SLATE: 'maker:session-handoff:clean-slate',
   /** ROADMAP 8.5: one local index over vault notes, chat transcripts and summaries. */
   LIBRARY_SCAN: 'maker:library:scan',
   /** ROADMAP 8.5b: list stored artifacts in vault. */

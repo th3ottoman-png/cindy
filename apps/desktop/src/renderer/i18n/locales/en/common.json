@@ -13310,6 +13310,7 @@
       "sessionMenu": {
         "moreActions": "More actions",
         "rename": "Rename",
+        "cleanSlateHandoff": "Clean slate handoff",
         "unarchive": "Unarchive",
         "delete": "Delete",
         "pin": "Pin",

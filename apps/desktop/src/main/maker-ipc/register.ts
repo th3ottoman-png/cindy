@@ -930,7 +930,11 @@ import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNot
 import { getRuleLearnerHost, registerRuleLearnerHandlers } from './ruleLearner.js';
 import { getPromptStructurerHost, registerPromptStructurerHandlers } from './promptStructurer.js';
 import { getScreenShareHost, registerScreenShareHandlers } from './screenShare.js';
-import { getSessionHandoffHost, registerSessionHandoffHandlers } from './sessionHandoff.js';
+import {
+  getSessionHandoffHost,
+  readSynthesisNoteFromVault,
+  registerSessionHandoffHandlers,
+} from './sessionHandoff.js';
 import { registerLibraryHandlers } from './library.js';
 import { registerArtifactsHandlers } from './artifacts.js';
 import { ChatInventoryHost, registerChatInventoryHandlers } from './chatInventory.js';
@@ -25813,10 +25817,11 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     (channel, payload) => broadcastToAllWindows(channel, payload),
     (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   );
-  // ROADMAP 7.8: session compaction & clean handoff.
+  // ROADMAP 7.8: session compaction & clean handoff. ROADMAP 11.5: clean-slate payload.
   const sessionHandoffHost = getSessionHandoffHost({
     getSessionRow: (sessionId) => getSessionRowSnapshot(sessionId),
     listMessages: (sessionId) => listMessagesForAgentHandoff(sessionId, null) as any,
+    readSynthesisNote: async () => readSynthesisNoteFromVault(vaultNotesHost.getConfig().vaultDir),
   });
   registerSessionHandoffHandlers(
     ipcMain,

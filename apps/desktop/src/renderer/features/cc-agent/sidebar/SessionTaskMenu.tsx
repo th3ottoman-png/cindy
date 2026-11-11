@@ -49,6 +49,7 @@ interface Props {
   onUnarchive: () => void;
   onDelete: () => void;
   onOpenInNewWindow: () => void;
+  onCleanSlateHandoff?: () => void;
   move: ReactNode;
   tags: ReactNode;
   copy: ReactNode;
@@ -82,6 +83,7 @@ function ActiveSessionTaskMenu({
   onUnarchive,
   onDelete,
   onOpenInNewWindow,
+  onCleanSlateHandoff,
   move,
   tags,
   copy,
@@ -231,6 +233,8 @@ function ActiveSessionTaskMenu({
               !empty &&
               item(session.pinnedAt != null ? 'unpin' : 'pin', onPin, ownerActionsBlocked)}
             {item('rename', onRename, ownerActionsBlocked)}
+            {onCleanSlateHandoff &&
+              item('cleanSlateHandoff', onCleanSlateHandoff, ownerActionsBlocked)}
             {tags}
             {separator}
             {copy}

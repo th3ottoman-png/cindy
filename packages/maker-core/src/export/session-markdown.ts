@@ -52,7 +52,7 @@ export interface RenderOptions {
 const REDACTIONS: RegExp[] = [
   /\bsk-[A-Za-z0-9_-]{16,}/g,
   /\bBearer\s+[A-Za-z0-9._~+/=-]{12,}/gi,
-  /\b(api[_-]?key|token|secret|password)\s*[:=]\s*["']?[^\s"',}]{8,}/gi,
+  /\b(api[_-]?key|token|secret|password)\s*[:=]\s*(?:\\?["'])?[^\s"',}]{8,}/gi,
 ];
 
 /** Replace obvious credentials with `[redacted]`. A heuristic, not a guarantee. */

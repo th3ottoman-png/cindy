@@ -47,6 +47,7 @@
     "./routed-auxiliary": "./src/providers/routed-auxiliary.ts",
     "./model-route-resolver": "./src/providers/model-route-resolver.ts",
     "./turn-timeline": "./src/tasks/turn-timeline.ts",
+    "./session-handoff": "./src/tasks/session-handoff.ts",
     "./session-manifest": "./src/session/session-manifest.ts",
     "./turn-attachment": "./src/session/turn-attachment.ts",
     "./pinned-skill-invocation": "./src/session/pinned-skill-invocation.ts",
