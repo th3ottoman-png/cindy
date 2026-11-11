@@ -7649,6 +7649,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSessionTurnActive: (sessionId: string): Promise<{ inTurn: boolean }> =>
       ipcRenderer.invoke('maker:session:turn-active', sessionId),
 
+    /** ROADMAP 11.2: automatic power-save state (turn / scheduler / research). */
+    powerSave: {
+      getStatus: (): Promise<{ active: boolean; reasons: string[]; blockerId: number | null }> =>
+        ipcRenderer.invoke('maker:power-save:status'),
+      onChanged: (
+        callback: (status: { active: boolean; reasons: string[]; blockerId: number | null }) => void,
+      ): (() => void) => {
+        const listener = (
+          _event: Electron.IpcRendererEvent,
+          status: { active: boolean; reasons: string[]; blockerId: number | null },
+        ) => callback(status);
+        ipcRenderer.on('maker:power-save:changed', listener);
+        return () => ipcRenderer.removeListener('maker:power-save:changed', listener);
+      },
+    },
+
     abortSession: (sessionId: string): Promise<void> =>
       ipcRenderer.invoke('maker:abort-session', sessionId),
 

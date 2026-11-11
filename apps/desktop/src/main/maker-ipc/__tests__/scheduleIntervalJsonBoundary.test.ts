@@ -21,6 +21,7 @@ const handlers = vi.hoisted(() => new Map<string, (...args: unknown[]) => Promis
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn((name, handler) => handlers.set(name, handler)) },
   BrowserWindow: { getAllWindows: vi.fn(() => []) },
+  powerSaveBlocker: { start: vi.fn(() => 1), stop: vi.fn(), isStarted: vi.fn(() => false) },
   app: {
     getPath: vi.fn(() => '/tmp/cindy-test-user-data'),
     getAppPath: vi.fn(() => '/tmp/cindy-test-app'),

@@ -177,6 +177,7 @@ import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog-provider';
 import { useSilentEncryptedRetry } from '@/hooks/useSilentEncryptedRetry';
 import { TodaySpendChip } from '@/components/status/TodaySpendChip';
+import { PowerSaveChip } from '@/components/status/PowerSaveChip';
 import { ContextWindowBudgetChip } from '@/components/status/ContextWindowBudgetChip';
 import { TopRightChipStack, TopRightChipStackProvider } from '@/components/chat/TopRightChipStack';
 import { ChatDisplaySnapshotProvider } from '@/components/chat/ChatDisplaySnapshotContext';
@@ -6380,6 +6381,7 @@ function CCAgentSessionContent({
 
                   {/* Right: Context capacity indicator & Privacy toggle & Session handoff */}
                   <div className="flex shrink-0 items-center gap-3">
+                    <PowerSaveChip />
                     <ScreenShareToggle />
                     {sessionId && <SessionHandoffButton sessionId={sessionId} />}
                     {session?.usedProjectContext && (

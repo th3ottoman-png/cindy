@@ -13694,6 +13694,18 @@
         "reset": "초기화",
         "allProjects": "모든 프로젝트"
       }
+    },
+    "powerSave": {
+      "tooltip": "컴퓨터 절전 방지 중: {{reasons}}. 클릭하여 전환합니다.",
+      "toggle": "컴퓨터를 켜진 상태로 유지",
+      "active": "활성",
+      "idle": "대기",
+      "reason": {
+        "turn": "턴 실행 중",
+        "scheduler": "예약 작업 실행 중",
+        "research": "리서치 실행 중",
+        "manual": "절전 방지 켜짐"
+      }
     }
   },
   "effortLevels": {

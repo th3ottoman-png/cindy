@@ -1427,6 +1427,7 @@ import {
   isTerminalTurnErrorEvent,
   SessionTurnActivityTracker,
 } from './sessionTurnActivityTracker.js';
+import { powerSaveController } from '../power/powerSaveController.js';
 import { SilentStopTurnLeaseGate, SessionTurnLeaseTracker } from './sessionTurnLease.js';
 import { ProductTurnUsageTargetTracker, ProductTurnWallClockTracker } from './turnWallClock.js';
 import { resolveClearSessionBoundary } from './clearSessionBoundary.js';
@@ -6896,9 +6897,19 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     }
   });
   getAgentIslandService()?.setPermissionResolver(resolvePendingPermissionFromAgentIsland);
-  sessionTurnActivityTracker.setTurnKeepaliveChangeListener(
-    options.onAnySessionTurnKeepaliveChange ?? null,
-  );
+  sessionTurnActivityTracker.setTurnKeepaliveChangeListener((running) => {
+    // ROADMAP 11.2: a live turn holds a power-save blocker so the machine does not suspend
+    // mid-answer. The tracker already keeps a 1 s grace after the terminal event.
+    powerSaveController.setReason('turn', running);
+    options.onAnySessionTurnKeepaliveChange?.(running);
+  });
+  powerSaveController.onChange((status) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+        win.webContents.send(MAKER_PUSH.POWER_SAVE_CHANGED, status);
+      }
+    }
+  });
   gitSnapshotCoordinator = createGitSnapshotCoordinator(maker);
   // 接上 DB 改名通知(用户手动改名后自动起名收手)与拦截意识探针(装了
   // will-user-message 钩子时不把用户原话送去标题模型)。
@@ -19295,6 +19306,14 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
           sessionTurnActivityTracker.isSessionInTurn(sessionId) ||
           live?.isTurnRunning() === true,
       };
+    },
+  );
+
+  ipcMain.handle(
+    MAKER_INVOKE.POWER_SAVE_STATUS,
+    (event) => {
+      assertTrustedAppRendererEvent(event);
+      return powerSaveController.status;
     },
   );
 

@@ -13694,6 +13694,18 @@
         "reset": "リセット",
         "allProjects": "すべてのプロジェクト"
       }
+    },
+    "powerSave": {
+      "tooltip": "スリープを防止中: {{reasons}}。クリックで切り替え。",
+      "toggle": "コンピューターを起動したままにする",
+      "active": "起動中",
+      "idle": "アイドル",
+      "reason": {
+        "turn": "ターン実行中",
+        "scheduler": "スケジュール実行中",
+        "research": "リサーチ実行中",
+        "manual": "スリープ防止がオン"
+      }
     }
   },
   "effortLevels": {

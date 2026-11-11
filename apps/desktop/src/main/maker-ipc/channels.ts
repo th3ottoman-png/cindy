@@ -198,6 +198,8 @@ export const MAKER_INVOKE = {
   SESSION_DISABLE_ORCA: 'maker:session:disable-orca',
   /** renderer 回填「该会话是否真的在 turn 中」的权威运行态(#4513 中断横幅假阳性)。 */
   SESSION_TURN_ACTIVE: 'maker:session:turn-active',
+  /** ROADMAP 11.2: current automatic power-save state (turn / scheduler / research). */
+  POWER_SAVE_STATUS: 'maker:power-save:status',
   /**
    * 输入框开始打字时提前启动该任务的 Agent（尽力而为，无返回约定之外的副作用）。
    * 本机 renderer 与 device-link 控制端共用；旧被控端没有该 channel 时控制端静默忽略。
@@ -1097,6 +1099,8 @@ export const MAKER_SEND = {
 
 export const MAKER_PUSH = {
   EVENT: 'maker:event',
+  /** ROADMAP 11.2: the automatic power-save state changed; payload is PowerSaveStatus. */
+  POWER_SAVE_CHANGED: 'maker:power-save:changed',
   /** Runtime agent roster changed after an optional agent recovery. */
   AGENTS_CHANGED: 'maker:agents:changed',
   /** The experts directory changed; payload is the fresh expert list. */

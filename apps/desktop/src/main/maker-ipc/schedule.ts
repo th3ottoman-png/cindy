@@ -77,6 +77,7 @@ import { isTrustedAppRendererEvent } from '../security/trustedAppRenderer.js';
 import { getAgentIslandService } from '../agent-island/service.js';
 import { getSessionProvider } from '../maker-host/session-provider-store.js';
 import { getActiveCatalog } from '../maker-host/active-catalog.js';
+import { powerSaveController } from '../power/powerSaveController.js';
 import { MAKER_INVOKE, MAKER_PUSH } from './channels.js';
 import {
   resolveBoundSessionGenerationRoute,
@@ -731,16 +732,36 @@ export function attachSchedulerEventListeners(
   storage: DrizzleScheduleStorage,
 ): void {
   // 单一 channel 多事件类型:renderer 按 event.type 分支
-  scheduler.on('fired', broadcastSchedulerEvent);
-  scheduler.on('completed', broadcastSchedulerEvent);
-  scheduler.on('failed', broadcastSchedulerEvent);
-  scheduler.on('silenced', broadcastSchedulerEvent);
-  scheduler.on('notified', broadcastSchedulerEvent);
-  scheduler.on('deferred', broadcastSchedulerEvent);
-  scheduler.on('skipped', broadcastSchedulerEvent);
-  scheduler.on('session-bound', broadcastSchedulerEvent);
-  scheduler.on('changed', broadcastSchedulerEvent);
-  scheduler.on('runtime-state', broadcastSchedulerEvent);
+  // ROADMAP 11.2: a scheduled run holds a power-save blocker until it finishes, so the machine
+  // does not suspend under a background job. `fired` opens a run; the terminal events close it.
+  // One composed listener per event keeps the broadcaster and the blocker in step, and keeps the
+  // fake schedulers in tests (which store one handler per event) working.
+  const activeRuns = new Set<string>();
+  const handleSchedulerEvent = (event: SchedulerEvent): void => {
+    broadcastSchedulerEvent(event);
+    if (event.type === 'fired') {
+      activeRuns.add(event.runId);
+      powerSaveController.setReason('scheduler', true);
+    } else if (
+      event.type === 'completed' ||
+      event.type === 'failed' ||
+      event.type === 'skipped' ||
+      event.type === 'deferred'
+    ) {
+      activeRuns.delete(event.runId);
+      powerSaveController.setReason('scheduler', activeRuns.size > 0);
+    }
+  };
+  scheduler.on('fired', handleSchedulerEvent);
+  scheduler.on('completed', handleSchedulerEvent);
+  scheduler.on('failed', handleSchedulerEvent);
+  scheduler.on('silenced', handleSchedulerEvent);
+  scheduler.on('notified', handleSchedulerEvent);
+  scheduler.on('deferred', handleSchedulerEvent);
+  scheduler.on('skipped', handleSchedulerEvent);
+  scheduler.on('session-bound', handleSchedulerEvent);
+  scheduler.on('changed', handleSchedulerEvent);
+  scheduler.on('runtime-state', handleSchedulerEvent);
 
   // 必须在 .on 全挂完之后调:setSchedulerReady 会立即 resolve 在途 await,
   // 之后业务 IPC 跑起来可能触发 changed/fired,listener 漏挂会丢事件。

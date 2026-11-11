@@ -13752,6 +13752,18 @@
         "reset": "Reset",
         "allProjects": "All projects"
       }
+    },
+    "powerSave": {
+      "tooltip": "Machine kept awake: {{reasons}}. Click to toggle keep-awake.",
+      "toggle": "Keep the computer awake",
+      "active": "Awake",
+      "idle": "idle",
+      "reason": {
+        "turn": "a turn is running",
+        "scheduler": "a scheduled job is running",
+        "research": "a research job is running",
+        "manual": "keep-awake is on"
+      }
     }
   },
   "effortLevels": {

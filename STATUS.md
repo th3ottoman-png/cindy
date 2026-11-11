@@ -10,6 +10,20 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 11.2 Native Power-Save Manager (`live-proven`)
+
+A live turn now holds an Electron `prevent-app-suspension` blocker and releases it on completion.
+
+- New `apps/desktop/src/main/power/powerSaveController.ts`: one blocker while any of `turn`, `scheduler`, `research` is active; idempotent; injected backend for tests; status listeners.
+- `register.ts` wires the turn keepalive listener and exposes `maker:power-save:status` plus `maker:power-save:changed`.
+- `schedule.ts` opens a run on `fired` and closes it on `completed` / `failed` / `skipped` / `deferred`, so a background job also holds the blocker.
+- Header `PowerSaveChip` (coffee cup) shows the live state and toggles the existing manual keep-awake setting.
+- `research` is a reserved reason; 9.5 does not exist yet.
+
+Verification: `powerSaveController.test.ts` 8; `CCAgentFeatureLayout` 1; `typecheck` 0. Live proof in the running app through real IPC: `getStatus` was `{active:false, reasons:[]}` before a real Hermes turn, `{active:true, reasons:['turn']}` for four consecutive polls during it, and `{active:false, reasons:[]}` after. Note: `prevent-app-suspension` keeps the system awake and still allows the display to sleep by design; the row's "display sleep" wording does not match that type.
+
+---
+
 ## 2026-11-11 - 11.9 High-Blast-Radius Pre-Check Guard (`unit-tested`)
 
 A write to an auth, schema, payment or harness-config path now opens an owner card with an explicit blast-radius checklist before it runs, even in Full access.

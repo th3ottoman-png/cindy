@@ -13694,6 +13694,18 @@
         "reset": "重置",
         "allProjects": "所有專案"
       }
+    },
+    "powerSave": {
+      "tooltip": "電腦保持喚醒：{{reasons}}。點擊切換保持喚醒。",
+      "toggle": "保持電腦喚醒",
+      "active": "喚醒",
+      "idle": "閒置",
+      "reason": {
+        "turn": "有回合正在執行",
+        "scheduler": "有排程工作正在執行",
+        "research": "有研究工作正在執行",
+        "manual": "保持喚醒已開啟"
+      }
     }
   },
   "effortLevels": {

@@ -13694,6 +13694,18 @@
         "reset": "重置",
         "allProjects": "所有项目"
       }
+    },
+    "powerSave": {
+      "tooltip": "电脑保持唤醒：{{reasons}}。点击切换保持唤醒。",
+      "toggle": "保持电脑唤醒",
+      "active": "唤醒",
+      "idle": "空闲",
+      "reason": {
+        "turn": "有回合正在运行",
+        "scheduler": "有定时任务正在运行",
+        "research": "有研究任务正在运行",
+        "manual": "保持唤醒已开启"
+      }
     }
   },
   "effortLevels": {
