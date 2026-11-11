@@ -17480,5 +17480,32 @@
     "groupHint": "끄면 이 그룹을 통해 실행하는 모든 작업이 일반 속도로 실행됩니다. Ultrafast에도 적용됩니다.",
     "pending": "일부 컴퓨터가 설정을 확인하지 않았습니다. 연결을 유지하고 이 설정을 지원하지 않는 그룹 컴퓨터를 업데이트하세요.",
     "saveFailed": "설정은 저장되었을 수 있지만 일부 실행 중인 작업이 일반 속도 전환을 확인하지 않았습니다. 연결을 확인한 후 다시 시도하세요."
+  },
+  "councilReview": {
+    "button": "합의 리뷰",
+    "buttonTooltip": "1~3개 모델에게 이 diff를 리뷰하게 합니다",
+    "title": "다중 모델 합의 리뷰",
+    "subtitle": "동일한 중립 브리프를 각 모델에 개별 전송합니다. 지적은 파일과 줄 기준으로 병합됩니다.",
+    "close": "닫기",
+    "loading": "리뷰 가능한 모델을 불러오는 중...",
+    "noReviewers": "어떤 모델도 응답하지 않았습니다. 로컬 엔드포인트를 시작하거나 providers.yaml의 API 키를 확인하세요.",
+    "selectedCount": "{{count}} / 3 선택됨",
+    "localTag": "로컬",
+    "noteLabel": "리뷰어에게 남길 메모(선택)",
+    "notePlaceholder": "예: 재시도 경로를 중점적으로",
+    "run": "리뷰 요청",
+    "running": "리뷰 중...",
+    "summary": "지적 {{findings}}건, {{total}}개 모델 중 {{usable}}개 응답",
+    "reviewerFailed": "{{model}}이(가) 사용 가능한 리뷰를 반환하지 않았습니다({{reason}}).",
+    "notRemembered": "이 선택은 routing.yaml에 저장되지 않았습니다.",
+    "noFindings": "보고된 결함이 없습니다.",
+    "agreed": "{{agreement}}/{{of}} 일치",
+    "copySuggestion": "제안 복사",
+    "severity": {
+      "blocker": "차단",
+      "major": "중요",
+      "minor": "경미",
+      "nit": "세부"
+    }
   }
 }

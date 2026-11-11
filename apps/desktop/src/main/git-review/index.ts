@@ -1,4 +1,11 @@
 export { registerGitReviewIpc, GIT_REVIEW_INVOKE } from './ipc.js';
+export { registerCouncilReviewIpc, COUNCIL_REVIEW_INVOKE } from './councilIpc.js';
+export {
+  runCouncilReview,
+  readCouncilCatalogue,
+  readCouncilSelectionFile,
+  writeCouncilSelectionFile,
+} from './councilReview.js';
 export { registerGitReviewDeviceOp } from './device-op.js';
 export { runGit, GitRunError } from './gitRunner.js';
 export { resolveReviewScope } from './scopeResolver.js';

@@ -45,6 +45,10 @@ function extractModelIds(body: unknown): string[] | null {
     if (typeof item === 'string') ids.push(item);
     else if (typeof item === 'object' && item !== null) {
       const m = item as Record<string, unknown>;
+      // Some gateways publish a per-model status (Tencent TokenHub: online / pre-offline).
+      // Advertising a model the provider itself has taken offline turns into a 400 at call
+      // time, so leave it out of the catalogue.
+      if (typeof m.status === 'string' && m.status.toLowerCase() !== 'online') continue;
       const id = [m.id, m.name, m.model].find((v) => typeof v === 'string' && v);
       if (typeof id === 'string') ids.push(id);
     }

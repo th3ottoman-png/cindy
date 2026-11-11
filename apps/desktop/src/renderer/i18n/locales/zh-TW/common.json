@@ -17480,5 +17480,32 @@
     "groupHint": "關閉後，經此組執行的任務使用普通模式，也適用於 Ultrafast。",
     "pending": "部分電腦尚未確認設定。請保持連線，並更新不支援此設定的組內電腦。",
     "saveFailed": "設定可能已儲存，但執行中的任務尚未全部確認切換為普通模式。請檢查連線後重試。"
+  },
+  "councilReview": {
+    "button": "會審",
+    "buttonTooltip": "請 1 到 3 個模型評審這次改動",
+    "title": "多模型會審",
+    "subtitle": "同一份中性簡報，分別發給每個選中的模型。結論按檔案與行號合併。",
+    "close": "關閉",
+    "loading": "正在讀取可用模型...",
+    "noReviewers": "沒有任何模型通過探測。請啟動本地端點，或檢查 providers.yaml 裡的 API 金鑰。",
+    "selectedCount": "已選 {{count}} / 3",
+    "localTag": "本地",
+    "noteLabel": "給評審模型的說明（選填）",
+    "notePlaceholder": "例如：重點看重試路徑",
+    "run": "開始會審",
+    "running": "評審中...",
+    "summary": "{{findings}} 條結論，{{total}} 個模型中有 {{usable}} 個回傳了可用評審",
+    "reviewerFailed": "{{model}} 未回傳可用評審（{{reason}}）。",
+    "notRemembered": "本次選擇未能寫入 routing.yaml。",
+    "noFindings": "未回報缺陷。",
+    "agreed": "{{agreement}}/{{of}} 一致",
+    "copySuggestion": "複製建議",
+    "severity": {
+      "blocker": "阻斷",
+      "major": "重要",
+      "minor": "次要",
+      "nit": "細節"
+    }
   }
 }

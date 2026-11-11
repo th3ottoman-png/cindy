@@ -28,7 +28,7 @@ import {
 } from '@cindy/model-providers/route-health';
 
 import { probeEndpoint } from './discovery.js';
-import { loadProvidersFile } from './providers-file.js';
+import { loadProvidersFile, type ProviderFileEntry } from './providers-file.js';
 import { loadRoutingFile, resolveTaskRoute } from './routing-file.js';
 
 export type RoutedTaskClass = 'title' | 'predict' | 'summary';
@@ -83,6 +83,105 @@ function extractContent(body: unknown): string | null {
   if (typeof message !== 'object' || message === null) return null;
   const content = (message as Record<string, unknown>).content;
   return typeof content === 'string' ? content : null;
+}
+
+/** Reasoning-only local models put their answer here and leave `content` empty. */
+function extractReasoning(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const choices = (body as Record<string, unknown>).choices;
+  if (!Array.isArray(choices) || choices.length === 0) return null;
+  const first = choices[0];
+  if (typeof first !== 'object' || first === null) return null;
+  const message = (first as Record<string, unknown>).message;
+  if (typeof message !== 'object' || message === null) return null;
+  const rec = message as Record<string, unknown>;
+  const text = rec.reasoning_content ?? rec.reasoning;
+  return typeof text === 'string' ? text : null;
+}
+
+/**
+ * One OpenAI-compatible chat-completions call. Shared by the routed task path and the explicit
+ * target path so both keep the same key handling, redirect refusal and abort semantics.
+ */
+interface ChatCompletionCall {
+  entry: ProviderFileEntry;
+  env: Record<string, string | undefined>;
+  fetchImpl: typeof fetch;
+  model: string;
+  messages: Array<{ role: string; content: string }>;
+  maxTokens: number;
+  timeoutMs: number;
+  signal?: AbortSignal;
+  /**
+   * Accept `reasoning_content` when `content` is empty. Off by default: a title taken from a
+   * model's thinking would be garbage. A caller that only needs to find JSON anywhere in the
+   * reply can turn it on for reasoning-only local models.
+   */
+  acceptReasoningContent?: boolean;
+}
+
+type ChatCompletionOutcome =
+  | { ok: true; text: string }
+  | { ok: false; message: string };
+
+async function postChatCompletion(call: ChatCompletionCall): Promise<ChatCompletionOutcome> {
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    accept: 'application/json',
+  };
+  if (call.entry.keyEnv) {
+    const key = call.env[call.entry.keyEnv];
+    if (key) headers.authorization = `Bearer ${key}`;
+  }
+  const body = JSON.stringify({
+    model: call.model,
+    messages: call.messages,
+    max_tokens: call.maxTokens,
+    stream: false,
+  });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), call.timeoutMs);
+  const onCallerAbort = () => controller.abort();
+  call.signal?.addEventListener('abort', onCallerAbort);
+  // A signal aborted before the call never fires its event; mirror its state once.
+  if (call.signal?.aborted) controller.abort();
+  try {
+    const res = await call.fetchImpl(chatCompletionsUrl(call.entry.baseUrl), {
+      method: 'POST',
+      headers,
+      body,
+      signal: controller.signal,
+      redirect: 'error',
+    });
+    if (!res.ok) return { ok: false, message: `HTTP ${res.status}` };
+    let parsed: unknown;
+    try {
+      parsed = await res.json();
+    } catch {
+      return { ok: false, message: 'reply is not JSON' };
+    }
+    // `content` is often an empty string (not null) on a reasoning-only model, so treat blank
+    // as absent before falling back.
+    const direct = extractContent(parsed);
+    const content = direct && direct.trim()
+      ? direct
+      : (call.acceptReasoningContent ? extractReasoning(parsed) : null);
+    if (content === null || !content.trim()) {
+      return { ok: false, message: 'reply has no message content' };
+    }
+    return { ok: true, text: content.trim() };
+  } catch (error) {
+    const message = call.signal?.aborted
+      ? 'aborted'
+      : controller.signal.aborted
+        ? `no reply within ${call.timeoutMs} ms`
+        : error instanceof Error ? error.message : String(error);
+    return { ok: false, message };
+  } finally {
+    clearTimeout(timer);
+    call.signal?.removeEventListener('abort', onCallerAbort);
+  }
 }
 
 /**
@@ -143,62 +242,119 @@ export async function requestRoutedTaskText(
     return { kind: 'blocked', reason: health.reason, message: health.message, alternatives: health.alternatives };
   }
 
-  const headers: Record<string, string> = {
-    'content-type': 'application/json',
-    accept: 'application/json',
-  };
-  if (entry?.keyEnv) {
-    const key = env[entry.keyEnv];
-    if (key) headers.authorization = `Bearer ${key}`;
-  }
   const messages = [
     ...(args.systemPrompt ? [{ role: 'system', content: args.systemPrompt }] : []),
     { role: 'user', content: args.prompt },
   ];
-  const body = JSON.stringify({
+  const outcome = await postChatCompletion({
+    entry: entry!,
+    env,
+    fetchImpl,
     model: health.model,
     messages,
-    max_tokens: args.maxTokens ?? DEFAULT_MAX_TOKENS,
-    stream: false,
+    maxTokens: args.maxTokens ?? DEFAULT_MAX_TOKENS,
+    timeoutMs,
+    ...(args.signal ? { signal: args.signal } : {}),
   });
+  return outcome.ok
+    ? { kind: 'ok', text: outcome.text, routeName: health.routeName, provider: health.provider, model: health.model }
+    : { kind: 'failed', message: outcome.message, routeName: health.routeName, provider: health.provider, model: health.model };
+}
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const onCallerAbort = () => controller.abort();
-  args.signal?.addEventListener('abort', onCallerAbort);
-  // A signal aborted before the call never fires its event; mirror its state once.
-  if (args.signal?.aborted) controller.abort();
-  try {
-    const res = await fetchImpl(chatCompletionsUrl(entry!.baseUrl), {
-      method: 'POST',
-      headers,
-      body,
-      signal: controller.signal,
-      redirect: 'error',
-    });
-    if (!res.ok) {
-      return { kind: 'failed', message: `HTTP ${res.status}`, routeName: health.routeName, provider: health.provider, model: health.model };
-    }
-    let parsed: unknown;
-    try {
-      parsed = await res.json();
-    } catch {
-      return { kind: 'failed', message: 'reply is not JSON', routeName: health.routeName, provider: health.provider, model: health.model };
-    }
-    const content = extractContent(parsed);
-    if (content === null || !content.trim()) {
-      return { kind: 'failed', message: 'reply has no message content', routeName: health.routeName, provider: health.provider, model: health.model };
-    }
-    return { kind: 'ok', text: content.trim(), routeName: health.routeName, provider: health.provider, model: health.model };
-  } catch (error) {
-    const message = args.signal?.aborted
-      ? 'aborted'
-      : controller.signal.aborted
-        ? `no reply within ${timeoutMs} ms`
-        : error instanceof Error ? error.message : String(error);
-    return { kind: 'failed', message, routeName: health.routeName, provider: health.provider, model: health.model };
-  } finally {
-    clearTimeout(timer);
-    args.signal?.removeEventListener('abort', onCallerAbort);
+export interface RouteTargetTextRequest {
+  /** providers.yaml id, exactly as the owner wrote it. */
+  provider: string;
+  model: string;
+  prompt: string;
+  systemPrompt?: string;
+  maxTokens?: number;
+  timeoutMs?: number;
+  probeTimeoutMs?: number;
+  signal?: AbortSignal;
+  /** See ChatCompletionCall.acceptReasoningContent. */
+  acceptReasoningContent?: boolean;
+}
+
+export type RouteTargetTextResult =
+  | { kind: 'ok'; text: string; provider: string; model: string }
+  | {
+    kind: 'failed';
+    reason: 'invalid-target' | 'unknown-provider' | 'offline' | 'call-failed';
+    message: string;
+    provider: string;
+    model: string;
+  };
+
+/**
+ * Generate text on one exact providers.yaml endpoint and model, bypassing routing.yaml.
+ *
+ * The council needs this: the owner picks reviewers explicitly, so resolving a task class would
+ * ignore the pick. Same fail-closed discipline as the routed path: unknown provider and offline
+ * endpoint are reported, never substituted, and the key goes only to that entry's own host.
+ */
+export async function requestRouteTargetText(
+  args: RouteTargetTextRequest,
+  deps: RoutedTaskTextDeps = {},
+): Promise<RouteTargetTextResult> {
+  const {
+    harnessDir = path.join(os.homedir(), '.cindy-harness'),
+    env = process.env,
+    fetchImpl = fetch,
+  } = deps;
+  const provider = args.provider.trim();
+  const model = args.model.trim();
+  if (!provider || !model) {
+    return {
+      kind: 'failed',
+      reason: 'invalid-target',
+      message: 'a provider and a model are required',
+      provider,
+      model,
+    };
   }
+
+  const providersFile = loadProvidersFile(path.join(harnessDir, 'providers.yaml'));
+  const entry = providersFile.providers.find((p) => p.id === provider);
+  if (!entry) {
+    return {
+      kind: 'failed',
+      reason: 'unknown-provider',
+      message: `${provider} is not in providers.yaml`,
+      provider,
+      model,
+    };
+  }
+
+  const probe = await probeEndpoint(entry, {
+    timeoutMs: args.probeTimeoutMs ?? DEFAULT_PROBE_TIMEOUT_MS,
+    env,
+    fetchImpl,
+  });
+  if (probe.status !== 'online') {
+    return {
+      kind: 'failed',
+      reason: 'offline',
+      message: probe.error ?? `${provider} answered a probe as ${probe.status}`,
+      provider,
+      model,
+    };
+  }
+
+  const outcome = await postChatCompletion({
+    entry,
+    env,
+    fetchImpl,
+    model,
+    messages: [
+      ...(args.systemPrompt ? [{ role: 'system', content: args.systemPrompt }] : []),
+      { role: 'user', content: args.prompt },
+    ],
+    maxTokens: args.maxTokens ?? DEFAULT_MAX_TOKENS,
+    timeoutMs: args.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    ...(args.acceptReasoningContent ? { acceptReasoningContent: true } : {}),
+    ...(args.signal ? { signal: args.signal } : {}),
+  });
+  return outcome.ok
+    ? { kind: 'ok', text: outcome.text, provider, model }
+    : { kind: 'failed', reason: 'call-failed', message: outcome.message, provider, model };
 }

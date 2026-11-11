@@ -52,6 +52,7 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { cn, basename } from '@/lib/utils';
+import { CouncilReviewButton } from './CouncilReviewButton';
 import type {
   FileDiff,
   ReviewBranchBaseCandidate,
@@ -1401,6 +1402,12 @@ export function ReviewTabBody({ state, ctx }: ReviewTabBodyProps) {
                   onToggle={() => setFileTreeVisible(!fileTreeVisible)}
                 />
               </>
+            )}
+            {sessionId && (
+              <CouncilReviewButton
+                sessionId={sessionId}
+                enabled={visibleDiffs.some((diff) => !diff.isBinary && !diff.isTooLarge)}
+              />
             )}
             <CommitOrPushDropdown
               branchLabel={branchLabel}

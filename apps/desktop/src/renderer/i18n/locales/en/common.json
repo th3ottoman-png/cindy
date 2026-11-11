@@ -17544,5 +17544,32 @@
     "groupHint": "When off, all tasks routed through this group use standard speed, including Ultrafast.",
     "pending": "Some computers have not confirmed the setting. Keep them connected and update group computers that do not support this setting.",
     "saveFailed": "The setting may be saved, but some running tasks have not confirmed standard speed. Check the connection and retry."
+  },
+  "councilReview": {
+    "button": "Council",
+    "buttonTooltip": "Ask 1 to 3 models to review this diff",
+    "title": "Council review",
+    "subtitle": "One neutral brief, sent to each selected model independently. Findings are merged by file and line.",
+    "close": "Close",
+    "loading": "Reading the reviewer list...",
+    "noReviewers": "No model answered a probe. Start a local endpoint or check the API keys in providers.yaml.",
+    "selectedCount": "{{count}} of 3 selected",
+    "localTag": "local",
+    "noteLabel": "Note for the reviewers (optional)",
+    "notePlaceholder": "e.g. focus on the retry path",
+    "run": "Request review",
+    "running": "Reviewing...",
+    "summary": "{{findings}} findings, {{usable}} of {{total}} models answered",
+    "reviewerFailed": "{{model}} did not return a usable review ({{reason}}).",
+    "notRemembered": "This selection was not saved to routing.yaml.",
+    "noFindings": "No defects reported.",
+    "agreed": "{{agreement}}/{{of}} agreed",
+    "copySuggestion": "Copy suggestion",
+    "severity": {
+      "blocker": "Blocker",
+      "major": "Major",
+      "minor": "Minor",
+      "nit": "Nit"
+    }
   }
 }

@@ -6,7 +6,7 @@ import * as path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { chatCompletionsUrl, requestRoutedTaskText } from '../routed-auxiliary.js';
+import { chatCompletionsUrl, requestRouteTargetText, requestRoutedTaskText } from '../routed-auxiliary.js';
 
 const servers: http.Server[] = [];
 const dirs: string[] = [];
@@ -216,5 +216,116 @@ describe('requestRoutedTaskText generation', () => {
       { harnessDir: dir, env: {} },
     );
     expect(result).toMatchObject({ kind: 'failed', message: 'aborted' });
+  });
+});
+
+describe('requestRouteTargetText', () => {
+  it('calls the exact picked model and ignores routing.yaml', async () => {
+    const { base, requests } = await serveModel(['picked-model', 'routed-model'], () => content('hello'));
+    const dir = harness(providers(base), routing('routed-model'));
+    const result = await requestRouteTargetText(
+      { provider: 'local-a', model: 'picked-model', prompt: 'p' },
+      { harnessDir: dir, env: {} },
+    );
+    expect(result).toEqual({ kind: 'ok', text: 'hello', provider: 'local-a', model: 'picked-model' });
+    const posted = requests.find((r) => r.url === '/v1/chat/completions');
+    expect(JSON.parse(posted?.body ?? '{}').model).toBe('picked-model');
+  });
+
+  it('sends the system prompt as a separate message', async () => {
+    const { base, requests } = await serveModel(['m'], () => content('ok'));
+    const dir = harness(providers(base));
+    await requestRouteTargetText(
+      { provider: 'local-a', model: 'm', prompt: 'the diff', systemPrompt: 'be terse' },
+      { harnessDir: dir, env: {} },
+    );
+    const posted = JSON.parse(requests.find((r) => r.url === '/v1/chat/completions')?.body ?? '{}');
+    expect(posted.messages).toEqual([
+      { role: 'system', content: 'be terse' },
+      { role: 'user', content: 'the diff' },
+    ]);
+  });
+
+  it('refuses an unknown provider instead of falling back to a route', async () => {
+    const { base } = await serveModel(['m'], () => content('ok'));
+    const dir = harness(providers(base), routing('m'));
+    const result = await requestRouteTargetText(
+      { provider: 'ghost', model: 'm', prompt: 'p' },
+      { harnessDir: dir, env: {} },
+    );
+    expect(result).toMatchObject({ kind: 'failed', reason: 'unknown-provider' });
+  });
+
+  it('refuses an endpoint that does not answer the probe', async () => {
+    const dir = harness('providers:\n  - id: dead\n    kind: openai-compatible\n    baseUrl: http://127.0.0.1:1\n');
+    const result = await requestRouteTargetText(
+      { provider: 'dead', model: 'm', prompt: 'p', probeTimeoutMs: 400 },
+      { harnessDir: dir, env: {} },
+    );
+    expect(result).toMatchObject({ kind: 'failed', reason: 'offline' });
+  });
+
+  it('reports an HTTP failure without inventing text', async () => {
+    const { base } = await serveModel(['m'], () => ({ status: 500, json: { error: 'boom' } }));
+    const dir = harness(providers(base));
+    const result = await requestRouteTargetText(
+      { provider: 'local-a', model: 'm', prompt: 'p' },
+      { harnessDir: dir, env: {} },
+    );
+    expect(result).toMatchObject({ kind: 'failed', reason: 'call-failed', message: 'HTTP 500' });
+  });
+
+  it('treats an empty answer as a failure', async () => {
+    const { base } = await serveModel(['m'], () => content('   '));
+    const dir = harness(providers(base));
+    const result = await requestRouteTargetText(
+      { provider: 'local-a', model: 'm', prompt: 'p' },
+      { harnessDir: dir, env: {} },
+    );
+    expect(result).toMatchObject({ kind: 'failed', reason: 'call-failed' });
+  });
+
+  it('sends the keyEnv key to that endpoint only', async () => {
+    const { base, requests } = await serveModel(['m'], () => content('ok'));
+    const dir = harness(providers(base, '    keyEnv: MY_KEY\n'));
+    await requestRouteTargetText(
+      { provider: 'local-a', model: 'm', prompt: 'p' },
+      { harnessDir: dir, env: { MY_KEY: 'sk-test' } },
+    );
+    const posted = requests.find((r) => r.url === '/v1/chat/completions');
+    expect(posted?.headers.authorization).toBe('Bearer sk-test');
+  });
+
+  it('rejects a blank target', async () => {
+    const result = await requestRouteTargetText({ provider: ' ', model: 'm', prompt: 'p' }, { env: {} });
+    expect(result).toMatchObject({ kind: 'failed', reason: 'invalid-target' });
+  });
+
+  it('refuses an empty content reply by default', async () => {
+    const { base } = await serveModel(['m'], () => ({
+      json: { choices: [{ message: { role: 'assistant', content: '', reasoning_content: 'thinking only' } }] },
+    }));
+    const dir = harness(providers(base));
+    const result = await requestRouteTargetText(
+      { provider: 'local-a', model: 'm', prompt: 'p' },
+      { harnessDir: dir, env: {} },
+    );
+    expect(result).toMatchObject({ kind: 'failed', reason: 'call-failed' });
+  });
+
+  it('can accept reasoning_content when the caller opts in', async () => {
+    const { base } = await serveModel(['m'], () => ({
+      json: {
+        choices: [{
+          message: { role: 'assistant', content: '', reasoning_content: '{"findings":[]}' },
+        }],
+      },
+    }));
+    const dir = harness(providers(base));
+    const result = await requestRouteTargetText(
+      { provider: 'local-a', model: 'm', prompt: 'p', acceptReasoningContent: true },
+      { harnessDir: dir, env: {} },
+    );
+    expect(result).toEqual({ kind: 'ok', text: '{"findings":[]}', provider: 'local-a', model: 'm' });
   });
 });

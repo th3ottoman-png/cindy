@@ -10,6 +10,69 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 11.4 Multi-Model Council Review (`live-proven`)
+
+One neutral diff brief, sent to one to three owner-picked models in parallel, merged into a
+consensus checklist in the Review sidebar.
+
+- **Engine** (`packages/maker-core/src/review/council-review.ts`, new subpath `./council-review`):
+  selection validation against the live catalogue (1 to 3, unique, must exist), the neutral brief
+  with a character and file cap, reviewer-output parsing (plain JSON, fenced, or JSON inside prose),
+  `dropUnknownFiles` so a model naming a file that was never shown is discarded, dedupe, and
+  consensus ranking.
+- **Consensus needs a shared vocabulary, not shared wording.** The brief asks each reviewer for a
+  `kind` from a closed list (`null-deref`, `unchecked-response`, `unencoded-input`, `unsafe-cast`,
+  `unhandled-error`, `off-by-one`, `resource-leak`, `race-condition`, `injection`,
+  `secret-exposure`, `data-loss`, `other`). Same class at the same place agrees whatever prose it
+  arrived in; different classes stay separate. Title overlap is only the fallback when a reviewer
+  says `other`. Line numbers get a one-line window because models disagree by one on where an
+  added block starts. Measured on real output: `Unchecked response status` and `HTTP errors parsed
+  as success` merged to `[2/2]`; without the class they share no token.
+- **A reviewer that fails is not silence.** Prose replies, timeouts and transport errors become
+  `status: failed` and are excluded from the denominator, so the card can never show `[3/3]` when
+  one model answered.
+- **Dispatch** (`apps/desktop/src/main/git-review/councilReview.ts` + `councilIpc.ts`): the diff
+  comes from the same `readReviewData` path the panel uses, wrapped in
+  `withSessionReviewExecution` so a remote session reviews its remote tree. Calls go through a new
+  `requestRouteTargetText` in `@cindy/maker-core/routed-auxiliary`, which addresses one exact
+  providers.yaml entry and model (routing.yaml is deliberately bypassed, because the owner picked
+  the reviewer). Same key handling, redirect refusal and fail-closed rules as the routed path.
+- **Remembered selection** is a managed block in `~/.cindy-harness/routing.yaml`, rewritten in
+  place so the owner's routes, rules and comments survive byte for byte.
+- **UI**: `Council` button in the Review toolbar opens `CouncilReviewDialog` (model chips grouped
+  by endpoint, a local tag, an optional note, a findings checklist with the `[n/m agreed]` label,
+  the defect class, and a copy button for a suggested patch). Five locales.
+
+Three real defects found while proving it, all fixed:
+
+1. The dispatcher rejected a reply whose `content` was empty, which is what a local reasoning model
+   returns when its answer sits in `reasoning_content`. Opt-in fallback added; the title path keeps
+   the strict behaviour because a title taken from thinking would be garbage.
+2. `COUNCIL_MAX_TOKENS = 2000` ran out mid-thought on a 12-line diff, so the JSON was never
+   emitted. Raised to 8,000 and the brief now caps findings at 10.
+3. Discovery advertised models the gateway itself marks `pre-offline` (Tencent TokenHub). The
+   picker offered `deepseek-v4-flash-0731`, which answers `400 model does not exist`. Discovery
+   now skips any model whose reported `status` is not `online`.
+
+Live proof (canonical restart, `DESKTOP_DEV_VERDICT=ready`, real IPC, real 12-line diff in
+`/tmp/cindy-council-repo`): catalogue 109 models across `lmstudio-local` and `tokenhub`; selected
+1 local + 1 API; both answered (`usableReviewers: 2`, `failedReviewers: 0`); 4 consensus findings,
+3 at `[2/2]` and 1 genuine single-reviewer finding; `selectionPersisted: true` and the managed
+block present in `routing.yaml` with the owner's routes untouched.
+
+Gates: `typecheck` 0; `test:runner` 0 (608 pass); `check:test-hygiene` 0 (361 files);
+`test:unit:related` green via the sanctioned split: non-desktop PASS, shards 1, 2, 3, 5, 6, 7 PASS,
+shard 4 hit the known V8 `SIGSEGV` and shard 8 hit the documented `vaultNotes` watcher timeout
+(3,007 ms, spy not called, ROADMAP Debt); both passed on standalone rerun. New tests: engine 37,
+host 13, dialog 6, routed-target 8, discovery status 1.
+
+Honest limits: consensus quality still depends on the reviewers classifying correctly; a reviewer
+that answers `other` everywhere falls back to wording. Only 1-click *copy* of a suggested patch is
+implemented, not 1-click apply, because applying a model's patch to the working tree is a separate
+blast-radius decision (11.9 already gates writes).
+
+---
+
 ## 2026-11-11 - 11.2 Native Power-Save Manager (`live-proven`)
 
 A live turn now holds an Electron `prevent-app-suspension` blocker and releases it on completion.

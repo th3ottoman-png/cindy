@@ -5562,6 +5562,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       sessionId: string;
       confirmForce?: ReviewPushConfirmForce;
     }): Promise<ReviewPushResult> => ipcRenderer.invoke('git-review:push', params),
+    /** ROADMAP 11.4: picker list plus the remembered reviewer selection. */
+    councilOptions: (): Promise<import('../main/git-review/councilIpc').CouncilOptionsResponse> =>
+      ipcRenderer.invoke('git-review:council-options'),
+    /** ROADMAP 11.4: run one council pass over the current review diff. */
+    councilRun: (params: {
+      sessionId: string;
+      reviewers: { providerId: string; model: string }[];
+      note?: string;
+    }): Promise<import('../main/git-review/councilReview').CouncilRunResult> =>
+      ipcRenderer.invoke('git-review:council-run', params),
   },
 
   // Sidebar identity state is owner-scoped in main and every mutation/push is generation-fenced.

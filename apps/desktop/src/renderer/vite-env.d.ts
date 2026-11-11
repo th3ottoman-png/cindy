@@ -4693,6 +4693,14 @@ interface ElectronAPI {
       sessionId: string;
       confirmForce?: import('@/lib/gitReview.types').ReviewPushConfirmForce;
     }) => Promise<import('@/lib/gitReview.types').ReviewPushResult>;
+    /** ROADMAP 11.4: picker list plus the remembered reviewer selection. */
+    councilOptions: () => Promise<import('../main/git-review/councilIpc').CouncilOptionsResponse>;
+    /** ROADMAP 11.4: run one council pass over the current review diff. */
+    councilRun: (params: {
+      sessionId: string;
+      reviewers: { providerId: string; model: string }[];
+      note?: string;
+    }) => Promise<import('../main/git-review/councilReview').CouncilRunResult>;
   };
 
   sidebarSettings: {

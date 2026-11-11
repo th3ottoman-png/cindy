@@ -925,6 +925,7 @@ import { createDesktopSkillsHost } from './skillsDesktop.js';
 import { getDesktopExpertSessionStore } from './expertSessions.js';
 import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
+import { registerCouncilReviewIpc } from '../git-review/councilIpc.js';
 import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNotes.js';
 import { getRuleLearnerHost, registerRuleLearnerHandlers } from './ruleLearner.js';
 import { getPromptStructurerHost, registerPromptStructurerHandlers } from './promptStructurer.js';
@@ -25733,22 +25734,32 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   });
 
   // ── Providers (ROADMAP 2.1b/2.2b IPC): read-only list + on-demand probe of ~/.cindy-harness/providers.yaml ──
+  // ── Providers (ROADMAP 2.1b/2.2b IPC): read-only list + on-demand probe of ~/.cindy-harness/providers.yaml ──
+  // A `keyEnv` name is resolved against this env. Cindy's main never loads the Hermes
+  // home `.env`, so an endpoint whose key the owner stored for Hermes (e.g. TOKENHUB_API_KEY)
+  // would probe as HTTP 401 and vanish from the picker. Merge that file over process.env,
+  // re-read per probe so a new key needs no restart. Hermes's home never enters Cindy's
+  // own config, and the key still only goes to the endpoint's own host.
+  const harnessDiscoveryEnv = (): Record<string, string | undefined> => {
+    try {
+      const body = readFileSync(path.join(resolveHermesHome(), '.env'), 'utf8');
+      return { ...process.env, ...parseHermesDotEnv(body) };
+    } catch {
+      return process.env;
+    }
+  };
   registerProvidersHandlers(createElectronIpcHandlerRegistry(), {
     file: path.join(os.homedir(), '.cindy-harness', 'providers.yaml'),
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
-    // A `keyEnv` name is resolved against this env. Cindy's main never loads the Hermes
-    // home `.env`, so an endpoint whose key the owner stored for Hermes (e.g. TOKENHUB_API_KEY)
-    // would probe as HTTP 401 and vanish from the picker. Merge that file over process.env,
-    // re-read per probe so a new key needs no restart. Hermes's home never enters Cindy's
-    // own config, and the key still only goes to the endpoint's own host.
-    discoveryEnv: () => {
-      try {
-        const body = readFileSync(path.join(resolveHermesHome(), '.env'), 'utf8');
-        return { ...process.env, ...parseHermesDotEnv(body) };
-      } catch {
-        return process.env;
-      }
-    },
+    discoveryEnv: harnessDiscoveryEnv,
+  });
+
+  // ── Council review (ROADMAP 11.4): one neutral diff brief, 1 to 3 selected models in parallel ──
+  registerCouncilReviewIpc({
+    providersFile: path.join(os.homedir(), '.cindy-harness', 'providers.yaml'),
+    routingFile: path.join(os.homedir(), '.cindy-harness', 'routing.yaml'),
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    env: harnessDiscoveryEnv,
   });
 
   // ── Notes vault (ROADMAP 5.1): read/write ~/.cindy-harness/vault.json ──

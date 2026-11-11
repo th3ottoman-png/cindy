@@ -60,6 +60,21 @@ describe('probeEndpoint', () => {
     expect(auth).toBe('Bearer secret-value');
   });
 
+  it('leaves out models the gateway itself marks as not online', async () => {
+    const base = await serve((_req, res) => {
+      res.end(JSON.stringify({
+        data: [
+          { id: 'hy3', status: 'online' },
+          { id: 'hy4-preview', status: 'pre-offline' },
+          { id: 'no-status-model' },
+        ],
+      }));
+    });
+    const probe = await probeEndpoint(entry({ baseUrl: base }));
+    expect(probe.status).toBe('online');
+    expect(probe.models).toEqual(['hy3', 'no-status-model']);
+  });
+
   it('sends no Authorization header when the env var is unset', async () => {
     let auth: string | undefined = 'unset';
     const base = await serve((req, res) => {
