@@ -321,3 +321,43 @@ describe('reproduce and compare', () => {
     );
   });
 });
+
+describe('chat-only sessions (ROADMAP 10.3)', () => {
+  it('records the mode as a capability so a resumed session cannot silently regain tools', () => {
+    const manifest = buildSessionManifest({
+      ...input(),
+      session: { ...input().session, chatOnly: true },
+    });
+    expect(manifest.session.chatOnly).toBe(true);
+    const row = manifest.capabilities.find((capability) => capability.id === 'permission:chat-only');
+    expect(row).toMatchObject({
+      kind: 'permission',
+      label: 'Chat only',
+      value: 'no tools, no MCP',
+      trust: 'session-state',
+    });
+    expect(row?.reason).toMatch(/--safe-mode/);
+  });
+
+  it('leaves the manifest unchanged for a normal session', () => {
+    const manifest = buildSessionManifest(input());
+    expect(manifest.session.chatOnly).toBeUndefined();
+    expect(manifest.capabilities.some((capability) => capability.id === 'permission:chat-only')).toBe(false);
+  });
+
+  it('survives the YAML round-trip', () => {
+    const withChatOnly = buildSessionManifest({ ...input(), session: { ...input().session, chatOnly: true } });
+    const parsed = parseSessionManifest(serializeSessionManifest(withChatOnly));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.manifest.session.chatOnly).toBe(true);
+    expect(serializeSessionManifest(parsed.manifest)).toBe(serializeSessionManifest(withChatOnly));
+  });
+
+  it('rejects a non-boolean chatOnly instead of guessing', () => {
+    const yaml = serializeSessionManifest(buildSessionManifest({ ...input(), session: { ...input().session, chatOnly: true } }))
+      .replace('chatOnly: true', 'chatOnly: yes please');
+    const parsed = parseSessionManifest(yaml);
+    expect(parsed.ok).toBe(false);
+  });
+});

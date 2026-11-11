@@ -28,6 +28,8 @@ export interface SessionManifestSessionFacts {
   model: string | null;
   providerId: string | null;
   permissionMode: string | null;
+  /** ROADMAP 10.3: filled from the host when absent, so the strip never claims tools it lacks. */
+  chatOnly?: boolean;
 }
 
 async function maybe<T>(call: () => Promise<T>, fallback: T): Promise<T> {
@@ -69,8 +71,13 @@ export async function collectSessionManifest(
     : null;
   const markdown = source && 'ok' in source && source.ok ? source.markdown : undefined;
 
+  // ROADMAP 10.3: the flag lives with the host (it is what builds Hermes's argv), not in the
+  // session row, so ask for it unless the caller already knows.
+  const chatOnly = session.chatOnly
+    ?? (await maybe<boolean>(() => maker.chatOnly.get({ sessionId: session.id }).then((view) => view.chatOnly), false));
+
   const input: SessionManifestInput = {
-    session,
+    session: { ...session, chatOnly },
     expert: binding
       ? {
           slug: binding.slug,

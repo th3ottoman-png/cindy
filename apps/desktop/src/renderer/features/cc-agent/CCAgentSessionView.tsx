@@ -170,6 +170,7 @@ import { SessionRouteBlockedBanner } from './SessionRouteBlockedBanner';
 import { SessionContextGuardBanner } from './SessionContextGuardBanner';
 import { LongRunningTurnTimeline } from './LongRunningTurnTimeline';
 import { SessionManifestStrip } from '@/components/session-manifest/SessionManifestStrip';
+import { ChatOnlyToggle } from '@/components/chat/ChatOnlyToggle';
 import { WorktreeMergeStrip } from '../worktree/WorktreeMergeStrip';
 import { Tip } from '@/components/ui/tooltip';
 import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
@@ -5486,6 +5487,12 @@ function CCAgentSessionContent({
 
         {/* ROADMAP 8.2: no hidden state. The Hermes session header strip lists
             every capability that affects the agent, with its file behind each chip. */}
+        {ownsRoute && session?.agentKind === 'hermes' && (
+          <div className="flex items-center justify-end gap-2 px-3 pb-1">
+            {/* ROADMAP 10.3: conversation-only mode, stated in the header (not a hidden setting). */}
+            <ChatOnlyToggle sessionId={session.id} model={session.model} />
+          </div>
+        )}
         {ownsRoute && session?.agentKind === 'hermes' && (
           <SessionManifestStrip
             sessionId={session.id}

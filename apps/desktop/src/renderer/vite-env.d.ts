@@ -5765,6 +5765,12 @@ interface ElectronAPI {
       /** ROADMAP 7.8: execute session handoff continuation. */
       execute: (params: { sessionId: string }) => Promise<import('../main/maker-ipc/sessionHandoff').ExecuteHandoffResponse>;
     };
+    /** ROADMAP 10.3: conversation-only sessions (Hermes --safe-mode: no tools, no MCP). */
+    chatOnly: {
+      get: (params: { sessionId: string }) => Promise<import('../main/maker-ipc/chatOnly').ChatOnlyView>;
+      set: (params: { sessionId: string; chatOnly: boolean; model?: string }) =>
+        Promise<import('../main/maker-ipc/chatOnly').ChatOnlyView>;
+    };
     securityGuard: {
       /** ROADMAP 10.1: injection-guard settings (~/.cindy-harness/security.json). */
       getConfig: () => Promise<import('../main/maker-ipc/securityGuard').SecurityGuardView>;

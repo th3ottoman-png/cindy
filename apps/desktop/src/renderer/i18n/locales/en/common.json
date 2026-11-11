@@ -12788,6 +12788,17 @@
       "closeDescription": "This follow-up will stop and its history will be deleted. The main task keeps running.",
       "closeConfirm": "Close and delete",
       "closeFailed": "Could not close the side chat. Please try again."
+    },
+    "chatOnly": {
+      "on": "Chat only",
+      "off": "Chat only off",
+      "enable": "Turn on chat-only mode (no tools, no MCP)",
+      "disable": "Turn off chat-only mode",
+      "onHint": "Tools, MCP servers and plugins are off for this session",
+      "offHint": "This session can use tools",
+      "onToast": "Chat-only mode on: no tools, no MCP for this session",
+      "offToast": "Tools restored for this session",
+      "failed": "Could not change chat-only mode"
     }
   },
   "ccAgent": {

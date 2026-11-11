@@ -50,6 +50,7 @@ import {
   type ConfigSetLocalContextWindowsParams,
   type HermesLocalContextWindowEntry,
   type HermesQueryEventNotification,
+  type HermesQuerySetChatOnlyParams,
   type HermesQueryStartParams,
   type HermesQuerySendParams,
   type HermesQuerySetModelParams,
@@ -517,6 +518,9 @@ export class HermesManager {
       if (p.toolsets !== undefined && !isValidToolsets(p.toolsets)) {
         throw rpcError('INVALID_PARAMS', 'toolsets must be a non-empty list of distinct toolset names');
       }
+      // ROADMAP 10.3: chat-only needs an explicit model, but the model is resolved per turn (the
+      // home route is read at send time), so it is checked there rather than here — failing at
+      // start would reject a session whose route only exists in config.yaml.
       const created = this.registry.create({
         sessionId: p.sessionId,
         cwd: p.cwd,
@@ -529,6 +533,7 @@ export class HermesManager {
         ...(p.systemPromptPreamble ? { preamble: p.systemPromptPreamble } : {}),
         ...(p.maxTurns !== undefined ? { maxTurns: p.maxTurns } : {}),
         ...(p.toolsets ? { toolsets: [...p.toolsets] } : {}),
+        ...(p.chatOnly === true ? { chatOnly: true } : {}),
         ...(p.expertSkillsDir ? { expertSkillsDir: p.expertSkillsDir } : {}),
       });
       if (!created) {
@@ -573,6 +578,17 @@ export class HermesManager {
         throw rpcError('TURN_ALREADY_RUNNING', 'a turn is already running; interrupt first');
       }
 
+      // ROADMAP 10.3: the flag rides every turn (the owner can flip it mid-session). Flipping it
+      // changes Hermes's argv, and a resume must repeat its launch flags, so the binding and the
+      // frozen launch route go with it — the next run starts a fresh Hermes session.
+      if (typeof p.chatOnly === 'boolean' && p.chatOnly !== Boolean(rec.chatOnly)) {
+        this.registry.update(rec.sessionId, { chatOnly: p.chatOnly, launch: undefined });
+        if (rec.hermesSessionId) this.registry.bindHermes(rec.sessionId, '');
+        rec.chatOnly = p.chatOnly;
+        rec.hermesSessionId = '';
+        rec.launch = undefined;
+      }
+
       // The preamble rides only the session's first turn.
       const preamble = rec.preamble ?? this.defaultPreamble;
       if (rec.preamble) this.registry.update(rec.sessionId, { preamble: undefined });
@@ -595,7 +611,11 @@ export class HermesManager {
           'Hermes Auto-review is not available in this daemon (no review hook or no per-session homes); switch the task to another permission mode',
         );
       }
-      if (!autoReview && rec.permissionMode !== 'bypassPermissions' && (!routeModel || !routeProvider)) {
+      // ROADMAP 10.3: a chat-only turn is `--safe-mode` whatever the permission mode, so it needs
+      // the same explicit route the default/ask path needs — even in Full access, where the session
+      // may have been relying on the home's `model.default`.
+      const needsExplicitRoute = (!autoReview && rec.permissionMode !== 'bypassPermissions') || rec.chatOnly === true;
+      if (needsExplicitRoute && (!routeModel || !routeProvider)) {
         const homeRoute = await readHermesDefaultRoute(this.hermesHome);
         routeModel = routeModel ?? homeRoute.model;
         routeProvider = routeProvider ?? homeRoute.provider;
@@ -603,7 +623,9 @@ export class HermesManager {
         if (!routeModel) {
           throw rpcError(
             'INVALID_PARAMS',
-            'Hermes default/ask permissions need an explicit model: set model.default in $HERMES_HOME/config.yaml (or switch the task to Full access)',
+            rec.chatOnly === true
+              ? 'chat-only mode needs an explicit model: set model.default in $HERMES_HOME/config.yaml'
+              : 'Hermes default/ask permissions need an explicit model: set model.default in $HERMES_HOME/config.yaml (or switch the task to Full access)',
           );
         }
       }
@@ -642,6 +664,7 @@ export class HermesManager {
         ...(rec.permissionMode ? { permissionMode: rec.permissionMode } : {}),
         ...(rec.maxTurns !== undefined ? { maxTurns: rec.maxTurns } : {}),
         ...(rec.toolsets ? { toolsets: rec.toolsets } : {}),
+        ...(rec.chatOnly ? { chatOnly: true } : {}),
         ...(this.hermesExtraArgs ? { extraArgs: this.hermesExtraArgs } : {}),
         env: turnEnv,
       };
@@ -1071,6 +1094,40 @@ export class HermesManager {
       this.requireRecord(p.sessionId);
       this.registry.update(p.sessionId!, { permissionMode: p.mode as never });
       return {};
+    });
+
+    /**
+     * ROADMAP 10.3: flip a session between chat-only and tool-using.
+     *
+     * The flag changes Hermes's argv (`--safe-mode` vs `--yolo`/`--safe-mode` + `-t`), and a resume
+     * must repeat its launch flags exactly, so a flip ends the current Hermes session: the binding
+     * and the frozen launch route are dropped and the next turn starts a new one from the current
+     * route. Cindy's transcript is untouched — only Hermes's own context restarts.
+     */
+    s.setHandler(METHODS.QUERY_SET_CHAT_ONLY, async (raw) => {
+      const p = raw as HermesQuerySetChatOnlyParams;
+      const record = this.requireRecord(p?.sessionId);
+      if (typeof p.chatOnly !== 'boolean') {
+        throw rpcError('INVALID_PARAMS', 'chatOnly must be a boolean');
+      }
+      // No model check here: the turn path resolves the route (and reads the home's
+      // `model.default` when the session has none), then refuses with a readable error if it cannot.
+      const changed = Boolean(record.chatOnly) !== p.chatOnly;
+      if (!changed) return { sessionId: record.sessionId, chatOnly: p.chatOnly };
+      this.registry.update(record.sessionId, {
+        chatOnly: p.chatOnly,
+        ...(p.model ? { model: p.model } : {}),
+      });
+      if (this.registry.get(record.sessionId)?.hermesSessionId) {
+        this.registry.bindHermes(record.sessionId, '');
+      }
+      this.registry.update(record.sessionId, { launch: undefined });
+      this.emitEvent(record.sessionId, {
+        type: 'hermes-mgr',
+        subtype: 'chat-only-changed',
+        chatOnly: p.chatOnly,
+      });
+      return { sessionId: record.sessionId, chatOnly: p.chatOnly };
     });
 
     s.setHandler(METHODS.QUERY_INTERRUPT, async (raw) => {

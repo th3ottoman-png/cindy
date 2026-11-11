@@ -47,6 +47,11 @@ export interface HermesSessionRecord {
   maxTurns?: number;
   /** Built-in toolsets for every run (`-t`), set at query/start (ROADMAP 3.10). */
   toolsets?: string[];
+  /**
+   * ROADMAP 10.3 chat-only: every run is spawned with `--safe-mode` (no toolsets, no MCP, no
+   * plugins, no user config). Persisted so a resumed Cindy session cannot silently regain tools.
+   */
+  chatOnly?: boolean;
   /** Extra skills directory from expert (ROADMAP 3.2). */
   expertSkillsDir?: string;
   lastSeq: number;

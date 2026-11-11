@@ -6551,6 +6551,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       execute: (params: { sessionId: string }): Promise<import('../main/maker-ipc/sessionHandoff').ExecuteHandoffResponse> =>
         ipcRenderer.invoke('maker:session-handoff:execute', params),
     },
+    /** ROADMAP 10.3: conversation-only sessions (no tools, no MCP). */
+    chatOnly: {
+      get: (params: { sessionId: string }): Promise<import('../main/maker-ipc/chatOnly').ChatOnlyView> =>
+        ipcRenderer.invoke('maker:chat-only:get', params),
+      set: (params: {
+        sessionId: string;
+        chatOnly: boolean;
+        model?: string;
+      }): Promise<import('../main/maker-ipc/chatOnly').ChatOnlyView> =>
+        ipcRenderer.invoke('maker:chat-only:set', params),
+    },
     securityGuard: {
       getConfig: (): Promise<import('../main/maker-ipc/securityGuard').SecurityGuardView> =>
         ipcRenderer.invoke('maker:security-guard:get-config'),

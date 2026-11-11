@@ -12730,6 +12730,17 @@
       "closeDescription": "将停止并删除本次追问，主任务不受影响。",
       "closeConfirm": "关闭并删除",
       "closeFailed": "删除追问失败，请稍后重试。"
+    },
+    "chatOnly": {
+      "on": "仅对话",
+      "off": "仅对话(关)",
+      "enable": "开启仅对话模式(无工具、无 MCP)",
+      "disable": "关闭仅对话模式",
+      "onHint": "本会话不使用工具、MCP 与插件",
+      "offHint": "本会话可以使用工具",
+      "onToast": "已开启仅对话:本会话不再使用工具与 MCP",
+      "offToast": "已恢复本会话的工具",
+      "failed": "无法切换仅对话模式"
     }
   },
   "ccAgent": {

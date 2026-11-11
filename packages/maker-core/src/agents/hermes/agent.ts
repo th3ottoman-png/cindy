@@ -365,6 +365,10 @@ export class HermesAgent extends BaseAgent {
     const requestedResumeId = opts.resumeSessionId?.trim();
     // The expert's toolsets lock (ROADMAP 3.10). Fixed at start: Hermes refuses a resume whose
     // -t differs from the launch, so a lock that cannot be resolved refuses the start.
+    // ROADMAP 10.3: chat-only is a third dimension next to permission mode and an expert's
+    // toolsets lock. It only ever *removes* capability, so it can never widen a lock.
+    const resolveHermesChatOnly = this.deps.resolveHermesChatOnly;
+    const chatOnly = Boolean(resolveHermesChatOnly && opts.sessionId && resolveHermesChatOnly(opts.sessionId));
     let toolsets: string[] | null = null;
     if (this.deps.resolveHermesToolsets && opts.sessionId) {
       try {
@@ -434,6 +438,7 @@ export class HermesAgent extends BaseAgent {
           ...(permissionMode ? { permissionMode } : {}),
           ...(opts.vendorOptions?.orcaRole === 'worker' ? { maxTurns: HERMES_ORCA_WORKER_MAX_TURNS } : {}),
           ...(toolsets ? { toolsets } : {}),
+          ...(chatOnly ? { chatOnly: true } : {}),
           ...(expertSkillsDir ? { expertSkillsDir } : {}),
           // Provider keys ride per-session env (the daemon's own env is
           // deliberately secret-free). Hermes reads provider credentials from
@@ -998,6 +1003,8 @@ export class HermesAgent extends BaseAgent {
 
     const preflightRoute = this.deps.preflightHermesRoute ?? ((model: string) => preflightModelRoute(model));
     const resolveExpertPreamble = this.deps.resolveHermesExpertPreamble;
+    // ROADMAP 10.3: the handle's `send` re-reads this per turn so a toggle mid-session lands.
+    const resolveChatOnlyForTurn = this.deps.resolveHermesChatOnly;
     // The current Cindy model id ('hermes-default' sentinel or an override).
     // Session.model reads it and expects it to follow successful switches.
     let currentModel = input.model;
@@ -1060,7 +1067,12 @@ export class HermesAgent extends BaseAgent {
           source: 'hermes',
         });
         try {
-          await transport.request(HERMES_METHODS.QUERY_SEND, { sessionId, text });
+          // ROADMAP 10.3: re-read every turn, so a toggle reaches the daemon even though the
+          // daemon's record is keyed by this maker session, not by Cindy's id.
+          const chatOnlyNow = Boolean(
+            input.cindySessionId && resolveChatOnlyForTurn?.(input.cindySessionId),
+          );
+          await transport.request(HERMES_METHODS.QUERY_SEND, { sessionId, text, chatOnly: chatOnlyNow });
           expertPreamblePending = false;
           if (orcaPreambleToSend) lastSentOrcaPreamble = orcaPreambleToSend;
         } catch (error) {

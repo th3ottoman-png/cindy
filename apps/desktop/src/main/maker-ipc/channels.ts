@@ -106,6 +106,8 @@ export const MAKER_INVOKE = {
   /** ROADMAP 8.8: get audited chat inventory (tools, files, skills, tokens) for a session. */
   CHAT_INVENTORY_GET: 'maker:chat-inventory:get',
   /** ROADMAP 10.1: injection-guard settings (~/.cindy-harness/security.json). */
+  CHAT_ONLY_GET: 'maker:chat-only:get',
+  CHAT_ONLY_SET: 'maker:chat-only:set',
   SECURITY_GUARD_GET_CONFIG: 'maker:security-guard:get-config',
   SECURITY_GUARD_SET_CONFIG: 'maker:security-guard:set-config',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */

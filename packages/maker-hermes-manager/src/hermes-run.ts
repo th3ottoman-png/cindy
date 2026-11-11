@@ -25,6 +25,12 @@ export interface HermesSpawnSpec {
   baseUrl?: string;
   apiKey?: string;
   permissionMode?: HermesPermissionMode;
+  /**
+   * ROADMAP 10.3 chat-only: run Hermes with `--safe-mode` (no toolsets, no MCP servers, no
+   * plugins/user config). Hermes refuses `--safe-mode` without an explicit model, so a chat-only
+   * turn must carry `model` (the daemon freezes the route in the registry and always passes it).
+   */
+  chatOnly?: boolean;
   maxTurns?: number;
   /** Built-in toolsets (`-t`); passed sorted so a resume repeats the launch value exactly. */
   toolsets?: string[];
@@ -111,6 +117,18 @@ export function buildHermesArgs(spec: HermesSpawnSpec): string[] {
   if (spec.baseUrl) args.push('--base-url', spec.baseUrl);
   if (spec.apiKey) args.push('--api-key', spec.apiKey);
   if (spec.maxTurns !== undefined) args.push('--max-turns', String(spec.maxTurns));
+  // Chat-only (10.3) needs *two* flags, which is not obvious:
+  //   `--safe-mode`  drops MCP servers, plugins and the user config (so no MCP tools, no hooks)
+  //   `-t ''`        drops the built-in toolsets; safe-mode on its own still exposes the shell
+  //                  and file tools (measured: a touch still executed under `--safe-mode` alone)
+  // `--safe-mode` also refuses to start without an explicit model, hence the check below.
+  if (spec.chatOnly) {
+    if (!spec.model) {
+      throw new Error('chat-only mode needs an explicit model: Hermes refuses --safe-mode without one');
+    }
+    args.push('--safe-mode', '-t', '');
+    return args;
+  }
   if (spec.toolsets?.length) args.push('-t', [...spec.toolsets].sort().join(','));
   args.push(...permissionModeToFlags(spec.permissionMode));
   return args;

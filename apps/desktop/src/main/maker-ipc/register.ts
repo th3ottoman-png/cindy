@@ -936,6 +936,7 @@ import { ChatInventoryHost, registerChatInventoryHandlers } from './chatInventor
 import { SessionExportHost, registerSessionExportHandlers } from './sessionExport.js';
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
 import { SecurityGuardHost, registerSecurityGuardHandlers } from './securityGuard.js';
+import { getDesktopChatOnlyHost, registerChatOnlyHandlers, type ChatOnlyHost } from './chatOnly.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
 import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
 import {
@@ -2565,6 +2566,11 @@ function markTurnEndedAfterPersistDrain(sessionId: string): void {
 
 // ROADMAP 5.5: set in registerMakerIpc; read at every turn end.
 let chatAutosaveHolder: ChatAutosaveHost | null = null;
+/**
+ * ROADMAP 10.3: chat-only flag owner. Held at module level so the Hermes launch hook
+ * (`resolveHermesChatOnly`) can read it synchronously while a turn is being assembled.
+ */
+let chatOnlyHolder: ChatOnlyHost | null = null;
 // ROADMAP 5.6: set in registerMakerIpc; read at every turn end and on session close.
 let chatSummaryHolder: ChatSummaryHost | null = null;
 
@@ -25836,6 +25842,18 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   registerChatAutosaveHandlers(createElectronIpcHandlerRegistry(), {
     host: chatAutosaveHolder,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+
+  // ── Chat-only sessions (ROADMAP 10.3) ──────────────────────────────────
+  // The desktop owns the flag file (a synchronous read is needed while a turn is assembled);
+  // the daemon is told on every change and is what actually builds `--safe-mode`.
+  chatOnlyHolder = getDesktopChatOnlyHost();
+  registerChatOnlyHandlers(createElectronIpcHandlerRegistry(), {
+    host: chatOnlyHolder,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    channels: { GET: MAKER_INVOKE.CHAT_ONLY_GET, SET: MAKER_INVOKE.CHAT_ONLY_SET },
+    // No daemon call here on purpose: the daemon keys sessions by the maker session id, so the
+    // flag travels with every turn instead (see QUERY_SEND.chatOnly).
   });
 
   // ── Injection guard settings (ROADMAP 10.1) ────────────────────────────

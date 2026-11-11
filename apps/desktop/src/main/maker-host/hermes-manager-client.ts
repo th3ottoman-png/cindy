@@ -488,6 +488,31 @@ export async function listHermesMcpServers(): Promise<Record<string, HermesMcpSe
 }
 
 /**
+ * ROADMAP 10.3 chat-only. The daemon owns the flag (it is what builds Hermes's argv), so the
+ * desktop asks it rather than keeping a second copy. Hermes refuses `--safe-mode` without an
+ * explicit model, hence the route the caller passes on the way in.
+ */
+export async function setHermesChatOnly(params: {
+  sessionId: string;
+  chatOnly: boolean;
+  model?: string;
+}): Promise<{ sessionId: string; chatOnly: boolean }> {
+  return withHermesManagerDaemon((client) =>
+    client.request<{ sessionId: string; chatOnly: boolean }>(HERMES_MGR_METHODS.QUERY_SET_CHAT_ONLY, params),
+  );
+}
+
+export async function getHermesChatOnly(sessionId: string): Promise<boolean> {
+  const result = await withHermesManagerDaemon((client) =>
+    client.request<{ sessions: Array<{ sessionId: string; chatOnly?: boolean }> }>(
+      HERMES_MGR_METHODS.SESSION_LIST,
+      {},
+    ),
+  );
+  return result.sessions.some((session) => session.sessionId === sessionId && session.chatOnly === true);
+}
+
+/**
  * hermes-bridge-shim.mjs 路径(cindy-tools `bundle:shim` 产物):dev 取源码 dist,
  * packaged 取 resources/hermes-bridge-shim/ (由 build-remote-bundles.mjs stage)。两处都没有 → null,Hermes 不带 Cindy 工具运行。
  */

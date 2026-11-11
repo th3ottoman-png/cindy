@@ -10,6 +10,30 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 10.3 chat-only mode (`live-proven`)
+
+- **What shipped.** A session-level switch that runs Hermes with **no tools and no MCP**. The header carries a
+  `ChatOnlyToggle` chip (next to the manifest strip) that says `Chat only` / `Chat only off` with `aria-pressed`.
+  The flag lives in `~/.cindy-harness/chat-only-sessions.json`, owned by the desktop host (`maker-ipc/chatOnly.ts`,
+  IPC `maker:chat-only:{get,set}`), so a launch hook can read it synchronously.
+- **Two flags, not one.** `--safe-mode` drops MCP servers, plugins and the user config; it does **not** drop Hermes's
+  built-in tools — measured: `touch` still executed under `--safe-mode` alone. `-t ''` (accepted; `-t none` is
+  `invalid_params`) is what removes them. Chat-only therefore passes `--safe-mode -t ''`, skips the permission flags and
+  refuses to start without an explicit model.
+- **Why the flag rides every turn.** The daemon keys its records by the *maker* session id, so a one-off toggle RPC from
+  the desktop cannot find the record (first attempt failed exactly that way and was silently swallowed). The flag is
+  re-read per turn and sent as `QUERY_SEND.chatOnly`; a flip clears the Hermes binding and the frozen launch route,
+  because the argv changed and a resume must repeat its launch flags. Cindy's transcript is untouched.
+- **Live proof** (dev app, real turns): chat-only **on** → "use your shell tool to run `touch /tmp/chat-only-probe.txt`"
+  left the file absent; **off** → the same sentence created it. The flag survives a restart (the file is re-read at
+  launch), and the manifest records `permission:chat-only` so a resumed session cannot silently regain tools.
+- **Trade documented.** `--safe-mode` also drops AGENTS.md/memory injection for that turn. That is the point of
+  "conversation only", not a regression, and it is why the chip is in the header rather than buried in Settings.
+- **Gates.** typecheck 0; `pnpm test:runner` 608 pass / 0 fail / 2 skipped; hygiene PASS; 4 host tests, 3 argv tests,
+  4 manifest tests.
+
+---
+
 ## 2026-11-11 - 10.2 response style + thinking display (`live-proven` for the style, `unit-tested` for thinking)
 
 - **What shipped.** `apps/desktop/src/renderer/lib/responsePreferences.ts`: `{responseStyle: 'concise'|'detailed',

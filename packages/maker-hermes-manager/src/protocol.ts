@@ -97,6 +97,7 @@ export const METHODS = {
   QUERY_SEND: 'query/send',
   QUERY_SET_MODEL: 'query/setModel',
   QUERY_SET_PERMISSION_MODE: 'query/setPermissionMode',
+  QUERY_SET_CHAT_ONLY: 'query/setChatOnly',
   QUERY_INTERRUPT: 'query/interrupt',
   QUERY_CLOSE: 'query/close',
 
@@ -204,6 +205,11 @@ export interface HermesQueryStartParams {
   runBudgetSeconds?: number;
   /** Extra skills directory from expert (ROADMAP 3.2). */
   expertSkillsDir?: string;
+  /**
+   * ROADMAP 10.3 chat-only: no toolsets, no MCP, no plugins (Hermes `--safe-mode`). Requires
+   * `model`, because Hermes refuses `--safe-mode` without an explicit one.
+   */
+  chatOnly?: boolean;
 }
 
 export interface HermesQueryStartResult {
@@ -218,6 +224,12 @@ export interface HermesQueryStartResult {
 
 export interface HermesQuerySendParams {
   sessionId: string;
+  /**
+   * ROADMAP 10.3: chat-only for *this* turn. Sent every turn because the owner can toggle it while
+   * the session lives, and because the daemon's record is keyed by the maker session id, not by
+   * Cindy's — a one-off toggle RPC cannot find it reliably.
+   */
+  chatOnly?: boolean;
   /** The user turn text, passed to Hermes via stdin (`--query-file -`). */
   text: string;
   /**
@@ -239,6 +251,17 @@ export interface HermesQuerySetModelParams {
 export interface HermesQuerySetPermissionModeParams {
   sessionId: string;
   mode: HermesPermissionMode;
+}
+
+export interface HermesQuerySetChatOnlyParams {
+  sessionId: string;
+  chatOnly: boolean;
+  /**
+   * Explicit model for the next chat-only run. Hermes refuses `--safe-mode` without one, and the
+   * desktop already holds the session's route, so the caller supplies it rather than the daemon
+   * guessing from config that safe-mode will ignore.
+   */
+  model?: string;
 }
 
 export interface HermesQueryInterruptParams {

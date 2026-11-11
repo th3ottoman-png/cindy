@@ -99,6 +99,7 @@ import { setAgentAppUpdateSessionHost } from '../agent-app-update/index.js';
 import { isAppUpdateOwnerTurn } from '../agent-app-update/callerAuthority.js';
 import { markKnownOrcaWorkerSession } from '../maker-ipc/orcaManualInterrupt.js';
 import { createRouteMatcher, getDesktopExpertSessionStore } from '../maker-ipc/expertSessions.js';
+import { getDesktopChatOnlyHost } from '../maker-ipc/chatOnly.js';
 import { resolveModelRoute } from '@cindy/maker-core/model-route-resolver';
 import { markOrcaMcpHydratedIfNeeded } from '../maker-ipc/orcaMcpHydrationCache.js';
 import { preparePersistedOrcaSessionStart, renderOrcaInstructionsFor } from '../maker-ipc/orcaSessionStartOptions.js';
@@ -2933,6 +2934,9 @@ export function getMaker(): Maker {
         // keeps Cindy tools off. The pending pick only applies to a session starting fresh.
         resolveHermesToolsets: ({ sessionId, fresh }) =>
           getDesktopExpertSessionStore().expertToolsets(sessionId, { includePending: fresh }),
+        // ROADMAP 10.3: conversation-only sessions launch with `--safe-mode`. The flag file is
+        // re-read on every launch, so a restart, a crash or a resume all obey it.
+        resolveHermesChatOnly: (sessionId) => getDesktopChatOnlyHost().isChatOnly(sessionId),
         // ROADMAP 3.2: expert's skills/ directory linked into per-session HERMES_HOME/skills
         resolveHermesExpertSkillsDir: (sessionId) =>
           getDesktopExpertSessionStore().expertSkillsDir(sessionId, { includePending: true }),

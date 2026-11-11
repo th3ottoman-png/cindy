@@ -780,6 +780,12 @@ export interface AgentDeps {
    * session, the only case where a pending expert pick applies. Throws to refuse the start.
    */
   resolveHermesToolsets?: (input: { sessionId: string; fresh: boolean }) => string[] | null;
+  /**
+   * ROADMAP 10.3: true when this session is "conversation only" — the Hermes turn runs with
+   * `--safe-mode` (no toolsets, no MCP, no plugins). Read synchronously at launch, so a session
+   * that was chat-only last time cannot come back with tools after a restart.
+   */
+  resolveHermesChatOnly?: (sessionId: string) => boolean;
 
   /**
    * Hermes-only (ROADMAP 3.2): directory containing the expert's skills (if any) to link into

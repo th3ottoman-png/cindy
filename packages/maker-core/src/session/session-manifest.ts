@@ -54,6 +54,11 @@ export interface SessionManifest {
     model: string;
     providerId: string | null;
     permissionMode: string;
+    /**
+     * ROADMAP 10.3: chat-only sessions run Hermes without toolsets, MCP servers or plugins. It is
+     * recorded here so a resumed session cannot silently regain tools.
+     */
+    chatOnly?: boolean;
   };
   capabilities: ManifestCapability[];
 }
@@ -65,6 +70,7 @@ export interface SessionManifestInput {
     model?: string | null;
     providerId?: string | null;
     permissionMode?: string | null;
+    chatOnly?: boolean;
   };
   expert?: {
     slug: string;
@@ -189,6 +195,7 @@ export function buildSessionManifest(input: SessionManifestInput): SessionManife
     model: str(input.session.model),
     providerId: isNonEmpty(input.session.providerId) ? input.session.providerId : null,
     permissionMode: str(input.session.permissionMode, DEFAULT_PERMISSION_MODE),
+    ...(input.session.chatOnly === true ? { chatOnly: true } : {}),
   };
   const rows: ManifestCapability[] = [];
   const expert = input.expert ?? null;
@@ -412,6 +419,22 @@ export function buildSessionManifest(input: SessionManifestInput): SessionManife
     }),
   );
 
+  if (session.chatOnly) {
+    rows.push(
+      capability({
+        kind: 'permission',
+        id: 'permission:chat-only',
+        label: 'Chat only',
+        value: 'no tools, no MCP',
+        file: SESSION_DB,
+        locator: `sessions.${session.id}.chat_only`,
+        reason: 'Session runs Hermes with --safe-mode: toolsets, MCP servers and plugins are off',
+        trust: 'session-state',
+        declaredInterface: 'session row',
+      }),
+    );
+  }
+
   return { version: SESSION_MANIFEST_VERSION, session, capabilities: sortedById(rows) };
 }
 
@@ -553,6 +576,7 @@ export function serializeSessionManifest(manifest: SessionManifest): string {
   emitField(lines, 2, 'model', manifest.session.model);
   emitField(lines, 2, 'providerId', manifest.session.providerId);
   emitField(lines, 2, 'permissionMode', manifest.session.permissionMode);
+  emitField(lines, 2, 'chatOnly', manifest.session.chatOnly);
   lines.push('capabilities:');
   for (const row of manifest.capabilities) {
     const entries: Array<[string, string | number | boolean | null | undefined]> = [
@@ -661,6 +685,9 @@ export function parseSessionManifest(text: string): ParseSessionManifestResult {
   if (session.providerId !== undefined && session.providerId !== null && typeof session.providerId !== 'string') {
     return { ok: false, error: 'session.providerId must be a string or null' };
   }
+  if (session.chatOnly !== undefined && typeof session.chatOnly !== 'boolean') {
+    return { ok: false, error: 'session.chatOnly must be a boolean' };
+  }
 
   const parsedCapabilities: ManifestCapability[] = [];
   const seen = new Set<string>();
@@ -707,6 +734,7 @@ export function parseSessionManifest(text: string): ParseSessionManifestResult {
         model: session.model as string,
         providerId: (session.providerId as string | null | undefined) ?? null,
         permissionMode: session.permissionMode as string,
+        ...(session.chatOnly === true ? { chatOnly: true } : {}),
       },
       capabilities: parsedCapabilities,
     },

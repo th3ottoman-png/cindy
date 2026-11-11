@@ -12730,6 +12730,17 @@
       "closeDescription": "將停止並刪除本次追問，主任務不受影響。",
       "closeConfirm": "關閉並刪除",
       "closeFailed": "刪除追問失敗，請稍後重試。"
+    },
+    "chatOnly": {
+      "on": "僅對話",
+      "off": "僅對話(關)",
+      "enable": "開啟僅對話模式(無工具、無 MCP)",
+      "disable": "關閉僅對話模式",
+      "onHint": "本工作階段不使用工具、MCP 與外掛",
+      "offHint": "本工作階段可以使用工具",
+      "onToast": "已開啟僅對話:本工作階段不再使用工具與 MCP",
+      "offToast": "已恢復本工作階段的工具",
+      "failed": "無法切換僅對話模式"
     }
   },
   "ccAgent": {
