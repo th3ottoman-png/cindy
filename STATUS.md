@@ -10,6 +10,40 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 11.12 First-Class Project Creation & Workspace Scaffolding Screen (`unit-tested`)
+
+- **What shipped.**
+  1. **Backend IPC & Service (`apps/desktop/src/main/maker-ipc/projectCreate.ts`):** Registered `maker:project:create` channel in `apps/desktop/src/main/maker-ipc/register.ts`. Scaffolds directories, initializes `.git` (via child process `git init -b main`), writes `IDEA.md`, creates `.gitignore`, upserts local SQLite project alias (`localDb`), and creates a matching project note in the Notes Vault (`<vault>/memory/Project — <Name>.md`). Preload exposed via `createProject` in `preload.ts` and types in `vite-env.d.ts`.
+  2. **Frontend UI Modal (`apps/desktop/src/renderer/components/projects/NewProjectDialog.tsx`):** Implemented an enhanced modal matching the requested workspace setup design:
+     - Workspace name input (defaults to folder basename)
+     - Multi-folder directory manager with `PRIMARY` badge and native directory chooser
+     - Idea/scope textarea saved to `IDEA.md` with 8 clickable template pills (Flashcards, Digital Garden, Habit Tracker, API Wrapper, Puzzle Maker, Novel, Dev Tool, Micro-SaaS)
+     - Project type / agent presets (Full-Stack App, Local Tool, Research / Doc, Custom)
+     - Primary agent vendor (Hermes / Codex / Pi) & model route selection
+     - Scaffolding checkboxes: Initialize Git repository, Create IDEA.md, Create .gitignore, Link Notes Vault (`memory/Project — <Name>.md`)
+     - Immediate task launch option: seamlessly sets draft `workingDir`, pre-fills composer draft with the project idea via `saveDraft(NEW_MAKER_DRAFT_KEY, ...)`, and navigates to `/cc-agent/new`.
+  3. **Sidebar & Creation Integration:**
+     - Restored the `+` action button in `MainListScopeHeader.tsx` on the Projects header.
+     - Added empty state card `+ Create your first project` in `ProjectsSection.tsx` when no projects exist.
+     - Connected sidebar header `+` and empty state to `NewProjectDialog` in `CCAgentSidebarUpper.tsx`.
+     - Wired `+ New project...` action into `FolderPickerPopover.tsx` and mounted `NewProjectDialog` in `NewMakerDraftRoute.tsx`.
+  4. **Bugfix:**
+     - Fixed `sessionHermesTurnUsage.test.ts` missing mock for `recordTurnCostOnMessage` and missing `readPricing: () => null`, restoring test suite health.
+- **Verification.**
+  - `apps/desktop/src/main/maker-ipc/__tests__/projectCreate.test.ts` (3/3 tests PASS)
+  - `apps/desktop/src/renderer/components/projects/__tests__/NewProjectDialog.test.tsx` (3/3 tests PASS)
+  - `apps/desktop/src/renderer/__tests__/projectsSidebarSection.test.ts` (10/10 tests PASS)
+  - `apps/desktop/src/renderer/__tests__/sidebarUpperSingleButton.test.ts` (12/12 tests PASS)
+  - `apps/desktop/src/renderer/features/cc-agent/sidebar/__tests__/MainListScopeHeader.test.tsx` (3/3 tests PASS)
+  - `apps/desktop/src/main/maker-ipc/__tests__/sessionHermesTurnUsage.test.ts` (6/6 tests PASS)
+  - All 4 pre-commit gates green:
+    - `pnpm typecheck` (0 errors across all 37 workspace packages)
+    - `pnpm test:runner` (608 passed, 0 failed, 2 skipped)
+    - `pnpm test:unit:related` (14 related tests passed in apps/desktop)
+    - `pnpm check:test-hygiene` (361 files within baseline, PASS)
+
+---
+
 ## 2026-11-11 - Phase 11 Roadmap & Blueprint: Progressive Skills, Council Review & Safeguards
 
 - **What shipped.** Researched and audited all 55 skills from `davidondrej/skills`. Formulated complete technical blueprint in artifact `phase-11-blueprint.md` converting Category A & B skills plus `effective-agent-skills` into native, first-class desktop harness features for Cindy (Phases 11.1–11.11).

@@ -7,7 +7,8 @@
  * 无内容或父级占位分支只画这一行。
  */
 import { useState, type ReactNode } from 'react';
-import type { LucideIcon } from 'lucide-react';
+import { Plus, type LucideIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/lib/utils';
 import { Tip } from '@/components/ui/tooltip';
@@ -33,6 +34,7 @@ export function MainListScopeHeader({
   dialogueCount = 0,
   hasRemoteDevices,
   fold = null,
+  onCreateProject,
 }: {
   filter: UseSidebarFilterReturn;
   allKnownProjects: ProjectNodeData[];
@@ -44,7 +46,9 @@ export function MainListScopeHeader({
     onClick: () => void;
     disabled: boolean;
   } | null;
+  onCreateProject?: () => void;
 }): ReactNode {
+  const { t } = useTranslation();
   const [displaySettingsOpen, setDisplaySettingsOpen] = useState(false);
   return (
     <div className="group/sidebar-header flex h-6 items-center justify-between pr-0 pl-6">
@@ -53,6 +57,24 @@ export function MainListScopeHeader({
       </div>
       <div className="flex items-center gap-0.5 -mt-px">
         <div className="flex items-center gap-0.5 -mt-px">
+          {onCreateProject ? (
+            <div className={HEADER_HOVER_ACTION_CLASS}>
+              <Tip text={t('ccAgent.sidebar.newProject', 'New project')} side="bottom">
+                <button
+                  type="button"
+                  onClick={onCreateProject}
+                  aria-label={t('ccAgent.sidebar.newProject', 'New project')}
+                  className={cn(
+                    'flex h-7 w-7 items-center justify-center rounded-md',
+                    'text-[var(--sidebar-list-muted)]',
+                    'transition-colors hover:text-[var(--sidebar-nav-text)]',
+                  )}
+                >
+                  <Plus size={14} strokeWidth={2} />
+                </button>
+              </Tip>
+            </div>
+          ) : null}
           {fold ? (
             <div className={HEADER_HOVER_ACTION_CLASS}>
               <Tip text={fold.label} side="bottom">

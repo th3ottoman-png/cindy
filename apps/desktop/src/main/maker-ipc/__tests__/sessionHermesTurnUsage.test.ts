@@ -9,6 +9,7 @@ const effects = vi.hoisted(() => ({
       turnUsageDetails: { provider?: string; model?: string };
     }) => true,
   ),
+  recordTurnCostOnMessage: vi.fn(async () => true),
   recordSessionTurnTokens: vi.fn(async (_sessionId: string, _tokenDelta: number) => {}),
 }));
 
@@ -17,6 +18,7 @@ vi.mock('../../sessionSpendBroadcaster.js', () => ({
 }));
 vi.mock('../../turnCostBroadcaster.js', () => ({
   recordTurnUsageOnMessage: effects.recordTurnUsageOnMessage,
+  recordTurnCostOnMessage: effects.recordTurnCostOnMessage,
 }));
 
 import { recordSessionHermesTurnUsage } from '../sessionHermesTurnUsage.js';
@@ -39,7 +41,10 @@ describe('recordSessionHermesTurnUsage', () => {
 
   it('stores the turn tokens, the model the CLI ran and the route provider', async () => {
     recordSessionHermesTurnUsage(
-      { readHermesRoute: async () => ({ model: 'deepseek-flash', provider: 'deepseek' }) },
+      {
+        readHermesRoute: async () => ({ model: 'deepseek-flash', provider: 'deepseek' }),
+        readPricing: () => null,
+      },
       session,
       hermesDone({
         inputTokens: 10149,
@@ -72,7 +77,10 @@ describe('recordSessionHermesTurnUsage', () => {
 
   it('prefers the model the CLI reported over the home default', async () => {
     recordSessionHermesTurnUsage(
-      { readHermesRoute: async () => ({ model: 'deepseek-flash', provider: 'deepseek' }) },
+      {
+        readHermesRoute: async () => ({ model: 'deepseek-flash', provider: 'deepseek' }),
+        readPricing: () => null,
+      },
       session,
       hermesDone({ inputTokens: 10, outputTokens: 2, model: 'deepseek-v4-pro' }),
       'assistant-1',
@@ -86,7 +94,10 @@ describe('recordSessionHermesTurnUsage', () => {
 
   it('falls back to the home default model when the CLI reported none', async () => {
     recordSessionHermesTurnUsage(
-      { readHermesRoute: async () => ({ model: 'deepseek-flash', provider: 'deepseek' }) },
+      {
+        readHermesRoute: async () => ({ model: 'deepseek-flash', provider: 'deepseek' }),
+        readPricing: () => null,
+      },
       session,
       hermesDone({ inputTokens: 10, outputTokens: 2 }),
       'assistant-1',

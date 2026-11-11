@@ -3255,6 +3255,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showOpenDirectoryDialog: (): Promise<{ canceled: boolean; path?: string }> =>
     ipcRenderer.invoke('show-open-directory-dialog'),
 
+  // Create & scaffold a new project
+  createProject: (input: {
+    name: string;
+    primaryPath: string;
+    additionalPaths?: string[];
+    ideaText?: string;
+    preset?: string;
+    agentKind?: string;
+    modelRoute?: string;
+    initGit?: boolean;
+    createIdeaFile?: boolean;
+    createGitIgnore?: boolean;
+    linkVault?: boolean;
+  }): Promise<{
+    ok: boolean;
+    projectKey: string;
+    workingDir: string;
+    name: string;
+    createdFiles: string[];
+    error?: string;
+  }> => ipcRenderer.invoke('maker:project:create', input),
+
   // ── Command Palette (F1/F2 @mention + / slash) workspace scans ──
 
   /**

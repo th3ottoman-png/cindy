@@ -62,6 +62,7 @@ import {
   AddRemoteProjectDialog,
   type RemoteProjectTarget,
 } from '@/components/new-chat/AddRemoteProjectDialog';
+import { NewProjectDialog } from '@/components/projects/NewProjectDialog';
 import { useHasAnyRemoteTarget } from '@/hooks/useHasAnyReadyRemoteHost';
 import { useSelectableDevices } from '@/hooks/useControllableDevices';
 import { useProviderShareAgentDevices } from '@/features/provider-share/useProviderShareAgentDevices';
@@ -810,6 +811,7 @@ export function NewMakerDraftRoute() {
   const { devices: selectableDevices, loaded: selectableDevicesLoaded } = useSelectableDevices();
   const [addRemoteProjectOpen, setAddRemoteProjectOpen] = useState(false);
   const [addRemoteProjectDeviceId, setAddRemoteProjectDeviceId] = useState<string | null>(null);
+  const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
   const outletContext = useOutletContext<{
     rightSidebarCollapsed?: boolean;
     onToggleRightSidebar?: () => void;
@@ -5830,6 +5832,7 @@ export function NewMakerDraftRoute() {
                       ? handleOpenRemoteProject
                       : undefined
                   }
+                  onCreateNewProject={() => setNewProjectDialogOpen(true)}
                   side="bottom"
                   align="end"
                   sideOffset={6}
@@ -6228,6 +6231,15 @@ export function NewMakerDraftRoute() {
           // 里还有一道 fail-closed 兜底,防非 UI 路径漏进 Pi+SSH。
           agentVendor={draft.vendor}
           onProjectAdded={handleRemoteProjectAdded}
+        />
+
+        {/* Enhanced New Project dialog for creating and scaffolding local projects */}
+        <NewProjectDialog
+          open={newProjectDialogOpen}
+          onOpenChange={setNewProjectDialogOpen}
+          onProjectCreated={({ workingDir }) => {
+            patchDraft({ workingDir, remoteHostId: null });
+          }}
         />
       </div>
     </TopRightChipStackProvider>

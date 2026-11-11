@@ -87,6 +87,7 @@ import {
 } from './contexts/SessionAttentionUrgencyContext';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog-provider';
+import { NewProjectDialog } from '@/components/projects/NewProjectDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -961,6 +962,8 @@ function ExpandedView({
   );
   // 归档和批量菜单共用可等待的确认弹窗；删除保留受控 ConfirmDialog。
   const { confirm: confirmDialog } = useConfirmDialog();
+  const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
+  const [newProjectDefaultPath, setNewProjectDefaultPath] = useState('');
   const handleScheduleDeleted = useCallback(
     async ({ disposition, affectedSessionIds }: DeletedScheduleGeneratedSessionResult) => {
       await refreshSessions();
@@ -2789,8 +2792,9 @@ function ExpandedView({
         if (restored) return;
       }
       handleClearSelection();
+      setNewProjectDefaultPath(result.path);
+      setNewProjectDialogOpen(true);
       patchNewMakerDraft({ workingDir: result.path, remoteHostId: null });
-      navigate('/cc-agent/new', { state: makeNewMakerRouteState('dialogue') });
     } catch (err) {
       log.warn('create project directory picker failed', err);
       toast.error(t('ccAgent.sidebar.createProjectFailed'));
@@ -2799,7 +2803,6 @@ function ExpandedView({
     filter.ensureProjectIncluded,
     handleClearSelection,
     hiddenProjectKeys,
-    navigate,
     setProjectHidden,
     t,
   ]);
@@ -4033,6 +4036,11 @@ function ExpandedView({
         onCreateInProject={handleCreateInProject}
         onToggleProjectPin={handleToggleProjectPin}
         onRemoveProjectFromSidebar={handleRemoveProjectFromSidebar}
+      />
+      <NewProjectDialog
+        open={newProjectDialogOpen}
+        onOpenChange={setNewProjectDialogOpen}
+        defaultPath={newProjectDefaultPath}
       />
       {deleteScheduleDialog}
     </>

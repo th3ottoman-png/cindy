@@ -939,6 +939,7 @@ import { SecurityGuardHost, registerSecurityGuardHandlers } from './securityGuar
 import { getDesktopChatOnlyHost, registerChatOnlyHandlers, type ChatOnlyHost } from './chatOnly.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
 import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
+import { registerProjectCreateHandlers } from './projectCreate.js';
 import {
   getDesktopScheduledSessionsHost,
   registerScheduledSessionsHandlers,
@@ -26102,6 +26103,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       }
     },
   );
+
+  registerProjectCreateHandlers();
 
   // ── Plugin hub (Phase 2) ──────────────────────────────────────────────────
 

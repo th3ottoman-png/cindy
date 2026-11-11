@@ -60,13 +60,11 @@ describe('Projects sidebar section', () => {
     );
   });
 
-  // 2026-08-12 用户裁决:段头「新建项目」按钮暂时移除(同一动作在新任务页的工作
-  // 目录选择器仍可完成)。prop 保留但不再渲染按钮;恢复入口时把这条断言改回正向。
-  it('no longer renders the create-project button in the header action group', () => {
+  // Restored: ProjectsSection forwards onCreateProject to MainListScopeHeader and renders empty state
+  it('renders and forwards the create-project button in the header action group and empty state', () => {
     expect(projectsSectionSource).toContain('onCreateProject?: () => void');
-    expect(projectsSectionSource).not.toContain('onClick={onCreateProject}');
-    expect(projectsSectionSource).not.toContain("t('ccAgent.sidebar.newProject')");
-    expect(projectsSectionSource).not.toContain('<Plus size={14} strokeWidth={2} />');
+    expect(projectsSectionSource).toContain('onCreateProject={onCreateProject}');
+    expect(projectsSectionSource).toContain('onClick={onCreateProject}');
   });
 
   it('only shows project header actions while hovering or focusing the Projects header row', () => {

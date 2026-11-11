@@ -43,6 +43,7 @@ import {
   Hammer,
   MessagesSquare,
   MonitorSmartphone,
+  Plus,
   SquarePen,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -328,6 +329,7 @@ export function ProjectsSection({
   onRemoveFromSidebar,
   onCollapseAll,
   onExpandAll,
+  onCreateProject,
   onCreateInProject,
   onOpenConversationSearch,
   onOpenInExplorer,
@@ -1147,6 +1149,7 @@ export function ProjectsSection({
         allKnownProjects={allKnownProjects}
         dialogueCount={dialogueCount}
         hasRemoteDevices={deviceGroupingAvailable}
+        onCreateProject={onCreateProject}
         fold={
           hasMainListContent && foldState !== null
             ? {
@@ -1380,6 +1383,17 @@ export function ProjectsSection({
           {!deviceGroupingActive && projectsOverflow && (
             <ShowAllEntriesButton count={projectsTotal} onClick={() => setShowAllProjects(true)} />
           )}
+        </div>
+      ) : onCreateProject ? (
+        <div className="pt-2 px-6">
+          <button
+            type="button"
+            onClick={onCreateProject}
+            className="flex w-full items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-dashed border-[var(--border-subtle)] text-12 text-[var(--sidebar-list-muted)] hover:text-[var(--foreground)] hover:border-[var(--focus-ring)] transition-colors"
+          >
+            <Plus size={14} />
+            <span>{t('ccAgent.sidebar.createFirstProject', 'Create your first project')}</span>
+          </button>
         </div>
       ) : null}
     </div>

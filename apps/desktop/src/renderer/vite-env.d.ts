@@ -2932,6 +2932,26 @@ interface ElectronAPI {
     ) => () => void;
   };
   showOpenDirectoryDialog: () => Promise<{ canceled: boolean; path?: string }>;
+  createProject: (input: {
+    name: string;
+    primaryPath: string;
+    additionalPaths?: string[];
+    ideaText?: string;
+    preset?: string;
+    agentKind?: string;
+    modelRoute?: string;
+    initGit?: boolean;
+    createIdeaFile?: boolean;
+    createGitIgnore?: boolean;
+    linkVault?: boolean;
+  }) => Promise<{
+    ok: boolean;
+    projectKey: string;
+    workingDir: string;
+    name: string;
+    createdFiles: string[];
+    error?: string;
+  }>;
   openExternal: (url: string) => Promise<{ success: boolean }>;
   openChatGPTApp: () => Promise<{ success: boolean }>;
 

@@ -6,6 +6,7 @@ import {
   Globe,
   Loader2,
   MessageCircle,
+  Plus,
   RefreshCw,
   Search,
   X,
@@ -153,6 +154,7 @@ interface FolderPickerPopoverProps {
    * 上层按当前可用的 SSH / device-link 目标决定是否传入,这里不做判断。
    */
   onAddRemoteProject?: (deviceId?: string) => void;
+  onCreateNewProject?: () => void;
   side?: 'top' | 'right' | 'bottom' | 'left';
   align?: 'start' | 'center' | 'end';
   sideOffset?: number;
@@ -170,6 +172,7 @@ export function FolderPickerPopover({
   deviceScope,
   onRemoveRemoteProject,
   onAddRemoteProject,
+  onCreateNewProject,
   side,
   align = 'end',
   sideOffset = 4,
@@ -616,6 +619,28 @@ export function FolderPickerPopover({
             message={t('newChat.folderPicker.browseFailed')}
           />
         )}
+        {/* New project action */}
+        {onCreateNewProject && (
+          <button
+            type="button"
+            disabled={selectionPending}
+            onClick={() => {
+              onOpenChange(false);
+              onCreateNewProject();
+            }}
+            className={cn(
+              'flex w-full items-center gap-3 rounded-[8px] px-3 py-[10px] text-left',
+              'transition-colors outline-none',
+              'hover:bg-[var(--folder-item-hover)]',
+            )}
+          >
+            <Plus size={20} className="shrink-0 text-[var(--status-bar-accent)]" />
+            <span className="relative top-px text-sm font-medium text-[var(--status-bar-accent)]">
+              {t('ccAgent.sidebar.newProject', 'New project...')}
+            </span>
+          </button>
+        )}
+
         {/* Choose a different folder */}
         <button
           type="button"
