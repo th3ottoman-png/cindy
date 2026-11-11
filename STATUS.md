@@ -42,6 +42,12 @@ consensus checklist in the Review sidebar.
 - **UI**: `Council` button in the Review toolbar opens `CouncilReviewDialog` (model chips grouped
   by endpoint, a local tag, an optional note, a findings checklist with the `[n/m agreed]` label,
   the defect class, and a copy button for a suggested patch). Five locales.
+- **Discoverability follow-up (owner report: "I can't see any council button").** The only entry
+  point was inside the Review panel, so on a new draft or with the sidebar closed the feature was
+  invisible. There is now a `Council` chip in the session header next to the power-save chip, on
+  any open session, opening the same dialog. Verified in the running app: chip present, visible
+  (non-zero box), labelled `Council`, and clicking it opens the dialog with the remembered
+  selection restored (`2 of 3 selected`).
 
 Three real defects found while proving it, all fixed:
 
