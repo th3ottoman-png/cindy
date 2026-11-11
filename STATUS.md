@@ -10,6 +10,34 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 10.1 injection guard, step 4: the result side (`live-proven`; 10.1 closed)
+
+- **What shipped.** `packages/maker-hermes-manager/src/guard-result.ts`: `toolResultOf` (the three shapes Hermes actually
+  emits — top-level `tool_result`, `message.content` blocks, `kind: 'tool-result'`), `decideToolResultGuard`, and
+  `taintedGuardConfig`. `hermes-manager.ts` scores every result in `onHermesEvent`; one flagged result marks the session
+  **tainted** (in-memory, per daemon) and every later call is judged at `min(threshold, 0.5)` with the same policy — so a
+  call that passes at 0.8 is held after poisoned input. The reason is logged and attached to the review payload as
+  `__cindy_guard` (display-only; Hermes still runs the original arguments). `off` scores nothing at all.
+- **A hole in the scorer, found while building the demo.** `rm -rf ~/Documents`, `rm -rf /Users/turko/Bishi-memory`,
+  `rm -rf .` and `rm -rf ..` all scored **0.00** — the destructive-command half of 10.1 could not see the most ordinary way
+  a stray call destroys the vault, because only `/`, `~` and `*` were recognised as targets. Added `rm-outside-tree`
+  (0.9) for forced recursive deletes of absolute, home-relative or `.`/`..` targets, with `/tmp`, `/var/tmp` and
+  `/var/folders` exempt (cleaning scratch is ordinary work), and relative build paths (`./dist`, `node_modules`) left at
+  zero on purpose.
+- **Live proof.** Same command, same policy, two sessions in the dev app:
+  `cd /tmp/cindy-taint-probe && git push --force origin main` (score 0.70) — **clean session: ran**, `EXIT:0`;
+  **session that had just read `/tmp/poison.txt`: held**, with the approval waiting in the UI. The model refused to obey
+  the injected instruction ("nothing was executed"), so the result-side guard is the only explanation for the difference —
+  which also proves `toolResultOf` matches the real stream shape rather than a guessed one.
+- **Not built.** A transcript banner for the reason: the renderer has no wire format for one. Under `hold` the owner sees
+  the call itself and decides; the rationale is in the daemon log and on the review payload. Under `block` (10.1a) the
+  reason does reach the transcript.
+- **Gates.** typecheck 0; `pnpm test:runner` green; hygiene PASS; `maker-core` security 66/66, daemon 238/238 (10 new
+  result-guard tests). Row 10.1a + 10.1b are now both closed; the Phase 10 remainder is 10.2 (response style / thinking
+  display) and 10.3 (chat-only mode).
+
+---
+
 ## 2026-11-11 - 10.1 injection guard, step 3: the guard is wired to the hook (`live-proven` for 10.1a; 10.1b open)
 
 - **The seam, corrected twice.** Stream-level `tool_use` events in `hermes-run.ts` are display-only, so the

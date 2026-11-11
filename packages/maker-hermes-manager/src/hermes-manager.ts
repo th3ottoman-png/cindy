@@ -22,6 +22,7 @@ import {
 } from './hermes-config.js';
 import { fetchProviderModels, hermesHomeApiKey, parseHermesDotEnv } from './hermes-models.js';
 import { decideToolCallGuard, readActiveGuardConfig } from './guard-hook.js';
+import { decideToolResultGuard, taintedGuardConfig } from './guard-result.js';
 import type { GuardConfig } from '@cindy/maker-core/injection-guard';
 import {
   HERMES_CLI_PINNED_VERSION,
@@ -167,6 +168,11 @@ export class HermesManager {
   private readonly reviewHold = new ReviewHold();
   private readonly autoReviewHookCommand?: string;
   private readonly guardConfig: () => GuardConfig;
+  /**
+   * Sessions that have read a tool result carrying injected instructions (ROADMAP 10.1b). In-memory
+   * and per-daemon: a taint is a property of this conversation, not a setting to persist.
+   */
+  private readonly taintedSessions = new Map<string, { at: number; score: number; signals: string[] }>();
   private autoReviewHookArgv?: readonly string[];
   /** Per-session hook token + env (memory only; dropped on close). */
   private readonly autoReviewTurnEnv = new Map<string, { token: string; env: Record<string, string> }>();
@@ -262,7 +268,8 @@ export class HermesManager {
     sessionId: string,
     payload: { toolName: string; toolInput: unknown; toolCallId?: string },
   ): Promise<AutoReviewVerdict> {
-    const decision = decideToolCallGuard(payload, this.guardConfig());
+    const taint = this.taintedSessions.get(sessionId);
+    const decision = decideToolCallGuard(payload, taintedGuardConfig(this.guardConfig(), !!taint));
     if (decision.action === 'block') {
       return { decision: 'block', reason: decision.reason ?? 'Blocked by the Cindy security guard.' };
     }
@@ -285,9 +292,44 @@ export class HermesManager {
       return { decision: 'block', reason: 'This session is no longer in Auto-review mode.' };
     }
     if (decision.action === 'hold') {
-      return this.askClientToReview(sessionId, payload, { allowOutsideAuto: true });
+      return this.askClientToReview(sessionId, payload, {
+        allowOutsideAuto: true,
+        ...(decision.reason ? { reason: decision.reason } : {}),
+      });
     }
     return { decision: 'allow' };
+  }
+
+  /**
+   * ROADMAP 10.1b: score what a tool returned. The model has already read it, so this cannot undo
+   * anything — it decides how suspicious the *rest* of the session is allowed to be.
+   */
+  private noteToolResult(sessionId: string, event: unknown): void {
+    const config = this.guardConfig();
+    if (config.policy === 'off') return;
+    const decision = decideToolResultGuard(event, config);
+    if (!decision) return;
+    if (!decision.tainted) return;
+    const signals = decision.verdict.signals.map((s) => s.id);
+    if (!this.taintedSessions.has(sessionId)) {
+      this.taintedSessions.set(sessionId, { at: Date.now(), score: decision.verdict.score, signals });
+    }
+    this.logger?.warn('security guard: a tool result carried injected instructions; session tainted', {
+      sessionId,
+      tool: decision.sample.tool,
+      score: decision.verdict.score,
+      signals,
+      reason: decision.verdict.reason,
+      threshold: config.threshold,
+    });
+    this.emitEvent(sessionId, {
+      type: 'hermes-mgr',
+      subtype: 'security-warning',
+      tool: decision.sample.tool,
+      score: decision.verdict.score,
+      signals,
+      ...(decision.verdict.reason ? { reason: decision.verdict.reason } : {}),
+    });
   }
 
   /**
@@ -297,7 +339,7 @@ export class HermesManager {
   private async askClientToReview(
     sessionId: string,
     payload: { toolName: string; toolInput: unknown; toolCallId?: string },
-    options: { allowOutsideAuto?: boolean } = {},
+    options: { allowOutsideAuto?: boolean; reason?: string } = {},
   ): Promise<AutoReviewVerdict> {
     const rec = this.registry.get(sessionId);
     if (!rec) return { decision: 'block', reason: 'Cindy has no record of this session.' };
@@ -317,7 +359,9 @@ export class HermesManager {
       requestId: payload.toolCallId ?? `hook-${randomUUID()}`,
       kind: 'permission',
       toolName: payload.toolName,
-      input,
+      // Display-only: the card renders `input`, so the guard's reason rides along with the call it
+      // is holding. Hermes runs the original arguments, never this copy.
+      input: options.reason ? { ...input, __cindy_guard: options.reason } : input,
     };
     // Hermes waits ~30 s at most for the hook (1.13f): hold the review open past that.
     return this.reviewHold.review(reviewKey(sessionId, payload), () => this.sendReviewRequest(ctx, params));
@@ -1160,6 +1204,7 @@ export class HermesManager {
         });
       }
     }
+    this.noteToolResult(sessionId, event);
     // A compression logged before this event belongs before it in the stream.
     const compression = this.running.get(sessionId)?.compression;
     if (compression) this.emitCompression(sessionId, compression);

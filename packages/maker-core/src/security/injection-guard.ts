@@ -185,6 +185,27 @@ function signalsForShell(command: string): GuardSignal[] {
   if (rmHitsRoot) {
     signals.push({ id: 'rm-root-or-home', weight: 1, detail: 'Deletes the filesystem root, home or everything' });
   }
+  // A forced recursive delete *outside* the working tree is the ordinary way a stray tool call
+  // destroys a vault, and it used to score zero because only `/`, `~` and `*` were recognised.
+  // Relative targets (`./dist`, `node_modules`) stay at zero: cleaning a build must not be a review.
+  const rmOutsideTree = segments.some((segment) => {
+    if (commandWord(segment) !== 'rm') return false;
+    const tokens = segment.split(/\s+/).slice(1).filter((token) => !token.startsWith('-'));
+    const recursiveForced = /\s(?:-[a-zA-Z]*[rR][a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[rR]|-r\s+-f|-f\s+-r)\b/.test(segment)
+      || (/\s-r\b/.test(segment) && /\s-f\b/.test(segment));
+    if (!recursiveForced) return false;
+    return tokens.some((token) => {
+      const clean = token.replace(/["']/g, '');
+      if (!clean || clean.includes('$')) return false;
+      // Absolute paths, home-relative paths, and `.`/`..` (the tree itself) are outside the build.
+      // Temp dirs are the documented exception: cleaning a scratch folder is ordinary work.
+      if (/^\/(?:private\/)?(?:var\/)?(?:tmp|folders)\b/.test(clean)) return false;
+      return clean.startsWith('/') || clean.startsWith('~') || clean === '.' || clean === '..';
+    });
+  });
+  if (!rmHitsRoot && rmOutsideTree) {
+    signals.push({ id: 'rm-outside-tree', weight: 0.9, detail: 'Force-deletes a directory outside the working tree' });
+  }
   if (/\bmkfs(?:\.\w+)?\b/.test(whole) || /\bdd\b[^|;]*\bof=\/dev\/[sh]d/.test(whole)) {
     signals.push({ id: 'disk-destroy', weight: 1, detail: 'Formats or overwrites a disk device' });
   }
