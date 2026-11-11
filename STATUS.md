@@ -10,6 +10,20 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - Pre-existing unit failures cleared (`unit-tested`)
+
+Closed the 9 deterministic failures that kept `test:unit:related` red for 11.1a. No behaviour change beyond two small UI corrections.
+
+- `newMakerProjectPicker.test.ts`: the picker now disables 9 controls while a selection is pending (remote retry and add-remote-project were added after the test was written). Updated the count.
+- `ruleLearnerLive.test.ts` / `vaultGitSyncLive.test.ts`: replaced the hardcoded `/home/antigravity/...` paths with `mkdtempSync` vaults and a throwaway `git init` repository, so the live proof runs on any machine.
+- Ink ladder (`textTierDiscipline.test.ts`): `NewProjectDialog.tsx` used an undefined `--input-placeholder` token (×2) and `VaultGitSyncTabBody.tsx` used `muted-foreground` for a placeholder; both now use `--text-placeholder`. `TurnUsageCard.tsx` hint no longer fakes hierarchy with `opacity-80`.
+- `settingsSearchCatalog.test.ts`: added `personalization.responseStyle` and `personalization.securityGuard` search entries. The anchors already existed in `SettingsView.tsx` but were unreachable from search.
+- `MessageActionBar.test.tsx`: rewrote two assertions that still expected the pre-10.4 hover tooltip; they now open the `TurnUsageCard` popover and assert its rows.
+
+Verification: canonical Terminal `test:unit:related` = 0 (`PASS apps/desktop unit (61.9s)`, related 8), `typecheck` = 0. The six files (138 tests) and the three neighbouring suites (`NewProjectDialog`, `vaultGitSyncPlugin`, `turnUsageCard`, 15 tests) pass.
+
+---
+
 ## 2026-11-11 - 11.1a 3-Tier Progressive Skill Loading Engine (`unit-tested`, partial `live-proven`)
 
 Two build items from the handover findings, done in sequence. The finding first: the blueprint's

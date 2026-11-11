@@ -5,13 +5,16 @@ import path from 'node:path';
 import { RuleLearnerHost } from '../ruleLearner';
 
 describe('ruleLearner live proof (ROADMAP 7.5)', () => {
-  const realVaultDir = '/home/antigravity/Bishi-memory';
+  // Hermetic vault: the proof exercises the real host against a real filesystem, but it must run
+  // on any machine, not only where the original author's /home/antigravity tree exists.
+  let realVaultDir = '';
   const realHermesHome = path.join(os.homedir(), '.hermes-cindy');
   let testVaultRulePath = '';
   let soulBackupContent: string | null = null;
   const soulPath = path.join(realHermesHome, 'SOUL.md');
 
   beforeAll(() => {
+    realVaultDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cindy-rule-learner-vault-'));
     // Ensure hermes home directory exists for test
     if (!fs.existsSync(realHermesHome)) {
       fs.mkdirSync(realHermesHome, { recursive: true });
@@ -22,6 +25,9 @@ describe('ruleLearner live proof (ROADMAP 7.5)', () => {
   });
 
   afterAll(() => {
+    if (realVaultDir) {
+      try { fs.rmSync(realVaultDir, { recursive: true, force: true }); } catch {}
+    }
     // Cleanup generated vault test rule
     if (testVaultRulePath && fs.existsSync(testVaultRulePath)) {
       try { fs.unlinkSync(testVaultRulePath); } catch {}
@@ -34,7 +40,7 @@ describe('ruleLearner live proof (ROADMAP 7.5)', () => {
     }
   });
 
-  it('detects live user corrections and saves to real notes vault', async () => {
+  it('detects live user corrections and saves to the notes vault', async () => {
     expect(fs.existsSync(realVaultDir)).toBe(true);
 
     const host = new RuleLearnerHost({

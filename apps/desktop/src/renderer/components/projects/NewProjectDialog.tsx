@@ -282,7 +282,7 @@ export function NewProjectDialog({
                 className={cn(
                   'h-9 w-full rounded-md px-3 text-14',
                   'bg-[var(--input-background,#14161a)] border border-[var(--input-border,#2e323b)]',
-                  'text-[var(--foreground)] placeholder:text-[var(--input-placeholder)]',
+                  'text-[var(--foreground)] placeholder:text-[var(--text-placeholder)]',
                   'focus:outline-none focus:border-[var(--focus-ring)] transition-colors',
                 )}
               />
@@ -411,7 +411,7 @@ export function NewProjectDialog({
                 className={cn(
                   'w-full rounded-md p-3 text-13 resize-y min-h-[76px]',
                   'bg-[var(--input-background,#14161a)] border border-[var(--input-border,#2e323b)]',
-                  'text-[var(--foreground)] placeholder:text-[var(--input-placeholder)]',
+                  'text-[var(--foreground)] placeholder:text-[var(--text-placeholder)]',
                   'focus:outline-none focus:border-[var(--focus-ring)] transition-colors',
                 )}
               />

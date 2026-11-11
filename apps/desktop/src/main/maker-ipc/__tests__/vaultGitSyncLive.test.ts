@@ -1,4 +1,6 @@
+import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -11,22 +13,47 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
 describe('ROADMAP 7.4 Git Workspace ↔ Vault Project Note Auto-Sync Live Proof', () => {
-  const vaultDir = '/home/antigravity/Bishi-memory';
-  const workspaceDir = '/home/antigravity/th3ottoman-png/cindy';
-  const configFile = '/home/antigravity/.cindy-harness/vault.json';
+  // Hermetic: a throwaway vault plus a throwaway git repository, so the proof runs on any
+  // machine instead of only where the original author's /home/antigravity tree exists.
+  let root = '';
+  let vaultDir = '';
+  let workspaceDir = '';
+  let configFile = '';
 
   beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'cindy-vault-git-sync-'));
+    vaultDir = path.join(root, 'vault');
+    workspaceDir = path.join(root, 'cindy');
+    configFile = path.join(root, 'harness', 'vault.json');
+
     fs.mkdirSync(path.join(vaultDir, 'memory'), { recursive: true });
     fs.mkdirSync(path.dirname(configFile), { recursive: true });
     fs.writeFileSync(configFile, JSON.stringify({ vaultDir }), 'utf8');
+    fs.writeFileSync(
+      path.join(vaultDir, 'memory', 'Project — Cindy.md'),
+      '# Project: Cindy (Autonomous Fork)\n\nDaily driver AI harness.\n',
+      'utf8',
+    );
 
-    const projectNote = path.join(vaultDir, 'memory', 'Project — Cindy.md');
-    if (!fs.existsSync(projectNote)) {
-      fs.writeFileSync(
-        projectNote,
-        '# Project: Cindy (Autonomous Fork)\n\nDaily driver AI harness.\n',
-        'utf8',
-      );
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-c', 'commit.gpgsign=false', ...args], {
+        cwd: workspaceDir,
+        stdio: 'pipe',
+      });
+    fs.mkdirSync(workspaceDir, { recursive: true });
+    git('init', '-q');
+    git('config', 'user.email', 'cindy-test@example.com');
+    git('config', 'user.name', 'Cindy Test');
+    fs.writeFileSync(path.join(workspaceDir, 'README.md'), '# cindy\n', 'utf8');
+    git('add', '.');
+    git('commit', '-q', '-m', 'init');
+  });
+
+  afterEach(() => {
+    if (root) {
+      try {
+        fs.rmSync(root, { recursive: true, force: true });
+      } catch {}
     }
   });
 

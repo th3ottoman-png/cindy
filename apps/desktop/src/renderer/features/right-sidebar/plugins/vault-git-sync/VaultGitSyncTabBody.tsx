@@ -229,7 +229,7 @@ export function VaultGitSyncTabBody() {
                 value={summaryNote}
                 onChange={(e) => setSummaryNote(e.target.value)}
                 placeholder="What did you achieve or change in this iteration?"
-                className="w-full h-16 rounded-md border border-input bg-background p-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                className="w-full h-16 rounded-md border border-input bg-background p-2 text-xs placeholder:text-[var(--text-placeholder)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
               />
             </div>
 

@@ -189,7 +189,7 @@ describe('Shared create project picker', () => {
     expect(folderPickerPopoverSource).toContain('if (selectionPendingRef.current) return;');
     expect(folderPickerPopoverSource).toContain('selectionPendingRef.current = true;');
     expect((folderPickerPopoverSource.match(/disabled=\{selectionPending\}/g) ?? []).length).toBe(
-      8,
+      9,
     );
 
     const handlerStart = folderPickerPopoverSource.indexOf('const handleSelectPath = async (');

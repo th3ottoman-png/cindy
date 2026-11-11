@@ -99,7 +99,7 @@ export function TurnUsageCard({ details, money, costUsd, isEstimate = false, lab
                   </span>
                 </div>
                 {row.hint ? (
-                  <span className="text-11 leading-tight text-[var(--settings-section-desc)] opacity-80">
+                  <span className="text-11 leading-tight text-[var(--settings-section-desc)]">
                     {row.hint}
                   </span>
                 ) : null}

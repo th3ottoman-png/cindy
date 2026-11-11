@@ -36,6 +36,7 @@ vi.mock('@/lib/toast', () => ({
 
 import { MessageActionBar } from '../MessageActionBar';
 import { MessageReadAloudContext, type MessageReadAloud } from '../MessageReadAloudContext';
+import { formatCompactTokens } from '@/lib/usageFormat';
 
 describe('companion message read-aloud', () => {
   const identity = { sessionId: 'companion-task', messageId: 'reply' };
@@ -350,7 +351,7 @@ describe('MessageActionBar', () => {
     await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
-  it('renders the user-turn total and aggregated details on separate lines', () => {
+  it('shows the user-turn total and its aggregated details in the usage card', () => {
     render(
       <MessageActionBar
         copyText="message body"
@@ -390,22 +391,18 @@ describe('MessageActionBar', () => {
       />,
     );
 
-    const tooltip = screen.getByText(
-      (_, element) =>
-        element?.classList.contains('whitespace-pre-line') === true &&
-        element.textContent?.includes('chat.messageActionBar.userTurnCostDetailsTitle') === true,
-    );
-    expect(tooltip.textContent).toBe(
-      [
-        'chat.messageActionBar.userTurnCostDetailsTitle',
-        'usageDetails.costLine',
-        'usageDetails.costBreakdownHeader',
-        'usageDetails.modelCostLine',
-        'usageDetails.modelCostLine',
-        'usageDetails.tokenLine',
-        'usageDetails.cacheLine',
-      ].join('\n'),
-    );
+    // ROADMAP 10.4: the usage text is a button that opens a card, not a hover-only tooltip.
+    // The user-turn total wins over the per-turn figure on the trigger.
+    const trigger = screen.getByTestId('turn-usage-trigger');
+    expect(trigger.textContent).toBe('¥2.00');
+
+    fireEvent.focus(trigger);
+    expect(screen.getByTestId('turn-usage-card').textContent).toContain('chat.turnUsage.title');
+    expect(screen.getByTestId('turn-usage-cost').getAttribute('data-cost-kind')).toBe('reported');
+    expect(screen.getByTestId('turn-usage-cost').textContent).toBe('¥2.00');
+    expect(screen.getByTestId('turn-usage-input').textContent).toBe('10');
+    expect(screen.getByTestId('turn-usage-output').textContent).toBe('5');
+    expect(screen.getByTestId('turn-usage-total').textContent).toBe('15');
   });
 
   // 金额缺席时的回退:那一格显示本轮 token,而不是空着(2026-07-30 起网关目录整体
@@ -421,7 +418,7 @@ describe('MessageActionBar', () => {
       cacheHitRate: 0.95,
     };
 
-    it('无金额 + 有 token 明细 → 显示 token,tooltip 说明取不到报价', () => {
+    it('无金额 + 有 token 明细 → 触发格显示 token,卡片说明取不到报价', () => {
       render(
         <MessageActionBar
           copyText="message body"
@@ -431,21 +428,17 @@ describe('MessageActionBar', () => {
         />,
       );
 
-      expect(screen.getByText('chat.messageActionBar.turnTokens')).toBeTruthy();
-      const tooltip = screen.getByText(
-        (_, element) =>
-          element?.classList.contains('whitespace-pre-line') === true &&
-          element.textContent?.includes('usageDetails.tokenLine') === true,
+      const trigger = screen.getByTestId('turn-usage-trigger');
+      expect(trigger.textContent).toBe('chat.messageActionBar.turnTokens');
+
+      fireEvent.focus(trigger);
+      const cost = screen.getByTestId('turn-usage-cost');
+      expect(cost.getAttribute('data-cost-kind')).toBe('unknown');
+      expect(cost.textContent).toBe('chat.turnUsage.costUnknown');
+      expect(screen.getByTestId('turn-usage-input').textContent).toBe(formatCompactTokens(12_400));
+      expect(screen.getByTestId('turn-usage-total').textContent).toBe(
+        formatCompactTokens(2_107_700),
       );
-      expect(tooltip.textContent).toBe(
-        [
-          'usageDetails.tokenLine',
-          'usageDetails.cacheLine',
-          'usageDetails.noBilledCost',
-        ].join('\n'),
-      );
-      // 没有钱就不出现任何费用文案。
-      expect(tooltip.textContent).not.toContain('usageDetails.costLine');
     });
 
     it('有金额 → 仍显示金额,不出现 token 回退', () => {

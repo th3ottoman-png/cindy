@@ -16,5 +16,7 @@ export default {
     { id: 'personalization.terminalShell', tab: 'personalization', targetId: 'settings-search-target-personalization-terminal-shell', titleKey: 'settings.sections.terminalShell', sectionKey: 'settings.sections.terminalShell', aliases: ['terminal', 'shell', '终端'] },
     { id: 'personalization.linkOpen', tab: 'personalization', targetId: 'settings-search-target-personalization-link-open', titleKey: 'settings.sections.linkOpen', sectionKey: 'settings.sections.linkOpen' },
     { id: 'personalization.tips', tab: 'personalization', targetId: 'settings-search-target-personalization-tips', titleKey: 'settings.sections.compatMode', sectionKey: 'settings.sections.compatMode' },
+    { id: 'personalization.responseStyle', tab: 'personalization', targetId: 'settings-search-target-personalization-response-style', titleKey: 'settings.sections.responseStyle', sectionKey: 'settings.sections.responseStyle', aliases: ['style', 'tone', '语气', '风格'] },
+    { id: 'personalization.securityGuard', tab: 'personalization', targetId: 'settings-search-target-personalization-security-guard', titleKey: 'settings.sections.securityGuard', sectionKey: 'settings.sections.securityGuard', aliases: ['security', 'guard', '安全', '防护'] },
   ],
 } satisfies SettingsSearchModule;
