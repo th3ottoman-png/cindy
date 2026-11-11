@@ -13,7 +13,7 @@
 ## Architecture Compatibility & Non-Clash Guarantee
 
 1. **Hermes Daemon Isolation (`packages/maker-hermes-manager`):**  
-   All hooks, session-homes, and socket RPCs remain isolated in `~/.hermes-cindy/`. No references to `~/.hermes`.
+   All hooks, session-homes, and socket RPCs remain isolated in `~/.hermes-cindy/`. Never touch or reference `~/.hermes`.
 2. **Multi-Model Provider Guard (`packages/model-providers`):**  
    The Council Review engine queries the active provider catalog (`providers.yaml` / `routing.yaml`). Models chosen by the owner are validated for online health before dispatch; if an offline local model or unauthenticated provider is selected, it warns clearly with no silent substitution.
 3. **Safe-Mode & Chat-Only Compatibility (Phase 10.3):**  
@@ -23,42 +23,233 @@
 
 ---
 
-## Roadmap Tasks (Phase 11 for `ROADMAP.md`)
+## Detailed Technical Specification: Task 11.1
+### 3-Tier Progressive Skill Loading Engine (`effective-agent-skills`)
 
-```markdown
-## Phase 11 — Progressive Skills, Multi-Model Council & Autonomous Safeguards
+### 1. The Problem Being Solved
+Historically, AI agent harnesses eagerly loaded every installed skill's complete `SKILL.md` file (often 2,000–5,000 tokens each) into the system prompt on *every single turn*. With 15–30 installed skills, this consumed 30,000–80,000 tokens before the user even typed a word, causing:
+1. Massive context window consumption.
+2. Incurred latency and high API pricing on paid models.
+3. Model confusion ("needle in a haystack" problem across dozens of unrelated skill instructions).
+
+### 2. The 3-Tier Progressive Disclosure Architecture
+
 ```
-
-| # | Task | Done when | Status |
-|---|---|---|---|
-| 11.1 | **3-Tier Progressive Skill Loading Engine (`effective-agent-skills`).** Replace eager loading of all `SKILL.md` files with a 3-tier progressive disclosure pipeline. **Level 1 (Discovery):** Daemon compiles a lightweight manifest of installed skills (`name` + `description`, ~50 tokens per skill) into system context. **Level 2 (Dual Activation):** 1) Autonomous MCP tool `activate_skill({ name })` loads full `SKILL.md` (<5,000 tokens) dynamically on-demand when matched by model; 2) Composer `@skill:<name>` / slash command `/name` pins skill instructions for that turn. **Level 3 (Execution):** Nested `references/` and `scripts/` are executed via shell or read via file tools without loading raw source into prompt context. | 🧪 `unit-tested` across `packages/maker-core/src/skills/` and `session-home.ts`. `live-proven` on dev app: session with 20 installed skills boots with <800 discovery tokens; calling `activate_skill` or typing `@skill:foo` injects full instructions without session restart. | 🔲 |
-| 11.2 | **Native OS Power & Sleep Manager (`anti-sleep`).** Integrate Electron `powerSaveBlocker` into desktop main process (`powerSaveController.ts`). Automatically acquires `'prevent-app-suspension'` when any session turn is active (`running: true`) or a background scheduled job (5.4) / deep research (9.5) runs; automatically releases on turn completion or error. Header status indicator displays coffee cup icon with live wake lock status and optional manual toggle. | 🧪 `unit-tested` (mock Electron powerSaveBlocker lifecycle). `live-proven` on macOS: running 5-minute turn prevents system display sleep and socket hangup; releasing lock resets power state. | 🔲 |
-| 11.3 | **Deterministic Command Guardrails (`global-agent-guardrails`).** Add zero-latency, deterministic POSIX regex denylist in `packages/maker-hermes-manager/src/auto-review-gate.ts` and the Python `pre_tool_call` hook. Reads patterns from local-first, human-editable `~/.cindy-harness/guardrails.yaml`. Catastrophic commands (`rm -rf /`, `mkfs`, `git reset --hard` with uncommitted changes, DB drop, credential exfiltration) are blocked in $\approx 1\,\text{ms}$ before LLM auto-review runs. Renders prominent UI warning card with 1-click "Allow Once (Override)" for the owner. | 🧪 `unit-tested` (25 positive/negative regex cases including obfuscation variants). `live-proven` against Hermes `terminal` tool: `git push --force` or destructive wipe blocked instantly with zero token cost. | 🔲 |
-| 11.4 | **Multi-Model Council Review with Selectable Reviewers (`total-review`, `codex-subagent`).** Extend `apps/desktop/src/main/git-review` with a Council Review modal. Diff viewer (9.3) gains a "Request Council Review" button opening an interactive model picker populated from active `providers.yaml`: owner selects 1 to 3 models (any mix of local and API models, e.g. 1 local Qwen + 2 API models like Codex/Claude, or 1 local + 1 API). Dispatches parallel review turns with neutral diff briefs. Deduplicates findings by file/line, ranks by consensus (`[2/3 models agreed]`), and renders an interactive checklist in the Review sidebar with 1-click patch application. Remembers last-used reviewer selection in `routing.yaml`. | 🧪 `unit-tested` (model picker validation, concurrent dispatch, consensus deduplication). `live-proven` on a 50-line git diff: owner selects 1 local + 1 API model; parallel reviews generate consensus findings in UI with zero model hallucination leaks. | 🔲 |
-| 11.5 | **1-Click Clean-Slate Session Handoff (`handoff`).** Add "Handoff to Fresh Session" action to `SessionContextGuardBanner` (2.5) and session header menu. Automatically compiles a structured handoff payload: 1) Active decisions & architecture constraints from `Synthesis.md`, 2) Uncommitted git working tree diff / modified file list, 3) Pending next steps & unresolved questions. Spawns a fresh Hermes or Codex session seeded with this structured payload, terminating the bloated session and preserving 100% of context window capacity. | 🧪 `unit-tested` (payload assembly, secret redaction, token count verification). `live-proven` in running app: session at 95% context triggers handoff; new session opens with clean context, correct file state, and continues task without re-asking questions. | 🔲 |
-| 11.6 | **Local Dev Service Supervisor (`persistent-localhost`).** Background process & port tracker in `apps/desktop/src/main/local-services/`. Automatically indexes child processes and TCP ports spawned by agent bash commands (`vite`, `node`, `python`, `docker`). Mounts an "Active Services" panel into the Operations Rail (8.6), showing port numbers, process handles, uptime, logs, and 1-click restart/terminate buttons. Prevents orphaned server instances and port collisions on rerun. | 🧪 `unit-tested` (port detection via `lsof`, graceful kill + force kill escalation). `live-proven`: agent launches local Vite dev server on port 5173; Operations Rail shows live status; 1-click stop cleanly frees port without orphan processes. | 🔲 |
-| 11.7 | **Pre-Flight Decision Cards & Interrogate Mode (`before-building`, `4x4`, `ask-then-build`).** Composer modifier chip `✦ Plan First` (alongside `Chat-Only` in 10.3). When enabled, the model's first turn is constrained to architectural discovery: it must return 1–3 consequential choices or a 4x4 matrix of tradeoffs rendered as interactive `DecisionCard` UI elements. File modification tools remain locked until the owner makes selections or clicks "Proceed to Build". | 🧪 `unit-tested` (decision card parsing, state machine gating tool calls). `live-proven`: prompt "Build user auth" in Plan First mode renders 3 choice cards (JWT vs Session, local DB vs SQLite, cookie vs header); selecting options unlocks turn execution with choices injected. | 🔲 |
-| 11.8 | **Vault ADR Manager & Automatic Context Ingestion (`adr-verbatim`, `read-all-adrs`).** Add first-party MCP tools `record_adr` and `query_adrs` to `cindy_vault_notes`. `record_adr` writes structured Markdown ADRs conforming to `docs/decisions/` standard directly to `<vault>/Cindy/Decisions/<YYYY-MM-DD>-<slug>.md` and local repo `docs/decisions/`. On new session start, Cindy automatically performs keyword matching against the prompt and injects titles of relevant past ADRs into the session's manifest strip to prevent re-litigating settled decisions. | 🧪 `unit-tested` (ADR schema validation, atomic temp+rename, path containment). `live-proven`: agent calls `record_adr`; ADR file appears in vault and repo; subsequent session querying that topic cites the ADR. | 🔲 |
-| 11.9 | **High-Blast-Radius Pre-Check Guard (`risky-changes`).** Static inspection layer in `packages/maker-hermes-manager/src/auto-review-gate.ts`. Evaluates target file paths in tool calls against high-risk categories: authentication/crypto (`auth.*`, `keychain*`, `jwt*`), database schemas/migrations (`schema.sql`, `migrations/*`), payment/pricing files, and harness configuration (`providers.yaml`, `routing.yaml`). Any tool modifying these files automatically triggers an elevated Owner Review Card with an explicit blast-radius checklist before execution. | 🧪 `unit-tested` (path classifier, sensitivity scoring). `live-proven`: Hermes attempt to edit `providers.yaml` is paused by auto-review gate; UI displays amber "High-Risk System File" review card with diff. | 🔲 |
-| 11.10 | **Session Uncertainty & Assumption Audit Panel (`decisions`, `state`).** Enhance right sidebar "In This Chat" inspector (8.8) with an "Audit & Assumptions" tab. Turn event parser extracts: 1) Completion progress %, 2) Explicit architectural decisions made during the turn, 3) Self-reported low-confidence assumptions (extracted via structured turn footer or reflection). Amber warning pill appears next to assumptions below 80% confidence, giving the owner instant visibility into potential hallucinations. | 🧪 `unit-tested` (uncertainty reflection extraction, schema normalization). `live-proven`: agent generates complex refactor; inspector tab surfaces "Assumption: Redis is running on default port 6379 (Confidence: 60%)" with 1-click verify action. | 🔲 |
-| 11.11 | **Git Worktree Isolation & Council Integration (Phase 9.2 Expansion) (`git-worktree`).** Complete Phase 9.2 with deep wiring into Phase 11.4 Council Review. Turns running on branches (`cindy/task-<id>`) in isolated worktrees automatically run council reviews on the worktree diff. If review passes and the owner approves, 1-click "Merge to Main Worktree" cleanly merges and deletes the temporary worktree without dirtying the active editor state. | 🧪 `unit-tested` (worktree creation, branch cleanup, merge conflict detection). `live-proven`: coding task runs in isolated worktree; council passes; 1-click merge lands cleanly in working directory. | 🔲 |
+┌────────────────────────────────────────────────────────────────────────┐
+│ TIER 1: Lightweight Discovery Manifest (System Context / Prompt)       │
+│ - Injected on every session turn                                       │
+│ - Only contains: name, slug, description, triggers (~40 tokens/skill)  │
+│ - Budget: < 1,000 tokens for 25 installed skills                       │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+              ┌────────────────────┴────────────────────┐
+              ▼                                         ▼
+┌───────────────────────────────┐     ┌──────────────────────────────────┐
+│ TIER 2A: Autonomous Activation│     │ TIER 2B: User-Driven Activation  │
+│ - Model identifies need       │     │ - User types @skill:<slug>       │
+│ - Calls activate_skill(slug)  │     │ - Or uses slash command /<slug>  │
+│ - cindy_skills returns body   │     │ - Preloaded into turn preamble   │
+└─────────────┬─────────────────┘     └─────────────────┬────────────────┘
+              │                                         │
+              └────────────────────┬────────────────────┘
+                                   │
+                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ TIER 3: On-Demand Execution (Scripts & References)                     │
+│ - scripts/ run via bash tool (never read into context)                 │
+│ - references/ read via file tools only when specifically cited         │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Technical Blueprints
+### 3. TypeScript Interfaces & Schemas
 
-### Task 11.1: 3-Tier Progressive Skill Loading Engine (`effective-agent-skills`)
-- **Level 1 (Discovery):** `skill-manager.ts` parses `SKILL.md` frontmatter and injects `<name>` + `<description>` catalog into turn context (~700 tokens for 20 skills).
-- **Level 2 (Dual Activation):**
-  - **Autonomous Model Activation:** Tool `activate_skill({ name: string })` in Cindy's internal MCP server. When the model invokes it, Cindy loads the full `SKILL.md` into the conversation context as tool output.
-  - **User-Driven Composer Activation:** Typing `@skill:<name>` or `/name` pins that skill for the turn via `pinned-skill-invocation.ts`.
-- **Level 3 (Execution):** Nested `references/` are read on-demand via file tools; `scripts/` are executed via bash without loading source code into LLM context.
+File: `packages/maker-core/src/skills/progressive-skill-engine.ts`
+
+```typescript
+export interface SkillFrontmatter {
+  name: string;
+  description: string;
+  author?: string;
+  version?: string;
+  triggers?: string[];
+  requiresTools?: string[];
+  disableModelActivation?: boolean;
+}
+
+export interface SkillManifestEntry {
+  /** Canonical skill identifier slug, e.g. "git-worktree" or "camerax" */
+  slug: string;
+  /** Human-readable display name */
+  name: string;
+  /** Bounded 1-2 sentence description explaining WHEN to use this skill */
+  description: string;
+  /** Absolute filesystem directory path containing SKILL.md */
+  skillDir: string;
+  /** Estimated token cost of the full SKILL.md file */
+  fullTokenEstimate: number;
+  /** Whether the skill has executable helper scripts in scripts/ */
+  hasScripts: boolean;
+  /** Whether the skill has reference docs in references/ */
+  hasReferences: boolean;
+}
+
+export interface SkillDiscoveryCatalog {
+  version: 1;
+  compiledAtMs: number;
+  totalSkills: number;
+  estimatedDiscoveryTokens: number;
+  skills: SkillManifestEntry[];
+}
+
+export interface SkillActivationResult {
+  slug: string;
+  name: string;
+  instructions: string;
+  scriptsDir: string | null;
+  referencesDir: string | null;
+  availableScripts: string[];
+  availableReferences: string[];
+}
+```
+
+---
+
+### 4. MCP Tool Specification: `activate_skill`
+
+Server: `cindy_skills`  
+Tool Name: `activate_skill`
+
+#### Tool Schema (JSON Schema):
+```json
+{
+  "name": "activate_skill",
+  "description": "Load the complete instructions, procedures, and script definitions for an installed skill into your context. Call this when a task matches a skill listed in your Available Skills manifest.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "skill_slug": {
+        "type": "string",
+        "description": "The exact slug of the skill to activate as listed in the Available Skills manifest (e.g. 'adaptive', 'git-worktree')."
+      }
+    },
+    "required": ["skill_slug"]
+  }
+}
+```
+
+#### Tool Handler Logic:
+1. Validates `skill_slug` against cached `SkillDiscoveryCatalog`.
+2. If unknown slug: returns structured error with available matching slugs.
+3. Reads `<skillDir>/SKILL.md` (bounded to 32 KB / ~8,000 tokens to prevent unbounded blowup).
+4. Inspects `<skillDir>/scripts/` and `<skillDir>/references/` without reading file contents, returning file lists as available assets.
+5. Returns formatted markdown:
+   ```markdown
+   # Skill Activated: <name> (<slug>)
+   
+   ## Instructions
+   <SKILL.md content (frontmatter stripped)>
+   
+   ## Available Assets
+   - Scripts: scripts/run_audit.sh (run via bash tool)
+   - References: references/architecture.md (read via file tools if needed)
+   ```
+
+---
+
+### 5. Tier 1 Discovery Catalog Formatter
+
+The catalog injected into the prompt preamble formatted to maximize retrieval efficiency:
+
+```markdown
+<available_skills>
+You have access to specialized skills. Full instructions are NOT loaded into context to save tokens.
+When a task matches a skill's description, call tool `activate_skill(skill_slug: "<slug>")` to retrieve full instructions before proceeding.
+
+- git-worktree: Isolate feature branches in dedicated git worktrees, preventing active editor churn.
+- camerax: Implementation guide for Android CameraX hardware bindings and preview streams.
+- effective-agent-skills: 3-tier progressive skill discovery, on-demand activation, and script execution.
+- web-scraper: Headless browser scraping and structured data extraction patterns.
+</available_skills>
+```
+
+Average token cost: ~35 tokens per skill. A library of 25 skills compiles to ~875 tokens (compared to ~60,000 tokens for eager loading).
+
+---
+
+### 6. Integration Seams in Cindy
+
+1. **Catalog Builder (`packages/maker-core/src/skills/progressive-skill-engine.ts`):**
+   - Scans installed skill directories (`~/.hermes-cindy/skills/`, `<workspace>/.skills/`, and builtin skills).
+   - Parses YAML frontmatter using regex or safe yaml parser.
+   - Caches discovery catalog in memory with directory mtime invalidation.
+2. **MCP Tool Provider (`packages/mcps/src/cindy-skills/index.ts`):**
+   - Registers `activate_skill` tool.
+   - Resolves requests through `progressive-skill-engine.ts`.
+3. **Turn Attachment Integration (`packages/maker-core/src/turn-attachment/`):**
+   - Phase 8.4 already implemented `@skill:<slug>` parsing in the composer.
+   - When the user explicitly mentions `@skill:git-worktree`, Cindy bypasses Tier 1 and directly injects the full `SKILL.md` into that specific turn's preamble.
+4. **Hermes Session Bootstrap (`packages/maker-hermes-manager/src/session-home.ts`):**
+   - When creating or assembling Hermes session arguments, injects the `<available_skills>` discovery strip into system instructions instead of symlinking/copying dozens of raw `SKILL.md` files into the session context.
+   - Respects Chat-Only Mode: if `isChatOnly(sessionId)` is true, `<available_skills>` is omitted and `activate_skill` is not registered.
+
+---
+
+### 7. Failure Modes & Non-Negotiable Guards
+
+| Failure Mode | Prevention Mechanism |
+|---|---|
+| Unknown skill slug requested | Fail closed: return clear error `"Skill '<slug>' is not installed. Available skills: [...]"` |
+| Overly large `SKILL.md` file (>32 KB) | Truncate at 32 KB with explicit notice `"[Truncated: skill file exceeds 32KB]"` |
+| Symlink traversal in `references/` | Refuse any reference path that resolves outside `skillDir` |
+| Chat-Only mode active | Skill discovery catalog omitted; tool call returns `PERMISSION_DENIED` |
+| Malformed YAML frontmatter | Fall back to folder name as slug, use first 160 characters of markdown as description |
+
+---
+
+### 8. Testing Strategy & Verification Criteria
+
+#### Unit Tests (`packages/maker-core/src/skills/__tests__/progressive-skill-engine.test.ts`):
+1. `parseSkillFrontmatter`: Validates extraction of name, description, and triggers from standard `SKILL.md`.
+2. `buildDiscoveryCatalog`: Confirms token estimation and compact markdown formatting.
+3. `activateSkill`:
+   - Returns full markdown body for existing skill.
+   - Rejects unknown skill slug with list of suggestions.
+   - Redacts frontmatter to avoid duplicate metadata.
+   - Indexes `scripts/` and `references/` directory entries without reading contents.
+4. `chatOnlyGuard`: Verifies catalog is null and tool fails closed when chat-only is enabled.
+
+#### Live Verification Criteria:
+1. Boot a fresh Hermes task in dev app with 15+ skills installed.
+2. Verify session initial token count reflects `<available_skills>` (< 1,000 tokens) instead of full files.
+3. Prompt: *"How do I isolate a branch using git worktrees?"*
+4. Verify Hermes invokes `activate_skill(skill_slug: "git-worktree")` on turn 1.
+5. Verify turn 2 receives full instructions and answers with exact skill procedures.
+
+---
+
+## Technical Specifications: Tasks 11.2 – 11.11
+
+### Task 11.2: Native OS Power & Sleep Manager (`anti-sleep`)
+- **Seam:** `apps/desktop/src/main/powerSaveController.ts` using Electron `powerSaveBlocker`.
+- **API:**
+  - `acquireAppSleepLock(reason: string): number` -> calls `powerSaveBlocker.start('prevent-app-suspension')`.
+  - `releaseAppSleepLock(id: number): void` -> calls `powerSaveBlocker.stop(id)`.
+- **Wiring:** Hooks into `SessionRegistry` on `running: true` and background tasks (`scheduler-host`, `goal-host`).
+
+### Task 11.3: Deterministic Command Guardrails (`global-agent-guardrails`)
+- **Seam:** `packages/maker-hermes-manager/src/auto-review-gate.ts` (evaluated before LLM review).
+- **Storage:** `~/.cindy-harness/guardrails.yaml` (local, file-backed).
+- **Patterns:** Regex denylist for `rm -rf /`, `mkfs`, `dd`, `git reset --hard` (when uncommitted changes exist), `drop database`.
+- **Performance:** Evaluated synchronously in $< 2\,\text{ms}$; if triggered, aborts execution with structured `GuardrailViolationCard`.
 
 ### Task 11.4: Multi-Model Council Review with Selectable Reviewers
-- **Council Trigger:** "Request Council Review" button in Diff Viewer (Phase 9.3) or Operations Rail (Phase 8.6).
-- **Reviewer Modal:**
-  - Interactive multi-select listing models from `providers.yaml` (e.g. `lmstudio-local/qwen2.5-coder-14b`, `anthropic-direct/claude-3-5-sonnet`, `codex/gpt-5.6-sol`, `ollama/deepseek-r1-14b`).
-  - Limits selection to 1–3 models (enforcing flexible local + API combinations).
-  - Remembers the user's last selection in `~/.cindy-harness/routing.yaml` under `council.last_selected_reviewers`.
-- **Concurrent Dispatch:** Spawns background review passes with neutral diff brief via `maker-core` adapters.
-- **Consensus Engine:** Deduplicates findings by file/line and tags agreement (e.g., `[Qwen + Claude agreed]`). Renders collapsible checklist with 1-click apply.
+- **Seam:** `apps/desktop/src/main/git-review/` and `apps/desktop/src/renderer/features/review/`.
+- **Model Selector:** Reads online endpoints from `providers.yaml` via `@cindy/model-providers`. Allows user to select 1–3 models.
+- **Deduplication:** Groups findings by `(file, startLine, endLine)` with consensus score (`2/3 reviewers agreed`).
+- **Persistence:** Remembers user's selection in `routing.yaml` under `council.last_selected_reviewers`.
+
+### Task 11.5: 1-Click Clean-Slate Session Handoff (`handoff`)
+- **Seam:** `SessionContextGuardBanner.tsx` and `packages/maker-core/src/tasks/session-handoff.ts`.
+- **Payload:** Extracts active constraints, uncommitted git diff, and pending questions; mounts directly into fresh session draft.
