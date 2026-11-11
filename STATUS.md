@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - Phase 11 Roadmap & Blueprint: Progressive Skills, Council Review & Safeguards
+
+- **What shipped.** Researched and audited all 55 skills from `davidondrej/skills`. Formulated complete technical blueprint in artifact `phase-11-blueprint.md` converting Category A & B skills plus `effective-agent-skills` into native, first-class desktop harness features for Cindy (Phases 11.1–11.11).
+- **Decisions confirmed by owner.**
+  1. Positioned as **Phase 11** in `ROADMAP.md` immediately following Phase 10.
+  2. Task 11.1 Progressive Skill Loading Engine: Supports dual activation — autonomous MCP tool (`activate_skill`) for model self-discovery and composer `@skill:<name>` / `/name` for user-driven deterministic pinning.
+  3. Task 11.4 Multi-Model Council Review: Features an interactive multi-select model picker in the review UI allowing the owner to select up to 3 models (any mix of local and API models, e.g. 1 local Qwen + 2 API models, or 1 local + 1 API) with last selection saved in `routing.yaml`.
+- **Roadmap integration.** Appended Phase 11 (Tasks 11.1 to 11.11) to `ROADMAP.md` under `AGENTS.md` format: each row includes explicit "Done when" criteria, required unit/live verification labels, and architectural non-clash guarantees.
+- **Verification.** Typecheck across all 37 workspace packages passes cleanly (`tsc --noEmit`, exit 0).
+
+---
+
 ## 2026-11-11 - 10.3 version guard + Hermes turn pricing (`live-proven`)
 
 - **Version guard for `-t ''`.**
