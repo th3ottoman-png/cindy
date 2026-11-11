@@ -25,9 +25,14 @@
 
 import type { AgentEvent, Session } from '@cindy/maker-core';
 
-import { buildTurnUsageDetails } from '../../shared/turnUsageDetails.js';
+import { buildTurnUsageDetails, type TurnUsageDetails } from '../../shared/turnUsageDetails.js';
+import type { ModelPricingCatalog, RegionalMoney } from '../../shared/regionalMoney.js';
+import { getModelPriceQuote } from '../usage/modelPricing.js';
+import { computePriceQuoteTurnMoney } from '../usage/turnCostCalculator.js';
+import { currentLedgerCurrency } from '../usage/ledgerCurrency.js';
+import { getReferenceModelPricing } from '../usage/referenceModelPricing.js';
 import { recordSessionTurnTokens } from '../sessionSpendBroadcaster.js';
-import { recordTurnUsageOnMessage } from '../turnCostBroadcaster.js';
+import { recordTurnCostOnMessage, recordTurnUsageOnMessage } from '../turnCostBroadcaster.js';
 
 /** The Hermes home route the turn ran on. */
 export interface HermesTurnRoute {
@@ -37,6 +42,37 @@ export interface HermesTurnRoute {
   provider?: string;
 }
 
+/**
+ * Prices one Hermes turn from Cindy's own reference table.
+ *
+ * Hermes reports tokens, never money, so before this the card said "Cost unknown" for every turn.
+ * The quote comes from the same catalog Codex/Pi use for BYOK routes (`getReferenceModelPricing`),
+ * so the number is a **value estimate** (`kind: 'value-estimate'`, rendered with `~`), never an
+ * invoice. Both the model and the provider must be known: without a provider there is no quote key,
+ * and guessing one would price a local model at a cloud tariff.
+ */
+export function hermesTurnMoney(input: {
+  details: Pick<TurnUsageDetails, 'inputTokens' | 'outputTokens' | 'cacheReadTokens' | 'cacheCreateTokens' | 'model' | 'provider'>;
+  pricing: ModelPricingCatalog | null | undefined;
+  currency?: ReturnType<typeof currentLedgerCurrency>;
+}): RegionalMoney | null {
+  const model = input.details.model?.trim();
+  const provider = input.details.provider?.trim();
+  if (!model || !provider) return null;
+  const quote = getModelPriceQuote(input.pricing, provider, model);
+  if (!quote) return null;
+  return computePriceQuoteTurnMoney(
+    {
+      inputTokens: input.details.inputTokens,
+      outputTokens: input.details.outputTokens,
+      cacheReadTokens: input.details.cacheReadTokens,
+      cacheCreateTokens: input.details.cacheCreateTokens,
+    },
+    quote,
+    input.currency ?? currentLedgerCurrency(),
+  );
+}
+
 export interface RecordSessionHermesTurnUsageDeps {
   /**
    * Reads the Hermes home route. Optional: without it the turn still records
@@ -44,6 +80,8 @@ export interface RecordSessionHermesTurnUsageDeps {
    * pricing layer cannot price it. Never throws.
    */
   readonly readHermesRoute?: () => Promise<HermesTurnRoute>;
+  /** Reference pricing catalog; tests inject a synthetic one. Never throws. */
+  readonly readPricing?: () => ModelPricingCatalog | null;
 }
 
 interface HermesUsagePayload {
@@ -120,6 +158,25 @@ export function recordSessionHermesTurnUsage(
       durationMs: typeof usage.durationMs === 'number' ? usage.durationMs : undefined,
     });
     if (!turnUsageDetails || !turnAssistantPersistId) return;
+    // Price first, store tokens regardless: a missing quote must never cost the token facts.
+    let money: RegionalMoney | null = null;
+    try {
+      money = hermesTurnMoney({
+        details: turnUsageDetails,
+        pricing: deps.readPricing ? deps.readPricing() : getReferenceModelPricing(),
+      });
+    } catch {
+      money = null;
+    }
+    if (money && money.amount > 0) {
+      await recordTurnCostOnMessage({
+        sessionId: session.id,
+        clientId: turnAssistantPersistId,
+        money,
+        turnUsageDetails,
+      });
+      return;
+    }
     await recordTurnUsageOnMessage({
       sessionId: session.id,
       clientId: turnAssistantPersistId,

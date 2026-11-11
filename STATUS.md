@@ -10,6 +10,33 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 10.3 version guard + Hermes turn pricing (`live-proven`)
+
+- **Version guard for `-t ''`.**
+  chat-only removes Hermes's built-in tools with an **empty** toolset list, which is measured behaviour, not a documented
+  contract (`-t none` is `invalid_params`, and nothing says an empty value means "none"). `supportsChatOnlyToolsets`
+  (`hermes-version.ts`) now gates every chat-only turn: the installed CLI must be inside the verified window
+  (`0.22.7` … `< 0.24.0`) and **an unknown or unparseable version fails closed**, because the failure it prevents is a
+  "no tools" session that quietly has tools. The probe is cached for a minute; a refusal names the installed version and
+  why. Measured window: 0.22.7 (the repo's pin) and 0.23.0 — the CLI actually installed here, re-measured today with the
+  `touch` probe.
+- **Finding while wiring it.** The first live run refused with `installed: 0.23.0`: the code pins **0.22.7** but this
+  machine runs **0.23.0** (`config/status` already warns about the mismatch). Chat-only was re-proven on 0.23.0 — model
+  emitted raw tool-call markup, nothing executed, file absent — so the window covers both lines. The pin itself is
+  unchanged; aligning it is an owner decision.
+- **Hermes turns are priced from Cindy's own table now.** `sessionHermesTurnUsage.ts` gained `hermesTurnMoney`:
+  `getReferenceModelPricing` → `getModelPriceQuote(provider, model)` → `computePriceQuoteTurnMoney`, then
+  `recordTurnCostOnMessage` with the token details; a missing quote or provider falls back to token-only, as before. The
+  money is `kind: 'value-estimate'`, so the card renders it with `~` and never as an invoice. Both provider and model are
+  required — pricing a local model at a cloud tariff is exactly what the guard prevents.
+- **Live proof.** A fresh Hermes turn now shows `~$0.0038` in the card with `data-cost-kind="estimated"` (input 12.0k,
+  cache read 17.8k, total 29.9k, 15.2 tok/s); before this change the same card read "Cost unknown". A chat-only turn on
+  0.23.0 also completed and priced, and still could not run a tool.
+- **Gates.** typecheck 0; `pnpm test:runner` 608 pass / 0 fail / 2 skipped; hygiene PASS; 3 version-guard tests, 5 pricing
+  tests.
+
+---
+
 ## 2026-11-11 - 10.4 per-turn usage & latency card (`live-proven`)
 
 - **What shipped.** The usage/cost text under a turn is a **button** now: focus (or hover) opens

@@ -26,6 +26,7 @@ import { decideToolResultGuard, taintedGuardConfig } from './guard-result.js';
 import type { GuardConfig } from '@cindy/maker-core/injection-guard';
 import {
   HERMES_CLI_PINNED_VERSION,
+  supportsChatOnlyToolsets,
   readInstalledHermesVersion,
 } from './hermes-version.js';
 import { spawn } from 'node:child_process';
@@ -169,6 +170,8 @@ export class HermesManager {
   private readonly reviewHold = new ReviewHold();
   private readonly autoReviewHookCommand?: string;
   private readonly guardConfig: () => GuardConfig;
+  /** Installed CLI version, probed at most once per daemon (ROADMAP 10.3's chat-only guard). */
+  private installedVersionProbe?: { version: string | null; at: number };
   /**
    * Sessions that have read a tool result carrying injected instructions (ROADMAP 10.1b). In-memory
    * and per-daemon: a taint is a property of this conversation, not a setting to persist.
@@ -587,6 +590,20 @@ export class HermesManager {
         rec.chatOnly = p.chatOnly;
         rec.hermesSessionId = '';
         rec.launch = undefined;
+      }
+
+      // ROADMAP 10.3: `-t ''` is measured behaviour, not a documented contract, so chat-only is
+      // refused (closed) on a CLI the measurement does not cover. Refusing is the safe side: the
+      // alternative is a "no tools" session that quietly has tools.
+      const chatOnlyForTurn = typeof p.chatOnly === 'boolean' ? p.chatOnly : Boolean(rec.chatOnly);
+      if (chatOnlyForTurn) {
+        const installed = await this.installedHermesVersion();
+        if (!supportsChatOnlyToolsets(installed)) {
+          throw rpcError(
+            'INVALID_PARAMS',
+            `chat-only mode needs a Hermes CLI from the measured line (0.22.7 up to 0.23.0); installed: ${installed ?? 'unknown'}. Its empty toolset list has not been verified, so Cindy will not claim the session has no tools.`,
+          );
+        }
       }
 
       // The preamble rides only the session's first turn.
@@ -1230,6 +1247,27 @@ export class HermesManager {
       this.registry.update(p.sessionId!, { running: false });
       return {};
     });
+  }
+
+  /** One probe per daemon; a failed probe is remembered as "unknown" for a minute. */
+  private async installedHermesVersion(): Promise<string | null> {
+    const cached = this.installedVersionProbe;
+    if (cached && Date.now() - cached.at < 60_000) return cached.version;
+    try {
+      const version = await readInstalledHermesVersion({
+        hermesBin: this.hermesBin,
+        hermesHome: this.hermesHome,
+        ...(this.hermesExtraArgs ? { hermesExtraArgs: this.hermesExtraArgs } : {}),
+      });
+      this.installedVersionProbe = { version, at: Date.now() };
+      return version;
+    } catch (error) {
+      this.logger?.warn('chat-only guard could not read the Hermes CLI version', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      this.installedVersionProbe = { version: null, at: Date.now() };
+      return null;
+    }
   }
 
   private requireRecord(sessionId?: string) {
