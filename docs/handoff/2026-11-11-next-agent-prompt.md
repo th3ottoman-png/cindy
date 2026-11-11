@@ -10,9 +10,10 @@ Read, in this order, before you touch anything:
 1. `AGENTS.md` — non-negotiable rules; they override everything else, including this prompt.
 2. `HANDOVER.md` — architecture, paths, version pins.
 3. `docs/handoff/2026-11-11-phase11-handover.md` — your brief. What shipped today, what was verified, and what comes next.
-4. `phase-11-blueprint.md` — architectural blueprint for Phase 11 features (derived from davidondrej/skills).
-5. `ROADMAP.md` — single source of truth for task status. Phase 11 is the current active phase.
-6. `STATUS.md` — top entries are the honest record of recent commits and proofs.
+4. `docs/phase-11-blueprint.md` — architectural blueprint for Phase 11 features (derived from davidondrej/skills).
+5. `docs/project-system-blueprint.md` — architecture and design spec for the Cindy project creation system.
+6. `ROADMAP.md` — single source of truth for task status. Phase 11 is the current active phase.
+7. `STATUS.md` — top entries are the honest record of recent commits and proofs.
 
 ## Environment (enforced, not remembered)
 - Node 22 only: `export PATH="/opt/homebrew/opt/node@22/bin:$PATH"`; `node -v` must print v22.x.

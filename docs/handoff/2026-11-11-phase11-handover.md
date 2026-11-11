@@ -32,8 +32,8 @@ This session accomplished two major milestones:
 - `apps/desktop/src/main/maker-ipc/projectCreate.ts`: Project creation service & scaffolding logic.
 - `apps/desktop/src/renderer/__tests__/projectsSidebarSection.test.ts`: Header invariant tests.
 - `apps/desktop/src/renderer/components/projects/__tests__/NewProjectDialog.test.tsx`: Dialog unit tests.
-- `phase-11-blueprint.md`: Detailed architectural blueprint for tasks 11.1 through 11.11.
-- `project-system-blueprint.md`: Blueprint for the project workspace system.
+- `docs/phase-11-blueprint.md`: Detailed architectural blueprint for tasks 11.1 through 11.11.
+- `docs/project-system-blueprint.md`: Blueprint for the project workspace system.
 
 ---
 
