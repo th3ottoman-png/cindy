@@ -231,6 +231,8 @@ async function submit(options: {
     // outgoing message. These fixtures carry none, so the transform must be a
     // no-op and every submission below must reach Main byte-identical.
     applyTurnAttachments,
+    // ROADMAP 11.1: no pins in these fixtures, so the resolver is an identity transform.
+    applyPinnedSkillsForTurn: async (message: string) => message,
     getTurnAttachments: () => [],
     log: { warn: (...args: unknown[]) => errors.push(args), error: (...args: unknown[]) => errors.push(args) },
     toast: { error: toastError, warning: noop },

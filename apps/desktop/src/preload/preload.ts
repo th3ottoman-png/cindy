@@ -6398,6 +6398,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
         slug: string,
       ): Promise<{ ok: true; slug: string; skillName: string }> =>
         ipcRenderer.invoke('maker:skills:add-to-expert', { id, slug }),
+      /** ROADMAP 11.1 Tier 2B: resolve `@skill:` / `/name` pins for one turn. */
+      resolvePinned: (request: {
+        text?: string;
+        slugs?: string[];
+        chatOnly?: boolean;
+      }): Promise<import('../main/maker-ipc/skills').PinnedSkillsResponse> =>
+        ipcRenderer.invoke('maker:skills:resolve-pinned', request),
       onChanged: fanOutMakerSkillsChanged,
     },
     vault: {

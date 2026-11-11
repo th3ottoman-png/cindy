@@ -287,14 +287,21 @@ function tidyAttachmentWhitespace(text: string): string {
     .trim();
 }
 
-/** Remove every attachment token, leaving the owner's prose intact. */
-export function stripTurnAttachmentTokens(text: string): string {
+/**
+ * Remove every attachment token, leaving the owner's prose intact.
+ *
+ * `preserveKinds` (ROADMAP 11.1) leaves tokens of those kinds in place so a downstream
+ * resolver can consume them. Defaults to stripping everything, so 8.4 behaviour is unchanged.
+ */
+export function stripTurnAttachmentTokens(text: string, preserveKinds: readonly string[] = []): string {
   const tokens = parseTurnAttachmentTokens(text);
   if (tokens.length === 0) return text;
+  const preserve = new Set(preserveKinds);
 
   let output = '';
   let cursor = 0;
   for (const token of tokens) {
+    if (preserve.has(token.kind)) continue;
     output += text.slice(cursor, token.start);
     cursor = token.end;
   }
@@ -339,11 +346,12 @@ export function renderTurnAttachmentPreamble(items: readonly TurnAttachment[]): 
 export function applyTurnAttachments(
   text: string,
   items: readonly TurnAttachment[],
+  options: { preserveKinds?: readonly string[] } = {},
 ): string {
   const preamble = renderTurnAttachmentPreamble(items);
   if (!preamble) return text;
 
-  const body = stripTurnAttachmentTokens(text);
+  const body = stripTurnAttachmentTokens(text, options.preserveKinds);
   if (!body) return preamble;
 
   if (body.startsWith('/')) {

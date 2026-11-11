@@ -100,7 +100,9 @@ SQLite (Cindy DB)             ~/.hermes-cindy  (isolated Hermes home)
 | `apps/desktop/src/main/maker-host/hermes-manager-client.ts` | Desktop side of the daemon; `getHermesHomeStatus`, MCP helpers |
 | `apps/desktop/src/main/maker-ipc/channels.ts`, `register.ts` | IPC channel names and handlers |
 | `apps/desktop/src/renderer/components/settings/HermesSection.tsx` | Settings card: home, route, plugins, skills, MCP servers |
-| `apps/desktop/src/main/maker-ipc/{skills.ts,skillsDesktop.ts}` | 4.4 skills manager host: list/scan/install/enable/disable/uninstall over `~/.hermes-cindy/skills` (+ `skills-disabled/`); scan-first install, Cindy-side shallow git clone is the only outbound call |
+| `apps/desktop/src/main/maker-ipc/{skills.ts,skillsDesktop.ts}` | 4.4 skills manager host: list/scan/install/enable/disable/uninstall over `~/.hermes-cindy/skills` (+ `skills-disabled/`); 11.1 `resolvePinned` resolves composer pins to full `SKILL.md` bodies. Cindy-side shallow git clone is the only outbound call |
+| `packages/maker-core/src/skills/progressive-skill-engine.ts`, `packages/maker-core/src/session/pinned-skill-invocation.ts` | 11.1 engine: bounded discovery catalog, `activateSkill` (32 KB cap, `realpath` containment), path-only `scripts/`+`references/` index, and pure `@skill:<slug>` / `/name` pin preamble. Subpaths `@cindy/maker-core/progressive-skills` and `@cindy/maker-core/pinned-skill-invocation` |
+| `apps/desktop/src/main/mcp-integrations/cindySkillsMcpServer.ts` | 11.1 first-party `cindy_skills` MCP server (`activate_skill` / `list_skills`). Mounted on the Hermes-only bridge (`HERMES_BRIDGE_SKILLS_SERVERS`), never on Claude Code / Codex / Pi |
 | `apps/desktop/src/main/maker-ipc/{mcpCatalog.ts,mcpCatalogDesktop.ts}` | 4.3 MCP server catalog host (Hermes config servers + lizi in-process); Hermes toggle is config-write-only (0.22.5 ignores `disabled` at startup — Debt) |
 | `apps/desktop/src/renderer/hooks/useHermesModelCatalog.ts` | Model picker data |
 | `apps/desktop/src/main/maker-ipc/title.ts` | `TITLE_AGENT_KINDS` includes `hermes` |

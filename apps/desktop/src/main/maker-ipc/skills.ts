@@ -28,6 +28,8 @@ import {
   type InstallSkillResult,
   type SkillScanReport,
 } from '@cindy/maker-core/skills';
+import { activateSkill, buildDiscoveryCatalog } from '@cindy/maker-core/progressive-skills';
+import { parsePinnedSkillTokens, type PinnedSkillInstructions } from '@cindy/maker-core/pinned-skill-invocation';
 import { loadExpert } from '@cindy/maker-core/experts';
 import matter from 'gray-matter';
 import * as fs from 'node:fs';
@@ -93,6 +95,23 @@ export interface SkillsHostDeps {
   expertsRootDir?: string;
 }
 
+export interface PinnedSkillsRequest {
+  /** Raw composer text; main parses `@skill:` / `/name` pins against the installed catalog. */
+  text?: string;
+  /** Explicit slugs (daemon-side resolution for an existing session). */
+  slugs?: string[];
+  /** Chat-only sessions resolve nothing (fail closed). */
+  chatOnly?: boolean;
+}
+
+export interface PinnedSkillsResponse {
+  /** Only successfully activated skills; unknown slugs are absent, never guessed. */
+  skills: PinnedSkillInstructions[];
+  /** The full installed slug list, so the caller can parse tokens deterministically. */
+  knownSlugs: string[];
+  estimatedDiscoveryTokens: number;
+}
+
 export interface SkillsHost {
   list(): Promise<SkillsView>;
   scan(request: unknown): Promise<SkillScanResponse>;
@@ -100,6 +119,8 @@ export interface SkillsHost {
   setEnabled(request: unknown): Promise<SkillsView>;
   uninstall(request: unknown): Promise<SkillsView>;
   addToExpert(id: unknown, slug: unknown): Promise<{ ok: true; slug: string; skillName: string }>;
+  /** ROADMAP 11.1 Tier 2B: resolve composer pins to full SKILL.md bodies for one turn. */
+  resolvePinned(request: PinnedSkillsRequest): Promise<PinnedSkillsResponse>;
 }
 
 const GIT_URL_RE = /^(https:\/\/\S+|git@[^:\s]+:\S+|ssh:\/\/\S+)$/;
@@ -357,6 +378,46 @@ export function createSkillsHost(deps: SkillsHostDeps): SkillsHost {
 
       return { ok: true, slug, skillName: name };
     },
+
+    async resolvePinned(request) {
+      // ROADMAP 11.1 Tier 2B. Only the enabled Hermes skills root is discoverable; disabled
+      // skills (moved to skills-disabled/) are deliberately not pinnable.
+      if (request?.chatOnly === true) {
+        return { skills: [], knownSlugs: [], estimatedDiscoveryTokens: 0 };
+      }
+      const { skillsRoot } = deps.roots();
+      const catalog = buildDiscoveryCatalog({ roots: [skillsRoot] });
+      if (!catalog) return { skills: [], knownSlugs: [], estimatedDiscoveryTokens: 0 };
+      const knownSlugs = catalog.skills.map((s) => s.slug);
+      const fromText = typeof request?.text === 'string'
+        ? parsePinnedSkillTokens(request.text, knownSlugs).map((t) => t.slug)
+        : [];
+      const explicit = Array.isArray(request?.slugs)
+        ? request.slugs.filter((s): s is string => typeof s === 'string' && SLUG_RE.test(s))
+        : [];
+      const requested = [...new Set([...fromText, ...explicit])].slice(0, 8);
+      const resolved: PinnedSkillInstructions[] = [];
+      for (const slug of requested) {
+        // source: 'user' — a deterministic owner pin may activate a skill that opted out of
+        // autonomous (model-driven) activation.
+        const outcome = activateSkill({ catalog, slug, source: 'user' });
+        if (!outcome.ok) continue;
+        const r = outcome.result;
+        resolved.push({
+          slug: r.slug,
+          name: r.name,
+          instructions: r.instructions,
+          truncated: r.truncated,
+          availableScripts: r.availableScripts,
+          availableReferences: r.availableReferences,
+        });
+      }
+      return {
+        skills: resolved,
+        knownSlugs,
+        estimatedDiscoveryTokens: catalog.estimatedDiscoveryTokens,
+      };
+    },
   };
 }
 
@@ -402,5 +463,14 @@ export function registerSkillsHandlers(registry: IpcHandlerRegistry, deps: Skill
     const res = await deps.host.addToExpert(r.id, r.slug);
     deps.broadcast(MAKER_PUSH.EXPERTS_CHANGED);
     return res;
+  });
+  registry.handle(MAKER_INVOKE.SKILLS_RESOLVE_PINNED, async (event, request: unknown) => {
+    deps.assertTrusted(event);
+    const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
+    return deps.host.resolvePinned({
+      ...(typeof r.text === 'string' ? { text: r.text.slice(0, 200_000) } : {}),
+      slugs: Array.isArray(r.slugs) ? r.slugs.filter((s): s is string => typeof s === 'string') : [],
+      ...(r.chatOnly === true ? { chatOnly: true } : {}),
+    });
   });
 }

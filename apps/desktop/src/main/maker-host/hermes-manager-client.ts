@@ -729,7 +729,7 @@ async function spawnAndVerify(opts: SpawnAndVerifyOpts): Promise<HermesEnsureRes
   const stderrTail = { text: '' };
   let child: HermesUtilityProcess;
   try {
-    child = opts.forkImpl(bundlePath, ['--socket', opts.socketPath, '--hermes-home', opts.home, '--per-session-homes'], {
+    child = opts.forkImpl(bundlePath, ['--socket', opts.socketPath, '--hermes-home', opts.home, '--per-session-homes', '--progressive-skills'], {
       cwd: os.tmpdir(),
       env: hermesDaemonEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],

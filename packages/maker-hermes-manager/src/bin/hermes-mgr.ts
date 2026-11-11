@@ -69,10 +69,12 @@ interface Args {
   registryFile?: string;
   perSessionHomes: boolean;
   verbose: boolean;
+  /** ROADMAP 11.1: opt-in Tier 1 discovery manifest. */
+  progressiveSkills: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { socketPath: '', perSessionHomes: false, verbose: false };
+  const args: Args = { socketPath: '', perSessionHomes: false, verbose: false, progressiveSkills: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const next = (): string => {
@@ -89,6 +91,7 @@ function parseArgs(argv: string[]): Args {
     else if (arg === '--registry') args.registryFile = next();
     else if (arg.startsWith('--registry=')) args.registryFile = arg.slice('--registry='.length);
     else if (arg === '--per-session-homes') args.perSessionHomes = true;
+    else if (arg === '--progressive-skills') args.progressiveSkills = true;
     else if (arg === '--verbose') args.verbose = true;
     else throw new Error(`unknown argument: ${arg}`);
   }
@@ -105,7 +108,7 @@ async function main(): Promise<void> {
   try {
     args = parseArgs(process.argv.slice(2));
   } catch (err) {
-    fail(`usage: hermes-mgr --socket <path> [--hermes-home <dir>] [--hermes-bin <bin>] [--registry <file>] [--per-session-homes] [--verbose]\n${(err as Error).message}`);
+    fail(`usage: hermes-mgr --socket <path> [--hermes-home <dir>] [--hermes-bin <bin>] [--registry <file>] [--per-session-homes] [--progressive-skills] [--verbose]\n${(err as Error).message}`);
   }
   if (!args.socketPath) fail('--socket is required');
 
@@ -139,6 +142,7 @@ async function main(): Promise<void> {
     ...(args.perSessionHomes
       ? { sessionHomes: {}, autoReviewHookArgv: autoReviewHookArgv! }
       : {}),
+    ...(args.progressiveSkills ? { progressiveSkills: true } : {}),
     ...(args.hermesBin ? { hermesBin: args.hermesBin } : {}),
     ...(args.registryFile
       ? { registryFile: args.registryFile }

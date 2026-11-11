@@ -10,6 +10,88 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 11.1a 3-Tier Progressive Skill Loading Engine (`unit-tested`, partial `live-proven`)
+
+Two build items from the handover findings, done in sequence. The finding first: the blueprint's
+premise does not match this harness. Hermes 0.22.7 already ships native progressive disclosure
+(`tools/skills_tool.py` `skills_list` / `skill_view`, `agent/prompt_builder.py`
+`build_skills_system_prompt`) and `session-home.ts` symlinks a directory. Cindy never dumped full
+`SKILL.md` bodies into a system prompt. The real gaps were a bounded, testable catalog, a
+Cindy-owned activation tool, and full-body composer pinning. Blueprint paths
+`packages/mcps/src/cindy-skills/` and `packages/maker-core/src/turn-attachment/` do not exist;
+used the real `packages/lizi-mcps` (`@cindy/mcps`) and
+`packages/maker-core/src/session/turn-attachment.ts`.
+
+- **Item 1: Tiers 1 / 2A / 3 + chat-only guard (`unit-tested`).**
+  - `packages/maker-core/src/skills/progressive-skill-engine.ts` (new): `parseSkillFrontmatter`
+    (malformed YAML falls back to folder slug + first 160 body chars), `estimateTokens`,
+    `buildDiscoveryCatalog` (2-level scan, 200-skill cap, sorted, deduped by slug, never follows
+    symlinks), `renderDiscoveryManifest` (`<available_skills>` strip, budget-capped at 1,000
+    tokens), `activateSkill` (fail closed on unknown slug with suggestions, 32 KB bounded read,
+    frontmatter stripped, path containment via `realpath`), `formatSkillActivation`.
+    Tier 3 indexes `scripts/`/`references/` as **paths only**, never reads their contents.
+  - `apps/desktop/src/main/mcp-integrations/cindySkillsMcpServer.ts` (new): first-party
+    `cindy_skills` MCP server with `activate_skill` and `list_skills`, mtime-based
+    `SkillCatalogCache`, `NO_SESSION` / `PERMISSION_DENIED` refusals. Registered on the
+    **Hermes-only** bridge (`hermesBridgeHost.ts` `HERMES_BRIDGE_SKILLS_SERVERS`,
+    `selectHermesBridgeServers` 7th opt-in param, `syncHermesShimRegistrations`, and
+    `maker-host/index.ts` `setHermesOnlyBridgeProviders`). Claude Code / Codex / Pi tool lists
+    are unchanged (AGENTS §3).
+  - `packages/maker-hermes-manager/src/session-home.ts`: optional `skillRoots` / `chatOnly`
+    compiles `skills-manifest.md` into the session home via atomic temp+rename; chat-only removes
+    any stale strip. `hermes-manager.ts` prepends the bounded strip to the first-turn in-band
+    preamble behind a `progressiveSkills` daemon option (`--progressive-skills` flag in
+    `bin/hermes-mgr.ts`, passed by `hermes-manager-client.ts`). Also resolves raw `@skill:` /
+    `/name` pins at `QUERY_SEND` for existing sessions, writing `turnText` into the spawn spec.
+  - `packages/maker-core/package.json`: new `./progressive-skills` and
+    `./pinned-skill-invocation` subpath exports.
+- **Item 2: Tier 2B deterministic pinning (`unit-tested` + `live-proven`).**
+  - `packages/maker-core/src/session/pinned-skill-invocation.ts` (new): pure token parser
+    (`@skill:<slug>` and line-start `/<slug>`, only for installed slugs so `/issue`, `/model`
+    and filesystem paths are never hijacked), bounded `<pinned_skills>` preamble, idempotent
+    text rewrite that keeps a leading slash command on line 1.
+  - `turn-attachment.ts` gains optional `preserveKinds` so `@skill:` tokens survive the 8.4
+    transform; default behaviour is unchanged.
+  - `apps/desktop/src/main/maker-ipc/skills.ts`: `resolvePinned` on the existing skills host,
+    new `SKILLS_RESOLVE_PINNED` IPC channel, preload + `vite-env.d.ts` types.
+  - `apps/desktop/src/renderer/features/cc-agent/pinnedSkillPreamble.ts` (new) calls the real
+    IPC from `handleSend` **after** `markSendInFlight(true)` (preserves the existing no-await-
+    before-lock invariant) and fails open on any IPC error.
+- **Verification.**
+  - New/changed unit tests all pass under Node 22.23.4: engine 24, pinned-skill 18, MCP server
+    9, skills IPC 19, session-home 31, daemon socket integration 5 (fake-hermes fixture over a
+    real unix socket), renderer preamble 7, turn-attachment 50, bridge 22, client 11,
+    VM submission harness 43.
+  - Canonical gates in a real Terminal (`PS_PROBE=/sbin/launchd`, `NODE_OPTIONS=[]`):
+    `typecheck` **0**, `test:runner` **0** (608 pass / 0 fail / 2 skip),
+    `check:test-hygiene` **0** (361 files), `test:unit:related` **1**. The unit gate is red with
+    9 failures in 6 files; **all reproduce on a clean detached HEAD worktree** and none is a file
+    this row touched. Details and fix list are in `ROADMAP.md` §Debt. Not claimed green.
+  - `live-proven` (real dev app, CDP `127.0.0.1:9222`, after a canonical
+    `pnpm restart:desktop:remote --region=global` with `DESKTOP_DEV_VERDICT=ready`): real IPC
+    `window.electronAPI.maker.skills.resolvePinned` indexed **61** installed skills;
+    `@skill:airtable` returned the full **10,887-char** `SKILL.md` body
+    (`"# Airtable — Bases, Tables & Records..."`); `/airtable` resolved too; `chatOnly: true`
+    returned 0 skills and 0 known slugs; `@skill:definitely-not-installed` resolved 0 skills.
+    Against the same real library, a 20-skill manifest rendered **471 tokens** (<800 target),
+    and the full 61-skill strip was budget-capped at 985 tokens.
+  - `~/.hermes-cindy/config.yaml` was backed up to
+    `config.yaml.bak-2026-11-11-phase11` before the restart; verified byte-identical afterwards.
+    No credentials, telemetry or outbound calls added (diff grepped).
+- **Still open (11.1b).** No real Hermes *model turn* was driven into `activate_skill`, and no
+  booted session's initial discovery-token count was captured, so the row's full `live-proven`
+  criterion is not met. The `cindy_skills` shim is registered lazily on a Full-access/Auto
+  session start (the live MCP catalog showed the other six shims but not `cindy_skills`, since
+  no such session was started). Note also that Hermes `--safe-mode` disables MCP entirely, so the
+  autonomous tool is only reachable in Full access / Auto sessions. The 9 pre-existing unit
+  failures remain. Original 11.1 row left open and split, per AGENTS §0.
+- **Assumptions.** "Two items" = the two buildable gaps from the handover findings (engine +
+  activation tool, and user-driven pinning). Blueprint `packages/mcps/...` and
+  `turn-attachment/` paths remapped to real paths. Tier 1 strip goes into Cindy's in-band
+  first-turn preamble, not Hermes's system prompt, to avoid duplicating Hermes's own native
+  skills index and to respect AGENTS §3 (no system-prompt edits for existing agents).
+- **Proposed rule changes:** none.
+
 ## 2026-11-11 - 11.12 Dedicated Collapsible Projects Section & Always-Visible Add Button (`live-proven`)
 
 - **What shipped.**

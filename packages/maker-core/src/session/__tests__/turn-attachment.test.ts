@@ -344,6 +344,20 @@ describe('applyTurnAttachments', () => {
     expect(applyTurnAttachments(once, [])).toBe(once);
     expect(once).not.toContain('@skill:search_notes');
   });
+
+  it('ROADMAP 11.1: preserveKinds leaves skill tokens for the pin resolver', () => {
+    const out = applyTurnAttachments('review @skill:search_notes and @expert:alice this diff', [skill], {
+      preserveKinds: ['skill'],
+    });
+    expect(out).toContain('@skill:search_notes');
+    expect(out).not.toContain('@expert:alice');
+    expect(out).toContain('[Attached for this turn only:');
+  });
+
+  it('ROADMAP 11.1: without preserveKinds all 8.4 tokens are still stripped', () => {
+    const out = applyTurnAttachments('review @skill:search_notes this diff', [skill]);
+    expect(out).not.toContain('@skill:search_notes');
+  });
 });
 
 describe('capability mapping and resolution', () => {

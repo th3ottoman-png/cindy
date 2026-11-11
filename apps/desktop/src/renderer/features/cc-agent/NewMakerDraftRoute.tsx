@@ -147,6 +147,7 @@ import { ExpertSuggestionSlot } from './ExpertSuggestionChip';
 import { TurnAttachmentSlot } from '@/components/turn-attachments/TurnAttachmentSlot';
 import { getTurnAttachments } from '@/components/turn-attachments/turnAttachmentStore';
 import { applyTurnAttachments } from '@cindy/maker-core/turn-attachment';
+import { applyPinnedSkillsForTurn } from './pinnedSkillPreamble';
 import {
   canOpenProvisionalDraftTask,
   composerDocPlainText,
@@ -3647,7 +3648,11 @@ export function NewMakerDraftRoute() {
       // or disabled, so the session header stays exactly as it was. A leading
       // slash command keeps the first line, so the command routing above and
       // below still matches it.
-      message = applyTurnAttachments(message, getTurnAttachments(NEW_MAKER_DRAFT_KEY));
+      // ROADMAP 11.1: leave `@skill:` tokens in place so the Tier 2B resolver below can
+      // inject their full SKILL.md bodies. Every other 8.4 kind is still stripped as before.
+      message = applyTurnAttachments(message, getTurnAttachments(NEW_MAKER_DRAFT_KEY), {
+        preserveKinds: ['skill'],
+      });
 
       // workingDir 为空就是 standalone dialogue;main 端按 workspaceKind='dialogue'
       // 自动分配运行目录。项目不是必填项,只是同一创建页里的可切换上下文。
@@ -3700,6 +3705,10 @@ export function NewMakerDraftRoute() {
         isDataOwnerGenerationCurrent(dataOwnerAtSend);
 
       markSendInFlight(true);
+      // ROADMAP 11.1 Tier 2B: resolve `@skill:` / `/name` pins into this turn's preamble.
+      // Placed after the in-flight lock, so it stays the only extra await on this path and
+      // cannot reopen the pill/working-dir race documented above. Fails open on IPC errors.
+      message = await applyPinnedSkillsForTurn(message);
       // 已登记乐观标题预览的会话 id。交接链路(rehomeDraftAttachments / setPending /
       // navigate)在登记之后抛错时,消息没被交出去、权威标题永不回流,预览必须在下面的
       // catch 里撤回,否则空会话会跨列表刷新一直显示一句**没发出去**的话

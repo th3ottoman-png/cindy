@@ -406,10 +406,11 @@ describe('skills IPC (ROADMAP 4.4b)', () => {
       setEnabled: vi.fn(async () => freshView),
       uninstall: vi.fn(async () => freshView),
       addToExpert: vi.fn(async () => ({ ok: true as const, slug: 'reviewer', skillName: 'my-skill' })),
+      resolvePinned: vi.fn(async () => ({ skills: [], knownSlugs: [], estimatedDiscoveryTokens: 0 })),
     };
   }
 
-  it('all six channels require a trusted sender; an untrusted call never reaches the host', async () => {
+  it('all seven channels require a trusted sender; an untrusted call never reaches the host', async () => {
     const host = hostStub();
     const harness = new IpcHarness();
     registerSkillsHandlers(harness, {
@@ -426,12 +427,14 @@ describe('skills IPC (ROADMAP 4.4b)', () => {
     await expect(harness.invoke(MAKER_INVOKE.SKILLS_SET_ENABLED, { category: 'c', name: 'n', enabled: false })).rejects.toThrow('untrusted sender');
     await expect(harness.invoke(MAKER_INVOKE.SKILLS_UNINSTALL, { category: 'c', name: 'n' })).rejects.toThrow('untrusted sender');
     await expect(harness.invoke(MAKER_INVOKE.SKILLS_ADD_TO_EXPERT, { id: 'c/n', slug: 'reviewer' })).rejects.toThrow('untrusted sender');
+    await expect(harness.invoke(MAKER_INVOKE.SKILLS_RESOLVE_PINNED, { slugs: ['x'] })).rejects.toThrow('untrusted sender');
     expect(host.list).not.toHaveBeenCalled();
     expect(host.scan).not.toHaveBeenCalled();
     expect(host.install).not.toHaveBeenCalled();
     expect(host.setEnabled).not.toHaveBeenCalled();
     expect(host.uninstall).not.toHaveBeenCalled();
     expect(host.addToExpert).not.toHaveBeenCalled();
+    expect(host.resolvePinned).not.toHaveBeenCalled();
   });
 
   it('scan returns the report without broadcasting; install/set-enabled/uninstall broadcast changed', async () => {
@@ -464,5 +467,53 @@ describe('skills IPC (ROADMAP 4.4b)', () => {
     expect(host.addToExpert).toHaveBeenCalledWith('community/x', 'reviewer');
     expect(addResult).toEqual({ ok: true, slug: 'reviewer', skillName: 'my-skill' });
     expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.EXPERTS_CHANGED);
+  });
+});
+
+describe('skills host resolvePinned (ROADMAP 11.1 Tier 2B)', () => {
+  it('returns full bodies for known slugs and omits unknown ones', async () => {
+    const roots = makeRoots();
+    try {
+      const skillDir = path.join(roots.skillsRoot, 'development', 'git-worktree');
+      writeSkill(skillDir, 'git-worktree');
+      fs.mkdirSync(path.join(skillDir, 'scripts'), { recursive: true });
+      fs.writeFileSync(path.join(skillDir, 'scripts', 'add.sh'), '#!/bin/sh\necho never-in-context\n');
+      const result = await createSkillsHost(deps(roots)).resolvePinned({
+        slugs: ['git-worktree', 'does-not-exist'],
+      });
+      expect(result.knownSlugs).toEqual(['git-worktree']);
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].instructions).toContain('# git-worktree');
+      expect(result.skills[0].instructions).not.toContain('never-in-context');
+      expect(result.skills[0].availableScripts).toEqual(['scripts/add.sh']);
+      expect(result.estimatedDiscoveryTokens).toBeLessThan(1000);
+    } finally {
+      roots.cleanup();
+    }
+  });
+
+  it('fails closed for chat-only sessions', async () => {
+    const roots = makeRoots();
+    try {
+      writeSkill(path.join(roots.skillsRoot, 'development', 'a-skill'), 'a-skill');
+      const result = await createSkillsHost(deps(roots)).resolvePinned({ slugs: ['a-skill'], chatOnly: true });
+      expect(result).toEqual({ skills: [], knownSlugs: [], estimatedDiscoveryTokens: 0 });
+    } finally {
+      roots.cleanup();
+    }
+  });
+
+  it('a user pin can activate a skill that disabled autonomous activation', async () => {
+    const roots = makeRoots();
+    try {
+      const dir = path.join(roots.skillsRoot, 'development', 'manual');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'SKILL.md'), '---\nname: manual\ndescription: manual only\ndisableModelActivation: true\n---\nManual procedure.\n');
+      const result = await createSkillsHost(deps(roots)).resolvePinned({ slugs: ['manual'] });
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].instructions).toContain('Manual procedure.');
+    } finally {
+      roots.cleanup();
+    }
   });
 });

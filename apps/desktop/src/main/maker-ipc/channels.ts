@@ -168,6 +168,8 @@ export const MAKER_INVOKE = {
   SKILLS_UNINSTALL: 'maker:skills:uninstall',
   /** ROADMAP 4.4: associate an installed skill with an expert. */
   SKILLS_ADD_TO_EXPERT: 'maker:skills:add-to-expert',
+  /** ROADMAP 11.1 Tier 2B: resolve composer `@skill:` / `/name` pins to full SKILL.md bodies. */
+  SKILLS_RESOLVE_PINNED: 'maker:skills:resolve-pinned',
   /** ROADMAP 2.1b: providers.yaml entries plus file issues (read-only). */
   PROVIDERS_LIST: 'maker:providers:list',
   /** ROADMAP 2.2b: probe each providers.yaml endpoint for online/offline and models. */

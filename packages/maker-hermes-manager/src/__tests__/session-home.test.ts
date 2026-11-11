@@ -12,6 +12,7 @@ import {
   sessionHomePath,
   sessionHomesRoot,
   stopSessionGateway,
+  SKILLS_MANIFEST_FILENAME,
   type GatewayProcessOps,
 } from '../session-home.js';
 
@@ -190,6 +191,69 @@ describe('prepareSessionHome', () => {
   it('rejects shared item names that could escape the home', async () => {
     await expect(prepareSessionHome(base, 's1', { sharedItems: ['../x'] })).rejects.toThrow(/invalid shared item/);
     await expect(prepareSessionHome(base, 's1', { sharedItems: ['config.yaml'] })).rejects.toThrow(/invalid shared item/);
+  });
+});
+
+describe('prepareSessionHome skill discovery (ROADMAP 11.1 Tier 1)', () => {
+  function installSkill(name: string, description = `does ${name}`): void {
+    const dir = path.join(base, 'skills', 'testing', name);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'SKILL.md'), `---\nname: ${name}\ndescription: ${description}\n---\nBody of ${name}.\n`);
+  }
+
+  it('does not write a manifest when discovery is not requested', async () => {
+    const { home, skillDiscovery } = await prepareSessionHome(base, 's-nodiscovery');
+    expect(skillDiscovery).toBeUndefined();
+    expect(fs.existsSync(path.join(home, SKILLS_MANIFEST_FILENAME))).toBe(false);
+  });
+
+  it('writes a bounded, file-backed <available_skills> strip atomically', async () => {
+    installSkill('git-worktree', 'Isolate branches in dedicated worktrees.');
+    installSkill('code-review', 'Review a diff for defects.');
+    const { home, skillDiscovery } = await prepareSessionHome(base, 's-discovery', {
+      skillRoots: [path.join(base, 'skills')],
+    });
+    const file = path.join(home, SKILLS_MANIFEST_FILENAME);
+    expect(skillDiscovery?.file).toBe(file);
+    expect(skillDiscovery?.totalSkills).toBe(2);
+    expect(skillDiscovery?.manifest).toContain('<available_skills>');
+    expect(skillDiscovery?.manifest).toContain('- git-worktree:');
+    expect(skillDiscovery?.estimatedDiscoveryTokens).toBeLessThan(1000);
+    const text = fs.readFileSync(file, 'utf8');
+    expect(text).toContain('- git-worktree:');
+    expect(text).not.toContain('Body of git-worktree');
+    // No temp files left behind by the atomic write.
+    expect(fs.readdirSync(home).filter((n) => n.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('is idempotent and picks up newly installed skills on the next call', async () => {
+    installSkill('first');
+    const roots = [path.join(base, 'skills')];
+    const first = await prepareSessionHome(base, 's-idem', { skillRoots: roots });
+    expect(first.skillDiscovery?.totalSkills).toBe(1);
+    installSkill('second');
+    const again = await prepareSessionHome(base, 's-idem', { skillRoots: roots });
+    expect(again.home).toBe(first.home);
+    expect(again.skillDiscovery?.totalSkills).toBe(2);
+  });
+
+  it('fails closed for chat-only: no strip, and removes a stale one', async () => {
+    installSkill('first');
+    const roots = [path.join(base, 'skills')];
+    const prepared = await prepareSessionHome(base, 's-chat-only', { skillRoots: roots });
+    expect(fs.existsSync(path.join(prepared.home, SKILLS_MANIFEST_FILENAME))).toBe(true);
+    const chatOnly = await prepareSessionHome(base, 's-chat-only', { skillRoots: roots, chatOnly: true });
+    expect(chatOnly.skillDiscovery).toBeUndefined();
+    expect(fs.existsSync(path.join(chatOnly.home, SKILLS_MANIFEST_FILENAME))).toBe(false);
+  });
+
+  it('keeps a 25-skill library under the discovery token budget', async () => {
+    for (let i = 0; i < 25; i += 1) {
+      installSkill(`skill-${String(i).padStart(2, '0')}`, `Short description of skill ${i}.`);
+    }
+    const result = await prepareSessionHome(base, 's-many', { skillRoots: [path.join(base, 'skills')] });
+    expect(result.skillDiscovery?.totalSkills).toBe(25);
+    expect(result.skillDiscovery?.estimatedDiscoveryTokens).toBeLessThan(1000);
   });
 });
 

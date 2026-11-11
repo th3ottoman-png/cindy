@@ -311,6 +311,7 @@ import {
   SEARCH_PROJECT_TOOL,
 } from '../mcp-integrations/projectReaderMcpServer.js';
 import { createVaultNotesMcpProvider } from '../mcp-integrations/vaultNotesMcpServer.js';
+import { createCindySkillsMcpProvider } from '../mcp-integrations/cindySkillsMcpServer.js';
 import { getDesktopVaultNotesHost } from '../maker-ipc/vaultNotes.js';
 import { getDesktopExpertDraftConfirm } from '../maker-ipc/expertDraftConfirm.js';
 import { readContactsSettings } from './contacts-settings-store.js';
@@ -2604,6 +2605,12 @@ export function getMaker(): Maker {
           }
           return getDesktopExpertSessionStore().expertAllowsVaultTool(sessionId, tool);
         },
+      }),
+      // ROADMAP 11.1: progressive skill activation. Read-only, Hermes-only, and never
+      // mounted for Claude Code / Codex / Pi. Roots stay in the isolated Hermes home.
+      createCindySkillsMcpProvider({
+        getSkillRoots: () => [path.join(resolveHermesHome(), 'skills')],
+        isChatOnly: (sessionId) => Boolean(sessionId && getDesktopChatOnlyHost().isChatOnly(sessionId)),
       }),
     ]);
     // 用户自定义 MCP:三个 agent 都必须注册其实际持有的数组引用，再统一做初始 refresh。

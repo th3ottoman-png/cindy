@@ -5639,6 +5639,12 @@ interface ElectronAPI {
         id: string,
         slug: string,
       ) => Promise<{ ok: true; slug: string; skillName: string }>;
+      /** ROADMAP 11.1 Tier 2B: resolve composer skill pins to full SKILL.md bodies. */
+      resolvePinned: (request: {
+        text?: string;
+        slugs?: string[];
+        chatOnly?: boolean;
+      }) => Promise<import('../main/maker-ipc/skills').PinnedSkillsResponse>;
       /** Fires after install/toggle/uninstall; no payload — refetch the list. */
       onChanged: (cb: () => void) => () => void;
     };

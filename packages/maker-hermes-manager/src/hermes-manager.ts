@@ -24,6 +24,12 @@ import { fetchProviderModels, hermesHomeApiKey, parseHermesDotEnv } from './herm
 import { decideToolCallGuard, readActiveGuardConfig } from './guard-hook.js';
 import { decideToolResultGuard, taintedGuardConfig } from './guard-result.js';
 import type { GuardConfig } from '@cindy/maker-core/injection-guard';
+import { activateSkill, buildDiscoveryCatalog, renderDiscoveryManifest } from '@cindy/maker-core/progressive-skills';
+import {
+  applyPinnedSkills,
+  parsePinnedSkillTokens,
+  type PinnedSkillInstructions,
+} from '@cindy/maker-core/pinned-skill-invocation';
 import {
   HERMES_CLI_PINNED_VERSION,
   supportsChatOnlyToolsets,
@@ -66,6 +72,7 @@ import {
   removeSessionHome,
   sessionHomePath,
   stopSessionGateway,
+  SKILLS_MANIFEST_FILENAME,
   type SessionHomeOptions,
 } from './session-home.js';
 import { ManagerServer, type ClientCtx, type ManagerLogger } from './server.js';
@@ -101,6 +108,14 @@ export interface HermesManagerOptions {
    * gateway) so the session env reaches MCP children. Omit to keep one shared home.
    */
   sessionHomes?: SessionHomeOptions;
+  /**
+   * ROADMAP 11.1 Tier 1: compile the bounded `<available_skills>` manifest into each session
+   * home and prepend it to the first turn's in-band Cindy preamble. Default OFF, so existing
+   * Hermes sessions keep exactly the context they had (AGENTS.md §3/§6.5). Hermes 0.22.7
+   * already injects its own compact skills index; enabling this makes Cindy's deterministic
+   * catalog the authoritative one for `activate_skill` and composer pins.
+   */
+  progressiveSkills?: boolean;
   /**
    * ROADMAP 1.13b: argv Hermes runs as the `pre_tool_call` hook of an `auto`
    * session (production: `node <hermes-mgr.mjs> --auto-review-hook`). Omit to
@@ -160,6 +175,8 @@ export class HermesManager {
   private readonly defaultPreamble?: string;
   private readonly logger?: ManagerLogger;
   private readonly sessionHomes?: SessionHomeOptions;
+  /** ROADMAP 11.1: opt-in progressive skill discovery. */
+  private readonly progressiveSkills: boolean;
   /** In-flight home preparations deduplicated by sessionId to prevent concurrent prewarm/send races. */
   private readonly inFlightHomePrepares = new Map<string, Promise<string>>();
   /** Session homes whose gateway this daemon may have started; stopped on close/stop. */
@@ -194,6 +211,7 @@ export class HermesManager {
     this.defaultPreamble = opts.defaultPreamble;
     this.logger = opts.logger;
     this.sessionHomes = opts.sessionHomes;
+    this.progressiveSkills = opts.progressiveSkills === true;
     this.registry = new SessionRegistry(opts.registryFile ?? null);
     this.server = new ManagerServer({
       socketPath: opts.socketPath,
@@ -437,9 +455,19 @@ export class HermesManager {
         const expertSkillsDir = sessionRecord?.expertSkillsDir;
         const base = this.sessionHomes!;
         const hookCommand = this.hookCommandFor(sessionId);
+        // ROADMAP 11.1 Tier 1: index the isolated home's skills (plus any expert skills dir)
+        // into a bounded discovery manifest. Chat-only sessions get no strip at all.
+        const skillRoots = this.progressiveSkills
+          ? [
+              nodePath.join(this.hermesHome, 'skills'),
+              ...(expertSkillsDir ? [expertSkillsDir] : []),
+            ]
+          : undefined;
         const options: SessionHomeOptions = {
           ...base,
           ...(expertSkillsDir ? { expertSkillsDir } : {}),
+          ...(skillRoots ? { skillRoots } : {}),
+          chatOnly: sessionRecord?.chatOnly === true,
           ...(hookWanted && hookCommand
             ? {
                 transformConfig: (text, ctx) =>
@@ -606,8 +634,44 @@ export class HermesManager {
         }
       }
 
+      // ROADMAP 11.1 Tier 2B: an existing session's composer sends `@skill:` / `/name`
+      // tokens verbatim (only the new-draft route resolves them in the renderer). Resolve here
+      // so both entry points behave the same. Chat-only fails closed; an unknown slug stays
+      // visible in the text rather than being silently dropped.
+      let turnText = p.text;
+      // Cheap shape check: `@skill:` anywhere, or a `/slug` at the start of a line. A path
+      // like `apps/foo.ts` in prose must not trigger a full catalog scan on every turn.
+      if (!chatOnlyForTurn && /@skill:|(?:^|\n)\s*\/[a-z0-9]/i.test(p.text)) {
+        const catalog = buildDiscoveryCatalog({
+          roots: [
+            nodePath.join(this.hermesHome, 'skills'),
+            ...(rec.expertSkillsDir ? [rec.expertSkillsDir] : []),
+          ],
+        });
+        if (catalog) {
+          const tokens = parsePinnedSkillTokens(p.text, catalog.skills.map((s) => s.slug));
+          if (tokens.length > 0) {
+            const pinned: PinnedSkillInstructions[] = [];
+            for (const token of tokens) {
+              const outcome = activateSkill({ catalog, slug: token.slug, source: 'user' });
+              if (!outcome.ok) continue;
+              const r = outcome.result;
+              pinned.push({
+                slug: r.slug,
+                name: r.name,
+                instructions: r.instructions,
+                truncated: r.truncated,
+                availableScripts: r.availableScripts,
+                availableReferences: r.availableReferences,
+              });
+            }
+            turnText = applyPinnedSkills(p.text, pinned, { chatOnly: false });
+          }
+        }
+      }
+
       // The preamble rides only the session's first turn.
-      const preamble = rec.preamble ?? this.defaultPreamble;
+      let preamble = rec.preamble ?? this.defaultPreamble;
       if (rec.preamble) this.registry.update(rec.sessionId, { preamble: undefined });
 
       // `hermes chat --safe-mode` (Cindy's default/ask permission mode) refuses
@@ -657,6 +721,23 @@ export class HermesManager {
         );
       }
 
+      // ROADMAP 11.1 Tier 1: prefer the file `prepareSessionHome` wrote (per-session homes),
+      // and fall back to compiling here when session homes are disabled so the feature still
+      // works. Chat-only sessions have no strip. Bounded and first-turn only, like the rest.
+      if (this.progressiveSkills && !chatOnlyForTurn) {
+        let manifest = (await readFile(nodePath.join(turnHome, SKILLS_MANIFEST_FILENAME), 'utf8').catch(() => '')).trim();
+        if (!manifest) {
+          const fallbackCatalog = buildDiscoveryCatalog({
+            roots: [
+              nodePath.join(this.hermesHome, 'skills'),
+              ...(rec.expertSkillsDir ? [rec.expertSkillsDir] : []),
+            ],
+          });
+          manifest = fallbackCatalog ? renderDiscoveryManifest(fallbackCatalog) : '';
+        }
+        if (manifest) preamble = [preamble, manifest].filter(Boolean).join('\n\n');
+      }
+
       let turnEnv = this.sessionEnv.get(rec.sessionId);
       if (autoReview) {
         // Defense in depth: the home this turn runs in must carry the hook right now.
@@ -676,7 +757,7 @@ export class HermesManager {
         hermesBin: this.hermesBin,
         hermesHome: turnHome,
         cwd: rec.cwd,
-        text: p.text,
+        text: turnText,
         ...(preamble ? { preamble } : {}),
         ...(rec.permissionMode ? { permissionMode: rec.permissionMode } : {}),
         ...(rec.maxTurns !== undefined ? { maxTurns: rec.maxTurns } : {}),

@@ -98,6 +98,16 @@ describe('hermes bridge exposure policy', () => {
     expect(selectHermesBridgeServers(['cindy_docs'], new Set(), false, false, false, true)).toEqual(['cindy_docs']);
   });
 
+  it('exposes cindy_skills only when progressive activation is enabled (11.1)', () => {
+    const all = [...HERMES_BRIDGE_SAFE_SERVERS, 'cindy_skills'];
+    expect(selectHermesBridgeServers(all)).toEqual(['cindy_docs']);
+    expect(selectHermesBridgeServers(all, new Set(), false, false, false, false, true)).toEqual([
+      'cindy_docs',
+      'cindy_skills',
+    ]);
+    expect(selectHermesBridgeServers(['cindy_docs'], new Set(), false, false, false, false, true)).toEqual(['cindy_docs']);
+  });
+
   it('mirrors the Pi collab gate: global switch or active team member, never when the project disabled it', () => {
     expect(isHermesCollabEnabled(undefined, [], true)).toBe(true);
     expect(isHermesCollabEnabled(undefined, [], false)).toBe(false);

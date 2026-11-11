@@ -16,7 +16,11 @@ import { createHash, randomBytes } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { buildDiscoveryCatalog, renderDiscoveryManifest } from '@cindy/maker-core/progressive-skills';
 import { filterDisabledMcpServers } from './hermes-config.js';
+
+/** ROADMAP 11.1: file-backed Tier 1 manifest written into each session home. */
+export const SKILLS_MANIFEST_FILENAME = 'skills-manifest.md';
 
 export const SESSION_HOMES_DIRNAME = 'session-homes';
 
@@ -44,6 +48,22 @@ export interface SessionHomeOptions {
   orphanHomeMinAgeMs?: number;
   /** Expert-specific skills directory to link into the per-session HERMES_HOME/skills (ROADMAP 3.2). */
   expertSkillsDir?: string;
+  /**
+   * ROADMAP 11.1 Tier 1: skill roots to index into `<home>/skills-manifest.md`. Omit to skip
+   * discovery entirely. Chat-only sessions pass `chatOnly: true` and get no manifest (fail closed).
+   */
+  skillRoots?: readonly string[];
+  /** Chat-only sessions have no tools, so no discovery strip and no activation (blueprint §7). */
+  chatOnly?: boolean;
+}
+
+export interface SkillDiscovery {
+  /** `<available_skills>` strip, empty when there are no skills or chat-only mode is on. */
+  manifest: string;
+  totalSkills: number;
+  estimatedDiscoveryTokens: number;
+  /** Absolute path of the file Cindy wrote into the session home. */
+  file: string;
 }
 
 export function sessionHomesRoot(baseHome: string): string {
@@ -77,6 +97,8 @@ export interface PreparedSessionHome {
   linked: string[];
   /** Entries left untouched because the session home already has its own real file or dir. */
   skipped: string[];
+  /** ROADMAP 11.1: the Tier 1 discovery strip, absent when discovery is not requested. */
+  skillDiscovery?: SkillDiscovery;
 }
 
 /** Idempotent; cheap enough to run on every turn so config changes reach the session. */
@@ -172,7 +194,35 @@ export async function prepareSessionHome(
     await fs.writeFile(tmp, filteredText, { mode: 0o600 });
     await fs.rename(tmp, configPath);
   }
-  return { home, linked, skipped };
+
+  // ROADMAP 11.1 Tier 1. The manifest is a plain file in the session home, so the owner can
+  // read or hand-edit what Cindy tells the agent (AGENTS.md §6.1/§6.4). It is written atomically
+  // like config.yaml: write a temp file beside the target, then rename. Chat-only sessions get an
+  // empty file, never a stale strip from an earlier run with tools enabled.
+  let skillDiscovery: SkillDiscovery | undefined;
+  if (opts.skillRoots && !opts.chatOnly) {
+    const catalog = buildDiscoveryCatalog({ roots: opts.skillRoots });
+    const manifest = catalog ? renderDiscoveryManifest(catalog) : '';
+    const file = path.join(home, SKILLS_MANIFEST_FILENAME);
+    const text = `${manifest}\n`;
+    const currentManifest = await fs.readFile(file, 'utf8').catch(() => null);
+    if (currentManifest !== text) {
+      const tmp = path.join(home, `.${SKILLS_MANIFEST_FILENAME}.${randomBytes(6).toString('hex')}.tmp`);
+      await fs.writeFile(tmp, text, { mode: 0o600 });
+      await fs.rename(tmp, file);
+    }
+    skillDiscovery = {
+      manifest,
+      totalSkills: catalog?.totalSkills ?? 0,
+      estimatedDiscoveryTokens: catalog?.estimatedDiscoveryTokens ?? 0,
+      file,
+    };
+  } else if (opts.chatOnly) {
+    // Fail closed: remove any strip a previous (non chat-only) preparation left behind.
+    await fs.rm(path.join(home, SKILLS_MANIFEST_FILENAME), { force: true }).catch(() => {});
+  }
+
+  return { home, linked, skipped, ...(skillDiscovery ? { skillDiscovery } : {}) };
 }
 
 /** Removes only a directory under `<baseHome>/session-homes/`; links are removed, never followed. */
