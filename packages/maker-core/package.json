@@ -60,7 +60,8 @@
     "./deep-research-synthesis": "./src/research/deep-research-synthesis.ts",
     "./capability-pack": "./src/capabilities/capability-pack.ts",
     "./capability-graph": "./src/capabilities/capability-graph.ts",
-    "./capability-budget": "./src/capabilities/capability-budget.ts"
+    "./capability-budget": "./src/capabilities/capability-budget.ts",
+    "./injection-guard": "./src/security/injection-guard.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
