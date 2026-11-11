@@ -750,6 +750,25 @@ export function ProjectsSection({
     // 单设备切换、批量收起和全部展开共用保存路径。
     persistDeviceGroupCollapsedKeys(collapsedDevices);
   }, [collapsedDevices]);
+
+  // 项目段折叠偏好 (localStorage: 'cindy:sidebar:projects-collapsed')
+  const [projectsSectionCollapsed, setProjectsSectionCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('cindy:sidebar:projects-collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleProjectsSection = useCallback(() => {
+    setProjectsSectionCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('cindy:sidebar:projects-collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
   // 「对话」组折叠:与项目行折叠同级的分组状态(用户裁决:对话组的折叠交互与
   // 项目分组一致,含「收起所有分组」批量操作)。按分组 key 记忆——单一列表只有
   // 一个组(DIALOGUE_GROUP_ALL_KEY);按设备分组时每个设备段各有一个对话组,
@@ -1195,20 +1214,70 @@ export function ProjectsSection({
                 散排对话按任务排序口径交错,项目行不可拖。 */}
           {customProjectOrder && !deviceGroupingActive ? (
             <>
-              <SortableList
-                items={visibleProjectNodes}
-                getId={getProjectId}
-                onReorder={handleReorder}
-                disabled={!projectDragEnabled || (projectsOverflow && !showAllProjects)}
-                reducedMotion={reducedMotion}
-                handle={MANUAL_PROJECT_SORT_HANDLE}
-                filter={MANUAL_PROJECT_SORT_FILTER}
-                className="flex flex-col gap-1"
-                renderItem={(project) => renderProjectNode(project)}
-              />
               {visibleMixedEntries
                 .filter((entry) => entry.kind !== 'project' && entry.kind !== 'cindy-make-group')
                 .map((entry) => renderNonProjectEntry(entry, DIALOGUE_GROUP_ALL_KEY))}
+              <div className="flex h-7 items-center justify-between pr-3 pl-3 mt-3 mb-1">
+                <button
+                  type="button"
+                  onClick={toggleProjectsSection}
+                  aria-expanded={!projectsSectionCollapsed}
+                  className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-[var(--sidebar-list-muted)] hover:text-[var(--sidebar-nav-text)] uppercase tracking-wider transition-colors"
+                >
+                  {projectsSectionCollapsed ? (
+                    <ChevronRight size={13} strokeWidth={2} className="shrink-0" />
+                  ) : (
+                    <ChevronDown size={13} strokeWidth={2} className="shrink-0" />
+                  )}
+                  <span className="truncate">{t('ccAgent.sidebar.projects', 'Projects')}</span>
+                  <span
+                    data-testid="projects-count-badge"
+                    className="px-1.5 py-0.5 rounded-full text-11 font-medium bg-[var(--surface-chip,#27272a)] text-[var(--sidebar-list-muted)] shrink-0"
+                  >
+                    {visibleProjectNodes.length}
+                  </span>
+                </button>
+                {onCreateProject && (
+                  <Tip text={t('ccAgent.sidebar.newProject', 'New project')} side="bottom">
+                    <button
+                      type="button"
+                      onClick={onCreateProject}
+                      aria-label={t('ccAgent.sidebar.newProject', 'New project')}
+                      data-testid="projects-add-button"
+                      className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--sidebar-list-muted)] hover:text-[var(--sidebar-nav-text)] hover:bg-[var(--sidebar-item-hover)] transition-colors"
+                    >
+                      <Plus size={14} strokeWidth={2} />
+                    </button>
+                  </Tip>
+                )}
+              </div>
+              {!projectsSectionCollapsed && (
+                <>
+                  <SortableList
+                    items={visibleProjectNodes}
+                    getId={getProjectId}
+                    onReorder={handleReorder}
+                    disabled={!projectDragEnabled || (projectsOverflow && !showAllProjects)}
+                    reducedMotion={reducedMotion}
+                    handle={MANUAL_PROJECT_SORT_HANDLE}
+                    filter={MANUAL_PROJECT_SORT_FILTER}
+                    className="flex flex-col gap-1"
+                    renderItem={(project) => renderProjectNode(project)}
+                  />
+                  {visibleProjectNodes.length === 0 && onCreateProject && (
+                    <div className="pt-2 px-3">
+                      <button
+                        type="button"
+                        onClick={onCreateProject}
+                        className="flex w-full items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-dashed border-[var(--border-subtle)] text-12 text-[var(--sidebar-list-muted)] hover:text-[var(--foreground)] hover:border-[var(--focus-ring)] transition-colors"
+                      >
+                        <Plus size={14} />
+                        <span>{t('ccAgent.sidebar.createFirstProject', 'Create your first project')}</span>
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </>
           ) : deviceGroupingActive ? (
             <div className="flex flex-col gap-1">
@@ -1370,13 +1439,65 @@ export function ProjectsSection({
             </div>
           ) : (
             <div className="flex flex-col gap-1">
+              {/* 非项目条目 (如对话组 Chat、散排任务) */}
               {visibleMixedEntries
-                .filter((entry) => entry.kind !== 'cindy-make-group')
-                .map((entry) =>
-                  entry.kind === 'project'
-                    ? renderProjectNode(entry.project)
-                    : renderNonProjectEntry(entry, DIALOGUE_GROUP_ALL_KEY),
+                .filter((entry) => entry.kind !== 'project' && entry.kind !== 'cindy-make-group')
+                .map((entry) => renderNonProjectEntry(entry, DIALOGUE_GROUP_ALL_KEY))}
+
+              {/* 专用 Projects 段头：带始终可见的「+」按钮、文件夹数量徽标及可折叠切换 */}
+              <div className="flex h-7 items-center justify-between pr-3 pl-3 mt-3 mb-1">
+                <button
+                  type="button"
+                  onClick={toggleProjectsSection}
+                  aria-expanded={!projectsSectionCollapsed}
+                  className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-[var(--sidebar-list-muted)] hover:text-[var(--sidebar-nav-text)] uppercase tracking-wider transition-colors"
+                >
+                  {projectsSectionCollapsed ? (
+                    <ChevronRight size={13} strokeWidth={2} className="shrink-0" />
+                  ) : (
+                    <ChevronDown size={13} strokeWidth={2} className="shrink-0" />
+                  )}
+                  <span className="truncate">{t('ccAgent.sidebar.projects', 'Projects')}</span>
+                  <span
+                    data-testid="projects-count-badge"
+                    className="px-1.5 py-0.5 rounded-full text-11 font-medium bg-[var(--surface-chip,#27272a)] text-[var(--sidebar-list-muted)] shrink-0"
+                  >
+                    {visibleProjectNodes.length}
+                  </span>
+                </button>
+                {onCreateProject && (
+                  <Tip text={t('ccAgent.sidebar.newProject', 'New project')} side="bottom">
+                    <button
+                      type="button"
+                      onClick={onCreateProject}
+                      aria-label={t('ccAgent.sidebar.newProject', 'New project')}
+                      data-testid="projects-add-button"
+                      className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--sidebar-list-muted)] hover:text-[var(--sidebar-nav-text)] hover:bg-[var(--sidebar-item-hover)] transition-colors"
+                    >
+                      <Plus size={14} strokeWidth={2} />
+                    </button>
+                  </Tip>
                 )}
+              </div>
+
+              {/* 项目列表节点：受 projectsSectionCollapsed 控制 */}
+              {!projectsSectionCollapsed && (
+                <div className="flex flex-col gap-1">
+                  {visibleProjectNodes.map((project) => renderProjectNode(project))}
+                  {visibleProjectNodes.length === 0 && onCreateProject && (
+                    <div className="pt-2 px-3">
+                      <button
+                        type="button"
+                        onClick={onCreateProject}
+                        className="flex w-full items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-dashed border-[var(--border-subtle)] text-12 text-[var(--sidebar-list-muted)] hover:text-[var(--foreground)] hover:border-[var(--focus-ring)] transition-colors"
+                      >
+                        <Plus size={14} />
+                        <span>{t('ccAgent.sidebar.createFirstProject', 'Create your first project')}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {/* 全局「显示全部」只属于未按设备分组的单段路径;设备分组下折叠与 footer 都在段内。 */}

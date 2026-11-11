@@ -193,4 +193,20 @@ describe('Projects sidebar section', () => {
       'onAutomationGroupCollapsedChange={setAutomationGroupCollapsed}',
     );
   });
+
+  it('renders a collapsible Projects section title with folder count badge and always-visible add button', () => {
+    // 专用 Projects 段头
+    expect(projectsSectionSource).toContain("t('ccAgent.sidebar.projects', 'Projects')");
+    // 文件夹数量徽标
+    expect(projectsSectionSource).toContain('data-testid="projects-count-badge"');
+    expect(projectsSectionSource).toContain('{visibleProjectNodes.length}');
+    // 始终可见的「+」新建项目按钮（不带 hover:opacity 隐藏）
+    expect(projectsSectionSource).toContain('data-testid="projects-add-button"');
+    expect(projectsSectionSource).toContain('aria-label={t(\'ccAgent.sidebar.newProject\', \'New project\')}');
+    // 折叠状态受控与 localStorage 记忆
+    expect(projectsSectionSource).toContain('projectsSectionCollapsed');
+    expect(projectsSectionSource).toContain('toggleProjectsSection');
+    expect(projectsSectionSource).toContain("'cindy:sidebar:projects-collapsed'");
+    expect(projectsSectionSource).toContain('aria-expanded={!projectsSectionCollapsed}');
+  });
 });

@@ -10,6 +10,31 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 11.12 Dedicated Collapsible Projects Section & Always-Visible Add Button (`live-proven`)
+
+- **What shipped.**
+  1. **Dedicated Projects Section Header (`ProjectsSection.tsx`):** Added an explicit, collapsible "PROJECTS" section header directly above the workspace project list in Cindy's sidebar:
+     - Clear section title `Projects` (`t('ccAgent.sidebar.projects', 'Projects')`).
+     - **Folder count badge (`data-testid="projects-count-badge"`):** Displays the active workspace folder count (`{visibleProjectNodes.length}`, e.g. `4`) with styled chip typography (`bg-[var(--surface-chip,#27272a)] text-[var(--sidebar-list-muted)] text-11 rounded-full px-1.5 py-0.5`) making workspaces instantly recognizable at a glance.
+     - **Always-visible `+` button (`data-testid="projects-add-button"`):** Placed directly on the Projects section header with full visibility (no hover `opacity-0` or hidden trigger required). Clicking it directly triggers `onCreateProject` (`NewProjectDialog`).
+     - **Collapsible Toggle:** Clicking the section header toggles collapse/expand with `ChevronDown` (expanded) / `ChevronRight` (collapsed), keeping `aria-expanded` synchronized and persisting state across reloads in `localStorage` (`'cindy:sidebar:projects-collapsed'`).
+     - Supports both `customProjectOrder` (with `SortableList`) and recency sorting.
+  2. **Inventory Sync:** Regenerated `docs/design-rules/design-inventory.md` via `pnpm design:inventory` to reflect current tokens and styles.
+  3. **Tests:** Added comprehensive test suite in `apps/desktop/src/renderer/__tests__/projectsSidebarSection.test.ts` asserting the section title, count badge, always-visible button, and localStorage collapse persistence.
+- **Verification.**
+  - `pnpm --filter desktop test src/renderer/__tests__/projectsSidebarSection.test.ts` (11/11 tests PASS)
+  - `pnpm --filter desktop test src/renderer/__tests__/onlineDeviceHeaders.test.tsx` (17/17 tests PASS)
+  - `pnpm --filter desktop test src/renderer/__tests__/dialogueSidebarSection.test.ts` (14/14 tests PASS)
+  - All 4 pre-commit gates green:
+    - `pnpm typecheck` (0 errors across all 37 workspace packages)
+    - `pnpm test:runner` (608 passed, 0 failed, 2 skipped)
+    - `pnpm test:unit:related` (apps/desktop unit related tests passed)
+    - `pnpm check:test-hygiene` (361 files within baseline, PASS)
+- **What is still open.**
+  - None for 11.12. Next row in ROADMAP.md is Phase 11.1 (Progressive Skill Loading Engine).
+
+---
+
 ## 2026-11-11 - 11.12 First-Class Project Creation & Workspace Scaffolding Screen (`unit-tested`)
 
 - **What shipped.**
