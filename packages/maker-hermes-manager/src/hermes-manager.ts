@@ -23,6 +23,12 @@ import {
 import { fetchProviderModels, hermesHomeApiKey, parseHermesDotEnv } from './hermes-models.js';
 import { decideToolCallGuard, readActiveGuardConfig } from './guard-hook.js';
 import { decideToolResultGuard, taintedGuardConfig } from './guard-result.js';
+import {
+  evaluateToolCallGuardrail,
+  guardrailReason,
+  loadGuardrailsConfig,
+  type GuardrailsConfig,
+} from './guardrails.js';
 import type { GuardConfig } from '@cindy/maker-core/injection-guard';
 import { activateSkill, buildDiscoveryCatalog, renderDiscoveryManifest } from '@cindy/maker-core/progressive-skills';
 import {
@@ -187,6 +193,8 @@ export class HermesManager {
   private readonly reviewHold = new ReviewHold();
   private readonly autoReviewHookCommand?: string;
   private readonly guardConfig: () => GuardConfig;
+  /** ROADMAP 11.3: deterministic command guardrails, cached briefly like the injection guard. */
+  private guardrailsCache?: { at: number; config: GuardrailsConfig };
   /** Installed CLI version, probed at most once per daemon (ROADMAP 10.3's chat-only guard). */
   private installedVersionProbe?: { version: string | null; at: number };
   /**
@@ -278,6 +286,17 @@ export class HermesManager {
     await this.server.start();
   }
 
+  /** ROADMAP 11.3: read the owner's guardrails file at most every 2 s. */
+  private async guardrailsConfig(): Promise<GuardrailsConfig> {
+    const now = Date.now();
+    if (this.guardrailsCache && now - this.guardrailsCache.at < 2_000) {
+      return this.guardrailsCache.config;
+    }
+    const config = await loadGuardrailsConfig();
+    this.guardrailsCache = { at: now, config };
+    return config;
+  }
+
   /**
    * Auto-review handler with the security guard in front (ROADMAP 10.1).
    *
@@ -290,6 +309,22 @@ export class HermesManager {
     sessionId: string,
     payload: { toolName: string; toolInput: unknown; toolCallId?: string },
   ): Promise<AutoReviewVerdict> {
+    // ROADMAP 11.3: deterministic denylist first. No model, no network. A match blocks the call
+    // before the injection score or any review runs; the owner still gets the override card.
+    const guardrail = evaluateToolCallGuardrail(payload, await this.guardrailsConfig());
+    if (guardrail.blocked) {
+      this.logger?.warn('guardrail blocked a tool call', {
+        sessionId,
+        tool: payload.toolName,
+        rule: guardrail.ruleId,
+        category: guardrail.category,
+      });
+      const reason = guardrailReason(guardrail);
+      return this.askClientToReview(sessionId, payload, {
+        allowOutsideAuto: true,
+        ...(reason ? { reason } : {}),
+      });
+    }
     const taint = this.taintedSessions.get(sessionId);
     const decision = decideToolCallGuard(payload, taintedGuardConfig(this.guardConfig(), !!taint));
     if (decision.action === 'block') {

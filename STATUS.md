@@ -10,6 +10,19 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-11 - 11.3 Deterministic Command Guardrails (`unit-tested`)
+
+A fixed POSIX-regex denylist now runs before the injection guard and before any reviewer, so a catastrophic command is blocked without a model call.
+
+- New `packages/maker-hermes-manager/src/guardrails.ts`: 24 default rules across filesystem, git, database, credentials, remote-exec, system and process; normalisation that resolves `$IFS`, backslash escapes and quotes; segment splitting on `;`, `&&`, `||`, `|`, `$(`, backticks and brackets; `sudo` / `env FOO=bar` wrapper stripping.
+- Config at `~/.cindy-harness/guardrails.yaml` (narrow YAML reader, no new dependency): `policy: enforce|off`, `disabled` ids, and extra `rules`. A missing or malformed file leaves the defaults armed. The daemon writes a commented template on first start.
+- Daemon: `reviewOrGuard` evaluates the guardrail first. A match logs the rule and opens the existing owner card with the rule and reason (`__cindy_guard`), so "Allow once" is the override. No injection score and no model reviewer run.
+- Python `pre_tool_call` hook: the generated script embeds the same active rules and blocks locally when the daemon socket is unreachable; the daemon stays authoritative while it is up, so overrides still work.
+
+Verification: `guardrails.test.ts` 61 cases (33 positive, 16 everyday commands allowed, obfuscation, config, helpers); `auto-review-gate.test.ts` 22 cases including a real daemon + real hook round trip that asserts `sudo rm -rf /` is stopped and the card carries `root-wipe`; full `maker-hermes-manager` suite 316 pass; `typecheck` 0. Not yet `live-proven` with a real model turn: that remains the row's outstanding criterion.
+
+---
+
 ## 2026-11-11 - 11.1b closed: real `activate_skill` turn + booted discovery count (`live-proven`)
 
 The autonomous path is proven end to end on the running dev app, and the daemon bundle crash that blocked it is fixed.

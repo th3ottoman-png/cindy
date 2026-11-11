@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 import { AUTO_REVIEW_CREDENTIALS_FLAG, AUTO_REVIEW_HOOK_FLAG, runAutoReviewHook } from '../auto-review-gate.js';
 import { prepareAutoReviewHookArgv, type InterpreterProbeIo } from '../auto-review-hook-python.js';
+import { ensureGuardrailsFile } from '../guardrails.js';
 import { HermesManager } from '../hermes-manager.js';
 
 /** Reads the first bytes of Hermes's entry scripts and finds `hermes` on PATH (ROADMAP 1.13e). */
@@ -121,6 +122,11 @@ async function main(): Promise<void> {
   if (resolvedHome === dailyHome) {
     fail(`refusing to start: HERMES_HOME resolves to the daily Hermes home (${dailyHome})`);
   }
+
+  // ROADMAP 11.3: leave a commented, human-editable guardrails file behind on first run.
+  await ensureGuardrailsFile().catch(() => {
+    /* a read-only home must not stop the daemon; defaults stay armed */
+  });
 
   // The hook runs under Hermes's own Python (found from the `hermes` entry script's
   // shebang, ROADMAP 1.13e), so no node is needed on the gateway's PATH. When that cannot be

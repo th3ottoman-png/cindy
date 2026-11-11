@@ -310,6 +310,30 @@ describe('HermesManager auto mode (fake hermes)', () => {
     ]);
   });
 
+  it('blocks a catastrophic command deterministically and names the rule on the owner card (11.3)', async () => {
+    const d = await startDaemon({ hook: true, sessionHomes: true });
+    const asked: ApprovalRequestParams[] = [];
+    d.client.setRequestHandler(SERVER_METHODS.APPROVAL_REQUEST, async (params) => {
+      asked.push(params as ApprovalRequestParams);
+      return { kind: 'permission', behavior: 'deny', reason: 'owner denied' };
+    });
+    await d.client.request(METHODS.QUERY_START, { sessionId: 'guard', cwd: d.dir, permissionMode: 'auto' }, { timeoutMs: 5_000 });
+    await d.client.request(METHODS.SESSION_ATTACH, { sessionId: 'guard' }, { timeoutMs: 5_000 });
+    await d.client.request(METHODS.QUERY_SEND, { sessionId: 'guard', text: 'hi' }, { timeoutMs: 5_000 });
+    await until(() => d.notes.some((n) => n.method === NOTIFICATIONS.SESSION_CLOSED));
+
+    const [spawn] = d.spawns();
+    const env = { [AUTO_REVIEW_SOCKET_ENV]: spawn.reviewSocket!, [AUTO_REVIEW_TOKEN_ENV]: spawn.reviewToken! };
+    const blocked = await hookWith(env, JSON.stringify(payload('terminal', { command: 'sudo rm -rf /' })));
+    expect(blocked.exitCode).toBe(2);
+
+    // The guardrail matched before the injection guard or any reviewer, and the card carries the
+    // rule so the owner knows exactly why the call was stopped.
+    const guard = asked.find((a) => a.input?.command === 'sudo rm -rf /');
+    expect(String(guard?.input?.__cindy_guard)).toContain('root-wipe');
+    expect(String(guard?.input?.__cindy_guard)).toContain('guardrail');
+  });
+
   it('reaches the review through the session home credentials file when the hook has no env (gateway, ROADMAP 1.13d)', async () => {
     const d = await startDaemon({ hook: true, sessionHomes: true });
     d.client.setRequestHandler(SERVER_METHODS.APPROVAL_REQUEST, async (params) => ({
