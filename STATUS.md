@@ -13,14 +13,23 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 ## 2026-11-11 - 11.12 Dedicated Collapsible Projects Section & Always-Visible Add Button (`live-proven`)
 
 - **What shipped.**
-  1. **Dedicated Projects Section Header (`ProjectsSection.tsx`):** Added an explicit, collapsible "PROJECTS" section header directly above the workspace project list in Cindy's sidebar:
+  1. **Professional App Development Suggestion Pills (`NewProjectDialog.tsx`):** Replaced placeholder/hobbyist idea pills with focused, professional software engineering suggestions:
+     - 🔍 `Code Reviewer`: Automated static analysis and code review harness auditing pull requests, ASTs, and style invariants.
+     - ⚡ `Full-Stack App`: Modern full-stack web application with responsive UI, authenticated REST/GraphQL API, and database persistence.
+     - 🩺 `Debug & Diagnostics`: Diagnostic and profiling tool for capturing stack traces, memory leaks, performance bottlenecks, and network traffic.
+     - 🛡️ `Backend Service`: High-throughput backend microservice with type-safe schema validation, rate-limiting, and health checks.
+     - 💻 `Dev CLI Tool`: Fast command-line developer utility for workflow automation, file batching, and system administration.
+     - 🔌 `MCP Server`: Model Context Protocol server exposing custom tools, resources, and live data streams to AI agents.
+     - 🤖 `Agent Harness`: Specialized autonomous agent system with domain tools, memory synthesis, and automated verification loops.
+     - 🧪 `Test Automation`: End-to-end integration and smoke testing suite with automated assertions and CI reporting.
+  2. **Dedicated Projects Section Header (`ProjectsSection.tsx`):** Added an explicit, collapsible "PROJECTS" section header directly above the workspace project list in Cindy's sidebar:
      - Clear section title `Projects` (`t('ccAgent.sidebar.projects', 'Projects')`).
      - **Folder count badge (`data-testid="projects-count-badge"`):** Displays the active workspace folder count (`{visibleProjectNodes.length}`, e.g. `4`) with styled chip typography (`bg-[var(--surface-chip,#27272a)] text-[var(--sidebar-list-muted)] text-11 rounded-full px-1.5 py-0.5`) making workspaces instantly recognizable at a glance.
      - **Always-visible `+` button (`data-testid="projects-add-button"`):** Placed directly on the Projects section header with full visibility (no hover `opacity-0` or hidden trigger required). Clicking it directly triggers `onCreateProject` (`NewProjectDialog`).
      - **Collapsible Toggle:** Clicking the section header toggles collapse/expand with `ChevronDown` (expanded) / `ChevronRight` (collapsed), keeping `aria-expanded` synchronized and persisting state across reloads in `localStorage` (`'cindy:sidebar:projects-collapsed'`).
      - Supports both `customProjectOrder` (with `SortableList`) and recency sorting.
-  2. **Inventory Sync:** Regenerated `docs/design-rules/design-inventory.md` via `pnpm design:inventory` to reflect current tokens and styles.
-  3. **Tests:** Added comprehensive test suite in `apps/desktop/src/renderer/__tests__/projectsSidebarSection.test.ts` asserting the section title, count badge, always-visible button, and localStorage collapse persistence.
+  3. **Inventory Sync:** Regenerated `docs/design-rules/design-inventory.md` via `pnpm design:inventory` to reflect current tokens and styles.
+  4. **Tests:** Updated `NewProjectDialog.test.tsx` and `projectsSidebarSection.test.ts` to assert the professional suggestion pills, section title, count badge, always-visible button, and localStorage collapse persistence.
 - **Verification.**
   - `pnpm --filter desktop test src/renderer/__tests__/projectsSidebarSection.test.ts` (11/11 tests PASS)
   - `pnpm --filter desktop test src/renderer/__tests__/onlineDeviceHeaders.test.tsx` (17/17 tests PASS)

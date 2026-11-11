@@ -69,11 +69,11 @@ describe('NewProjectDialog', () => {
       />,
     );
 
-    const flashcardsBtn = screen.getByRole('button', { name: /Flashcards/i });
-    fireEvent.click(flashcardsBtn);
+    const reviewerBtn = screen.getByRole('button', { name: /Code Reviewer/i });
+    fireEvent.click(reviewerBtn);
 
     const textarea = screen.getByPlaceholderText("What's this project about? (saved to IDEA.md)") as HTMLTextAreaElement;
-    expect(textarea.value).toContain('flashcard application');
+    expect(textarea.value).toContain('static analysis and code review');
   });
 
   it('submits form, calls createProject API, and navigates', async () => {
