@@ -10,6 +10,40 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-12 - 11.9 amber card live proof: `live-proven` (real turn, real Deny)
+
+- **What was proven**: a real Hermes turn in Full access (`39853baf`, deepseek-flash, dev app
+  restarted with the propagation fix) issued one `write_file` on `~/.cindy-harness/providers.yaml`
+  (instructed content `"test"`). The pre-check raised the amber Owner Review Card and the in-page
+  150ms watcher captured its live DOM state at `2026-11-12T00:16:57Z` before it closed:
+  `title: "High-Risk System File"`, `className: "… border-[var(--warning-accent)] bg-[var(--warning-bg-soft)]"`
+  (both amber booleans true), body text "High-risk system file: /Users/turko/.cindy-harness/
+  providers.yaml / Blast radius: Harness configuration. - This file drives every later turn,
+  including the model route and MCP servers. - Confirm you are not editing the live session home…".
+  The owner clicked **Deny**. The model's own final report confirms the call never ran ("The
+  write_file call did not run — it was held for owner approval in Cindy, and I did not retry it
+  as instructed") and the file stayed byte-identical (sha `620b62c2…` before and after;
+  `providers.yaml.bak-20261111-11.9b` is the untouched pre-attempt backup).
+- **Capture mechanics** (for repeatability): a 150ms in-page `setInterval` watcher over
+  `makerChatStore.getSnapshot(...).pendingPermission` + DOM `div.rounded-xl.border` matching
+  `High-Risk System File|Auto review needs your decision`; a 3s CDP screenshot loop for
+  corroboration. Two failed capture attempts preceded this one — the CDP poller's 2–3s latency
+  missed a card that lived only seconds, and one follow-up `write_file` re-hit the still-open
+  review hold and was blocked *without* raising a new card (Hermes' 24s hook hold
+  (`AUTO_REVIEW_HOOK_HOLD_MS`) means an unclicked card auto-denies mid-turn and the review state
+  can outlive the turn for `AUTO_REVIEW_CLIENT_TIMEOUT_MS` = 285s). Lesson: watch in-page at
+  sub-second rate; a repeat request with the same shape may not re-raise a card.
+- **What this changed vs 2026-11-11**: the earlier run showed the card non-amber because
+  `handleStreamEvent`'s `permission_request` reducer dropped `autoReviewRisk` between the daemon
+  metadata and `PendingPermission`. That fix (`makerChatStore.ts`, regression test in
+  `permissionSessionApproval.test.ts`, 19/19 + mutation check) is now **live-proven** by this
+  capture.
+- **Still open (unchanged)**: `terminal`-tool writes to protected files bypass the pre-check
+  (`FILE_MODIFY_TOOLS` gap — observed 2026-11-11, needs a product decision whether to cover
+  `terminal`); the card has no diff display (row's acceptance mentions "with diff");
+  11.5's real 95%-ring + real UI click remains unproven.
+- **Roadmap/labels**: 11.9 is now `live-proven` with the two gaps above recorded inline.
+
 ## 2026-11-11 - 11.9 `autoReviewRisk` propagation fix (`unit-tested`)
 
 - **Root cause**: `handleStreamEvent`'s `permission_request` case in
