@@ -20,6 +20,90 @@ interface DecisionCardsProps {
   decisions: PlanDecision[];
 }
 
+interface MatrixDecisionProps {
+  decision: PlanDecision & { criteria: string[] };
+  state: 'open' | 'sending' | 'done' | 'error';
+  picks: Record<string, string>;
+  onPick: (update: (p: Record<string, string>) => Record<string, string>) => void;
+}
+
+/**
+ * Interrogate 4x4 (11.7b): the decision rendered as a tradeoff table — selectable option rows
+ * scored against the criteria columns. Same radiogroup/radio semantics as the card list, so
+ * the pick and Proceed paths are identical.
+ */
+function MatrixDecision({ decision: d, state, picks, onPick }: MatrixDecisionProps) {
+  const open = state === 'open';
+  return (
+    <div className="rounded-xl border border-[var(--warning-accent)] bg-[var(--warning-bg-soft)] p-3">
+      <p className="text-sm font-medium text-foreground">{d.question}</p>
+      <div className="mt-2 overflow-x-auto" role="radiogroup" aria-label={d.question}>
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr>
+              <th scope="col" className="px-2 py-1 text-left font-medium text-muted-foreground">
+                <span className="sr-only">{d.question}</span>
+              </th>
+              {d.criteria.map((c) => (
+                <th
+                  key={c}
+                  scope="col"
+                  className="px-2 py-1 text-left font-medium text-muted-foreground"
+                >
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {d.options.map((o) => {
+              const selected = picks[d.id] === o.id;
+              return (
+                <tr
+                  key={o.id}
+                  className={cn(
+                    'border-t border-border/40',
+                    selected ? 'text-foreground' : 'text-muted-foreground',
+                  )}
+                >
+                  <td className="px-0 py-1.5">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={!open}
+                      onClick={() => onPick((p) => ({ ...p, [d.id]: o.id }))}
+                      className={cn(
+                        'flex h-full w-full items-start gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors',
+                        selected
+                          ? 'border-[var(--warning-accent)] bg-muted/60 text-foreground'
+                          : 'border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      <span aria-hidden className="mt-0.5 text-sm font-medium leading-none">
+                        {selected ? '◉' : '○'}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block font-medium">{o.label}</span>
+                        {o.detail && <span className="block text-muted-foreground">{o.detail}</span>}
+                      </span>
+                    </button>
+                  </td>
+                  {(o.scores ?? []).map((s, i) => (
+                    <td key={`${o.id}:${i}`} className="px-2 py-1.5 align-top">
+                      {s}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function summaryFor(decisions: PlanDecision[], picks: Record<string, string>): string {
   const lines = decisions.map((d) => {
     const opt = d.options.find((o) => o.id === picks[d.id]) ?? d.options[0];
@@ -86,43 +170,48 @@ export function DecisionCards({ sessionId, decisions }: DecisionCardsProps) {
 
   return (
     <div data-testid="decision-cards" className="flex w-full max-w-[914px] flex-col gap-2">
-      {decisions.map((d) => (
-        <div
-          key={d.id}
-          className="rounded-xl border border-[var(--warning-accent)] bg-[var(--warning-bg-soft)] p-3"
-        >
-          <p className="text-sm font-medium text-foreground">{d.question}</p>
-          <div className="mt-2 flex flex-col gap-1.5" role="radiogroup" aria-label={d.question}>
-            {d.options.map((o) => {
-              const selected = picks[d.id] === o.id;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  disabled={state !== 'open'}
-                  onClick={() => setPicks((p) => ({ ...p, [d.id]: o.id }))}
-                  className={cn(
-                    'flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors',
-                    selected
-                      ? 'border-[var(--warning-accent)] bg-muted/60 text-foreground'
-                      : 'border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <span aria-hidden className="mt-0.5 text-sm font-medium leading-none">
-                    {selected ? '◉' : '○'}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block font-medium">{o.label}</span>
-                    {o.detail && <span className="block text-muted-foreground">{o.detail}</span>}
-                  </span>
-                </button>
-              );
-            })}
+      {decisions.map((d) => {
+        if (d.criteria) {
+          return <MatrixDecision key={d.id} decision={{ ...d, criteria: d.criteria }} state={state} picks={picks} onPick={setPicks} />;
+        }
+        return (
+          <div
+            key={d.id}
+            className="rounded-xl border border-[var(--warning-accent)] bg-[var(--warning-bg-soft)] p-3"
+          >
+            <p className="text-sm font-medium text-foreground">{d.question}</p>
+            <div className="mt-2 flex flex-col gap-1.5" role="radiogroup" aria-label={d.question}>
+              {d.options.map((o) => {
+                const selected = picks[d.id] === o.id;
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    disabled={state !== 'open'}
+                    onClick={() => setPicks((p) => ({ ...p, [d.id]: o.id }))}
+                    className={cn(
+                      'flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors',
+                      selected
+                        ? 'border-[var(--warning-accent)] bg-muted/60 text-foreground'
+                        : 'border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    <span aria-hidden className="mt-0.5 text-sm font-medium leading-none">
+                      {selected ? '◉' : '○'}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-medium">{o.label}</span>
+                      {o.detail && <span className="block text-muted-foreground">{o.detail}</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
       <div>
         <button
           type="button"

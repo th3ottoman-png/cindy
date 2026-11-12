@@ -52,3 +52,72 @@ describe('parseDecisionBlocks (ROADMAP 11.7)', () => {
     expect(decisions[0]?.defaultOptionId).toBeUndefined();
   });
 });
+
+describe('parseDecisionBlocks matrix fence (ROADMAP 11.7b)', () => {
+  const MATRIX = [
+    '```cindy-matrix',
+    '{"matrix":{"title":"How should users sign in?","criteria":["Scalability","Revocation","Complexity","Mobile fit"],"rows":[{"id":"jwt","label":"JWT in header","summary":"Stateless","scores":["High","Low","Medium","High"]},{"id":"session","label":"Server sessions","summary":"Sticky storage","scores":["Medium","High","Low","Medium"]},{"id":"oauth","label":"OAuth delegated","summary":"Delegated","scores":["High","Medium","High","High"]},{"id":"magic","label":"Magic links","summary":"No passwords","scores":["Medium","High","Low","High"]}],"defaultOptionId":"jwt"}}',
+    '```',
+  ].join('\n');
+
+  it('parses the matrix into one decision with criteria and scores', () => {
+    const { decisions, cleanedText } = parseDecisionBlocks(`Compare these:\n\n${MATRIX}\n\nDone`);
+    expect(decisions).toHaveLength(1);
+    const d = decisions[0];
+    expect(d?.id).toBe('matrix');
+    expect(d?.question).toBe('How should users sign in?');
+    expect(d?.criteria).toEqual(['Scalability', 'Revocation', 'Complexity', 'Mobile fit']);
+    expect(d?.options).toHaveLength(4);
+    expect(d?.options[0]).toMatchObject({ id: 'jwt', label: 'JWT in header', detail: 'Stateless' });
+    expect(d?.options[0]?.scores).toEqual(['High', 'Low', 'Medium', 'High']);
+    expect(d?.defaultOptionId).toBe('jwt');
+    expect(cleanedText).not.toContain('cindy-matrix');
+    expect(cleanedText).toContain('Compare these:');
+    expect(cleanedText).toContain('Done');
+  });
+
+  it('parses a same-line matrix fence', () => {
+    const { decisions } = parseDecisionBlocks(
+      '```cindy-matrix{"matrix":{"title":"T?","criteria":["A","B"],"rows":[{"id":"x","label":"X","scores":["1","2"]},{"id":"y","label":"Y","scores":["3","4"]}]}}```',
+    );
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]?.criteria).toEqual(['A', 'B']);
+    expect(decisions[0]?.options[1]?.scores).toEqual(['3', '4']);
+  });
+
+  it('strips an unparseable matrix without surfacing raw JSON', () => {
+    const { decisions, cleanedText } = parseDecisionBlocks('```cindy-matrix\nnot json\n```');
+    expect(decisions).toEqual([]);
+    expect(cleanedText).not.toContain('not json');
+  });
+
+  it('drops matrices missing criteria or rows', () => {
+    const { decisions } = parseDecisionBlocks(
+      [
+        '```cindy-matrix',
+        '{"matrix":{"title":"No criteria","rows":[{"id":"x","label":"X"},{"id":"y","label":"Y"}]}}',
+        '```',
+        '```cindy-matrix',
+        '{"matrix":{"title":"No rows","criteria":["A","B"]}}',
+        '```',
+        '```cindy-matrix',
+        '{"matrix":{"title":"One row only","criteria":["A","B"],"rows":[{"id":"x","label":"X"}]}}',
+        '```',
+      ].join('\n'),
+    );
+    expect(decisions).toEqual([]);
+  });
+
+  it('trims row scores to the criteria width and drops empty cells', () => {
+    const { decisions } = parseDecisionBlocks(
+      '```cindy-matrix\n{"matrix":{"title":"T?","criteria":["A","B"],"rows":[{"id":"x","label":"X","scores":["1","2","extra"]},{"id":"y","label":"Y","scores":[null,""]}]}}\n```',
+    );
+    expect(decisions[0]?.options[0]?.scores).toEqual(['1', '2']);
+    expect(decisions[0]?.options[1]?.scores).toBeUndefined();
+  });
+
+  it('parses decisions and matrix blocks in one message (ids dedupe across fences)', () => {
+    const { decisions } = parseDecisionBlocks(`${BLOCK}\n${MATRIX}`);
+    expect(decisions.map((d) => d.id)).toEqual(['auth', 'db', 'matrix']);
+  });
+});

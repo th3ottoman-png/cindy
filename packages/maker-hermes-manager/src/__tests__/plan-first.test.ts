@@ -5,6 +5,8 @@ import {
   PLAN_FIRST_DECISIONS_EXAMPLE,
   PLAN_FIRST_DECISIONS_FENCE,
   PLAN_FIRST_LOCK_REASON,
+  PLAN_FIRST_MATRIX_EXAMPLE,
+  PLAN_FIRST_MATRIX_FENCE,
   PLAN_FIRST_TURN_INSTRUCTION,
 } from '../plan-first.js';
 import { toolCallPaths } from '../risk-paths.js';
@@ -29,6 +31,25 @@ describe('plan-first instruction (ROADMAP 11.7)', () => {
     expect(parsed.decisions).toHaveLength(1);
     expect(parsed.decisions[0]?.options.map((o) => o.id)).toEqual(['jwt', 'session']);
     expect(PLAN_FIRST_TURN_INSTRUCTION).toContain('defaultOptionId');
+  });
+
+  it('teaches the Interrogate 4x4 matrix alternative with a parseable example (11.7b)', () => {
+    expect(PLAN_FIRST_TURN_INSTRUCTION).toContain('```' + PLAN_FIRST_MATRIX_FENCE);
+    expect(PLAN_FIRST_TURN_INSTRUCTION).toContain('4x4');
+    const parsed = JSON.parse(PLAN_FIRST_MATRIX_EXAMPLE) as {
+      matrix: {
+        title: string;
+        criteria: string[];
+        rows: Array<{ id: string; label: string; scores: string[] }>;
+        defaultOptionId: string;
+      };
+    };
+    expect(parsed.matrix.criteria).toHaveLength(4);
+    expect(parsed.matrix.rows).toHaveLength(4);
+    for (const row of parsed.matrix.rows) {
+      expect(row.scores).toHaveLength(parsed.matrix.criteria.length);
+    }
+    expect(parsed.matrix.rows.map((r) => r.id)).toContain(parsed.matrix.defaultOptionId);
   });
 
   it('lock reason points at the decision UI, not at retrying', () => {

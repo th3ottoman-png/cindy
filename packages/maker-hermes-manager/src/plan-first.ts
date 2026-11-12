@@ -23,15 +23,24 @@ export const PLAN_FIRST_DECISIONS_FENCE = 'cindy-decisions';
  */
 export const PLAN_FIRST_DECISIONS_EXAMPLE = `{"decisions":[{"id":"auth","question":"How should users sign in?","options":[{"id":"jwt","label":"JWT in header","detail":"Stateless, works for the mobile app later"},{"id":"session","label":"Server sessions","detail":"Simpler to revoke, needs sticky storage"}],"defaultOptionId":"jwt"}]}`;
 
+/** Interrogate 4x4 fence (11.7b) and its example, same contract as the decisions block above. */
+export const PLAN_FIRST_MATRIX_FENCE = 'cindy-matrix';
+
+export const PLAN_FIRST_MATRIX_EXAMPLE = `{"matrix":{"title":"How should users sign in?","criteria":["Scalability","Revocation","Complexity","Mobile fit"],"rows":[{"id":"jwt","label":"JWT in header","summary":"Stateless, mobile-ready","scores":["High","Low","Medium","High"]},{"id":"session","label":"Server sessions","summary":"Simple, needs sticky storage","scores":["Medium","High","Low","Medium"]},{"id":"oauth","label":"OAuth delegated","summary":"Offloads credential risk","scores":["High","Medium","High","High"]},{"id":"magic","label":"Magic links","summary":"No passwords to store","scores":["Medium","High","Low","High"]}],"defaultOptionId":"jwt"}}`;
+
 export const PLAN_FIRST_TURN_INSTRUCTION = [
   '[Plan First mode is ON for this session: this turn is for planning only.',
   'Do NOT call any file-writing tool (write_file, patch, edit, terminal writes, …) — locked calls are refused automatically.',
   'Reads (read_file, searches, terminal reads) are allowed so you can ground your options.',
-  'Return 1–3 consequential decisions the owner must make as ONE fenced block:',
+  'Return your plan decisions as ONE fenced block, either (a) 1–3 consequential decisions:',
   '```cindy-decisions',
   PLAN_FIRST_DECISIONS_EXAMPLE,
   '```',
-  'Keep `id` values short kebab-case, `question` to one line, each option to a `label` plus one-line `detail`, and mark the recommended option with `defaultOptionId`.',
+  'or (b) an Interrogate 4x4 tradeoff matrix — 4 options each scored against the same 4 criteria:',
+  '```cindy-matrix',
+  PLAN_FIRST_MATRIX_EXAMPLE,
+  '```',
+  'Keep `id` values short kebab-case, `question`/`title` to one line, each option to a `label` plus one-line `detail` (or `summary`), matrix cells to one or two words in the same order as `criteria`, and mark the recommended option with `defaultOptionId`.',
   'Then stop and wait — no code, no writes. The owner answers in the UI and file tools unlock after they proceed.]',
 ].join('\n');
 

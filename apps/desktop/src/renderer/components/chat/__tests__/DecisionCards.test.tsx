@@ -89,3 +89,57 @@ it('renders nothing without a session send path', () => {
   render(<DecisionCards sessionId="s1" decisions={DECISIONS} />);
   expect(screen.queryByTestId('decision-cards')).toBeNull();
 });
+
+const MATRIX: PlanDecision[] = [
+  {
+    id: 'matrix',
+    question: 'How should users sign in?',
+    criteria: ['Scalability', 'Revocation', 'Complexity', 'Mobile fit'],
+    options: [
+      { id: 'jwt', label: 'JWT in header', detail: 'Stateless', scores: ['High', 'Low', 'Medium', 'High'] },
+      { id: 'session', label: 'Server sessions', detail: 'Sticky', scores: ['Medium', 'High', 'Low', 'Medium'] },
+      { id: 'oauth', label: 'OAuth delegated', detail: 'Delegated', scores: ['High', 'Medium', 'High', 'High'] },
+      { id: 'magic', label: 'Magic links', detail: 'No passwords', scores: ['Medium', 'High', 'Low', 'High'] },
+    ],
+    defaultOptionId: 'jwt',
+  },
+];
+
+const matrixView = (send: (text: string) => Promise<boolean>) => render(
+  <SessionQuickSendProvider value={{ send }}>
+    <DecisionCards sessionId="s2" decisions={MATRIX} />
+  </SessionQuickSendProvider>,
+);
+
+it('renders the 4x4 matrix as a selectable table and proceeds with the picked row', async () => {
+  const decide = vi.fn(async () => ({ locked: false }));
+  const send = vi.fn(async (_text: string): Promise<boolean> => true);
+  stubDecide(decide);
+  matrixView(send);
+
+  // Criteria columns and score cells are visible.
+  expect(screen.getByText('Scalability')).toBeTruthy();
+  expect(screen.getByText('Mobile fit')).toBeTruthy();
+  expect(screen.getAllByText('Medium').length).toBeGreaterThan(0);
+
+  // Default row preselected (jwt); switch to Server sessions, then proceed.
+  expect(screen.getByRole('radio', { name: /JWT in header/ }).getAttribute('aria-checked')).toBe('true');
+  await act(async () => {
+    fireEvent.click(screen.getByRole('radio', { name: /Server sessions/ }));
+  });
+  expect(screen.getByRole('radio', { name: /Server sessions/ }).getAttribute('aria-checked')).toBe('true');
+  expect(screen.getByRole('radio', { name: /JWT in header/ }).getAttribute('aria-checked')).toBe('false');
+
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'chat.planFirst.proceed' }));
+  });
+  expect(decide).toHaveBeenCalledWith({
+    sessionId: 's2',
+    decisions: [
+      { decisionId: 'matrix', optionId: 'session', summary: expect.stringContaining('Server sessions') },
+    ],
+  });
+  const summary = String(send.mock.calls[0]?.[0] ?? '');
+  expect(summary).toContain('Server sessions');
+  expect(await screen.findByTestId('decision-cards-decided')).toBeTruthy();
+});
