@@ -92,4 +92,36 @@ describe('ChatInventoryHost and IPC', () => {
     expect(res.ok).toBe(true);
     expect(res.inventory.sessionId).toBe('session-1');
   });
+
+  it('totals tokens from stored agentMeta.turnUsageDetails when rows carry no token fields (Hermes)', async () => {
+    // Shape seen live (2026-11-12, e7d82825): usage rides on the assistant row's agent_meta,
+    // the same source the session header's "N tok" uses. Stored as an object or as JSON text.
+    const storedHost = new ChatInventoryHost({
+      getSessionRow: async () => ({ id: 's-h', contextWindow: 100_000 }),
+      listMessages: async () =>
+        [
+          { role: 'user', content: JSON.stringify({ text: 'plan it' }), agentMeta: null },
+          {
+            role: 'assistant',
+            content: JSON.stringify({ text: 'step one' }),
+            agentMeta: { turnUsageDetails: { inputTokens: 20_000, outputTokens: 1_000, cacheReadTokens: 9_000, cacheCreateTokens: 1_000 } },
+          },
+          {
+            role: 'assistant',
+            content: JSON.stringify({ text: 'step two' }),
+            agentMeta: JSON.stringify({ turnUsageDetails: { inputTokens: 5_000, outputTokens: 4_000, cacheReadTokens: 0, cacheCreateTokens: 0 } }),
+          },
+          { role: 'tool_use', content: JSON.stringify({ toolName: 'read_file', input: { path: 'a.md' } }), agentMeta: { turnUsageDetails: { inputTokens: 999 } } },
+        ] as never,
+    });
+    const res = await storedHost.getInventory('s-h');
+    expect(res.ok).toBe(true);
+    expect(res.inventory?.tokens).toEqual({
+      promptTokens: 35_000,
+      completionTokens: 5_000,
+      totalTokens: 40_000,
+      contextWindow: 100_000,
+      utilizationPercent: 40,
+    });
+  });
 });

@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-12 (g) - 8.8 Chat Inventory token card on Hermes sessions: Debt fix `live-proven`
+
+- **Bug**: the In This Chat → Inventory token card showed 0% / 0 tokens on Hermes sessions. Stored message rows carry no `tokens`/`usage`, and the host passed no session totals.
+- **Fix** (`apps/desktop/src/main/maker-ipc/chatInventory.ts` only): new `storedTokenTotals()` sums assistant rows' `agentMeta.turnUsageDetails` (object or JSON text, via the shared `normalizeTurnUsageDetails`) — the same source the session header's usage uses. Prompt = input + cache read + cache write; completion = output. Used only when the session row has no totals of its own, so nothing is double-counted; returns null (no override) when no row has usage.
+- **Tests (`unit-tested`)**: new host case in `chatInventory.test.ts`, red first (got 0, expected 35,000); 4/4. Mutation caught: counting non-assistant rows.
+- **Live proof** (sandbox `CindyGlobal-dev2-dev`, CDP 9222, session `e7d82825`): `chatInventory.get` tokens `{prompt 51,505, completion 1,730, total 53,235, window 200,000, 27%}`; the card renders the same; the session header shows `53.2k tok · $0.0068` — totals agree. Screenshot `8-8-tokens-live.png` (scratchpad, ephemeral).
+- **Known limit (not new)**: "Capacity" is the 200k default because the session row snapshot has no context window; the card's % is cumulative tokens / window, as designed in 8.8, not the live context fill (the composer's `2%`).
+- **Gates (Node 22.23.4)**: `typecheck` 0, `test:runner` 0, `check:test-hygiene` PASS, `test:unit:related` shards 1–8 all exit 0 first try (no SIGSEGV). Diff grep: no new `fetch(`/URL/`~/.hermes`.
+- **User state touched**: none (read-only on the proof session). App stopped.
+
 ## 2026-11-12 (f) - 8.8 Chat Inventory on stored Hermes rows: Debt fix `live-proven`
 
 - **Bug**: `maker:chat-inventory:get` threw `text.matchAll is not a function` on Hermes sessions (Debt row from (e)); the In This Chat → Inventory view fell back to the renderer snapshot. Cause: `aggregateChatInventory` assumed string `content`, but `listMessagesForAgentHandoff` rows hold JSON text/objects, and each tool call is its own `tool_use` row (never counted).
