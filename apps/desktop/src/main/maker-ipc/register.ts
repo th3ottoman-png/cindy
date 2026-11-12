@@ -957,6 +957,11 @@ import {
   getDesktopCapabilityPacksHost,
   registerCapabilityPacksHandlers,
 } from './capabilityPacks.js';
+import {
+  getProductionSupervisorDeps,
+  registerLocalServicesHandlers,
+} from './localServices.js';
+import { getDesktopServiceSupervisor } from '../local-services/serviceSupervisor.js';
 import { MAKER_INVOKE, MAKER_PUSH, MAKER_SEND } from './channels.js';
 import type { CollabDispatchOutcome } from './collabSendOutcome.js';
 import {
@@ -25942,6 +25947,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   scheduledSessionsHost.startTicker();
   app.once('before-quit', () => {
     scheduledSessionsHost.stopTicker();
+    // ROADMAP 11.6: best-effort graceful shutdown of supervised dev children.
+    void localServicesSupervisor.shutdownAll();
   });
 
   // ── Operations rail (ROADMAP 8.6b) ───────────────────────────
@@ -25956,6 +25963,18 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   registerOperationsRailHandlers(createElectronIpcHandlerRegistry(), {
     host: operationsRailHost,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+
+  // ── Local dev services (ROADMAP 11.6) ──────────────────────
+  const localServicesSupervisor = getDesktopServiceSupervisor(
+    getProductionSupervisorDeps(() =>
+      broadcastToAllWindows(MAKER_PUSH.LOCAL_SERVICES_CHANGED, undefined),
+    ),
+  );
+  registerLocalServicesHandlers(createElectronIpcHandlerRegistry(), {
+    supervisor: localServicesSupervisor,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
   });
 
   const capabilityPacksHost = getDesktopCapabilityPacksHost({

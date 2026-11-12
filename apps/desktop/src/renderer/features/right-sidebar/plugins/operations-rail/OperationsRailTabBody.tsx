@@ -26,6 +26,8 @@ import {
 } from '@cindy/maker-core/operations-rail';
 import type { TabKindBodyProps } from '../../types';
 
+import { LocalServicesPanel } from './LocalServicesPanel';
+
 export function OperationsRailTabBody(_props: TabKindBodyProps) {
   const navigate = useNavigate();
   const [rows, setRows] = useState<OperationRow[]>([]);
@@ -235,6 +237,9 @@ export function OperationsRailTabBody(_props: TabKindBodyProps) {
           <RotateCcw size={13} className={cn(loading && 'animate-spin')} />
         </button>
       </div>
+
+      {/* Active Services (ROADMAP 11.6) */}
+      <LocalServicesPanel />
 
       {/* Summary Chips */}
       {summary.length > 0 && (

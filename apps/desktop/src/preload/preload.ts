@@ -6529,6 +6529,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => ipcRenderer.removeListener('maker:operations:changed', handler);
       },
     },
+    localServices: {
+      /** ROADMAP 11.6: list supervised + discovered local dev services. */
+      list: (): Promise<{ services: import('../main/local-services/serviceSupervisor').ServiceView[] }> =>
+        ipcRenderer.invoke('maker:local-services:list'),
+      /** ROADMAP 11.6: start a supervised local dev service. */
+      start: (params: { name: string; command: string; cwd?: string; port?: number }): Promise<import('../main/local-services/serviceSupervisor').StartResult> =>
+        ipcRenderer.invoke('maker:local-services:start', params),
+      /** ROADMAP 11.6: stop a supervised local dev service. */
+      stop: (params: { id: string }): Promise<import('../main/local-services/serviceSupervisor').StopResult> =>
+        ipcRenderer.invoke('maker:local-services:stop', params),
+      /** ROADMAP 11.6: restart a supervised local dev service. */
+      restart: (params: { id: string }): Promise<import('../main/local-services/serviceSupervisor').StartResult> =>
+        ipcRenderer.invoke('maker:local-services:restart', params),
+      /** ROADMAP 11.6: tail a supervised service log. */
+      logs: (params: { id: string; limit?: number }): Promise<{ ok: boolean; lines?: string[]; error?: string }> =>
+        ipcRenderer.invoke('maker:local-services:logs', params),
+      /** ROADMAP 11.6: terminate a discovered (externally started) dev server. */
+      terminate: (params: { pid: number; command: string }): Promise<import('../main/local-services/serviceSupervisor').StopResult> =>
+        ipcRenderer.invoke('maker:local-services:terminate', params),
+      /** Subscribe to local-services changed push events. */
+      onChanged: (callback: (payload: unknown) => void): (() => void) => {
+        const handler = (_event: unknown, payload: unknown) => callback(payload);
+        ipcRenderer.on('maker:local-services:changed', handler);
+        return () => ipcRenderer.removeListener('maker:local-services:changed', handler);
+      },
+    },
     capabilityPacks: {
       /** ROADMAP 8.7: list all capability packs. */
       list: (): Promise<import('@cindy/maker-core/capability-pack').CapabilityPack[]> =>

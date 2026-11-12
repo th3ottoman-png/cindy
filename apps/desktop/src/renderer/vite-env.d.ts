@@ -5757,6 +5757,22 @@ interface ElectronAPI {
       /** Subscribe to operations changed push events. */
       onChanged: (callback: (payload: unknown) => void) => () => void;
     };
+    localServices: {
+      /** ROADMAP 11.6: list supervised + discovered local dev services. */
+      list: () => Promise<{ services: import('../../main/local-services/serviceSupervisor').ServiceView[] }>;
+      /** ROADMAP 11.6: start a supervised local dev service. */
+      start: (params: { name: string; command: string; cwd?: string; port?: number }) => Promise<import('../../main/local-services/serviceSupervisor').StartResult>;
+      /** ROADMAP 11.6: stop a supervised local dev service. */
+      stop: (params: { id: string }) => Promise<import('../../main/local-services/serviceSupervisor').StopResult>;
+      /** ROADMAP 11.6: restart a supervised local dev service. */
+      restart: (params: { id: string }) => Promise<import('../../main/local-services/serviceSupervisor').StartResult>;
+      /** ROADMAP 11.6: tail a supervised service log. */
+      logs: (params: { id: string; limit?: number }) => Promise<{ ok: boolean; lines?: string[]; error?: string }>;
+      /** ROADMAP 11.6: terminate a discovered (externally started) dev server. */
+      terminate: (params: { pid: number; command: string }) => Promise<import('../../main/local-services/serviceSupervisor').StopResult>;
+      /** Subscribe to local-services changed push events. */
+      onChanged: (callback: (payload: unknown) => void) => () => void;
+    };
     capabilityPacks: {
       /** ROADMAP 8.7: list all capability packs. */
       list: () => Promise<import('@cindy/maker-core/capability-pack').CapabilityPack[]>;

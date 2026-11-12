@@ -10,6 +10,39 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-12 - 11.6 Local Dev Service Supervisor: `live-proven` via IPC + screenshot
+
+- **Shipped**: `apps/desktop/src/main/local-services/` (`serviceSupervisor.ts` — spawn/stop/restart
+  with port-collision guard, SIGTERM→SIGKILL escalation, bounded log tail, `shutdownAll`;
+  `devServerDiscovery.ts` — read-only `lsof`+`ps` scan for externally started dev servers) +
+  IPC `maker:local-services:*` (`localServices.ts`, channels, preload, `vite-env.d.ts` typing) +
+  `LocalServicesPanel.tsx` ("Active Services" in the Operations Rail, Stop/Terminate/Restart/Logs/New)
+  + `before-quit → shutdownAll` folded into the existing scheduled-sessions listener (no extra
+  listener — the split version tripped the MaxListeners warning).
+- **Live proof** (running dev app, real processes, CDP-driven IPC, `/tmp/proofs/11-6-*.js`):
+  start `python3 -m http.server 5199` via supervisor → pid 47444, running, uptime ticking; curl
+  hit streamed into the log tail (`GET / 200`); same-port and :5173 (dev app's own Vite)
+  starts refused closed; stop → graceful, port freed, no orphan; externally started :5198
+  auto-discovered (`ext:47289`) and terminated via IPC (`ok: true`, port freed, pid-reuse guard
+  exercised via recorded-command match). Screenshot `/tmp/proofs/11-6-services-panel.png` shows
+  ACTIVE SERVICES live in the rail. Mid-proof the dev app died with exit 143 (SIGTERM, cause
+  undetermined — not the supervisor code path); stop half had landed (port freed), terminate
+  re-proven after restart.
+- **Gates**: 11.6 unit files 36/36 direct; `textTierDiscipline` caught
+  `placeholder:text-muted-foreground/60` in the new panel — fixed to
+  `placeholder:text-[var(--text-placeholder)]`. typecheck 0; test:runner 0 (after
+  `pnpm design:inventory` regen — the new panel surface had drifted the inventory);
+  test:unit:related's unsharded `apps/desktop` leg SIGSEGV'd twice (known V8-GC
+  worker-teardown flake, no assertions failed before either crash); the completed forks-pool
+  rerun shows 16 failures in 14 files that fail **identically on clean `086772c953` with the
+  11.6 changes stashed** (`directSessionSendGuard`, `chatInputModelSelectorRouting`,
+  `iconButtonTooltips`, `modalSurfaceContract`, `orcaWorkflowRoute`, contract/discipline files,
+  localDb files, `drizzle-proxy-perf.bench`, `auxiliaryCustomNoAgentFallback`,
+  `WorkerThreadTransport`) — recorded in ROADMAP §Debt, none from this row. hygiene PASS (361).
+- **Honest gaps**: supervised process was python http.server, not Vite (same discovery
+  signature); Stop/Terminate verified via IPC, not owner-clicked buttons.
+- **Next**: ROADMAP 11.7 — Pre-Flight Decision Cards & Interrogate Mode.
+
 ## 2026-11-12 - 11.9 terminal-write path live proof: `live-proven` (auto-deny, no owner click)
 
 - **What was proven**: a fresh Hermes turn in Full access (`66261e6a-…-d5e3`, deepseek-flash,

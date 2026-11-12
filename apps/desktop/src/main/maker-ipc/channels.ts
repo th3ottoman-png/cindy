@@ -140,6 +140,18 @@ export const MAKER_INVOKE = {
   OPERATIONS_CANCEL: 'maker:operations:cancel',
   /** ROADMAP 8.6b: replay turn or operation. */
   OPERATIONS_REPLAY: 'maker:operations:replay',
+  /** ROADMAP 11.6: list supervised + discovered local dev services. */
+  LOCAL_SERVICES_LIST: 'maker:local-services:list',
+  /** ROADMAP 11.6: start a supervised local dev service. */
+  LOCAL_SERVICES_START: 'maker:local-services:start',
+  /** ROADMAP 11.6: stop a supervised local dev service. */
+  LOCAL_SERVICES_STOP: 'maker:local-services:stop',
+  /** ROADMAP 11.6: restart a supervised local dev service. */
+  LOCAL_SERVICES_RESTART: 'maker:local-services:restart',
+  /** ROADMAP 11.6: tail a supervised service log. */
+  LOCAL_SERVICES_LOGS: 'maker:local-services:logs',
+  /** ROADMAP 11.6: terminate a discovered (externally started) dev server. */
+  LOCAL_SERVICES_TERMINATE: 'maker:local-services:terminate',
   /** ROADMAP 8.7: list capability packs. */
   CAPABILITY_PACKS_LIST: 'maker:capability-packs:list',
   /** ROADMAP 8.7: export a session manifest as a pack. */
@@ -1131,6 +1143,8 @@ export const MAKER_PUSH = {
   SCHEDULED_SESSIONS_CHANGED: 'maker:scheduled-sessions:changed',
   /** ROADMAP 8.6b: operations rail events or active tasks changed; payload `{ rows }`. */
   OPERATIONS_CHANGED: 'maker:operations:changed',
+  /** ROADMAP 11.6: local dev services changed; no payload — renderer refetches. */
+  LOCAL_SERVICES_CHANGED: 'maker:local-services:changed',
   /** ROADMAP 7.7: screen-share privacy redaction mode changed; payload `{ enabled: boolean }`. */
   SCREEN_SHARE_CHANGED: 'maker:screen-share:changed',
   TURN_CHANGE_SET_UPDATED: 'maker:turn-change-set:updated',
