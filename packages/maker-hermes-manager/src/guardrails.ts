@@ -238,9 +238,9 @@ export function defaultGuardrailsFile(): string {
 }
 
 /** Tools whose input carries a shell command. */
-const COMMAND_TOOLS = /^(?:terminal|bash|shell|exec|run_command|execute_command)$/i;
+export const COMMAND_TOOLS = /^(?:terminal|bash|shell|exec|run_command|execute_command)$/i;
 
-function commandOf(toolName: string, toolInput: unknown): string | undefined {
+export function commandOf(toolName: string, toolInput: unknown): string | undefined {
   if (!COMMAND_TOOLS.test(toolName)) return undefined;
   if (typeof toolInput === 'string') return toolInput;
   if (!toolInput || typeof toolInput !== 'object' || Array.isArray(toolInput)) return undefined;

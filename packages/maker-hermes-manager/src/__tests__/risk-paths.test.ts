@@ -49,12 +49,58 @@ describe('high-blast-radius path classifier', () => {
     expect(classifyToolCallRisk(write(path)).highRisk).toBe(false);
   });
 
-  it('only inspects tools that write', () => {
+  it('never inspects read tools', () => {
     expect(
       classifyToolCallRisk({ toolName: 'read_file', toolInput: { path: 'providers.yaml' } }).highRisk,
     ).toBe(false);
+    expect(toolCallPaths({ toolName: 'read_file', toolInput: { path: 'providers.yaml' } })).toEqual([]);
+  });
+
+  it('a dangerous command without a risk path stays 11.3 territory, not this layer', () => {
+    // `rm -rf /` is the command guardrail's job (11.3); `/` matches no risk rule here.
     expect(
       classifyToolCallRisk({ toolName: 'terminal', toolInput: { command: 'rm -rf /' } }).highRisk,
+    ).toBe(false);
+    expect(
+      classifyToolCallRisk({ toolName: 'bash', toolInput: { command: 'git push --force origin main' } })
+        .highRisk,
+    ).toBe(false);
+  });
+
+  it.each([
+    ['echo x > providers.yaml', ['providers.yaml']],
+    ['cat notes.txt >> ~/.cindy-harness/providers.yaml', ['~/.cindy-harness/providers.yaml']],
+    ['echo x | tee routing.yaml', ['routing.yaml']],
+    ["sed -i 's/old/new/' providers.yaml", ['providers.yaml']],
+    ['cp /tmp/new.yaml providers.yaml', ['/tmp/new.yaml', 'providers.yaml']],
+    ['mv providers.yaml providers.bak', ['providers.yaml', 'providers.bak']],
+    ['chmod 600 ~/.cindy-harness/security.json', ['~/.cindy-harness/security.json']],
+    ['touch src/auth/session.ts', ['src/auth/session.ts']],
+  ])('extracts terminal write targets from %s', (command, expected) => {
+    expect(toolCallPaths({ toolName: 'terminal', toolInput: { command } })).toEqual(expected);
+  });
+
+  it('flags a terminal write to a high-blast-radius path', () => {
+    const verdict = classifyToolCallRisk({
+      toolName: 'terminal',
+      toolInput: { command: 'echo "model: x" > ~/.cindy-harness/providers.yaml' },
+    });
+    expect(verdict.highRisk).toBe(true);
+    expect(verdict.matches[0]?.category).toBe('harness-config');
+    expect(classifyToolCallRisk({ toolName: 'bash', toolInput: { command: 'cp a prisma/schema.prisma' } }).highRisk).toBe(true);
+    expect(classifyToolCallRisk({ toolName: 'shell', toolInput: { command: 'perl -pi -e s/a/b/ src/keychain.ts' } }).highRisk).toBe(true);
+    expect(classifyToolCallRisk({ toolName: 'run_command', toolInput: { cmd: 'install -m 644 x src/billing/stripe.ts' } }).highRisk).toBe(true);
+    expect(classifyToolCallRisk({ toolName: 'execute_command', toolInput: { script: 'rm db/schema.sql' } }).highRisk).toBe(true);
+  });
+
+  it('does not flag terminal reads, fd redirects or heredocs', () => {
+    expect(toolCallPaths({ toolName: 'terminal', toolInput: { command: 'cat providers.yaml' } })).toEqual([]);
+    expect(toolCallPaths({ toolName: 'terminal', toolInput: { command: 'grep route routing.yaml' } })).toEqual([]);
+    expect(toolCallPaths({ toolName: 'terminal', toolInput: { command: 'git push 2>&1' } })).toEqual([]);
+    expect(toolCallPaths({ toolName: 'terminal', toolInput: { command: 'cat <<EOF\nproviders.yaml\nEOF' } })).toEqual([]);
+    expect(
+      classifyToolCallRisk({ toolName: 'terminal', toolInput: { command: 'cat providers.yaml | grep model' } })
+        .highRisk,
     ).toBe(false);
   });
 

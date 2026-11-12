@@ -10,6 +10,34 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-12 - 11.9 terminal coverage in the blast-radius pre-check (`unit-tested`)
+
+- **Owner decision**: terminal-tool writes to protected files must raise the same blast-radius
+  card (they previously bypassed the pre-check entirely — observed live 2026-11-11 when a
+  terminal write to `providers.yaml` ran with no card).
+- **Changed**: `packages/maker-hermes-manager/src/risk-paths.ts` —
+  - new pure `terminalCommandPaths(command)`: shell segment splitting, redirect targets
+    (`> f`, `>> f`, `&> f`; fd dups like `2>&1` extract nothing), non-flag operands of write
+    commands (`mv|cp|rm|chmod|chown|touch|install|truncate|ln|tee|dd of=`), and in-place
+    `sed`/`perl` file operands (`-i`/`-pi` forms; `-e <expr>` and `s///`/`y///` expressions are
+    skipped). Reads, heredocs and grep/cat extract nothing.
+  - `toolCallPaths` routes terminal-family tools (`terminal|bash|shell|exec|run_command|
+    execute_command`) through it via `commandOf` (now exported from `guardrails.ts`).
+- **Tests**: `risk-paths.test.ts` 36/36 — new cases: 8 extraction shapes (`echo >`, `>>`, `tee`,
+  `sed -i`, `cp`, `mv`, `chmod`, `touch`), high-risk classification for all 6 terminal tool names
+  incl. `cmd`/`script` input shapes, and negatives (reads, `2>&1`, heredoc, pipe-to-grep). The old
+  "terminal is never inspected" assertion was replaced by the accurate split: reads stay
+  uninspected, a dangerous command without a risk path stays 11.3's territory.
+- **Verification**: `packages/maker-hermes-manager` full suite 354/354; four gates in a real
+  Terminal (`/tmp/cindy-gates-terminal-fix.log`): typecheck 0, test:runner 0, non-desktop related
+  unit 0, desktop shards 1–6 and 8 0; **shard 7 died SIGSEGV** (known V8-GC worker-teardown flake,
+  Debt row) and its standalone rerun was 0 — not counted green while crashed; hygiene 0.
+- **Still open**: (1) live proof that a real Hermes `terminal` write to `providers.yaml` raises
+  the amber card (needs dev-app + hermes-mgr restart to load the daemon change, one prompt, one
+  Deny — method proven twice already this session); (2) the card still shows no diff display.
+- **Labels**: terminal coverage `unit-tested`; the 11.9 row keeps its `live-proven` for the
+  `write_file` card+guard with the terminal path marked as not yet live-proven.
+
 ## 2026-11-12 - 11.9 amber card live proof: `live-proven` (real turn, real Deny)
 
 - **What was proven**: a real Hermes turn in Full access (`39853baf`, deepseek-flash, dev app

@@ -10,6 +10,8 @@
  * Pure and synchronous: no disk, no model, no network. It only reads the tool call.
  */
 
+import { commandOf } from './guardrails.js';
+
 export type RiskCategory =
   | 'auth'
   | 'database'
@@ -121,7 +123,7 @@ const RULES: readonly RiskCategoryRule[] = [
 
 export const RISK_RULES: readonly RiskCategoryRule[] = RULES;
 
-/** Tools that write to a path. `read_file` and `terminal` are not here on purpose. */
+/** Tools that write to a path. `read_file` is not here on purpose. */
 const FILE_MODIFY_TOOLS = new Set([
   'write_file',
   'patch',
@@ -138,6 +140,77 @@ const FILE_MODIFY_TOOLS = new Set([
 
 const PATH_KEYS = ['path', 'file_path', 'filePath', 'file', 'filename', 'target', 'target_file'] as const;
 
+/** Shell wrappers a segment may start with before the real command word. */
+const SEGMENT_WRAPPERS = /^(?:sudo|doas|env|nohup|time|command|exec|builtin)\s+(?:(?:-[a-zA-Z-]+|[a-zA-Z_][a-zA-Z0-9_]*=\S*)\s+)*/;
+
+/** Commands whose non-flag operands are write targets. `of=` (dd) is a write target too. */
+const SHELL_WRITE_COMMANDS = /^(?:mv|cp|rm|chmod|chown|touch|install|truncate|ln|tee|dd)$/;
+
+/** `sed`/`perl` write only when they edit in place (`-i`, `-i.bak`, `-pi`, …). */
+const INPLACE_EDITORS = /^(?:sed|perl)$/;
+
+/** A sed/perl substitution or translation expression (`s/a/b/`, `y/ab/cd/`, `m/x/`). */
+const EDIT_EXPRESSION = /^[sSyYmM]?[/|,;:!%#~^]/;
+
+function segmentList(command: string): string[] {
+  return command
+    .split(/;|&&|\|\||\||\n|&|\(|\)|`|\$\(/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+}
+
+/** Shell tokens of one segment: whitespace split with the surrounding quotes removed. */
+function shellTokens(segment: string): string[] {
+  return segment
+    .split(/\s+/)
+    .map((token) => token.replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
+}
+
+function tokenPath(token: string): string | undefined {
+  if (!token || token.startsWith('-')) return undefined;
+  if (/^\d+$/.test(token)) return undefined; // chmod modes, uid:gid
+  const ddOf = /^of=(.+)$/.exec(token);
+  return normalizePath(ddOf?.[1] ?? token);
+}
+
+/**
+ * Every path a shell command writes to (ROADMAP 11.9, terminal coverage). Pure heuristics:
+ * redirect targets (`> f`, `>> f`, `&> f` — but not `2>&1`), the operands of write commands
+ * (`mv|cp|rm|chmod|chown|touch|install|truncate|ln|tee|dd`), and the file operands of
+ * in-place `sed`/`perl`. Reads and fd dups extract nothing. Conservative on purpose: a missed
+ * exotic write form is the old gap, a spurious path costs one owner card.
+ */
+export function terminalCommandPaths(command: string): string[] {
+  const paths: string[] = [];
+  for (const segment of segmentList(command)) {
+    for (const match of segment.matchAll(/(?:^|[\s;|(&(])(\d*>>?|&>>?)\s*([^\s;|&<>()]+)/g)) {
+      const target = match[2] ?? '';
+      if (!target.startsWith('&')) paths.push(normalizePath(target));
+    }
+    const tokens = shellTokens(segment.replace(SEGMENT_WRAPPERS, ''));
+    const head = tokens[0]?.toLowerCase();
+    if (!head) continue;
+    if (SHELL_WRITE_COMMANDS.test(head)) {
+      for (const token of tokens.slice(1)) {
+        const path = tokenPath(token);
+        if (path) paths.push(path);
+      }
+    } else if (INPLACE_EDITORS.test(head) && tokens.some((token) => /^-i/.test(token) || /^-p.*i/.test(token))) {
+      let skipNext = false;
+      for (const token of tokens.slice(1)) {
+        if (skipNext) { skipNext = false; continue; }
+        if (token === '-e') { skipNext = true; continue; }
+        if (token.startsWith('-')) continue;
+        if (EDIT_EXPRESSION.test(token)) continue;
+        const path = tokenPath(token);
+        if (path) paths.push(path);
+      }
+    }
+  }
+  return [...new Set(paths.filter(Boolean))];
+}
+
 /** Test files are not high blast radius; editing them cannot lock the owner out. */
 function isTestPath(path: string): boolean {
   return /(?:^|\/)(?:__tests__|tests?|spec)\//i.test(path) || /\.(?:test|spec)\.[cm]?[jt]sx?$/i.test(path);
@@ -150,6 +223,8 @@ function normalizePath(value: string): string {
 /** Every path a tool call writes to, including paths inside a unified `patch` string. */
 export function toolCallPaths(payload: { toolName: string; toolInput: unknown }): string[] {
   const tool = payload.toolName.toLowerCase();
+  const command = commandOf(payload.toolName, payload.toolInput);
+  if (command !== undefined) return terminalCommandPaths(command);
   if (!FILE_MODIFY_TOOLS.has(tool)) return [];
   const input = payload.toolInput;
   if (!input || typeof input !== 'object' || Array.isArray(input)) return [];
