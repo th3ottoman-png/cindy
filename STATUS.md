@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-12 (l) - 0.4 Green gate: `unit-tested`, two gate defects fixed
+
+- **Owner decision**: asked whether `unit-tested` is 0.4's honest terminal label; the owner answered "you decide", so this row is closed `unit-tested` — its bar is "default gate set exits 0" and it has no runtime surface. The owner then asked for the remaining rows to be worked autonomously in order.
+- **Gate run (Node 22.23.4, on the final tree)**: `pnpm typecheck` 0; `pnpm test:runner` 0 (**611 tests: 609 pass, 2 skipped** — one new test); `pnpm check:test-hygiene` 0 (361 files within baseline); `XDT_UNIT_TEST_SHARD=i/8 pnpm test:unit:related` for i = 1..8 **all 0**, no SIGSEGV, no reruns this round.
+- **Fixed 1 — the sanctioned split failed the gate it exists to prove.** `runPlannedTests` threw `No runnable test runs configured for tier unit …` whenever a `--related` plan selected only `apps/desktop` and the non-desktop leg excluded it (the documented 2026-11-11 Debt row). It now takes `allowEmptySelection` (the CLI passes it for `--related`): that leg prints `SKIP unit: the workspace selection excludes every planned run (N planned); nothing to run` and exits 0. `No runnable test runs configured for tier …` still fires for a manifest with no runnable tier, and for explicit selections. Test first (red: it threw), then green; the existing "rejects explicit tiers with no runnable runs" test still passes. Files: `scripts/test-workspaces.mjs`, `scripts/__tests__/test-workspaces.test.mjs`.
+- **Fixed 2 — the one gate flake seen this session was undiagnosable.** Shard 3 failed once on `apps/desktop/src/main/voice-input/__tests__/ElevenLabsScribeProvider.test.ts` "recovers by replaying uncommitted audio and preserving the current partial prefix" with `ElevenLabs Scribe handshake failed: HTTP 401 Unauthorized` **9 ms** into the test, while the file passed 8/8 alone and the other Scribe tests passed in the same run; it did not recur in the 8-shard run above. The local test server cannot answer 401, so the origin is unexplained; the fix is diagnostic, not a root cause: the handshake error now carries the ws target — `ElevenLabs Scribe handshake failed: HTTP 401 Unauthorized (127.0.0.1:<port>)` — with a new red-first test asserting the host:port. Files: `apps/desktop/src/main/voice-input/ElevenLabsScribeProvider.ts` (+ its test). Debt row updated.
+- **Not claimed**: no runtime/UI proof (a gate row has none). The 401 is **not** explained — the diagnostic change must not be read as a fix.
+- **Gates for this commit**: the numbers above. (`pnpm --filter @cindy/maker-hermes-manager build` still hits a pre-existing `TS2835` in `packages/maker-core/src/skills/progressive-skill-engine.ts`; the gate is the root `pnpm typecheck`, which is green, and this row did not touch it.)
+- **Open**: 0.10, 1.13b, 1.13c.
+
 ## 2026-11-12 (k) - 0.7 fixture parity re-captured on the installed Hermes 0.23.0: `unit-tested`
 
 - **Owner pick first**: asked the one question; the owner chose the older rows. Council check before asking: `~/.cindy-harness/routing.yaml` **still** lists `tokenhub/deepseek-v4-flash-202605` as the second reviewer (line 19, inside the managed `cindy-council` block), so every Council run still fails closed until the owner re-picks. Not touched.

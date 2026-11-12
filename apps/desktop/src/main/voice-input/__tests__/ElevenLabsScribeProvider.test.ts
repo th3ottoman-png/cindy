@@ -194,6 +194,41 @@ describe('ElevenLabsScribeProvider helpers', () => {
     }
   });
 
+  it('names the target host and port when upstream rejects the handshake', async () => {
+    // Regression guard for the 401 seen once under an 8-way desktop shard run: without the
+    // target in the message a handshake rejection cannot be told apart from a proxy answering.
+    const server = new WebSocketServer({
+      port: 0,
+      verifyClient(_info, done) {
+        done(false, 401, 'Unauthorized');
+      },
+    });
+    let provider: ElevenLabsScribeProvider | undefined;
+
+    try {
+      await waitFor(() => server.address() !== null);
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Expected local test server address.');
+
+      provider = new ElevenLabsScribeProvider({
+        proxyApiKey: 'test-key',
+        baseUrl: `http://127.0.0.1:${address.port}`,
+        sourceLanguage: 'zh-CN',
+        connectTimeoutMs: 2_000,
+      });
+      provider.onEvent(() => {});
+
+      await expect(provider.start()).rejects.toThrow(
+        new RegExp(
+          `ElevenLabs Scribe handshake failed: HTTP 401 Unauthorized \\(127\\.0\\.0\\.1:${address.port}\\)`,
+        ),
+      );
+    } finally {
+      await provider?.stop();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('waits for application authentication and rejects an auth error after the websocket opens', async () => {
     const server = new WebSocketServer({ port: 0 });
     let provider: ElevenLabsScribeProvider | undefined;

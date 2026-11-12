@@ -182,7 +182,14 @@ export class ElevenLabsScribeProvider implements AsrProvider {
         response.resume();
         const statusCode = response.statusCode ?? 'unknown';
         const statusMessage = response.statusMessage ? ` ${response.statusMessage}` : '';
-        fail(new Error(`ElevenLabs Scribe handshake failed: HTTP ${statusCode}${statusMessage}`), true);
+        // Name the target: a handshake rejection has to be distinguishable from a proxy or
+        // captive portal answering on the way to the provider (seen once as a bare 401).
+        fail(
+          new Error(
+            `ElevenLabs Scribe handshake failed: HTTP ${statusCode}${statusMessage} (${safeUrlHost(url)})`,
+          ),
+          true,
+        );
       };
       this.startResolve = () => {
         if (settled) return;

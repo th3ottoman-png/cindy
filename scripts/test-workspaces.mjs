@@ -842,6 +842,7 @@ export async function runPlannedTests({
 	all = false,
 	workspaces = [],
 	excludeWorkspaces = [],
+	allowEmptySelection = false,
 	workspaceCwds,
 	allFiles,
 	runCommandImpl = runCommand,
@@ -873,14 +874,25 @@ export async function runPlannedTests({
 	const concurrency =
 		workspaceConcurrency ?? defaultWorkspaceConcurrency();
 	for (const currentTier of tiers) {
-		const runs = filterRunsByWorkspace(
-			planRuns(manifestWorkspaces, {
-				tier: currentTier,
-				explicit: !all,
-			}),
-			{ workspaces, excludeWorkspaces },
-		);
+		const plannedRuns = planRuns(manifestWorkspaces, {
+			tier: currentTier,
+			explicit: !all,
+		});
+		const runs = filterRunsByWorkspace(plannedRuns, {
+			workspaces,
+			excludeWorkspaces,
+		});
 		if (!all && runs.length === 0) {
+			// A --related plan can select runs that the caller then excludes (a diff confined to
+			// apps/desktop on the non-desktop leg). Nothing failed there, so the gate exits 0 with
+			// an explicit skip instead of "no runnable runs"; that error stays reserved for a
+			// manifest that configures no runnable tier at all.
+			if (allowEmptySelection && plannedRuns.length > 0) {
+				console.log(
+					`SKIP ${currentTier}: the workspace selection excludes every planned run (${plannedRuns.length} planned); nothing to run`,
+				);
+				continue;
+			}
 			throw new Error(
 				`No runnable test runs configured for tier ${currentTier}. ${describeTierStatus(manifestWorkspaces, currentTier)}`,
 			);
@@ -1193,6 +1205,7 @@ async function main() {
 			all,
 			workspaces,
 			excludeWorkspaces,
+			allowEmptySelection: related,
 			workspaceConcurrency,
 			relatedFilesByWorkspace,
 			reporter: createWorkspaceRunReporter(),

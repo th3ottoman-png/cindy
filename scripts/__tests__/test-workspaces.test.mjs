@@ -1938,6 +1938,68 @@ test("runPlannedTests filters workspaces after full manifest coverage validation
 	);
 });
 
+test("runPlannedTests can skip an emptied selection instead of failing the gate", async () => {
+	// A `--related` plan that selects only workspaces the caller then excludes (a diff confined
+	// to apps/desktop on the non-desktop leg) leaves zero runs. The gate must exit 0 there;
+	// an explicit, non-related selection that matches nothing stays an error.
+	const fakeManifest = {
+		workspaces: [
+			{
+				name: "desktop",
+				cwd: "apps/desktop",
+				status: "required",
+				tiers: {
+					unit: {
+						status: "required",
+						command: { type: "packageBin", bin: "vitest", args: ["run"] },
+					},
+				},
+			},
+			{
+				name: "server",
+				cwd: "apps/server",
+				status: "required",
+				tiers: {
+					unit: {
+						status: "required",
+						command: { type: "packageScript", script: "test" },
+					},
+				},
+			},
+		],
+	};
+	const common = {
+		root: "/repo",
+		manifest: fakeManifest,
+		workspaceCwds: ["apps/desktop", "apps/server"],
+		allFiles: [
+			"apps/desktop/src/main/__tests__/lifecycle.test.ts",
+			"apps/server/src/__tests__/sessions.test.ts",
+		],
+		runCommandImpl: async () => ({ exitCode: 0, output: "ok" }),
+	};
+
+	const skipped = await runPlannedTests({
+		...common,
+		tier: "unit",
+		workspaces: ["desktop"],
+		excludeWorkspaces: ["apps/desktop"],
+		allowEmptySelection: true,
+	});
+	assert.deepEqual(skipped, []);
+
+	await assert.rejects(
+		() =>
+			runPlannedTests({
+				...common,
+				tier: "unit",
+				workspaces: ["desktop"],
+				excludeWorkspaces: ["apps/desktop"],
+			}),
+		/No runnable test runs configured for tier unit/,
+	);
+});
+
 test("runPlannedTests continues after one workspace test fails", async () => {
 	const manifest = {
 		workspaces: [
