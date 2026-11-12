@@ -4463,6 +4463,10 @@ interface ElectronAPI {
   }>;
   worktreeDiff: (sessionId: string) => Promise<import('../main/worktree').WorktreeDiffResponse>;
   worktreeMerge: (sessionId: string) => Promise<import('../main/worktree').WorktreeMergeResponse>;
+  /** ROADMAP 11.11: Council review of the task worktree and the gated merge + cleanup. */
+  worktreeCouncilStatus: (sessionId: string) => Promise<import('../main/worktree/worktreeCouncil').WorktreeCouncilStatus>;
+  worktreeCouncilRun: (sessionId: string, auto?: boolean) => Promise<import('../main/worktree/worktreeCouncil').WorktreeCouncilStatus>;
+  worktreeMergeCleanup: (sessionId: string) => Promise<import('../main/worktree/worktreeCouncil').WorktreeMergeCleanupResult>;
   /** worktree 回收完成后，按实际受影响的 sessionId 增量更新本机缓存。 */
   onWorktreeChanged: (callback: (payload: { sessionId: string }) => void) => () => void;
 

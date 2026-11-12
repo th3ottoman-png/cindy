@@ -30,6 +30,19 @@ const writeOpts: GitExecOpts = {
   extraEnv: { LC_ALL: 'C', GIT_TERMINAL_PROMPT: '0' },
 };
 
+/**
+ * Uncommitted entries in the base repo, not counting Cindy's own managed worktree folders.
+ * Worktrees live inside the base repo (`.cindy-worktrees/<name>`, historically `.xdt-worktrees/`),
+ * so an untracked `.cindy-worktrees/` would otherwise make every base look dirty and block every
+ * merge (found live in ROADMAP 11.11).
+ */
+export function countBaseDirtyEntries(porcelainZ: string): number {
+  return porcelainZ
+    .split('\0')
+    .filter(Boolean)
+    .filter((entry) => !/^.. \.(cindy|xdt)-worktrees(\/|$)/.test(entry)).length;
+}
+
 export interface WorktreeDiffResponse {
   ok: boolean;
   hasWorktree: boolean;
@@ -116,7 +129,7 @@ export async function readWorktreeDiff(
         localOpts,
       )
     ).stdout;
-    targetDirtyFiles = basePorcelain.split('\0').filter(Boolean).length;
+    targetDirtyFiles = countBaseDirtyEntries(basePorcelain);
   } catch (err) {
     log.warn('Could not read base repo dirty status:', err);
     targetDirtyFiles = Number.NaN;
@@ -357,7 +370,7 @@ export async function mergeWorktree(
         localOpts,
       )
     ).stdout;
-    targetDirtyFiles = basePorcelain.split('\0').filter(Boolean).length;
+    targetDirtyFiles = countBaseDirtyEntries(basePorcelain);
   } catch (err) {
     log.warn('Could not read base dirty files:', err);
     targetDirtyFiles = Number.NaN;

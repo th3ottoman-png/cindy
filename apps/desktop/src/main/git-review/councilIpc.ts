@@ -30,6 +30,14 @@ import {
 } from './councilReview.js';
 import { readReviewData } from './ipc.js';
 import { withSessionReviewExecution } from './sshReviewBackend.js';
+import { WorktreeCouncilHost } from '../worktree/worktreeCouncil.js';
+
+/** ROADMAP 11.11: worktree Council review and the gated "Merge to Main Worktree". */
+export const WORKTREE_COUNCIL_INVOKE = {
+  STATUS: 'worktree:council-status',
+  RUN: 'worktree:council-run',
+  MERGE_CLEANUP: 'worktree:merge-cleanup',
+} as const;
 
 export const COUNCIL_REVIEW_INVOKE = {
   OPTIONS: 'git-review:council-options',
@@ -85,33 +93,13 @@ export function registerCouncilReviewIpc(options: CouncilIpcOptions): void {
     ...(options.env ? { env: options.env() } : {}),
   });
 
-  ipcMain.handle(COUNCIL_REVIEW_INVOKE.OPTIONS, async (event): Promise<CouncilOptionsResponse> => {
-    assertTrusted(event);
-    try {
-      const [reviewers, selection] = await Promise.all([
-        readAvailable(),
-        readCouncilSelectionFile(options.routingFile),
-      ]);
-      return { reviewers, selection };
-    } catch (error) {
-      log.warn('council options failed', {
-        errorName: error instanceof Error ? error.name : typeof error,
-      });
-      throwIpcError('INTERNAL', 'could not read the reviewer list');
-    }
-  });
-
-  ipcMain.handle(COUNCIL_REVIEW_INVOKE.RUN, async (event, payload: unknown) => {
-    assertTrusted(event);
-    const body = requireObject(payload, 'councilReview');
-    const sessionId = requireString(body.sessionId, 'sessionId');
-    const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim() : undefined;
+  /** One place that knows how to reach a reviewer; the session review and the 11.11 worktree review share it. */
+  const buildDeps = (readFiles: CouncilReviewDeps['readFiles']): CouncilReviewDeps => {
     const harnessDir = path.dirname(options.providersFile);
     const env = options.env?.() ?? process.env;
-
-    const deps: CouncilReviewDeps = {
+    return {
       readAvailable,
-      readFiles: () => withSessionReviewExecution(sessionId, () => readCouncilDiffFiles(sessionId)),
+      readFiles,
       dispatch: async (reviewer, prompt, signal) => {
         const result = await (options.dispatch ?? requestRouteTargetText)(
           {
@@ -137,10 +125,67 @@ export function registerCouncilReviewIpc(options: CouncilIpcOptions): void {
       ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
       log: (message, fields) => log.info(message, fields),
     };
+  };
+
+  ipcMain.handle(COUNCIL_REVIEW_INVOKE.OPTIONS, async (event): Promise<CouncilOptionsResponse> => {
+    assertTrusted(event);
+    try {
+      const [reviewers, selection] = await Promise.all([
+        readAvailable(),
+        readCouncilSelectionFile(options.routingFile),
+      ]);
+      return { reviewers, selection };
+    } catch (error) {
+      log.warn('council options failed', {
+        errorName: error instanceof Error ? error.name : typeof error,
+      });
+      throwIpcError('INTERNAL', 'could not read the reviewer list');
+    }
+  });
+
+  ipcMain.handle(COUNCIL_REVIEW_INVOKE.RUN, async (event, payload: unknown) => {
+    assertTrusted(event);
+    const body = requireObject(payload, 'councilReview');
+    const sessionId = requireString(body.sessionId, 'sessionId');
+    const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim() : undefined;
+    const deps = buildDeps(() => withSessionReviewExecution(sessionId, () => readCouncilDiffFiles(sessionId)));
 
     return runCouncilReview(
       { reviewers: body.reviewers, ...(note ? { note } : {}) },
       deps,
     );
+  });
+
+  // ── ROADMAP 11.11: Council review of a task worktree and the gated merge + cleanup ──────────
+  const worktreeCouncil = new WorktreeCouncilHost({
+    getForSession: async (sessionId) => (await import('../worktree/WorktreeManager.js')).getForSession(sessionId),
+    readSelection: () => readCouncilSelectionFile(options.routingFile),
+    runCouncil: async (files, reviewers) => {
+      const result = await runCouncilReview(
+        { reviewers, note: 'This is the full diff of an isolated task worktree branch against its base branch.' },
+        buildDeps(async () => files),
+      );
+      return result.ok ? { ok: true, verdict: result.verdict } : result;
+    },
+    // The merge is the owner's go-ahead to retire this task worktree; the guarded recycle path
+    // still refuses while another session references it and keeps a recovery snapshot.
+    removeWorktree: async (sessionId) =>
+      (await import('../worktree/WorktreeManager.js')).removeWorktreeForSession(sessionId, { canRemove: async () => true }),
+  });
+  const worktreeSessionId = (payload: unknown): string =>
+    requireString(requireObject(payload, 'worktreeCouncil').sessionId, 'sessionId');
+
+  ipcMain.handle(WORKTREE_COUNCIL_INVOKE.STATUS, async (event, payload: unknown) => {
+    assertTrusted(event);
+    return worktreeCouncil.status(worktreeSessionId(payload));
+  });
+  ipcMain.handle(WORKTREE_COUNCIL_INVOKE.RUN, async (event, payload: unknown) => {
+    assertTrusted(event);
+    const auto = Boolean((payload as { auto?: unknown } | null)?.auto === true);
+    return worktreeCouncil.run(worktreeSessionId(payload), { auto });
+  });
+  ipcMain.handle(WORKTREE_COUNCIL_INVOKE.MERGE_CLEANUP, async (event, payload: unknown) => {
+    assertTrusted(event);
+    return worktreeCouncil.mergeAndCleanup(worktreeSessionId(payload));
   });
 }

@@ -5335,6 +5335,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('worktree:diff', sessionId),
   worktreeMerge: (sessionId: string): Promise<unknown> =>
     ipcRenderer.invoke('worktree:merge', sessionId),
+  /** ROADMAP 11.11: Council review of the task worktree and the gated merge + cleanup. */
+  worktreeCouncilStatus: (sessionId: string): Promise<unknown> =>
+    ipcRenderer.invoke('worktree:council-status', { sessionId }),
+  worktreeCouncilRun: (sessionId: string, auto = false): Promise<unknown> =>
+    ipcRenderer.invoke('worktree:council-run', { sessionId, auto }),
+  worktreeMergeCleanup: (sessionId: string): Promise<unknown> =>
+    ipcRenderer.invoke('worktree:merge-cleanup', { sessionId }),
   /** worktree 回收完成后，按实际受影响的 sessionId 增量更新 renderer 缓存。 */
   onWorktreeChanged: fanOutWorktreeChanged,
 

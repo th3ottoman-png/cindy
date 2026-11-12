@@ -62,6 +62,7 @@
     "./artifact-store": "./src/artifacts/artifact-store.ts",
     "./chat-inventory": "./src/session/chat-inventory.ts",
     "./turn-audit": "./src/session/turn-audit.ts",
+    "./worktree-council": "./src/session/worktree-council.ts",
     "./document-ingestion": "./src/research/document-ingestion.ts",
     "./deep-research-synthesis": "./src/research/deep-research-synthesis.ts",
     "./capability-pack": "./src/capabilities/capability-pack.ts",
