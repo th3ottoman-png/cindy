@@ -10,6 +10,14 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-12 (m) - 0.10 Docs consolidation: `unit-tested` (acceptance re-verified)
+
+- **Owner decision**: closed under the same "you decide" instruction as 0.4. A docs row has no runtime surface; its bar is "Files exist, old sections removed".
+- **Verified by reading (2026-11-12)**: `docs/cindy-master-plan.md` exists and opens with the "Historical." banner naming the superseding docs (`ROADMAP.md`/`HANDOVER.md`/`STATUS.md`/`AGENTS.md`); `~/Desktop/Cindy-Master-Plan.md` is gone; the split exists — `HANDOVER.md` (Purpose, Locations, Versions, Architecture, Running and checking, Hard constraints, Deliberately kept, Known traps, First 20 minutes), `STATUS.md` (log), `ROADMAP.md` (status); `HANDOVER.md` has no task-status sections left; the constraints are mirrored in `AGENTS.md` §0–7; `docs/README.md` indexes the tree.
+- **No code changed.** The docs contracts are machine-checked in `scripts/__tests__/dev-docs-contract.test.mjs` (documented pnpm commands exist, doc links resolve, AGENTS/CONTRIBUTING route to the canonical dev docs) and were re-run in `pnpm test:runner` on this tree.
+- **Gates for this docs-only commit (Node 22.23.4)**: `pnpm typecheck` 0; `pnpm test:runner` 0 (**611 tests: 609 pass, 2 skipped**); `pnpm check:test-hygiene` 0 (361 files); `pnpm test:unit:related` 0 on the same tree (the related plan ran the tier rather than skipping, exit 0).
+- **Open**: 1.13b, 1.13c.
+
 ## 2026-11-12 (l) - 0.4 Green gate: `unit-tested`, two gate defects fixed
 
 - **Owner decision**: asked whether `unit-tested` is 0.4's honest terminal label; the owner answered "you decide", so this row is closed `unit-tested` — its bar is "default gate set exits 0" and it has no runtime surface. The owner then asked for the remaining rows to be worked autonomously in order.
