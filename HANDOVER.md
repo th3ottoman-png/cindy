@@ -34,7 +34,7 @@ This is not a product. There is no marketing surface, no onboarding funnel, no o
 | Repo | `/Users/turko/=ai space=/=PROJECTS_MAIN=/Cindy` — path has spaces and `=`; **quote it**. macOS FS is case-insensitive, so older docs spelling it `=Projects_Main=` resolve to the same place |
 | Remote | private GitHub, `origin main`. Upstream remote `upstream` (strategy: see `docs/decisions/0001`) |
 | Dev app data | `~/Library/Application Support/CindyGlobal-dev2-private`; the isolated `…/CindyGlobal-dev2-dev` sandbox is what `restart:desktop:remote` uses |
-| Current handover | `docs/handoff/2026-11-12-phase11-session-handover.md` (Phase 11 live-proof session: 11.3 and 11.9 live-proven, 11.5 unit-tested, terminal coverage of 11.9 added; next: live-prove terminal path, then 11.6). It contains its own paste-ready next-agent prompt (§5). All older handover files are historical |
+| Current handover | `docs/handoff/2026-11-12-phase11-session-handover.md` (Phase 11 live-proof session: 11.3 and 11.9 live-proven incl. the 11.9 terminal-write path, 11.5 unit-tested; next: 11.6). It contains its own paste-ready next-agent prompt (§5). All older handover files are historical |
 | Owner vault note | `/Users/turko/Bishi-memory/memory/Project — Cindy.md` — append one dated line per session at the end |
 | Hermes home | **`~/.hermes-cindy`** — isolated. **`~/.hermes` is off-limits, always.** |
 | Hermes launcher | `~/.local/bin/hermes-cindy` (pins `HERMES_HOME`) |

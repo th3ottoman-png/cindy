@@ -10,6 +10,37 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-12 - 11.9 terminal-write path live proof: `live-proven` (auto-deny, no owner click)
+
+- **What was proven**: a fresh Hermes turn in Full access (`66261e6a-…-d5e3`, deepseek-flash,
+  dev app restarted on commit `9a700e2` so the daemon loads the new `risk-paths.ts`) was
+  instructed to make exactly one tool call — `terminal` running
+  `echo test >> ~/.cindy-harness/providers.yaml`, no read first, no retry. The in-page 150ms
+  watcher captured the amber Owner Review Card live at `2026-11-12T01:07:22Z`: title
+  "High-Risk System File", `border-[var(--warning-accent)] bg-[var(--warning-bg-soft)]`
+  (both amber booleans true), body "High-risk system file: ~/.cindy-harness/providers.yaml /
+  Blast radius: Harness configuration. - This file drives every later turn...".
+- **The write never ran**: the agent-side log records
+  `tool terminal completed (24.05s, 152 chars)` — the 24s `pre_tool_call` hook hold answering
+  while the card sat unclicked, so the call returned the hold text instead of executing. The
+  model's own final report confirms it: "The append did not run — it is waiting for the
+  owner's approval in Cindy, and per your instruction I did not retry it." `providers.yaml`
+  stayed byte-identical (sha `39768587…`, 986 bytes, mtime `Nov 11 23:08` — predates the
+  attempt; pre-attempt backup `providers.yaml.bak-20261112-termproof` taken).
+- **Caveats (honest gaps vs the `write_file` proof)**: no owner Deny click — the owner was
+  away, so the 24s hook hold auto-denied; no screenshot (card captured via watcher JSON
+  only); the pending-payload `toolName` was not recorded (`pending` was null at capture —
+  the DOM card outlived the hook answer). The tool attribution rests on: the prompt allowed
+  only the terminal call, the agent log names `tool terminal`, and the card names the exact
+  redirect target only the new `terminalCommandPaths` code extracts.
+- **Method notes**: trigger + watcher + state-probe scripts in `/tmp/proofs/`
+  (`11-9-terminal-trigger.js`, `-read-capture.js`, `-terminal-state.js`,
+  `-terminal-transcript*.js`, `-remote-history.js`, `-store-keys.js`); session transcript read
+  from the local SQLite DB (`messages` table) after the in-window history view came back empty.
+- **Labels**: 11.9 terminal path now `live-proven`; the row's remaining open item is only the
+  missing diff display on the card.
+- **Next**: ROADMAP 11.6 — Local Dev Service Supervisor.
+
 ## 2026-11-12 - 11.9 terminal coverage in the blast-radius pre-check (`unit-tested`)
 
 - **Owner decision**: terminal-tool writes to protected files must raise the same blast-radius
