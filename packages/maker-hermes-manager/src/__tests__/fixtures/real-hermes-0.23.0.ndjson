@@ -1,0 +1,7 @@
+{"type": "system", "subtype": "init", "model": "google/gemma-4-26b-a4b-qat", "session_id": "", "timestamp": 1794520374121}
+{"type": "tool_use", "name": "terminal", "tool_call_id": "call_REDACTED", "input": {"command": "echo parity-check"}, "timestamp": 1794520375347}
+{"type": "tool_result", "name": "terminal", "tool_call_id": "call_REDACTED", "output": "{\"output\": \"parity-check\", \"exit_code\": 0, \"error\": null}", "duration_ms": 178, "is_error": false, "timestamp": 1794520375526}
+{"type": "text", "text": "\n\nparity", "timestamp": 1794520375990}
+{"type": "text", "text": "-", "timestamp": 1794520375992}
+{"type": "text", "text": "check", "timestamp": 1794520375992}
+{"type": "result", "session_id": "local-REDACTED", "exit_code": 0, "text": "parity-check", "tokens": {"input": 23799, "output": 28, "total": 23827, "cache_read": 0, "cache_write": 0}, "duration_ms": 2320, "timestamp": 1794520376442}
