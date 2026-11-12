@@ -106,4 +106,27 @@ describe('chat-inventory', () => {
     expect(inv.tokens.totalTokens).toBe(5500);
     expect(inv.tokens.utilizationPercent).toBe(6);
   });
+
+  it('reads stored rows: JSON-text and object content never crash, tool_use rows count as calls', () => {
+    // Shapes seen live on a Hermes session (2026-11-12, e7d82825): the local DB keeps `content`
+    // as JSON text, and each tool call is its own `tool_use` row rather than `toolCalls`.
+    const messages = [
+      { role: 'user', content: JSON.stringify({ text: 'Plan it with @skill:code-review' }) },
+      { role: 'tool_use', content: JSON.stringify({ toolName: 'read_file', input: { path: 'docs/decisions/0001.md' } }) },
+      { role: 'tool_use', content: { name: 'search_files', input: { pattern: '*.md', path: '.' } } },
+      { role: 'tool_result', content: JSON.stringify({ output: '{"total_count": 2}' }) },
+      { role: 'assistant', content: { text: 'Plan ready.' } },
+      { role: 'assistant', content: [{ type: 'text', text: 'Also see @skill:git-workflow' }] },
+    ] as unknown as InventoryMessageInput[];
+
+    const inv = aggregateChatInventory(session, messages);
+    expect(inv.skills).toEqual(['code-review', 'git-workflow']);
+    expect(inv.tools.map((t) => [t.name, t.count, t.category])).toEqual([
+      ['read_file', 1, 'file'],
+      ['search_files', 1, 'file'],
+    ]);
+    expect(inv.summary.totalToolCalls).toBe(2);
+    expect(inv.files).toEqual([{ path: 'docs/decisions/0001.md', name: '0001.md', action: 'read', count: 1 }]);
+    expect(inv.summary.turnCount).toBe(1);
+  });
 });

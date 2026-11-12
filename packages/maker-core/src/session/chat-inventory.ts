@@ -51,8 +51,9 @@ export interface ChatInventory {
 
 export interface InventoryMessageInput {
   role: string;
-  content?: string;
-  text?: string;
+  /** Live messages carry a string; stored rows carry JSON text, an object or content blocks. */
+  content?: unknown;
+  text?: unknown;
   toolName?: string;
   toolInput?: unknown;
   toolUseId?: string;
@@ -114,6 +115,8 @@ function extractFilePathFromToolInput(input: unknown): { path: string; action: '
 
   if (typeof candidate !== 'string' || !candidate.trim()) return null;
   const p = candidate.trim().replace(/^file:\/\//, '');
+  // A search rooted at the workspace (`path: "."`) is not a file the session touched.
+  if (p === '.' || p === './') return null;
 
   if (obj.replacementContent || obj.patch || obj.edits) {
     return { path: p, action: 'modified' };
@@ -122,6 +125,53 @@ function extractFilePathFromToolInput(input: unknown): { path: string; action: '
     return { path: p, action: 'created' };
   }
   return { path: p, action: 'read' };
+}
+
+/** Plain text of a message whatever shape it was stored in (mirrors session-markdown's reader). */
+function contentText(value: unknown): string {
+  if (typeof value === 'string') {
+    if (value.startsWith('{') || value.startsWith('[')) {
+      try {
+        return contentText(JSON.parse(value) as unknown);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((block) =>
+        block && typeof block === 'object' && typeof (block as Record<string, unknown>).text === 'string'
+          ? ((block as Record<string, unknown>).text as string)
+          : '',
+      )
+      .filter(Boolean)
+      .join('\n');
+  }
+  if (value && typeof value === 'object') {
+    const r = value as Record<string, unknown>;
+    for (const key of ['text', 'message', 'content'] as const) {
+      if (typeof r[key] === 'string') return r[key] as string;
+    }
+  }
+  return '';
+}
+
+/** A stored `tool_use` row: `{toolName|name, input}` as JSON text or an object. */
+function storedToolCall(content: unknown): { name: string; input?: unknown } | null {
+  let value = content;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value) as unknown;
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== 'object') return null;
+  const r = value as Record<string, unknown>;
+  const name = typeof r.toolName === 'string' ? r.toolName : typeof r.name === 'string' ? r.name : '';
+  return name ? { name, input: r.input } : null;
 }
 
 const FILE_REGEX = /(?:^|\s|["'`])([a-zA-Z0-9_\-./]+\.[a-zA-Z0-9_-]{1,10})(?::\d+)?(?:["'`]|\s|$)/g;
@@ -155,7 +205,9 @@ export function aggregateChatInventory(
       if (typeof msg.usage.output_tokens === 'number') completionTokens += msg.usage.output_tokens;
     }
 
-    const text = msg.content || msg.text || '';
+    // Tool rows describe a call or its output, not prose: no skill/file mining from them.
+    const isToolRow = msg.role === 'tool_use' || msg.role === 'tool_result';
+    const text = isToolRow ? '' : contentText(msg.content) || contentText(msg.text);
 
     // Skills detection from turn-scoped `@skill:` or `@<slug>`
     if (text) {
@@ -171,6 +223,9 @@ export function aggregateChatInventory(
       calls.push(...msg.toolCalls);
     } else if (msg.toolName) {
       calls.push({ name: msg.toolName, input: msg.toolInput });
+    } else if (msg.role === 'tool_use') {
+      const stored = storedToolCall(msg.content);
+      if (stored) calls.push(stored);
     }
 
     for (const call of calls) {
