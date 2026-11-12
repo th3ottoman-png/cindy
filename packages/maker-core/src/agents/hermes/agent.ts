@@ -369,6 +369,11 @@ export class HermesAgent extends BaseAgent {
     // toolsets lock. It only ever *removes* capability, so it can never widen a lock.
     const resolveHermesChatOnly = this.deps.resolveHermesChatOnly;
     const chatOnly = Boolean(resolveHermesChatOnly && opts.sessionId && resolveHermesChatOnly(opts.sessionId));
+    // ROADMAP 11.7: Plan First lock rides the same path — launch and every turn.
+    const resolveHermesPlanFirstLocked = this.deps.resolveHermesPlanFirstLocked;
+    const planFirstLocked = Boolean(
+      resolveHermesPlanFirstLocked && opts.sessionId && resolveHermesPlanFirstLocked(opts.sessionId),
+    );
     let toolsets: string[] | null = null;
     if (this.deps.resolveHermesToolsets && opts.sessionId) {
       try {
@@ -439,6 +444,7 @@ export class HermesAgent extends BaseAgent {
           ...(opts.vendorOptions?.orcaRole === 'worker' ? { maxTurns: HERMES_ORCA_WORKER_MAX_TURNS } : {}),
           ...(toolsets ? { toolsets } : {}),
           ...(chatOnly ? { chatOnly: true } : {}),
+          ...(planFirstLocked ? { planFirstLocked: true } : {}),
           ...(expertSkillsDir ? { expertSkillsDir } : {}),
           // Provider keys ride per-session env (the daemon's own env is
           // deliberately secret-free). Hermes reads provider credentials from
@@ -1039,6 +1045,8 @@ export class HermesAgent extends BaseAgent {
     const resolveExpertPreamble = this.deps.resolveHermesExpertPreamble;
     // ROADMAP 10.3: the handle's `send` re-reads this per turn so a toggle mid-session lands.
     const resolveChatOnlyForTurn = this.deps.resolveHermesChatOnly;
+    // ROADMAP 11.7: same per-turn re-read for the Plan First lock.
+    const resolvePlanFirstForTurn = this.deps.resolveHermesPlanFirstLocked;
     // The current Cindy model id ('hermes-default' sentinel or an override).
     // Session.model reads it and expects it to follow successful switches.
     let currentModel = input.model;
@@ -1106,7 +1114,17 @@ export class HermesAgent extends BaseAgent {
           const chatOnlyNow = Boolean(
             input.cindySessionId && resolveChatOnlyForTurn?.(input.cindySessionId),
           );
-          await transport.request(HERMES_METHODS.QUERY_SEND, { sessionId, text, chatOnly: chatOnlyNow });
+          // ROADMAP 11.7: same per-turn re-read for the Plan First lock — deciding unlocks
+          // the very next turn without a restart.
+          const planFirstLockedNow = Boolean(
+            input.cindySessionId && resolvePlanFirstForTurn?.(input.cindySessionId),
+          );
+          await transport.request(HERMES_METHODS.QUERY_SEND, {
+            sessionId,
+            text,
+            chatOnly: chatOnlyNow,
+            planFirstLocked: planFirstLockedNow,
+          });
           expertPreamblePending = false;
           if (orcaPreambleToSend) lastSentOrcaPreamble = orcaPreambleToSend;
         } catch (error) {

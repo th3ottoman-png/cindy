@@ -788,6 +788,13 @@ export interface AgentDeps {
   resolveHermesChatOnly?: (sessionId: string) => boolean;
 
   /**
+   * ROADMAP 11.7: true when this session's Plan First lock is on — file-writing tools stay
+   * locked until the owner decides. Read synchronously at launch and every turn (mirrors
+   * `resolveHermesChatOnly`), so a decided session unlocks without a restart.
+   */
+  resolveHermesPlanFirstLocked?: (sessionId: string) => boolean;
+
+  /**
    * Hermes-only (ROADMAP 3.2): directory containing the expert's skills (if any) to link into
    * the per-session HERMES_HOME/skills.
    */

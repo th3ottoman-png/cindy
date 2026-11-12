@@ -12801,6 +12801,16 @@
       "offToast": "Tools restored for this session",
       "failed": "Could not change chat-only mode"
     },
+    "planFirst": {
+      "label": "Plan First",
+      "hint": "Plan First: the model asks before building",
+      "locked": "locked",
+      "lockedHint": "Plan First is on: writes locked until you decide",
+      "decided": "Decided — building with your choices.",
+      "sending": "Proceeding…",
+      "proceed": "Proceed to Build",
+      "failed": "Could not proceed — try again."
+    },
     "turnUsage": {
       "title": "This turn",
       "input": "Input",

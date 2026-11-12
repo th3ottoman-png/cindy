@@ -942,6 +942,7 @@ import { SessionExportHost, registerSessionExportHandlers } from './sessionExpor
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
 import { SecurityGuardHost, registerSecurityGuardHandlers } from './securityGuard.js';
 import { getDesktopChatOnlyHost, registerChatOnlyHandlers, type ChatOnlyHost } from './chatOnly.js';
+import { getDesktopPlanFirstHost, registerPlanFirstHandlers, type PlanFirstHost } from './planFirst.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
 import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
 import { registerProjectCreateHandlers } from './projectCreate.js';
@@ -2583,6 +2584,11 @@ let chatAutosaveHolder: ChatAutosaveHost | null = null;
  * (`resolveHermesChatOnly`) can read it synchronously while a turn is being assembled.
  */
 let chatOnlyHolder: ChatOnlyHost | null = null;
+/**
+ * ROADMAP 11.7: Plan First lock owner. Held at module level so the Hermes launch/send hook
+ * (`resolveHermesPlanFirstLocked`) can read it synchronously while a turn is being assembled.
+ */
+let planFirstHolder: PlanFirstHost | null = null;
 // ROADMAP 5.6: set in registerMakerIpc; read at every turn end and on session close.
 let chatSummaryHolder: ChatSummaryHost | null = null;
 
@@ -25895,6 +25901,20 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     channels: { GET: MAKER_INVOKE.CHAT_ONLY_GET, SET: MAKER_INVOKE.CHAT_ONLY_SET },
     // No daemon call here on purpose: the daemon keys sessions by the maker session id, so the
     // flag travels with every turn instead (see QUERY_SEND.chatOnly).
+  });
+
+  // ── Plan First sessions (ROADMAP 11.7) ───────────────────────────────────
+  // Same shape as chat-only above: the desktop owns the lock file (a synchronous read is needed
+  // while a turn is assembled); the daemon learns the lock from every turn (QUERY_START/SEND).
+  planFirstHolder = getDesktopPlanFirstHost();
+  registerPlanFirstHandlers(createElectronIpcHandlerRegistry(), {
+    host: planFirstHolder,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    channels: {
+      GET: MAKER_INVOKE.PLAN_FIRST_GET,
+      SET: MAKER_INVOKE.PLAN_FIRST_SET,
+      DECIDE: MAKER_INVOKE.PLAN_FIRST_DECIDE,
+    },
   });
 
   // ── Injection guard settings (ROADMAP 10.1) ────────────────────────────

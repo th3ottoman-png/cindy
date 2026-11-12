@@ -110,6 +110,10 @@ export const MAKER_INVOKE = {
   /** ROADMAP 10.1: injection-guard settings (~/.cindy-harness/security.json). */
   CHAT_ONLY_GET: 'maker:chat-only:get',
   CHAT_ONLY_SET: 'maker:chat-only:set',
+  /** ROADMAP 11.7: Plan First state (~/.cindy-harness/plan-first-sessions.json). */
+  PLAN_FIRST_GET: 'maker:plan-first:get',
+  PLAN_FIRST_SET: 'maker:plan-first:set',
+  PLAN_FIRST_DECIDE: 'maker:plan-first:decide',
   SECURITY_GUARD_GET_CONFIG: 'maker:security-guard:get-config',
   SECURITY_GUARD_SET_CONFIG: 'maker:security-guard:set-config',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */

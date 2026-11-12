@@ -5825,6 +5825,16 @@ interface ElectronAPI {
       set: (params: { sessionId: string; chatOnly: boolean; model?: string }) =>
         Promise<import('../main/maker-ipc/chatOnly').ChatOnlyView>;
     };
+    /** ROADMAP 11.7: Plan First sessions (file writes locked until the owner decides). */
+    planFirst: {
+      get: (params: { sessionId: string }) => Promise<import('../main/maker-ipc/planFirst').PlanFirstView>;
+      set: (params: { sessionId: string; planFirst: boolean }) =>
+        Promise<import('../main/maker-ipc/planFirst').PlanFirstView>;
+      decide: (params: {
+        sessionId: string;
+        decisions: import('../main/maker-ipc/planFirst').PlanFirstDecision[];
+      }) => Promise<import('../main/maker-ipc/planFirst').PlanFirstView>;
+    };
     securityGuard: {
       /** ROADMAP 10.1: injection-guard settings (~/.cindy-harness/security.json). */
       getConfig: () => Promise<import('../main/maker-ipc/securityGuard').SecurityGuardView>;

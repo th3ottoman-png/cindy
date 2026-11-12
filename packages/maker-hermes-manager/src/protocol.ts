@@ -210,6 +210,12 @@ export interface HermesQueryStartParams {
    * `model`, because Hermes refuses `--safe-mode` without an explicit one.
    */
   chatOnly?: boolean;
+  /**
+   * ROADMAP 11.7 Plan First: this session's file-writing tools stay locked until the owner
+   * answers the decision cards (or Proceeds to Build). Travels at start so a resumed session
+   * cannot silently regain writes; refreshed every turn like `chatOnly` (see QUERY_SEND).
+   */
+  planFirstLocked?: boolean;
 }
 
 export interface HermesQueryStartResult {
@@ -230,6 +236,12 @@ export interface HermesQuerySendParams {
    * Cindy's — a one-off toggle RPC cannot find it reliably.
    */
   chatOnly?: boolean;
+  /**
+   * ROADMAP 11.7: Plan First lock for *this* turn. Sent every turn because the owner can
+   * decide mid-session, and because the daemon's record is keyed by the maker session id —
+   * same reasoning as `chatOnly` above.
+   */
+  planFirstLocked?: boolean;
   /** The user turn text, passed to Hermes via stdin (`--query-file -`). */
   text: string;
   /**

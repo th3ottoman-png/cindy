@@ -100,6 +100,7 @@ import { isAppUpdateOwnerTurn } from '../agent-app-update/callerAuthority.js';
 import { markKnownOrcaWorkerSession } from '../maker-ipc/orcaManualInterrupt.js';
 import { createRouteMatcher, getDesktopExpertSessionStore } from '../maker-ipc/expertSessions.js';
 import { getDesktopChatOnlyHost } from '../maker-ipc/chatOnly.js';
+import { getDesktopPlanFirstHost } from '../maker-ipc/planFirst.js';
 import { resolveModelRoute } from '@cindy/maker-core/model-route-resolver';
 import { markOrcaMcpHydratedIfNeeded } from '../maker-ipc/orcaMcpHydrationCache.js';
 import { preparePersistedOrcaSessionStart, renderOrcaInstructionsFor } from '../maker-ipc/orcaSessionStartOptions.js';
@@ -2944,6 +2945,8 @@ export function getMaker(): Maker {
         // ROADMAP 10.3: conversation-only sessions launch with `--safe-mode`. The flag file is
         // re-read on every launch, so a restart, a crash or a resume all obey it.
         resolveHermesChatOnly: (sessionId) => getDesktopChatOnlyHost().isChatOnly(sessionId),
+        // ROADMAP 11.7: Plan First lock re-read on every launch and turn; deciding unlocks without a restart.
+        resolveHermesPlanFirstLocked: (sessionId) => getDesktopPlanFirstHost().isLocked(sessionId),
         // ROADMAP 3.2: expert's skills/ directory linked into per-session HERMES_HOME/skills
         resolveHermesExpertSkillsDir: (sessionId) =>
           getDesktopExpertSessionStore().expertSkillsDir(sessionId, { includePending: true }),

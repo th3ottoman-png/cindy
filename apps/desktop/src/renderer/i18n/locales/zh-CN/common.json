@@ -12743,6 +12743,16 @@
       "offToast": "已恢复本会话的工具",
       "failed": "无法切换仅对话模式"
     },
+    "planFirst": {
+      "label": "先规划",
+      "hint": "先规划:模型在构建前先提问",
+      "locked": "已锁定",
+      "lockedHint": "先规划已开启:在您决定之前写入已锁定",
+      "decided": "已决定 — 将按您的选择构建。",
+      "sending": "正在继续…",
+      "proceed": "继续构建",
+      "failed": "无法继续 — 请重试。"
+    },
     "turnUsage": {
       "title": "本轮",
       "input": "输入",

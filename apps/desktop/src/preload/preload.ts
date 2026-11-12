@@ -6630,6 +6630,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }): Promise<import('../main/maker-ipc/chatOnly').ChatOnlyView> =>
         ipcRenderer.invoke('maker:chat-only:set', params),
     },
+    /** ROADMAP 11.7: Plan First sessions (file writes locked until the owner decides). */
+    planFirst: {
+      get: (params: { sessionId: string }): Promise<import('../main/maker-ipc/planFirst').PlanFirstView> =>
+        ipcRenderer.invoke('maker:plan-first:get', params),
+      set: (params: { sessionId: string; planFirst: boolean }): Promise<import('../main/maker-ipc/planFirst').PlanFirstView> =>
+        ipcRenderer.invoke('maker:plan-first:set', params),
+      decide: (params: {
+        sessionId: string;
+        decisions: import('../main/maker-ipc/planFirst').PlanFirstDecision[];
+      }): Promise<import('../main/maker-ipc/planFirst').PlanFirstView> =>
+        ipcRenderer.invoke('maker:plan-first:decide', params),
+    },
     securityGuard: {
       getConfig: (): Promise<import('../main/maker-ipc/securityGuard').SecurityGuardView> =>
         ipcRenderer.invoke('maker:security-guard:get-config'),

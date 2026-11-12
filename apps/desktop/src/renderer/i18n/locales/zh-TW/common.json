@@ -12743,6 +12743,16 @@
       "offToast": "已恢復本工作階段的工具",
       "failed": "無法切換僅對話模式"
     },
+    "planFirst": {
+      "label": "先規劃",
+      "hint": "先規劃:模型在建構前先提問",
+      "locked": "已鎖定",
+      "lockedHint": "先規劃已開啟:在您決定之前寫入已鎖定",
+      "decided": "已決定 — 將按您的選擇建構。",
+      "sending": "正在繼續…",
+      "proceed": "繼續建構",
+      "failed": "無法繼續 — 請重試。"
+    },
     "turnUsage": {
       "title": "本輪",
       "input": "輸入",

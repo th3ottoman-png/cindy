@@ -52,6 +52,11 @@ export interface HermesSessionRecord {
    * plugins, no user config). Persisted so a resumed Cindy session cannot silently regain tools.
    */
   chatOnly?: boolean;
+  /**
+   * ROADMAP 11.7 Plan First: file-writing tools stay locked until the owner decides.
+   * Persisted so a resumed session cannot silently regain writes.
+   */
+  planFirstLocked?: boolean;
   /** Extra skills directory from expert (ROADMAP 3.2). */
   expertSkillsDir?: string;
   lastSeq: number;

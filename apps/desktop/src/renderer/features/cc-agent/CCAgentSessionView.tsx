@@ -171,6 +171,7 @@ import { SessionContextGuardBanner } from './SessionContextGuardBanner';
 import { LongRunningTurnTimeline } from './LongRunningTurnTimeline';
 import { SessionManifestStrip } from '@/components/session-manifest/SessionManifestStrip';
 import { ChatOnlyToggle } from '@/components/chat/ChatOnlyToggle';
+import { PlanFirstToggle } from '@/components/chat/PlanFirstToggle';
 import { WorktreeMergeStrip } from '../worktree/WorktreeMergeStrip';
 import { Tip } from '@/components/ui/tooltip';
 import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
@@ -5493,6 +5494,8 @@ function CCAgentSessionContent({
           <div className="flex items-center justify-end gap-2 px-3 pb-1">
             {/* ROADMAP 10.3: conversation-only mode, stated in the header (not a hidden setting). */}
             <ChatOnlyToggle sessionId={session.id} model={session.model} />
+            {/* ROADMAP 11.7: Plan First interrogation lock, same header strip. */}
+            <PlanFirstToggle sessionId={session.id} />
           </div>
         )}
         {ownsRoute && session?.agentKind === 'hermes' && (

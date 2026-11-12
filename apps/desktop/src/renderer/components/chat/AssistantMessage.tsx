@@ -68,6 +68,8 @@ import { buildSessionMessageDeepLink } from '@/lib/deepLink';
 import { getStickySessionDeviceId } from '@/features/device-link/stickySessionOrigin';
 import { insertSessionLinkIntoComposer } from '@/lib/composerActionsBus';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { DecisionCards } from './DecisionCards';
+import { parseDecisionBlocks } from '@/lib/decisionCards';
 import { BubbleHoverToolbar, MessageActionBar } from './MessageActionBar';
 import { shareSelectionStore } from './shareSelectionStore';
 import { useForkAtMessage } from './useForkAtMessage';
@@ -344,6 +346,9 @@ export const AssistantMessage = memo(function AssistantMessage({
   // /goal:隐藏助手输出末尾由 goal 协议要求模型吐出的裁决 JSON 块(仅显示层剥离,
   // 原文仍保留在 DB / transcript)。pattern:末尾的 ```json {...goal_status...} ``` 围栏块。
   const displayContent = stripStarterOptionList(stripGoalVerdictBlock(content), botStarterOptions ?? []);
+  // ROADMAP 11.7 Plan First:模型在锁定期用 ```cindy-decisions 围栏返回待选架构
+  // 决策 —— 剥离出显示文本(原文仍保留在 DB),解析出的决策渲染成交互式卡片。
+  const planParsed = useMemo(() => parseDecisionBlocks(displayContent), [displayContent]);
   const streamFadeKey = messageClientId
     ? `${currentSessionId ?? ''}\u0000${messageClientId}`
     : undefined;
@@ -435,7 +440,7 @@ export const AssistantMessage = memo(function AssistantMessage({
         ) : isStreaming && USE_LINE_COMMIT_STREAMING && !hasRichAnswer(content) ? (
           <StreamingBody
             workingDir={workingDir}
-            content={displayContent}
+            content={planParsed.cleanedText}
             localFileRefs={localFileRefs}
             currentSessionId={currentSessionId}
             currentSessionTitle={currentSessionTitle}
@@ -449,7 +454,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           <MarkdownRenderer
             renderRichAnswers
             workingDir={workingDir}
-            content={displayContent}
+            content={planParsed.cleanedText}
             isStreaming={isStreaming}
             streamFadeKey={streamFadeKey}
             localFileRefs={localFileRefs}
@@ -494,6 +499,12 @@ export const AssistantMessage = memo(function AssistantMessage({
         )}
         {botBubble && actionBar && <BubbleHoverToolbar side="right">{actionBar}</BubbleHoverToolbar>}
       </div>
+      {/* ROADMAP 11.7:决策卡挂在气泡下方(与 BotStarterOptions 同列)。原文仍保留
+          在 DB,显示层只渲染解析出的卡片;发送走 SessionQuickSend(无 send path
+          的表面不挂载,由 DecisionCards 自行返回 null)。 */}
+      {!isStreaming && planParsed.decisions.length > 0 && currentSessionId ? (
+        <DecisionCards sessionId={currentSessionId} decisions={planParsed.decisions} />
+      ) : null}
       {dmThread?.thread && !isStreaming ? (
         <BotDmThreadPreview thread={dmThread.thread} bot={dmThread.bot} unread={dmThread.unread} onOpen={dmThread.open} />
       ) : null}

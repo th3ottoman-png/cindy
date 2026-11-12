@@ -29,7 +29,8 @@ import {
   loadGuardrailsConfig,
   type GuardrailsConfig,
 } from './guardrails.js';
-import { blastRadiusReason, classifyToolCallRisk } from './risk-paths.js';
+import { blastRadiusReason, classifyToolCallRisk, toolCallPaths } from './risk-paths.js';
+import { applyPlanFirstInstruction, PLAN_FIRST_LOCK_REASON } from './plan-first.js';
 import type { GuardConfig } from '@cindy/maker-core/injection-guard';
 import { activateSkill, buildDiscoveryCatalog, renderDiscoveryManifest } from '@cindy/maker-core/progressive-skills';
 import {
@@ -310,6 +311,13 @@ export class HermesManager {
     sessionId: string,
     payload: { toolName: string; toolInput: unknown; toolCallId?: string },
   ): Promise<AutoReviewVerdict> {
+    // ROADMAP 11.7 Plan First: file writes stay locked until the owner answers the decision
+    // cards or Proceeds to Build. Blocked directly — no owner card, because the decision UI
+    // (not a per-call approval) is where this gets resolved. Reads pass through untouched.
+    const planRec = this.registry.get(sessionId);
+    if (planRec?.planFirstLocked === true && toolCallPaths(payload).length > 0) {
+      return { decision: 'block', reason: PLAN_FIRST_LOCK_REASON };
+    }
     // ROADMAP 11.3: deterministic denylist first. No model, no network. A match blocks the call
     // before the injection score or any review runs; the owner still gets the override card.
     const guardrail = evaluateToolCallGuardrail(payload, await this.guardrailsConfig());
@@ -622,6 +630,7 @@ export class HermesManager {
         ...(p.maxTurns !== undefined ? { maxTurns: p.maxTurns } : {}),
         ...(p.toolsets ? { toolsets: [...p.toolsets] } : {}),
         ...(p.chatOnly === true ? { chatOnly: true } : {}),
+        ...(p.planFirstLocked === true ? { planFirstLocked: true } : {}),
         ...(p.expertSkillsDir ? { expertSkillsDir: p.expertSkillsDir } : {}),
       });
       if (!created) {
@@ -677,6 +686,16 @@ export class HermesManager {
         rec.launch = undefined;
       }
 
+      // ROADMAP 11.7: the Plan First lock rides every turn like chat-only above — the
+      // owner decides mid-session, and the daemon's record (not a one-off RPC) is the source
+      // the tool-call gate reads. Unlike chat-only it changes no argv, so no rebind is needed.
+      if (typeof p.planFirstLocked === 'boolean' && p.planFirstLocked !== Boolean(rec.planFirstLocked)) {
+        this.registry.update(rec.sessionId, { planFirstLocked: p.planFirstLocked });
+        rec.planFirstLocked = p.planFirstLocked;
+      }
+      const planFirstForTurn =
+        typeof p.planFirstLocked === 'boolean' ? p.planFirstLocked : Boolean(rec.planFirstLocked);
+
       // ROADMAP 10.3: `-t ''` is measured behaviour, not a documented contract, so chat-only is
       // refused (closed) on a CLI the measurement does not cover. Refusing is the safe side: the
       // alternative is a "no tools" session that quietly has tools.
@@ -726,6 +745,10 @@ export class HermesManager {
           }
         }
       }
+
+      // ROADMAP 11.7: a locked turn is for planning only. The instruction rides in-band
+      // (Hermes chat has no system-prompt flag); the owner's text stays byte-identical below it.
+      if (planFirstForTurn) turnText = applyPlanFirstInstruction(turnText);
 
       // The preamble rides only the session's first turn.
       let preamble = rec.preamble ?? this.defaultPreamble;
