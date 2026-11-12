@@ -182,4 +182,32 @@ describe('SessionHandoffHost.buildCleanSlateHandoff (ROADMAP 11.5)', () => {
     expect(res.prompt).toContain('No uncommitted changes.');
     expect(res.prompt).toContain('The daemon owns config.yaml writes.');
   });
+  it('decodes stored {text, images, files} user content to its text (live 2026-11-12)', async () => {
+    const userText =
+      'Step 2, do NOT do it now, it is pending for later: append the line beta to notes.txt.';
+    for (const content of [
+      { text: userText, images: [], files: [] },
+      JSON.stringify({ text: userText, images: [], files: [] }),
+    ]) {
+      const host = new SessionHandoffHost({
+        getSessionRow: vi.fn().mockResolvedValue({
+          id: 'sess-obj',
+          title: 'Object content',
+          workingDir: '/workspace/cindy',
+          model: 'hermes-default',
+        }),
+        listMessages: vi.fn().mockResolvedValue([
+          { role: 'user', content },
+          { role: 'tool_use', content: { name: 'read_file', input: { path: 'notes.txt' } } },
+          { role: 'assistant', content: 'step 1 done, next step: append beta to notes.txt' },
+        ]),
+        gatherGitState: async () => ({ gitDiff: '', modifiedFiles: [] }),
+      });
+      const res = await host.buildCleanSlateHandoff('sess-obj');
+      expect(res.ok).toBe(true);
+      expect(res.prompt).toContain('append the line beta to notes.txt.');
+      expect(res.prompt).not.toContain('"images"');
+      expect(res.prompt).not.toContain('"files"');
+    }
+  });
 });

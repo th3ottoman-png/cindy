@@ -16,6 +16,31 @@ import {
 } from '@cindy/maker-core/session-handoff';
 import { MAKER_INVOKE } from './channels';
 
+/**
+ * Stored user/assistant rows carry `{ text, images, files }` (as an object or as JSON
+ * text). Their prose is `text`; stringifying the wrapper leaked `","images":[]…` into
+ * the handoff's pending steps (live proof 2026-11-12). Tool rows keep the JSON form.
+ */
+function storedContentText(role: unknown, content: unknown): string | undefined {
+  let value = content;
+  if (
+    (role === 'user' || role === 'assistant') &&
+    typeof value === 'string' &&
+    value.startsWith('{')
+  ) {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return content as string;
+    }
+  }
+  if (typeof value === 'string') return value;
+  if (typeof value !== 'object' || value === null) return undefined;
+  const text = (value as { text?: unknown }).text;
+  if ((role === 'user' || role === 'assistant') && typeof text === 'string') return text;
+  return typeof content === 'string' ? content : JSON.stringify(value);
+}
+
 export interface StoredSessionInfo {
   id?: string;
   title?: string | null;
@@ -206,10 +231,7 @@ export class SessionHandoffHost {
       // The extraction helpers expect string text; normalise here.
       const messages: HandoffMessage[] = rawMessages.map((m) => ({
         role: m.role,
-        content: typeof m.content === 'string' ? m.content
-          : typeof m.content === 'object' && m.content !== null
-            ? JSON.stringify(m.content)
-            : undefined,
+        content: storedContentText(m.role, m.content),
         text: typeof m.text === 'string' ? m.text : undefined,
       }));
       const [synthesis, tree] = await Promise.all([
