@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 
 import { SessionManifestStrip } from '../SessionManifestStrip';
@@ -36,6 +36,8 @@ const mockApi = {
       getConfig: vi.fn(),
       pinNote: vi.fn(),
       onPinnedChanged: vi.fn(),
+      getSessionAdrs: vi.fn(),
+      onSessionAdrsChanged: vi.fn(),
     },
   },
 };
@@ -102,6 +104,8 @@ function defaultData() {
   mockApi.maker.vault.getConfig.mockResolvedValue({ vaultDir: '/vault', noteCount: 1 });
   mockApi.maker.vault.pinNote.mockResolvedValue({ ok: true, pinnedNotes: [] });
   mockApi.maker.vault.onPinnedChanged.mockReturnValue(() => undefined);
+  mockApi.maker.vault.getSessionAdrs.mockResolvedValue({ adrs: [] });
+  mockApi.maker.vault.onSessionAdrsChanged.mockReturnValue(() => undefined);
 }
 
 function LocationProbe() {
@@ -286,6 +290,32 @@ describe('SessionManifestStrip', () => {
     expect(screen.getByTestId('manifest-provenance').textContent).toContain(
       'Nothing of this kind is active',
     );
+  });
+
+  it('refreshes the adr chip when the first send records matched ADRs', async () => {
+    render(<Harness />);
+    await waitFor(() => expect(screen.queryByTestId('manifest-loading')).toBeNull());
+    const adrChip = () => chips().find((chip) => chip.getAttribute('data-kind') === 'adr');
+    expect(adrChip()?.getAttribute('data-count') ?? '0').toBe('0');
+
+    mockApi.maker.vault.getSessionAdrs.mockResolvedValue({
+      workspaceDir: '/repo',
+      adrs: [
+        {
+          title: 'Use SQLite for the session store',
+          path: 'docs/decisions/0001-use-sqlite.md',
+          source: 'repo',
+          status: 'Accepted',
+        },
+      ],
+    });
+    const listener = mockApi.maker.vault.onSessionAdrsChanged.mock.calls[0]?.[0] as
+      | ((payload: { sessionId: string }) => void)
+      | undefined;
+    expect(listener).toBeTypeOf('function');
+    act(() => listener?.({ sessionId: 'other-session' }));
+    act(() => listener?.({ sessionId: 'session-1' }));
+    await waitFor(() => expect(adrChip()?.getAttribute('data-count')).toBe('1'));
   });
 
   it('pins queued notes onto a different session view', async () => {

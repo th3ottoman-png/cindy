@@ -804,6 +804,7 @@ const fanOutMakerMcpCatalogChanged = createIpcFanOut('maker:mcp-catalog:changed'
 const fanOutMakerSkillsChanged = createIpcFanOut('maker:skills:changed');
 const fanOutMakerVaultChanged = createIpcFanOut('maker:vault:changed');
 const fanOutMakerVaultPinnedChanged = createIpcFanOut('maker:vault:pinned-changed');
+const fanOutMakerVaultSessionAdrsChanged = createIpcFanOut('maker:vault:session-adrs-changed');
 const fanOutMakerChatAutosaveFailed = createIpcFanOut('maker:chat-autosave:failed');
 const fanOutMakerChatSummaryWritten = createIpcFanOut('maker:chat-summary:written');
 const fanOutMakerChatSummaryFailed = createIpcFanOut('maker:chat-summary:failed');
@@ -6485,6 +6486,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }> => ipcRenderer.invoke('maker:vault:git-sync-apply', opts),
       onChanged: fanOutMakerVaultChanged,
       onPinnedChanged: fanOutMakerVaultPinnedChanged,
+      onSessionAdrsChanged: fanOutMakerVaultSessionAdrsChanged,
     },
     library: {
       /** ROADMAP 8.5: one local index over vault notes, chat transcripts and summaries. */

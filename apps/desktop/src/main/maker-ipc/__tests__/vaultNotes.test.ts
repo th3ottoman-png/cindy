@@ -98,6 +98,25 @@ describe('VaultNotesHost relevant ADRs (ROADMAP 11.8)', () => {
     }
   });
 
+  it('notifies once the session record is written, so the manifest strip can refresh', () => {
+    const notifySessionAdrsChanged = vi.fn();
+    const sessionAdrsFile = path.join(dir, 'session-adrs.json');
+    const host = new VaultNotesHost({
+      configFile,
+      pinnedNotesConfigFile,
+      sessionAdrsFile,
+      notifySessionAdrsChanged,
+    });
+    try {
+      host.resolveRelevantAdrsPreamble({ sessionId: 'sess-3', prompt: 'Write a haiku' });
+      expect(notifySessionAdrsChanged).toHaveBeenCalledTimes(1);
+      expect(notifySessionAdrsChanged).toHaveBeenCalledWith('sess-3');
+      expect(fs.existsSync(sessionAdrsFile)).toBe(true);
+    } finally {
+      host.close();
+    }
+  });
+
   it('fails open: an unwritable record file never throws into the turn', () => {
     const blocker = path.join(dir, 'blocker');
     fs.writeFileSync(blocker, 'x');

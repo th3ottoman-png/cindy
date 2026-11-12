@@ -75,6 +75,8 @@ export interface VaultNotesHostDeps {
   embedder?: EmbeddingClient;
   showOpenDialog?: (options: { properties: ('openDirectory' | 'createDirectory')[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   notifyChanged?: () => void;
+  /** ROADMAP 11.8: a session's injected-ADR record was written, so the manifest strip can refresh. */
+  notifySessionAdrsChanged?: (sessionId: string) => void;
   watchDebounceMs?: number;
   gitExecFn?: typeof gitExec;
 }
@@ -104,6 +106,7 @@ export class VaultNotesHost {
   private readonly embedder?: EmbeddingClient;
   private readonly showOpenDialog?: (options: { properties: ('openDirectory' | 'createDirectory')[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   private readonly notifyChanged?: () => void;
+  private readonly notifySessionAdrsChanged?: (sessionId: string) => void;
   private readonly watchDebounceMs: number;
   private readonly gitExecFn?: typeof gitExec;
   private watcher: VaultWatcher | null = null;
@@ -125,6 +128,7 @@ export class VaultNotesHost {
     this.embedder = deps.embedder;
     this.showOpenDialog = deps.showOpenDialog;
     this.notifyChanged = deps.notifyChanged;
+    this.notifySessionAdrsChanged = deps.notifySessionAdrsChanged;
     this.watchDebounceMs = deps.watchDebounceMs ?? 150;
     this.gitExecFn = deps.gitExecFn;
     this.armWatcher();
@@ -298,6 +302,7 @@ export class VaultNotesHost {
         workspaceDir: input.workingDir,
         adrs,
       });
+      this.notifySessionAdrsChanged?.(input.sessionId);
       return buildRelevantAdrsPreamble(adrs);
     } catch {
       return '';

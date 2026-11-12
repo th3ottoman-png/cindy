@@ -1139,6 +1139,8 @@ export const MAKER_PUSH = {
   VAULT_CHANGED: 'maker:vault:changed',
   /** ROADMAP 6.5: pinned notes configuration changed for a session; payload `{ sessionId, pinnedNotes }`. */
   VAULT_PINNED_CHANGED: 'maker:vault:pinned-changed',
+  /** ROADMAP 11.8: the ADRs injected into a session's first turn were recorded; payload `{ sessionId }`. */
+  VAULT_SESSION_ADRS_CHANGED: 'maker:vault:session-adrs-changed',
   /** ROADMAP 5.5: a chat auto-save failed; sent once per failure streak; payload `{ message }`. */
   CHAT_AUTOSAVE_FAILED: 'maker:chat-autosave:failed',
   /** ROADMAP 5.6: a chat auto-summary was written; payload `{ sessionId, path, model, routeName }`. */

@@ -5726,6 +5726,8 @@ interface ElectronAPI {
       onChanged: (cb: (view: import('../main/maker-ipc/vaultNotes').VaultConfigView) => void) => () => void;
       /** Fires when pinned vault notes change for a session. */
       onPinnedChanged: (cb: (payload: { sessionId: string; pinnedNotes: string[] }) => void) => () => void;
+      /** ROADMAP 11.8: fires when a session's injected-ADR record is written. */
+      onSessionAdrsChanged: (cb: (payload: { sessionId: string }) => void) => () => void;
     };
     library: {
       /** ROADMAP 8.5: one local index over vault notes, chat transcripts and summaries. */

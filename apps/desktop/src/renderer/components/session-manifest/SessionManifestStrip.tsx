@@ -98,9 +98,14 @@ export function SessionManifestStrip({
     const offPins = maker.vault?.onPinnedChanged?.((payload) => {
       if (payload?.sessionId === sessionId) setReloadToken((token) => token + 1);
     });
+    // ROADMAP 11.8: the ADRs matched on the first send are recorded after the strip has loaded.
+    const offAdrs = maker.vault?.onSessionAdrsChanged?.((payload) => {
+      if (payload?.sessionId === sessionId) setReloadToken((token) => token + 1);
+    });
     return () => {
       offExperts?.();
       offPins?.();
+      offAdrs?.();
     };
   }, [sessionId]);
 

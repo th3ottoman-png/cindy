@@ -25783,6 +25783,9 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     notifyChanged: () => {
       broadcastToAllWindows(MAKER_PUSH.VAULT_CHANGED, vaultNotesHost.getConfig());
     },
+    notifySessionAdrsChanged: (sessionId) => {
+      broadcastToAllWindows(MAKER_PUSH.VAULT_SESSION_ADRS_CHANGED, { sessionId });
+    },
   });
   registerVaultNotesHandlers(createElectronIpcHandlerRegistry(), {
     host: vaultNotesHost,
