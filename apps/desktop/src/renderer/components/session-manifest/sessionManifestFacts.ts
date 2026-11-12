@@ -7,6 +7,7 @@ import {
   type SessionManifest,
   type SessionManifestInput,
 } from '@cindy/maker-core/session-manifest';
+import type { SessionAdrsEntry } from '@cindy/maker-core/vault-adr';
 
 import type { ExpertSessionBindingView } from '../../../main/maker-ipc/expertSessions';
 import type { McpCatalogView } from '../../../main/maker-ipc/mcpCatalog';
@@ -52,17 +53,28 @@ export async function collectSessionManifest(
   const emptyRouting: RoutingParseResult = { routes: {}, rules: {}, issues: [] };
   const emptyVault: VaultConfigView = { vaultDir: '', noteCount: 0 };
 
-  const [binding, expertEntries, skillsView, mcpView, providersView, routingView, pinnedNotes, vaultConfig] =
-    await Promise.all([
-      maybe<ExpertSessionBindingView | null>(() => maker.experts.getSessionBinding(session.id), null),
-      maybe<ExpertEntry[]>(() => maker.experts.list(), []),
-      maybe<SkillsView>(() => maker.skills.list(), emptySkills),
-      maybe<McpCatalogView>(() => maker.mcpCatalog.list(), emptyMcp),
-      maybe<ProviderFileResult>(() => maker.providers.list(), emptyProviders),
-      maybe<RoutingParseResult>(() => maker.providers.getRouting(), emptyRouting),
-      maybe<string[]>(() => maker.vault.getPinnedNotes(session.id), []),
-      maybe<VaultConfigView>(() => maker.vault.getConfig(), emptyVault),
-    ]);
+  const [
+    binding,
+    expertEntries,
+    skillsView,
+    mcpView,
+    providersView,
+    routingView,
+    pinnedNotes,
+    vaultConfig,
+    sessionAdrs,
+  ] = await Promise.all([
+    maybe<ExpertSessionBindingView | null>(() => maker.experts.getSessionBinding(session.id), null),
+    maybe<ExpertEntry[]>(() => maker.experts.list(), []),
+    maybe<SkillsView>(() => maker.skills.list(), emptySkills),
+    maybe<McpCatalogView>(() => maker.mcpCatalog.list(), emptyMcp),
+    maybe<ProviderFileResult>(() => maker.providers.list(), emptyProviders),
+    maybe<RoutingParseResult>(() => maker.providers.getRouting(), emptyRouting),
+    maybe<string[]>(() => maker.vault.getPinnedNotes(session.id), []),
+    maybe<VaultConfigView>(() => maker.vault.getConfig(), emptyVault),
+    // ROADMAP 11.8: past ADRs matched against the first prompt. Absent host → no rows.
+    maybe<SessionAdrsEntry>(() => maker.vault.getSessionAdrs(session.id), { adrs: [] }),
+  ]);
 
   const entry = binding ? expertEntries.find((item) => item.slug === binding.slug) : undefined;
   const loaded = entry?.expert;
@@ -116,6 +128,8 @@ export async function collectSessionManifest(
     routing: { routes: routingView.routes, rules: routingView.rules },
     pinnedNotes,
     vaultDir: vaultConfig.vaultDir,
+    relevantAdrs: sessionAdrs.adrs,
+    adrWorkspaceDir: sessionAdrs.workspaceDir,
   };
 
   return buildSessionManifest(input);

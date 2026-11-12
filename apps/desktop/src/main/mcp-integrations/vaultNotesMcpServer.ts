@@ -32,6 +32,7 @@ import {
   unpinNoteFromSession,
   getPinnedNotesForSession,
 } from '@cindy/maker-core/vault-capture';
+import { ADR_STATUSES, queryAdrs, recordAdr } from '@cindy/maker-core/vault-adr';
 import { listArtifacts, saveArtifact } from '@cindy/maker-core/artifact-store';
 import { ingestDocument } from '@cindy/maker-core/document-ingestion';
 import { saveLiteratureNote } from '@cindy/maker-core/deep-research-synthesis';
@@ -61,6 +62,8 @@ export const PARSE_LOCAL_DOCUMENT_TOOL = 'parse_local_document';
 export const SAVE_RESEARCH_SYNTHESIS_TOOL = 'save_research_synthesis';
 export const EXPORT_CAPABILITY_PACK_TOOL = 'export_capability_pack';
 export const ESTIMATE_CONTEXT_BUDGET_TOOL = 'estimate_context_budget';
+export const RECORD_ADR_TOOL = 'record_adr';
+export const QUERY_ADRS_TOOL = 'query_adrs';
 
 export const VAULT_NOTES_TOOLS = [
   READ_NOTE_TOOL,
@@ -80,6 +83,8 @@ export const VAULT_NOTES_TOOLS = [
   SAVE_RESEARCH_SYNTHESIS_TOOL,
   EXPORT_CAPABILITY_PACK_TOOL,
   ESTIMATE_CONTEXT_BUDGET_TOOL,
+  RECORD_ADR_TOOL,
+  QUERY_ADRS_TOOL,
 ] as const;
 
 export function defaultPinnedNotesConfigFile(): string {
@@ -102,6 +107,11 @@ export interface VaultNotesMcpDeps {
     targetNotePath?: string;
     summaryNote?: string;
   }) => Promise<{ ok: boolean; path?: string; created?: boolean; block?: string; error?: string }>;
+  /**
+   * ROADMAP 11.8: the workspace a session started in. `record_adr` writes its repo copy to
+   * `<workspace>/docs/decisions/`; the agent never supplies the path itself.
+   */
+  getSessionWorkspaceDir?: (sessionId: string) => string | null | undefined;
 }
 
 type Refusal = { code: string; message: string };
@@ -787,6 +797,117 @@ export function createVaultNotesMcpServer(deps: VaultNotesMcpDeps): McpServer {
       } catch (err) {
         return refused({
           code: 'BUDGET_ESTIMATION_FAILED',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+  );
+
+  // 18. RECORD_ADR (ROADMAP 11.8)
+  server.tool(
+    RECORD_ADR_TOOL,
+    'Record an Architecture Decision Record (ADR) for a decision that is now settled. Writes a Markdown ADR to the notes vault (Cindy/Decisions/<date>-<slug>.md) and to the session workspace (docs/decisions/<NNNN>-<slug>.md) when it is a git repo. Never overwrites an existing ADR.',
+    {
+      title: z
+        .string()
+        .describe('Short decision title, e.g. "Use SQLite for the local session store"'),
+      context: z
+        .string()
+        .describe('Why a decision was needed: the problem, constraints and options considered'),
+      decision: z.string().describe('What was decided, stated plainly'),
+      consequences: z
+        .string()
+        .optional()
+        .describe('What follows from the decision: trade-offs, follow-up work, what to re-verify'),
+      status: z.enum(ADR_STATUSES).optional().describe('ADR status (default: Accepted)'),
+      decider: z
+        .string()
+        .optional()
+        .describe('Who decided, e.g. "owner" or "agent, ROADMAP 11.8" (default: agent)'),
+    },
+    async ({ title, context, decision, consequences, status, decider }) => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, RECORD_ADR_TOOL)) {
+        return refused({
+          code: 'FORBIDDEN',
+          message: `expert does not permit tool "${RECORD_ADR_TOOL}"`,
+        });
+      }
+      const vaultDir = deps.getVaultDir()?.trim();
+      if (!vaultDir) {
+        return refused({
+          code: 'NO_VAULT',
+          message: 'no notes vault configured; configure a vault folder in Settings -> Notes Vault',
+        });
+      }
+      try {
+        const repoDir = deps.getSessionWorkspaceDir?.(ctx.sessionId)?.trim() || null;
+        const res = recordAdr(
+          vaultDir,
+          { title, context, decision, consequences, status, decider },
+          { repoDir },
+        );
+        if (!res.ok) {
+          return refused({ code: res.reason.toUpperCase(), message: res.message });
+        }
+        return reply({
+          recorded: true,
+          ...res,
+          ...(!repoDir ? { repoSkipped: 'no workspace is recorded for this session' } : {}),
+        });
+      } catch (err) {
+        return refused({
+          code: 'RECORD_FAILED',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+  );
+
+  // 19. QUERY_ADRS (ROADMAP 11.8)
+  server.tool(
+    QUERY_ADRS_TOOL,
+    'Search past Architecture Decision Records (ADRs) in the notes vault (Cindy/Decisions/) and the session workspace (docs/decisions/) by keyword. Returns titles, status, date, path and the start of each Decision section. An empty query lists the newest ADRs. Check here before re-opening a settled decision.',
+    {
+      query: z
+        .string()
+        .optional()
+        .describe('Keywords to match against ADR titles and bodies (empty lists the newest ADRs)'),
+      limit: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe('Maximum number of ADRs to return (default: 10)'),
+    },
+    async ({ query, limit }) => {
+      const ctx = deps.getSessionContext();
+      if (!ctx?.sessionId) {
+        return refused({ code: 'NO_SESSION', message: 'no session context available' });
+      }
+      if (!deps.sessionMayUse(ctx.sessionId, QUERY_ADRS_TOOL)) {
+        return refused({
+          code: 'FORBIDDEN',
+          message: `expert does not permit tool "${QUERY_ADRS_TOOL}"`,
+        });
+      }
+      const vaultDir = deps.getVaultDir()?.trim();
+      if (!vaultDir) {
+        return refused({
+          code: 'NO_VAULT',
+          message: 'no notes vault configured; configure a vault folder in Settings -> Notes Vault',
+        });
+      }
+      try {
+        const repoDir = deps.getSessionWorkspaceDir?.(ctx.sessionId)?.trim() || null;
+        const adrs = queryAdrs(vaultDir, query ?? '', { repoDir, limit });
+        return reply({ adrs, count: adrs.length });
+      } catch (err) {
+        return refused({
+          code: 'QUERY_FAILED',
           message: err instanceof Error ? err.message : String(err),
         });
       }

@@ -10,7 +10,7 @@ const EXAMPLES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 describe('docs/experts-examples', () => {
   it('ships the starter experts and every one loads cleanly', () => {
     const entries = loadExperts(EXAMPLES);
-    expect(entries.map((e) => e.slug)).toEqual(['code-reviewer', 'expert-creator', 'options-first', 'orchestrator', 'prompt-engineer', 'repo-explainer', 'research-analyst', 'vault-researcher']);
+    expect(entries.map((e) => e.slug)).toEqual(['code-reviewer', 'decision-recorder', 'expert-creator', 'options-first', 'orchestrator', 'prompt-engineer', 'repo-explainer', 'research-analyst', 'vault-researcher']);
     for (const entry of entries) {
       expect(entry.error, entry.slug).toBeUndefined();
       expect(entry.expert!.agent).toBe('hermes');
@@ -19,9 +19,10 @@ describe('docs/experts-examples', () => {
     }
   });
 
-  it('only the expert creator (draft_expert, 3.8), Options first (project reader, 3.10d), the orchestrator (list_experts, 3.9b), and vault researcher (search/read/list notes, 6.1, synthesis, 6.3, graph, 6.4, capture/pinning, 6.5) list tools', () => {
+  it('only the decision recorder (ADRs, 11.8), the expert creator (draft_expert, 3.8), Options first (project reader, 3.10d), the orchestrator (list_experts, 3.9b), and vault researcher (search/read/list notes, 6.1, synthesis, 6.3, graph, 6.4, capture/pinning, 6.5) list tools', () => {
     const withTools = loadExperts(EXAMPLES).filter((e) => (e.expert?.tools.length ?? 0) > 0);
     expect(withTools.map((e) => [e.slug, e.expert!.tools])).toEqual([
+      ['decision-recorder', ['record_adr', 'query_adrs']],
       ['expert-creator', ['draft_expert']],
       ['options-first', ['read_project_file', 'search_project']],
       ['orchestrator', ['list_experts']],

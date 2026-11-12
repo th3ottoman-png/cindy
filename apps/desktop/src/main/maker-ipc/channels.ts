@@ -67,6 +67,8 @@ export const MAKER_INVOKE = {
   VAULT_QUICK_CAPTURE: 'maker:vault:quick-capture',
   /** ROADMAP 6.5: get pinned vault notes for session. */
   VAULT_GET_PINNED_NOTES: 'maker:vault:get-pinned-notes',
+  /** ROADMAP 11.8: ADRs matched against a session's first prompt (manifest strip). */
+  VAULT_GET_SESSION_ADRS: 'maker:vault:get-session-adrs',
   /** ROADMAP 6.5: pin note to session. */
   VAULT_PIN_NOTE: 'maker:vault:pin-note',
   /** ROADMAP 6.5: unpin note from session. */

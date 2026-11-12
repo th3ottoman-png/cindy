@@ -112,6 +112,10 @@ export interface SessionManifestInput {
   };
   pinnedNotes?: string[];
   vaultDir?: string;
+  /** ROADMAP 11.8: ADR titles matched against the first prompt and injected into that turn. */
+  relevantAdrs?: Array<{ title: string; path: string; source: 'vault' | 'repo'; status?: string }>;
+  /** Workspace the repo ADRs were read from, for their file paths. */
+  adrWorkspaceDir?: string;
 }
 
 export interface SessionLaunchRecipe {
@@ -144,6 +148,7 @@ const EXPERT_BINDINGS_FILE = '~/.cindy-harness/expert-sessions.json';
 const PROVIDERS_FILE = '~/.cindy-harness/providers.yaml';
 const ROUTING_FILE = '~/.cindy-harness/routing.yaml';
 const PINNED_NOTES_FILE = '~/.cindy-harness/pinned-vault-notes.json';
+const SESSION_ADRS_FILE = '~/.cindy-harness/session-adrs.json';
 const SESSION_DB = 'Cindy SQLite DB (sessions table)';
 
 const isNonEmpty = (value: unknown): value is string =>
@@ -349,6 +354,23 @@ export function buildSessionManifest(input: SessionManifestInput): SessionManife
         reason: `Pinned to this session in ${PINNED_NOTES_FILE}`,
         trust: 'local-file',
         declaredInterface: 'Markdown note',
+      }),
+    );
+  }
+
+  for (const adr of input.relevantAdrs ?? []) {
+    const root = adr.source === 'repo' ? input.adrWorkspaceDir : input.vaultDir;
+    rows.push(
+      capability({
+        kind: 'adr',
+        id: `adr:${adr.source}:${adr.path}`,
+        label: adr.title,
+        value: adr.path,
+        file: root ? `${root}/${adr.path}` : adr.path,
+        locator: `sessions.${session.id}.adrs (${SESSION_ADRS_FILE})`,
+        reason: 'Past decision matched by keyword against the first prompt; its title was injected into that turn',
+        trust: 'local-file',
+        declaredInterface: adr.status ? `ADR (${adr.status})` : 'ADR',
       }),
     );
   }

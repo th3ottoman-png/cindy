@@ -1076,16 +1076,19 @@ export class HermesAgent extends BaseAgent {
         const preflight = await preflightRoute(currentModel);
         if (!preflight.ok) throw new Error(preflight.message);
         turnProviderId = resolveModelRoute(currentModel)?.providerId;
+        const userText = await flattenUserMessage(message);
         const expertPreamble = expertPreamblePending && input.cindySessionId && resolveExpertPreamble
           ? await resolveExpertPreamble({
             sessionId: input.cindySessionId,
             model: currentModel,
             ...(input.toolsets ? { toolsets: input.toolsets } : {}),
+            // ROADMAP 11.8: the host matches past ADRs against the owner's first prompt.
+            prompt: userText,
+            ...(input.workingDir ? { workingDir: input.workingDir } : {}),
           })
           : null;
         const orcaPreamble = orcaPreambleFor();
         const orcaPreambleToSend = orcaPreamble && orcaPreamble !== lastSentOrcaPreamble ? orcaPreamble : null;
-        const userText = await flattenUserMessage(message);
         const text = [expertPreamble, orcaPreambleToSend, userText].filter(Boolean).join('\n\n');
         // Auto-review judges tool calls against the owner's own words, never the preambles.
         autoReviewIntent = appendAutoReviewUserIntent(autoReviewIntent, message.content, sendOpts);

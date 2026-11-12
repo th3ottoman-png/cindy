@@ -5681,6 +5681,10 @@ interface ElectronAPI {
       ) => Promise<import('@cindy/maker-core/vault-capture').QuickCaptureResult>;
       /** ROADMAP 6.5: get pinned vault notes for session. */
       getPinnedNotes: (sessionId: string) => Promise<string[]>;
+      /** ROADMAP 11.8: ADRs matched against the session's first prompt. */
+      getSessionAdrs: (
+        sessionId: string,
+      ) => Promise<import('@cindy/maker-core/vault-adr').SessionAdrsEntry>;
       /** ROADMAP 6.5: pin note to session. */
       pinNote: (
         sessionId: string,

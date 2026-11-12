@@ -6440,6 +6440,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('maker:vault:quick-capture', input),
       getPinnedNotes: (sessionId: string): Promise<string[]> =>
         ipcRenderer.invoke('maker:vault:get-pinned-notes', sessionId),
+      getSessionAdrs: (
+        sessionId: string,
+      ): Promise<import('@cindy/maker-core/vault-adr').SessionAdrsEntry> =>
+        ipcRenderer.invoke('maker:vault:get-session-adrs', sessionId),
       pinNote: (
         sessionId: string,
         notePath: string,

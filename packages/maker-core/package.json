@@ -35,6 +35,7 @@
     "./vault-synthesis": "./src/notes/vault-synthesis.ts",
     "./vault-graph": "./src/notes/vault-graph.ts",
     "./vault-capture": "./src/notes/vault-capture.ts",
+    "./vault-adr": "./src/notes/vault-adr.ts",
     "./vault-semantic": "./src/notes/vault-semantic.ts",
     "./vault-git-sync": "./src/notes/vault-git-sync.ts",
     "./rule-learner": "./src/rules/rule-learner.ts",

@@ -743,7 +743,10 @@ describe('HermesAgent', () => {
     try {
       await handle.send({ type: 'user', content: 'who are you?' });
       expect(daemon.sendTexts[0]).toBe('[Cindy expert: Code Reviewer]\nReview carefully.\n\nwho are you?');
-      expect(asked).toEqual([{ sessionId: 'business-1', model: 'hermes-default' }]);
+      // ROADMAP 11.8: the first prompt and workspace ride along for the relevant-ADR match.
+      expect(asked).toEqual([
+        { sessionId: 'business-1', model: 'hermes-default', prompt: 'who are you?', workingDir: workDir },
+      ]);
       await handle.send({ type: 'user', content: 'second' }).catch(() => undefined);
       expect(asked).toHaveLength(1);
       expect(daemon.sendTexts.slice(1).every((t) => !t.includes('Cindy expert'))).toBe(true);

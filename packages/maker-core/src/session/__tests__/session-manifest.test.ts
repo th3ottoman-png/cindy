@@ -95,6 +95,29 @@ describe('buildSessionManifest', () => {
     expect(manifest.session.providerId).toBe('lmstudio-local');
   });
 
+  it('adds an adr group only when past decisions matched the first prompt (ROADMAP 11.8)', () => {
+    const manifest = buildSessionManifest(
+      input({
+        relevantAdrs: [
+          { title: 'Use SQLite', path: 'docs/decisions/0001-use-sqlite.md', source: 'repo', status: 'Accepted' },
+          { title: 'Gateway per session', path: 'Cindy/Decisions/2026-11-01-gateway.md', source: 'vault' },
+        ],
+        adrWorkspaceDir: '/repo',
+      }),
+    );
+    expect(kinds(manifest)).toContain('adr');
+    expect(find(manifest, 'adr:repo:docs/decisions/0001-use-sqlite.md')).toMatchObject({
+      label: 'Use SQLite',
+      file: '/repo/docs/decisions/0001-use-sqlite.md',
+      declaredInterface: 'ADR (Accepted)',
+      trust: 'local-file',
+    });
+    expect(find(manifest, 'adr:vault:Cindy/Decisions/2026-11-01-gateway.md')?.file).toBe(
+      '/vault/Cindy/Decisions/2026-11-01-gateway.md',
+    );
+    expect(kinds(buildSessionManifest(input()))).not.toContain('adr');
+  });
+
   it('is deterministic and sorted by kind then id', () => {
     const first = buildSessionManifest(input());
     const second = buildSessionManifest(input());

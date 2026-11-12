@@ -27,6 +27,92 @@ afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+describe('VaultNotesHost relevant ADRs (ROADMAP 11.8)', () => {
+  function seed(): { host: VaultNotesHost; repo: string; sessionAdrsFile: string } {
+    const sessionAdrsFile = path.join(dir, 'session-adrs.json');
+    const host = new VaultNotesHost({ configFile, pinnedNotesConfigFile, sessionAdrsFile });
+    host.setConfig(vaultDir);
+    const repo = path.join(dir, 'repo');
+    fs.mkdirSync(path.join(repo, 'docs', 'decisions'), { recursive: true });
+    fs.writeFileSync(
+      path.join(repo, 'docs', 'decisions', '0001-use-sqlite.md'),
+      '# ADR 0001 — Use SQLite for the session store\n\n- **Status:** Accepted\n- **Date:** 2026-11-01\n\n## Decision\n\nSQLite.\n',
+    );
+    fs.mkdirSync(path.join(vaultDir, 'Cindy', 'Decisions'), { recursive: true });
+    fs.writeFileSync(
+      path.join(vaultDir, 'Cindy', 'Decisions', '2026-11-02-gateway-per-session.md'),
+      '# ADR — Hermes gateway runs per session\n\n- **Status:** Accepted\n\n## Decision\n\nOne gateway each.\n',
+    );
+    return { host, repo, sessionAdrsFile };
+  }
+
+  it('matches the first prompt, returns a titles block and records it for the manifest', async () => {
+    const { host, repo } = seed();
+    try {
+      const preamble = host.resolveRelevantAdrsPreamble({
+        sessionId: 'sess-1',
+        prompt: 'Should we replace SQLite with Postgres?',
+        workingDir: repo,
+      });
+      expect(preamble).toContain('[Relevant past decisions (ADRs)]');
+      expect(preamble).toContain(
+        'Use SQLite for the session store (Accepted) — docs/decisions/0001-use-sqlite.md',
+      );
+      expect(preamble).not.toContain('gateway');
+
+      const harness = new IpcHarness();
+      registerVaultNotesHandlers(harness, { host, broadcast: vi.fn(), assertTrusted: vi.fn() });
+      expect(await harness.invoke(MAKER_INVOKE.VAULT_GET_SESSION_ADRS, 'sess-1')).toEqual({
+        workspaceDir: repo,
+        adrs: [
+          {
+            title: 'Use SQLite for the session store',
+            path: 'docs/decisions/0001-use-sqlite.md',
+            source: 'repo',
+            status: 'Accepted',
+            date: '2026-11-01',
+          },
+        ],
+      });
+      expect(await harness.invoke(MAKER_INVOKE.VAULT_GET_SESSION_ADRS, 'other')).toEqual({
+        adrs: [],
+      });
+    } finally {
+      host.close();
+    }
+  });
+
+  it('injects nothing for an unrelated prompt but still remembers the workspace', () => {
+    const { host, repo } = seed();
+    try {
+      expect(
+        host.resolveRelevantAdrsPreamble({
+          sessionId: 'sess-2',
+          prompt: 'Write a haiku',
+          workingDir: repo,
+        }),
+      ).toBe('');
+      expect(host.getSessionAdrs('sess-2')).toEqual({ workspaceDir: repo, adrs: [] });
+    } finally {
+      host.close();
+    }
+  });
+
+  it('fails open: an unwritable record file never throws into the turn', () => {
+    const blocker = path.join(dir, 'blocker');
+    fs.writeFileSync(blocker, 'x');
+    const host = new VaultNotesHost({
+      configFile,
+      sessionAdrsFile: path.join(blocker, 'session-adrs.json'),
+    });
+    try {
+      expect(host.resolveRelevantAdrsPreamble({ sessionId: 's', prompt: 'sqlite store' })).toBe('');
+    } finally {
+      host.close();
+    }
+  });
+});
+
 describe('VaultNotesHost (ROADMAP 5.1)', () => {
   it('reads empty config when file does not exist', () => {
     const host = new VaultNotesHost({ configFile });

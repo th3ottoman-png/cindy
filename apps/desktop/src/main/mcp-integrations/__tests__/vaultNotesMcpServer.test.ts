@@ -17,8 +17,10 @@ import {
   LIST_PINNED_NOTES_TOOL,
   PARSE_LOCAL_DOCUMENT_TOOL,
   PIN_VAULT_NOTE_TOOL,
+  QUERY_ADRS_TOOL,
   QUICK_CAPTURE_TOOL,
   READ_NOTE_TOOL,
+  RECORD_ADR_TOOL,
   SAVE_RESEARCH_SYNTHESIS_TOOL,
   SEARCH_NOTES_TOOL,
   SYNTHESIZE_VAULT_MEMORY_TOOL,
@@ -65,6 +67,87 @@ async function call(d: VaultNotesMcpDeps, tool: string, input: Record<string, un
     await client.close();
   }
 }
+
+describe('cindy_vault_notes ADR tools (ROADMAP 11.8)', () => {
+  const ADR = {
+    title: 'Use SQLite for the local session store',
+    context: 'Sessions need a durable local store.',
+    decision: 'Use SQLite through better-sqlite3.',
+  };
+
+  function repoDir(): string {
+    const repo = path.join(base, 'repo');
+    fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+    return repo;
+  }
+
+  it('record_adr writes the vault copy and the repo copy of the session workspace', async () => {
+    const repo = repoDir();
+    const res = await call(deps({ getSessionWorkspaceDir: () => repo }), RECORD_ADR_TOOL, ADR);
+    expect(res.isError).toBe(false);
+    expect(res.body).toMatchObject({
+      recorded: true,
+      title: ADR.title,
+      repoPath: 'docs/decisions/0001-use-sqlite-for-the-local-session-store.md',
+    });
+    expect(fs.existsSync(path.join(vault, res.body.vaultPath as string))).toBe(true);
+    expect(fs.readFileSync(path.join(repo, res.body.repoPath as string), 'utf8')).toContain(
+      '# ADR 0001 — Use SQLite for the local session store',
+    );
+  });
+
+  it('record_adr without a recorded workspace writes the vault copy only and says so', async () => {
+    const res = await call(deps(), RECORD_ADR_TOOL, ADR);
+    expect(res.isError).toBe(false);
+    expect(res.body.repoPath).toBeUndefined();
+    expect(res.body.repoSkipped).toBe('no workspace is recorded for this session');
+  });
+
+  it('record_adr refuses an invalid ADR, a duplicate, a missing vault and a forbidden session', async () => {
+    const invalid = await call(deps(), RECORD_ADR_TOOL, { ...ADR, decision: '   ' });
+    expect(invalid).toMatchObject({ isError: true, body: { errorCode: 'INVALID' } });
+
+    await call(deps(), RECORD_ADR_TOOL, ADR);
+    const dup = await call(deps(), RECORD_ADR_TOOL, ADR);
+    expect(dup).toMatchObject({ isError: true, body: { errorCode: 'EXISTS' } });
+
+    const noVault = await call(deps({ getVaultDir: () => '' }), RECORD_ADR_TOOL, ADR);
+    expect(noVault).toMatchObject({ isError: true, body: { errorCode: 'NO_VAULT' } });
+
+    const forbidden = await call(
+      deps({ sessionMayUse: (_s, tool) => tool !== RECORD_ADR_TOOL }),
+      RECORD_ADR_TOOL,
+      {
+        ...ADR,
+        title: 'Another decision',
+      },
+    );
+    expect(forbidden).toMatchObject({ isError: true, body: { errorCode: 'FORBIDDEN' } });
+    expect(fs.readdirSync(path.join(vault, 'Cindy', 'Decisions'))).toHaveLength(1);
+  });
+
+  it('query_adrs finds a recorded ADR by keyword and is permission-checked', async () => {
+    const repo = repoDir();
+    const d = deps({ getSessionWorkspaceDir: () => repo });
+    await call(d, RECORD_ADR_TOOL, ADR);
+
+    const hit = await call(d, QUERY_ADRS_TOOL, { query: 'session store database' });
+    expect(hit.isError).toBe(false);
+    expect(hit.body.count).toBe(1);
+    expect((hit.body.adrs as Array<{ title: string; decision: string }>)[0]).toMatchObject({
+      title: ADR.title,
+      decision: 'Use SQLite through better-sqlite3.',
+    });
+
+    const miss = await call(d, QUERY_ADRS_TOOL, { query: 'kubernetes' });
+    expect(miss.body.count).toBe(0);
+
+    const forbidden = await call(deps({ sessionMayUse: () => false }), QUERY_ADRS_TOOL, {
+      query: 'store',
+    });
+    expect(forbidden).toMatchObject({ isError: true, body: { errorCode: 'FORBIDDEN' } });
+  });
+});
 
 describe('cindy_vault_notes MCP server (ROADMAP 5.1)', () => {
   it('reads notes inside the vault', async () => {

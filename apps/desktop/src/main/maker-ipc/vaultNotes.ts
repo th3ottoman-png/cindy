@@ -46,6 +46,14 @@ import {
   type GitWorkspaceInspection,
 } from '@cindy/maker-core/vault-git-sync';
 
+import {
+  buildRelevantAdrsPreamble,
+  getSessionAdrs,
+  matchAdrsForPrompt,
+  setSessionAdrs,
+  type SessionAdrsEntry,
+} from '@cindy/maker-core/vault-adr';
+
 import { gitExec } from '../worktree/gitExec.js';
 import { MAKER_INVOKE, MAKER_PUSH } from './channels.js';
 import type { IpcHandlerRegistry } from './ipcHandlerRegistry.js';
@@ -60,6 +68,8 @@ export interface VaultConfigView {
 export interface VaultNotesHostDeps {
   configFile?: string;
   pinnedNotesConfigFile?: string;
+  /** ROADMAP 11.8: per-session record of the ADRs injected at session start. */
+  sessionAdrsFile?: string;
   embeddingsDbFile?: string;
   sqliteFactory?: (file: string) => Database.Database;
   embedder?: EmbeddingClient;
@@ -77,6 +87,10 @@ export function defaultPinnedNotesConfigFile(): string {
   return path.join(os.homedir(), '.cindy-harness', 'pinned-vault-notes.json');
 }
 
+export function defaultSessionAdrsFile(): string {
+  return path.join(os.homedir(), '.cindy-harness', 'session-adrs.json');
+}
+
 export function defaultVaultEmbeddingsFile(): string {
   return path.join(os.homedir(), '.cindy-harness', 'vault-embeddings.db');
 }
@@ -84,6 +98,7 @@ export function defaultVaultEmbeddingsFile(): string {
 export class VaultNotesHost {
   private readonly configFile: string;
   private readonly pinnedNotesConfigFile: string;
+  private readonly sessionAdrsFile: string;
   private readonly embeddingsDbFile: string;
   private readonly sqliteFactory: (file: string) => Database.Database;
   private readonly embedder?: EmbeddingClient;
@@ -99,6 +114,7 @@ export class VaultNotesHost {
   constructor(deps: VaultNotesHostDeps = {}) {
     this.configFile = deps.configFile ?? defaultVaultConfigFile();
     this.pinnedNotesConfigFile = deps.pinnedNotesConfigFile ?? defaultPinnedNotesConfigFile();
+    this.sessionAdrsFile = deps.sessionAdrsFile ?? defaultSessionAdrsFile();
     this.embeddingsDbFile = deps.embeddingsDbFile ?? defaultVaultEmbeddingsFile();
     this.sqliteFactory =
       deps.sqliteFactory ??
@@ -254,6 +270,38 @@ export class VaultNotesHost {
     if (cfg.issue || !cfg.vaultDir) return '';
     const pinned = this.getPinnedNotes(sessionId);
     return buildPinnedNotesPreamble(cfg.vaultDir, pinned, maxCharsPerNote);
+  }
+
+  /** ROADMAP 11.8: the ADRs injected into this session's first turn, and its workspace. */
+  getSessionAdrs(sessionId: string): SessionAdrsEntry {
+    return getSessionAdrs(this.sessionAdrsFile, sessionId);
+  }
+
+  /**
+   * ROADMAP 11.8: keyword-match past ADRs (vault `Cindy/Decisions/` + the workspace's
+   * `docs/decisions/`) against the first prompt of a fresh session. Records what matched so the
+   * manifest strip shows it, and returns the titles block for that turn. Convenience feature, so it
+   * fails open: any error means no block, never a refused turn.
+   */
+  resolveRelevantAdrsPreamble(input: {
+    sessionId: string;
+    prompt?: string;
+    workingDir?: string;
+  }): string {
+    try {
+      const cfg = this.getConfig();
+      const vaultDir = cfg.issue ? '' : cfg.vaultDir;
+      const adrs = input.prompt
+        ? matchAdrsForPrompt(input.prompt, vaultDir, { repoDir: input.workingDir })
+        : [];
+      setSessionAdrs(this.sessionAdrsFile, input.sessionId, {
+        workspaceDir: input.workingDir,
+        adrs,
+      });
+      return buildRelevantAdrsPreamble(adrs);
+    } catch {
+      return '';
+    }
   }
 
   getSemanticIndex(): VaultSemanticIndex | null {
@@ -452,6 +500,10 @@ export function registerVaultNotesHandlers(
   registry.handle(MAKER_INVOKE.VAULT_GET_PINNED_NOTES, async (event: unknown, sessionId: unknown) => {
     deps.assertTrusted(event);
     return deps.host.getPinnedNotes(String(sessionId ?? ''));
+  });
+  registry.handle(MAKER_INVOKE.VAULT_GET_SESSION_ADRS, async (event: unknown, sessionId: unknown) => {
+    deps.assertTrusted(event);
+    return deps.host.getSessionAdrs(String(sessionId ?? ''));
   });
   registry.handle(MAKER_INVOKE.VAULT_PIN_NOTE, async (event: unknown, payload: unknown) => {
     deps.assertTrusted(event);

@@ -2593,12 +2593,16 @@ export function getMaker(): Maker {
         getVaultDir: () => getDesktopVaultNotesHost().getConfig().vaultDir,
         getSemanticIndex: () => getDesktopVaultNotesHost().getSemanticIndex(),
         syncWorkspaceGit: (opts) => getDesktopVaultNotesHost().applyGitWorkspaceSync(opts),
+        // ROADMAP 11.8: record_adr writes its repo copy into the workspace the session started in.
+        getSessionWorkspaceDir: (sessionId) =>
+          getDesktopVaultNotesHost().getSessionAdrs(sessionId).workspaceDir,
         sessionMayUse: (sessionId, tool) => {
           const cfg = getDesktopVaultNotesHost().getConfig();
           if (
             cfg.allSessionsSearch &&
             cfg.vaultDir &&
             tool !== 'append_note' &&
+            tool !== 'record_adr' &&
             tool !== 'synthesize_vault_memory' &&
             tool !== 'sync_workspace_git_to_project_note'
           ) {
@@ -2936,7 +2940,9 @@ export function getMaker(): Maker {
             createRouteMatcher((model) => resolveModelRoute(model)),
           );
           const pinnedPreamble = getDesktopVaultNotesHost().getPinnedNotesPreamble(input.sessionId);
-          return [expertPreamble, pinnedPreamble].filter(Boolean).join('\n\n') || null;
+          // ROADMAP 11.8: titles of past ADRs that match the first prompt (keyword match, local files).
+          const adrPreamble = getDesktopVaultNotesHost().resolveRelevantAdrsPreamble(input);
+          return [expertPreamble, pinnedPreamble, adrPreamble].filter(Boolean).join('\n\n') || null;
         },
         // ROADMAP 3.10 (ADR 0009): an expert's `toolsets:` locks the Hermes session (`-t`) and
         // keeps Cindy tools off. The pending pick only applies to a session starting fresh.

@@ -9,6 +9,11 @@ Copy any folder here to `~/.cindy-harness/experts/<slug>/` and edit it. Each hol
 full-access Hermes task started as it can propose new experts. Each draft appears on a card in
 that task and is written only when you click Approve.
 
+`decision-recorder/` (ROADMAP 11.8) lists `tools: [record_adr, query_adrs]`. It needs a notes
+vault (Settings -> Notes Vault). `record_adr` writes an ADR to `<vault>/Cindy/Decisions/` and to
+the workspace's `docs/decisions/` when that workspace is a git repo. `query_adrs` is also open to
+every session when "all sessions search" is on; `record_adr` is not, because it writes.
+
 `orchestrator/` (ROADMAP 3.9b, ADR 0008) lists `tools: [list_experts]`. Start a full-access
 Hermes task as it with collaboration on: it lists your experts, starts each job as a visible
 Hermes worker running one of them (40 tool calls per turn cap), and starts an `expert-creator`

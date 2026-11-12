@@ -772,6 +772,9 @@ export interface AgentDeps {
     model: string;
     /** The toolsets lock the session launched with (ROADMAP 3.10); the expert's must match. */
     toolsets?: string[];
+    /** ROADMAP 11.8: the owner's first prompt and workspace, for the relevant-ADR keyword match. */
+    prompt?: string;
+    workingDir?: string;
   }) => Promise<string | null>;
 
   /**
