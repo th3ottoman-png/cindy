@@ -25,6 +25,7 @@ import { NotSupportedError } from '../../../types/capabilities.js';
 import type { AgentEvent } from '../../../types/events.js';
 import { HERMES_AGENT_COMMANDS, HERMES_ORCA_WORKER_MAX_TURNS, HermesAgent } from '../agent.js';
 import { HermesProtocolMismatchError } from '../protocol.js';
+import { TURN_AUDIT_INSTRUCTION } from '../../../session/turn-audit.js';
 
 const noopLogger: Logger = {
   trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, fatal: () => {},
@@ -750,6 +751,30 @@ describe('HermesAgent', () => {
       await handle.send({ type: 'user', content: 'second' }).catch(() => undefined);
       expect(asked).toHaveLength(1);
       expect(daemon.sendTexts.slice(1).every((t) => !t.includes('Cindy expert'))).toBe(true);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('appends the turn-audit instruction after the owner text while the toggle is on, per turn (ROADMAP 11.10)', async () => {
+    const daemon = await startDaemon();
+    let on = true;
+    const asked: string[] = [];
+    const handle = await start(buildAgent({
+      deps: {
+        resolveHermesTurnAudit: (sessionId) => {
+          asked.push(sessionId);
+          return on;
+        },
+      },
+    }));
+    try {
+      await handle.send({ type: 'user', content: 'refactor the cache' });
+      expect(daemon.sendTexts[0]).toBe(`refactor the cache\n\n${TURN_AUDIT_INSTRUCTION}`);
+      on = false;
+      await handle.send({ type: 'user', content: 'second' }).catch(() => undefined);
+      expect(daemon.sendTexts[1]).toBe('second');
+      expect(asked).toEqual(['business-1', 'business-1']);
     } finally {
       await handle.close();
     }

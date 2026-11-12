@@ -19,8 +19,9 @@ import {
   type ChatInventory,
 } from '@cindy/maker-core/chat-inventory';
 import type { TabKindBodyProps } from '../../types';
+import { TurnAuditPanel } from './TurnAuditPanel';
 
-export function ChatInventoryTabBody({ ctx }: TabKindBodyProps) {
+function ChatInventoryOverview({ ctx }: TabKindBodyProps) {
   const { t } = useTranslation();
   const [inventory, setInventory] = useState<ChatInventory | null>(null);
   const [loading, setLoading] = useState(false);
@@ -324,6 +325,45 @@ export function ChatInventoryTabBody({ ctx }: TabKindBodyProps) {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+type InThisChatView = 'inventory' | 'audit';
+
+/** ROADMAP 11.10: In This Chat = the 8.8 inventory plus the "Audit & Assumptions" view. */
+export function ChatInventoryTabBody(props: TabKindBodyProps) {
+  const [view, setView] = useState<InThisChatView>('inventory');
+  const tabs: Array<{ id: InThisChatView; label: string }> = [
+    { id: 'inventory', label: 'Inventory' },
+    { id: 'audit', label: 'Audit & Assumptions' },
+  ];
+  return (
+    <div className="flex h-full w-full flex-col overflow-hidden bg-background text-foreground text-xs">
+      <div role="tablist" aria-label="In This Chat" className="flex gap-1 border-b border-border/50 px-2 pt-1.5">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={view === tab.id}
+            onClick={() => setView(tab.id)}
+            className={cn(
+              'rounded-t px-2 py-1 text-[11px] font-medium',
+              view === tab.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1">
+        {view === 'audit' && props.ctx.sessionId ? (
+          <TurnAuditPanel sessionId={props.ctx.sessionId} />
+        ) : (
+          <ChatInventoryOverview {...props} />
+        )}
       </div>
     </div>
   );

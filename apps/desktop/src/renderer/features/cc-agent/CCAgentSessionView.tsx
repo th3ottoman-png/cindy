@@ -172,6 +172,7 @@ import { LongRunningTurnTimeline } from './LongRunningTurnTimeline';
 import { SessionManifestStrip } from '@/components/session-manifest/SessionManifestStrip';
 import { ChatOnlyToggle } from '@/components/chat/ChatOnlyToggle';
 import { PlanFirstToggle } from '@/components/chat/PlanFirstToggle';
+import { TurnAuditToggle } from '@/components/chat/TurnAuditToggle';
 import { WorktreeMergeStrip } from '../worktree/WorktreeMergeStrip';
 import { Tip } from '@/components/ui/tooltip';
 import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
@@ -5496,6 +5497,8 @@ function CCAgentSessionContent({
             <ChatOnlyToggle sessionId={session.id} model={session.model} />
             {/* ROADMAP 11.7: Plan First interrogation lock, same header strip. */}
             <PlanFirstToggle sessionId={session.id} />
+            {/* ROADMAP 11.10: turn audit footer (progress, decisions, assumptions), same strip. */}
+            <TurnAuditToggle sessionId={session.id} />
           </div>
         )}
         {ownsRoute && session?.agentKind === 'hermes' && (

@@ -101,6 +101,7 @@ import { markKnownOrcaWorkerSession } from '../maker-ipc/orcaManualInterrupt.js'
 import { createRouteMatcher, getDesktopExpertSessionStore } from '../maker-ipc/expertSessions.js';
 import { getDesktopChatOnlyHost } from '../maker-ipc/chatOnly.js';
 import { getDesktopPlanFirstHost } from '../maker-ipc/planFirst.js';
+import { getDesktopTurnAuditHost } from '../maker-ipc/turnAudit.js';
 import { resolveModelRoute } from '@cindy/maker-core/model-route-resolver';
 import { markOrcaMcpHydratedIfNeeded } from '../maker-ipc/orcaMcpHydrationCache.js';
 import { preparePersistedOrcaSessionStart, renderOrcaInstructionsFor } from '../maker-ipc/orcaSessionStartOptions.js';
@@ -2953,6 +2954,8 @@ export function getMaker(): Maker {
         resolveHermesChatOnly: (sessionId) => getDesktopChatOnlyHost().isChatOnly(sessionId),
         // ROADMAP 11.7: Plan First lock re-read on every launch and turn; deciding unlocks without a restart.
         resolveHermesPlanFirstLocked: (sessionId) => getDesktopPlanFirstHost().isLocked(sessionId),
+        // ROADMAP 11.10: turn audit footer instruction, re-read on every turn.
+        resolveHermesTurnAudit: (sessionId) => getDesktopTurnAuditHost().isOn(sessionId),
         // ROADMAP 3.2: expert's skills/ directory linked into per-session HERMES_HOME/skills
         resolveHermesExpertSkillsDir: (sessionId) =>
           getDesktopExpertSessionStore().expertSkillsDir(sessionId, { includePending: true }),

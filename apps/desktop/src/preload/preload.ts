@@ -6648,6 +6648,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }): Promise<import('../main/maker-ipc/planFirst').PlanFirstView> =>
         ipcRenderer.invoke('maker:plan-first:decide', params),
     },
+    /** ROADMAP 11.10: turn audit (progress, decisions, low-confidence assumptions). */
+    turnAudit: {
+      get: (params: { sessionId: string }): Promise<import('../main/maker-ipc/turnAudit').TurnAuditView> =>
+        ipcRenderer.invoke('maker:turn-audit:get', params),
+      set: (params: { sessionId: string; turnAudit: boolean }): Promise<import('../main/maker-ipc/turnAudit').TurnAuditView> =>
+        ipcRenderer.invoke('maker:turn-audit:set', params),
+      summary: (params: { sessionId: string }): Promise<import('../main/maker-ipc/turnAudit').TurnAuditSummaryView> =>
+        ipcRenderer.invoke('maker:turn-audit:summary', params),
+    },
     securityGuard: {
       getConfig: (): Promise<import('../main/maker-ipc/securityGuard').SecurityGuardView> =>
         ipcRenderer.invoke('maker:security-guard:get-config'),

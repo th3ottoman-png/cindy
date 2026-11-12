@@ -943,6 +943,7 @@ import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.j
 import { SecurityGuardHost, registerSecurityGuardHandlers } from './securityGuard.js';
 import { getDesktopChatOnlyHost, registerChatOnlyHandlers, type ChatOnlyHost } from './chatOnly.js';
 import { getDesktopPlanFirstHost, registerPlanFirstHandlers, type PlanFirstHost } from './planFirst.js';
+import { getDesktopTurnAuditHost, registerTurnAuditHandlers } from './turnAudit.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
 import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
 import { registerProjectCreateHandlers } from './projectCreate.js';
@@ -25917,6 +25918,25 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       GET: MAKER_INVOKE.PLAN_FIRST_GET,
       SET: MAKER_INVOKE.PLAN_FIRST_SET,
       DECIDE: MAKER_INVOKE.PLAN_FIRST_DECIDE,
+    },
+  });
+
+  // ── Turn audit (ROADMAP 11.10) ───────────────────────────────────────────
+  // Flag file read by the Hermes agent on every turn; the summary is folded from stored messages.
+  registerTurnAuditHandlers(createElectronIpcHandlerRegistry(), {
+    host: getDesktopTurnAuditHost({
+      listMessages: async (sessionId) =>
+        ((await listMessagesForAgentHandoff(sessionId, null)) ?? []) as unknown as Array<{
+          role: string;
+          content?: unknown;
+          text?: unknown;
+        }>,
+    }),
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    channels: {
+      GET: MAKER_INVOKE.TURN_AUDIT_GET,
+      SET: MAKER_INVOKE.TURN_AUDIT_SET,
+      SUMMARY: MAKER_INVOKE.TURN_AUDIT_SUMMARY,
     },
   });
 

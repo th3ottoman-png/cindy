@@ -26,6 +26,7 @@ import {
 } from '../base-agent.js';
 import { createAsyncQueue } from '../shared/async-queue.js';
 import { NotSupportedError, type Capabilities } from '../../types/capabilities.js';
+import { applyTurnAuditInstruction } from '../../session/turn-audit.js';
 import type { Effort, PermissionMode, UserMessage } from '../../types/common.js';
 import type { AgentEvent, InteractionResolver, UsageSnapshot } from '../../types/events.js';
 import type {
@@ -1047,6 +1048,8 @@ export class HermesAgent extends BaseAgent {
     const resolveChatOnlyForTurn = this.deps.resolveHermesChatOnly;
     // ROADMAP 11.7: same per-turn re-read for the Plan First lock.
     const resolvePlanFirstForTurn = this.deps.resolveHermesPlanFirstLocked;
+    // ROADMAP 11.10: turn audit, re-read per turn so the header toggle lands on the next send.
+    const resolveTurnAuditForTurn = this.deps.resolveHermesTurnAudit;
     // The current Cindy model id ('hermes-default' sentinel or an override).
     // Session.model reads it and expects it to follow successful switches.
     let currentModel = input.model;
@@ -1089,7 +1092,10 @@ export class HermesAgent extends BaseAgent {
           : null;
         const orcaPreamble = orcaPreambleFor();
         const orcaPreambleToSend = orcaPreamble && orcaPreamble !== lastSentOrcaPreamble ? orcaPreamble : null;
-        const text = [expertPreamble, orcaPreambleToSend, userText].filter(Boolean).join('\n\n');
+        // ROADMAP 11.10: the audit instruction rides after the owner's text, which stays intact.
+        const turnAuditOn = Boolean(input.cindySessionId && resolveTurnAuditForTurn?.(input.cindySessionId));
+        const turnText = turnAuditOn ? applyTurnAuditInstruction(userText) : userText;
+        const text = [expertPreamble, orcaPreambleToSend, turnText].filter(Boolean).join('\n\n');
         // Auto-review judges tool calls against the owner's own words, never the preambles.
         autoReviewIntent = appendAutoReviewUserIntent(autoReviewIntent, message.content, sendOpts);
         autoReviewActionContext.advance(true);

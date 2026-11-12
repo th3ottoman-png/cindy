@@ -116,6 +116,10 @@ export const MAKER_INVOKE = {
   PLAN_FIRST_GET: 'maker:plan-first:get',
   PLAN_FIRST_SET: 'maker:plan-first:set',
   PLAN_FIRST_DECIDE: 'maker:plan-first:decide',
+  /** ROADMAP 11.10: turn audit flag (~/.cindy-harness/turn-audit-sessions.json) and session summary. */
+  TURN_AUDIT_GET: 'maker:turn-audit:get',
+  TURN_AUDIT_SET: 'maker:turn-audit:set',
+  TURN_AUDIT_SUMMARY: 'maker:turn-audit:summary',
   SECURITY_GUARD_GET_CONFIG: 'maker:security-guard:get-config',
   SECURITY_GUARD_SET_CONFIG: 'maker:security-guard:set-config',
   /** ROADMAP 5.5: get chat auto-save settings (~/.cindy-harness/chat-autosave.json) and last result. */

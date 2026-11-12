@@ -798,6 +798,12 @@ export interface AgentDeps {
   resolveHermesPlanFirstLocked?: (sessionId: string) => boolean;
 
   /**
+   * ROADMAP 11.10: true when this session's turn audit is on — each turn then asks the model for
+   * a `cindy-audit` footer (progress, decisions, low-confidence assumptions). Re-read every turn.
+   */
+  resolveHermesTurnAudit?: (sessionId: string) => boolean;
+
+  /**
    * Hermes-only (ROADMAP 3.2): directory containing the expert's skills (if any) to link into
    * the per-session HERMES_HOME/skills.
    */

@@ -70,6 +70,7 @@ import { insertSessionLinkIntoComposer } from '@/lib/composerActionsBus';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { DecisionCards } from './DecisionCards';
 import { parseDecisionBlocks } from '@/lib/decisionCards';
+import { parseTurnAudit } from '@cindy/maker-core/turn-audit';
 import { BubbleHoverToolbar, MessageActionBar } from './MessageActionBar';
 import { shareSelectionStore } from './shareSelectionStore';
 import { useForkAtMessage } from './useForkAtMessage';
@@ -345,7 +346,11 @@ export const AssistantMessage = memo(function AssistantMessage({
 
   // /goal:隐藏助手输出末尾由 goal 协议要求模型吐出的裁决 JSON 块(仅显示层剥离,
   // 原文仍保留在 DB / transcript)。pattern:末尾的 ```json {...goal_status...} ``` 围栏块。
-  const displayContent = stripStarterOptionList(stripGoalVerdictBlock(content), botStarterOptions ?? []);
+  // ROADMAP 11.10: the `cindy-audit` footer (progress/decisions/assumptions) belongs to the In This
+  // Chat inspector, not the bubble — stripped here, kept in the DB. Unclosed (streaming) footers too.
+  const displayContent = parseTurnAudit(
+    stripStarterOptionList(stripGoalVerdictBlock(content), botStarterOptions ?? []),
+  ).cleanedText;
   // ROADMAP 11.7 Plan First:模型在锁定期用 ```cindy-decisions 围栏返回待选架构
   // 决策 —— 剥离出显示文本(原文仍保留在 DB),解析出的决策渲染成交互式卡片。
   const planParsed = useMemo(() => parseDecisionBlocks(displayContent), [displayContent]);

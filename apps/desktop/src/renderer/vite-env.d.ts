@@ -5841,6 +5841,13 @@ interface ElectronAPI {
         decisions: import('../main/maker-ipc/planFirst').PlanFirstDecision[];
       }) => Promise<import('../main/maker-ipc/planFirst').PlanFirstView>;
     };
+    /** ROADMAP 11.10: turn audit (progress, decisions, low-confidence assumptions). */
+    turnAudit: {
+      get: (params: { sessionId: string }) => Promise<import('../main/maker-ipc/turnAudit').TurnAuditView>;
+      set: (params: { sessionId: string; turnAudit: boolean }) =>
+        Promise<import('../main/maker-ipc/turnAudit').TurnAuditView>;
+      summary: (params: { sessionId: string }) => Promise<import('../main/maker-ipc/turnAudit').TurnAuditSummaryView>;
+    };
     securityGuard: {
       /** ROADMAP 10.1: injection-guard settings (~/.cindy-harness/security.json). */
       getConfig: () => Promise<import('../main/maker-ipc/securityGuard').SecurityGuardView>;
