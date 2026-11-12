@@ -95,4 +95,45 @@ describe('executeProjectCreate', () => {
     expect(result.name).toBe('auto-named-proj');
     expect(mockUpsert).toHaveBeenCalledWith(`local:${path.resolve(targetDir)}`, 'auto-named-proj');
   });
+
+  it('never overwrites an existing IDEA.md or vault project note; reports them as skipped', async () => {
+    // A project named like an existing vault note (e.g. "Cindy") must not clobber the owner's
+    // curated `memory/Project — Cindy.md`; an existing folder keeps its IDEA.md.
+    const fsReal = await import('node:fs/promises');
+    const os = await import('node:os');
+    const root = await fsReal.mkdtemp(path.join(os.tmpdir(), 'cindy-project-create-'));
+    const dir = path.join(root, 'existing');
+    const vault = path.join(root, 'vault');
+    await fsReal.mkdir(dir, { recursive: true });
+    await fsReal.mkdir(path.join(vault, 'memory'), { recursive: true });
+    await fsReal.writeFile(path.join(dir, 'IDEA.md'), 'owner idea\n');
+    const note = path.join(vault, 'memory', 'Project — Cindy.md');
+    await fsReal.writeFile(note, 'curated history\n');
+
+    const result = await executeProjectCreate(
+      { name: 'Cindy', primaryPath: dir, ideaText: 'new idea', createIdeaFile: true, linkVault: true },
+      { upsertAlias: vi.fn().mockResolvedValue(null), readVault: (() => ({ config: { vaultDir: vault } })) as any },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(await fsReal.readFile(path.join(dir, 'IDEA.md'), 'utf8')).toBe('owner idea\n');
+    expect(await fsReal.readFile(note, 'utf8')).toBe('curated history\n');
+    expect(result.createdFiles).not.toContain('IDEA.md');
+    expect(result.skippedFiles).toEqual(['IDEA.md (exists)', 'vault: Project — Cindy.md (exists)']);
+    await fsReal.rm(root, { recursive: true, force: true });
+  });
+
+  it('checks the IPC sender before creating anything', async () => {
+    const { registerProjectCreateHandlers } = await import('../projectCreate.js');
+    const electron = await import('electron');
+    const handle = vi.spyOn(electron.ipcMain, 'handle').mockImplementation(() => undefined as never);
+    const assertTrusted = vi.fn(() => {
+      throw new Error('untrusted');
+    });
+    registerProjectCreateHandlers({ assertTrusted });
+    const listener = handle.mock.calls.find(([channel]) => channel === 'maker:project:create')![1] as (e: unknown, i: unknown) => Promise<unknown>;
+    await expect(listener({ sender: 'x' }, { name: 'x', primaryPath: '/nope/never' })).rejects.toThrow('untrusted');
+    expect(assertTrusted).toHaveBeenCalledWith({ sender: 'x' });
+    handle.mockRestore();
+  });
 });

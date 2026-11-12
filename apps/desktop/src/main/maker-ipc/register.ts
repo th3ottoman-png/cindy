@@ -26201,7 +26201,9 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     },
   );
 
-  registerProjectCreateHandlers();
+  registerProjectCreateHandlers({
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
 
   // ── Plugin hub (Phase 2) ──────────────────────────────────────────────────
 

@@ -38,7 +38,24 @@ export interface CreateProjectResult {
   workingDir: string;
   name: string;
   createdFiles: string[];
+  /** Files that already existed and were left untouched (never overwritten). */
+  skippedFiles?: string[];
   error?: string;
+}
+
+/** Create `file` only if it does not exist yet. Returns false (no write) when it does. */
+async function writeNew(
+  writeFile: typeof fs.writeFile,
+  file: string,
+  content: string,
+): Promise<boolean> {
+  try {
+    await writeFile(file, content, { encoding: 'utf8', flag: 'wx' });
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'EEXIST') return false;
+    throw error;
+  }
 }
 
 export const PROJECT_CREATE_CHANNEL = 'maker:project:create';
@@ -67,6 +84,7 @@ export async function executeProjectCreate(
   const resolvedPath = path.resolve(input.primaryPath.trim());
   const projectName = (input.name?.trim() || path.basename(resolvedPath)).slice(0, 80);
   const createdFiles: string[] = [];
+  const skippedFiles: string[] = [];
 
   // 1. Ensure directory exists
   await mkdir(resolvedPath, { recursive: true });
@@ -93,8 +111,9 @@ export async function executeProjectCreate(
   if (input.createIdeaFile !== false && input.ideaText && input.ideaText.trim()) {
     const ideaPath = path.join(resolvedPath, 'IDEA.md');
     const ideaContent = `# ${projectName}\n\n${input.ideaText.trim()}\n`;
-    await writeFile(ideaPath, ideaContent, 'utf8');
-    createdFiles.push('IDEA.md');
+    // An existing folder keeps its own IDEA.md.
+    if (await writeNew(writeFile, ideaPath, ideaContent)) createdFiles.push('IDEA.md');
+    else skippedFiles.push('IDEA.md (exists)');
   }
 
   // 4. Create .gitignore if requested
@@ -127,8 +146,9 @@ export async function executeProjectCreate(
         await mkdir(memoryDir, { recursive: true });
         const notePath = path.join(memoryDir, `Project — ${projectName}.md`);
         const noteContent = `# Project — ${projectName}\n\n- **Path:** \`${resolvedPath}\`\n- **Created:** ${new Date().toISOString()}\n\n## Scope & Overview\n${input.ideaText?.trim() || 'No initial description provided.'}\n`;
-        await writeFile(notePath, noteContent, 'utf8');
-        createdFiles.push(`vault: Project — ${projectName}.md`);
+        // Never clobber a curated vault note that happens to share the project's name.
+        if (await writeNew(writeFile, notePath, noteContent)) createdFiles.push(`vault: Project — ${projectName}.md`);
+        else skippedFiles.push(`vault: Project — ${projectName}.md (exists)`);
       }
     } catch {
       // Vault linking fail-open
@@ -141,11 +161,14 @@ export async function executeProjectCreate(
     workingDir: resolvedPath,
     name: projectName,
     createdFiles,
+    ...(skippedFiles.length ? { skippedFiles } : {}),
   };
 }
 
-export function registerProjectCreateHandlers(): void {
-  ipcMain.handle(PROJECT_CREATE_CHANNEL, async (_event, input: unknown) => {
+export function registerProjectCreateHandlers(deps: { assertTrusted?: (event: unknown) => void } = {}): void {
+  ipcMain.handle(PROJECT_CREATE_CHANNEL, async (event, input: unknown) => {
+    // Creates folders and files anywhere on disk: only the app's own renderer may ask.
+    deps.assertTrusted?.(event);
     return executeProjectCreate(input as CreateProjectInput);
   });
 }

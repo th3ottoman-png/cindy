@@ -10,6 +10,22 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-12 (i) - 11.12 Project Creation screen: honest `live-proven` + 3 fixes
+
+- **Why this row again**: ROADMAP showed 11.12 ✅ `live-proven`, but both 2026-11-11 STATUS entries list only unit tests and gates; the full creation flow had never been run in the app. Ran it, and fixed what it (and reading the host) found.
+- **Fixes**:
+  1. **Silent overwrite (data loss)** — `apps/desktop/src/main/maker-ipc/projectCreate.ts` wrote `IDEA.md` and the vault note `memory/Project — <Name>.md` with a plain `writeFile`. A project named "Cindy" would have replaced the owner's curated `Bishi-memory/memory/Project — Cindy.md`; a project on an existing folder replaced its `IDEA.md`. Now both are created with `flag: 'wx'` only if absent and returned in a new `skippedFiles`.
+  2. **No sender check** — `maker:project:create` creates folders/files anywhere on disk but accepted any IPC sender. `registerProjectCreateHandlers({ assertTrusted })`, wired in `register.ts` with `assertTrustedAppRendererEvent`.
+  3. **Wrong agent after hand-off (found live)** — Hermes chosen in the dialog, the new-task composer opened on Codex/GPT-6-Luna: `patchDraft({ vendor })` is undone by the stored default-tuple rebase. `NewProjectDialog.tsx` now calls `switchVendor(vendor)` (the store's documented path, same as `SessionHandoffButton`). Also: a toast lists kept files, and the seed prompt says "(from IDEA.md)" only when IDEA.md was written. `vite-env.d.ts`: `skippedFiles?` on the result.
+- **Tests (`unit-tested`)**: `projectCreate.test.ts` +2 (real temp dir: existing IDEA.md and vault note survive byte-for-byte; untrusted sender rejected before any mkdir) — both red first; `NewProjectDialog.test.tsx` +2 (switchVendor('hermes'); kept-files warning and seed wording) — red first. 5 + 5 pass.
+- **Live proof** (sandbox `CindyGlobal-dev2-dev`, CDP 9222; `vault.json` backed up to `.bak-2026-11-12-11.12`, vault pointed at `scratchpad/proof1112/vault`, restored after — `cmp` equal, `vaultDir` back to Bishi-memory, no proof note there). Dialog opened through the composer folder menu's `onCreateNewProject` (the same handler "+ New project…" calls); the folder was set through the dialog's React state, because the native macOS folder picker cannot be driven over CDP — name, idea, checkboxes and **Create** were real DOM input/clicks.
+  - **A "Scaffold Demo"** (empty folder, all options): `.git` on `main` ("No commits yet"), `.gitignore`, `IDEA.md` ("# Scaffold Demo …"), `vault/memory/Project — Scaffold Demo.md`; dialog closed, `#/cc-agent/new` composer seeded with the brief on that folder.
+  - **B "Cindy"** (folder with its own IDEA.md; proof vault already has `Project — Cindy.md`), before the renderer fix: both files byte-for-byte unchanged (overwrite fix live), `.git` + `.gitignore` added — but composer opened on **Codex**, no notice of the kept files.
+  - **C "Cindy"** on `existing2` after the renderer fix: files unchanged, toast "Kept existing files, not overwritten: IDEA.md (exists), vault: Project — Cindy.md (exists)", draft vendor `hermes` (composer "Hermes · Hermes home default (deepseek-flash)"), seed prompt without "(from IDEA.md)". Screenshots `11-12-after-create.png`, `11-12-after-fix.png` (scratchpad, ephemeral).
+- **Observed, not changed**: a new project shows under PROJECTS only once it has a chat (the list is built from sessions; count stayed 3); the sidebar `+` opens the native folder picker first.
+- **Gates (Node 22.23.4)**: `typecheck` 0, `test:runner` 608/0, `check:test-hygiene` PASS, `test:unit:related` shards 1–8 all exit 0 first try. Diff grep: no new `fetch(`/URL/`~/.hermes`.
+- **User state touched**: `vault.json` (backed up, restored). Proof folders/vault in the scratchpad; 3 project aliases in the sandbox DB.
+
 ## 2026-11-12 (h) - 11.11 Git Worktree Isolation & Council Integration: `live-proven`
 
 - **Shipped**:

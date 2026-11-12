@@ -9,9 +9,11 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
+const switchVendor = vi.hoisted(() => vi.fn());
 vi.mock('@/state/newMakerDraft', () => ({
   patchDraft: vi.fn(),
   patchNewMakerDraft: vi.fn(),
+  switchVendor,
 }));
 
 vi.mock('@/lib/composerDraftStore', () => ({
@@ -106,5 +108,34 @@ describe('NewProjectDialog', () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(mockNavigate).toHaveBeenCalledWith('/cc-agent/new');
+  });
+
+  it('hands the chosen agent to the new-task draft via switchVendor (live: a patched vendor did not stick)', async () => {
+    switchVendor.mockClear();
+    render(<NewProjectDialog open={true} onOpenChange={vi.fn()} defaultPath="/Users/turko/Cindy-Hermes" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(switchVendor).toHaveBeenCalledWith('hermes'));
+  });
+
+  it('warns when existing files were kept, and the seed prompt does not claim a skipped IDEA.md', async () => {
+    const { toast } = await import('@/lib/toast');
+    const { saveDraft } = await import('@/lib/composerDraftStore');
+    (window.electronAPI.createProject as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      projectKey: 'local:/w/existing',
+      workingDir: '/w/existing',
+      name: 'Cindy',
+      createdFiles: ['.gitignore'],
+      skippedFiles: ['IDEA.md (exists)', 'vault: Project — Cindy.md (exists)'],
+    });
+    render(<NewProjectDialog open={true} onOpenChange={vi.fn()} defaultPath="/w/existing" />);
+    fireEvent.change(screen.getByPlaceholderText(/saved to IDEA\.md/), { target: { value: 'new idea' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    const warning = String((toast.warning as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]);
+    expect(warning).toContain('IDEA.md');
+    expect(warning).toContain('Project — Cindy.md');
+    const seed = JSON.stringify((saveDraft as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
+    expect(seed).not.toContain('(from IDEA.md)');
   });
 });

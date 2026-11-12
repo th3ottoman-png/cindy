@@ -27,7 +27,7 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/lib/toast';
-import { patchDraft as patchNewMakerDraft } from '@/state/newMakerDraft';
+import { patchDraft as patchNewMakerDraft, switchVendor } from '@/state/newMakerDraft';
 import { plainTextToTiptapDoc, saveDraft } from '@/lib/composerDraftStore';
 import { NEW_MAKER_DRAFT_KEY } from '@/features/cc-agent/newMakerDraftKeys';
 import type { MakerVendor } from '@/lib/ccAgent.types';
@@ -208,13 +208,20 @@ export function NewProjectDialog({
       }
 
       // Update draft and prefill seed message if idea provided
-      patchNewMakerDraft({
-        workingDir: result.workingDir,
-        vendor,
-      });
+      patchNewMakerDraft({ workingDir: result.workingDir });
+      // A vendor written through patchDraft is undone by the stored default-tuple rebase (seen
+      // live: Hermes chosen, Codex opened); switchVendor is the store's supported path.
+      switchVendor(vendor);
+
+      // Existing files are never overwritten (main process); say so instead of failing silently.
+      const skipped = result.skippedFiles ?? [];
+      if (skipped.length > 0) {
+        toast.warning(`Kept existing files, not overwritten: ${skipped.join(', ')}`);
+      }
+      const ideaWritten = result.createdFiles.includes('IDEA.md');
 
       if (ideaText.trim()) {
-        const seedPrompt = `Project **${result.name}** initialized.\n\n### Project Idea & Scope (from IDEA.md)\n${ideaText.trim()}\n\nLet's begin by reviewing the project scope and planning the initial implementation.`;
+        const seedPrompt = `Project **${result.name}** initialized.\n\n### Project Idea & Scope${ideaWritten ? ' (from IDEA.md)' : ''}\n${ideaText.trim()}\n\nLet's begin by reviewing the project scope and planning the initial implementation.`;
         saveDraft(NEW_MAKER_DRAFT_KEY, {
           text: plainTextToTiptapDoc(seedPrompt),
           attachments: [],

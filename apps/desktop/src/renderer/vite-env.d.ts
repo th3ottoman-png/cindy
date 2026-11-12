@@ -2952,6 +2952,8 @@ interface ElectronAPI {
     workingDir: string;
     name: string;
     createdFiles: string[];
+    /** Existing files left untouched (11.12: never overwritten). */
+    skippedFiles?: string[];
     error?: string;
   }>;
   openExternal: (url: string) => Promise<{ success: boolean }>;
