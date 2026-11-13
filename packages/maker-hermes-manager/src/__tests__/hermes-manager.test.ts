@@ -182,6 +182,57 @@ describe('HermesManager socket integration (fake hermes)', () => {
     expect(argv).not.toContain('--safe-mode');
   }, 20_000);
 
+  it('surfaces the managed worker cause and logs the failed launch instead of a bare exit code', async () => {
+    const h = current!;
+    process.env.FAKE_BEHAVIOR = 'worker-failure';
+    try {
+      await h.client.request(METHODS.QUERY_START, {
+        sessionId: 'wf1',
+        cwd: h.dir,
+        permissionMode: 'bypassPermissions',
+        model: 'google/gemma-4-26b-a4b-qat',
+        provider: 'fake-provider',
+        apiKey: 'sk-live-secret-do-not-log',
+      }, { timeoutMs: 5_000 });
+      await h.client.request(METHODS.QUERY_SEND, { sessionId: 'wf1', text: 'hi' }, { timeoutMs: 5_000 });
+      await h.collector.waitFor(
+        (n) =>
+          n.method === NOTIFICATIONS.SESSION_CLOSED &&
+          (n.params as SessionClosedNotification).sessionId === 'wf1',
+      );
+    } finally {
+      delete process.env.FAKE_BEHAVIOR;
+    }
+
+    // The forwarded `result` now carries the cause the banner shows; the CLI's own
+    // stderr only holds install noise (measured), so the worker log is the source.
+    const results = h.collector.eventsOfType('result');
+    expect(results).toHaveLength(1);
+    const event = (results[0].params as { event: { error?: string; exit_code?: number } }).event;
+    expect(event.exit_code).toBe(1);
+    expect(event.error).toContain("Unknown provider 'fake-provider'");
+    expect(event.error).not.toContain('install out of sync');
+
+    // One WARN with the argv (api key redacted) and the tail's last meaningful line.
+    // The payload is a single line on purpose: the daemon's stderr reaches the log
+    // through a line-oriented pipe, so a pretty-printed ctx would lose its body.
+    const warn = h.warnings.find((w) => w.msg.startsWith('Hermes run failed '));
+    expect(warn).toBeDefined();
+    expect(warn!.msg).not.toContain('\n');
+    const payload = JSON.parse(warn!.msg.slice('Hermes run failed '.length)) as {
+      argv: string[];
+      exitCode: number;
+      stderrTail: string;
+      sawResult: boolean;
+    };
+    expect(payload.argv[payload.argv.indexOf('--provider') + 1]).toBe('fake-provider');
+    expect(payload.argv[payload.argv.indexOf('--api-key') + 1]).toBe('[redacted]');
+    expect(warn!.msg).not.toContain('sk-live-secret-do-not-log');
+    expect(payload.exitCode).toBe(1);
+    expect(payload.sawResult).toBe(true);
+    expect(payload.stderrTail).toContain('session_id:');
+  }, 20_000);
+
   it('rewrites a custom-provider route so a --safe-mode turn can resolve it', async () => {
     const h = current!;
     // The home config is what `--safe-mode` ignores; its `custom_providers` entry is the only

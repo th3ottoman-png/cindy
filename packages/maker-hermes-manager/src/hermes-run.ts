@@ -62,9 +62,27 @@ export interface HermesRunResult {
 
 export interface HermesRunHandle {
   child: ChildProcess;
+  /** The argv actually spawned, for diagnostic logs. Never log it un-redacted. */
+  args: string[];
   result: Promise<HermesRunResult>;
   /** Escalating stop; resolves once the child has exited. Idempotent. */
   kill(): Promise<void>;
+}
+
+/**
+ * Argv with the API key masked, for a WARN line the owner may paste into a bug
+ * report. Only the `--api-key` value is secret; every other flag is diagnostic.
+ */
+export function redactHermesArgsForLog(args: readonly string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i += 1) {
+    out.push(args[i]);
+    if (args[i] === '--api-key' && i + 1 < args.length) {
+      out.push('[redacted]');
+      i += 1;
+    }
+  }
+  return out;
 }
 
 const STDERR_TAIL_BYTES = 16 * 1024;
@@ -158,7 +176,8 @@ export function startHermesRun(
   spec: HermesSpawnSpec,
   onEvent: (event: unknown) => void,
 ): HermesRunHandle {
-  const child = spawn(spec.hermesBin, buildHermesArgs(spec), {
+  const args = buildHermesArgs(spec);
+  const child = spawn(spec.hermesBin, args, {
     cwd: spec.cwd,
     env: {
       ...process.env,
@@ -231,6 +250,7 @@ export function startHermesRun(
 
   const handle: HermesRunHandle = {
     child,
+    args,
     result,
     kill(): Promise<void> {
       killed = true;

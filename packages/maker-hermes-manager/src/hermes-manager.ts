@@ -52,9 +52,15 @@ import * as nodePath from 'node:path';
 import {
   isInvalidResumeFailure,
   permissionModeToFlags,
+  redactHermesArgsForLog,
   startHermesRun,
   type HermesRunHandle,
 } from './hermes-run.js';
+import {
+  attachHermesFailureDetail,
+  describeHermesRunFailure,
+  pickFailureLine,
+} from './run-failure.js';
 import { createCompressionWatcher, readTurnContextUsage, type CompressionWatcher } from './hermes-context.js';
 import {
   HERMES_MGR_BUNDLE_VERSION,
@@ -160,6 +166,12 @@ const MAX_TURNS_LIMIT = 1000;
 
 function isValidMaxTurns(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_TURNS_LIMIT;
+}
+
+/** Last non-empty line of a captured tail, for one log field. */
+function lastLine(text: string): string {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return lines.length > 0 ? lines[lines.length - 1].slice(-500) : '';
 }
 
 /** Plain built-in toolset names only: Hermes refuses tool-level `-t` values (0.22.5). */
@@ -865,6 +877,11 @@ export class HermesManager {
         resumeHermesSessionId: string | undefined,
         allowResumeFallback: boolean,
       ): void => {
+        // ROADMAP §Debt: a launch that dies before its first model call reports only
+        // `exit_code`, and the cause lands in the session home's managed-worker.log.
+        // Only a log written since this run started can explain it (an older one is
+        // a previous turn's cause).
+        const runStartedAt = Date.now();
         // A resume Hermes cannot resolve fails before producing any turn output.
         // Hold the events back until the id is proven live so the retry below can
         // discard them instead of showing the user a phantom failed turn.
@@ -873,7 +890,8 @@ export class HermesManager {
         const flushHeld = (): void => {
           for (const event of held.splice(0)) this.onHermesEvent(rec.sessionId, event, turnHome);
         };
-        const onEvent = (event: unknown): void => {
+        const onEvent = (rawEvent: unknown): void => {
+          const event = attachHermesFailureDetail(rawEvent, turnHome, { notBeforeMs: runStartedAt });
           if (!holding) {
             this.onHermesEvent(rec.sessionId, event, turnHome);
             return;
@@ -967,7 +985,35 @@ export class HermesManager {
           } else {
             reason = 'completed';
           }
-          this.emitClosed(rec.sessionId, reason, res.stderrTail || res.spawnError);
+          // Why this run died, in one line: the home's worker log first, then the
+          // CLI's stderr tail (measured: a failed launch leaves only noise there).
+          const failed = !turn.killed && Boolean(res.spawnError || res.code !== 0 || res.signal);
+          const failureDetail = failed
+            ? describeHermesRunFailure(turnHome, res.stderrTail, { notBeforeMs: runStartedAt })
+            : undefined;
+          if (failed) {
+            // The daemon's stderr is drained by the desktop and otherwise discarded
+            // (hermes-manager-client.ts), so this WARN carries everything needed to
+            // explain the turn without grepping the Hermes home. Never the raw key.
+            // The payload is JSON on one line because that pipe is line-oriented:
+            // a pretty-printed ctx would reach the desktop log as its opening `{`.
+            this.logger?.warn(
+              `Hermes run failed ${JSON.stringify({
+                sessionId: rec.sessionId,
+                exitCode: res.code,
+                signal: res.signal,
+                sawResult: res.sawResult,
+                ...(res.spawnError ? { spawnError: res.spawnError } : {}),
+                argv: redactHermesArgsForLog(run.args),
+                stderrTail: pickFailureLine(res.stderrTail) ?? lastLine(res.stderrTail),
+              })}`,
+            );
+          }
+          this.emitClosed(
+            rec.sessionId,
+            reason,
+            failureDetail ?? (res.stderrTail || res.spawnError),
+          );
         });
       };
 

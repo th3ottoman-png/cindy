@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildHermesArgs, isInvalidResumeFailure, type HermesRunResult } from '../hermes-run.js';
+import {
+  buildHermesArgs,
+  isInvalidResumeFailure,
+  redactHermesArgsForLog,
+  type HermesRunResult,
+} from '../hermes-run.js';
 
 function result(patch: Partial<HermesRunResult> = {}): HermesRunResult {
   return { code: 1, signal: null, sawResult: true, stderrTail: '', ...patch };
@@ -52,5 +57,26 @@ describe('isInvalidResumeFailure', () => {
     }))).toBe(false);
     expect(isInvalidResumeFailure(result({ spawnError: 'ENOENT', stderrTail: LOST_SESSION })))
       .toBe(false);
+  });
+});
+
+describe('redactHermesArgsForLog', () => {
+  it('masks only the value after --api-key', () => {
+    const argv = ['chat', '--provider', 'custom', '--api-key', 'sk-live-123', '--base-url', 'http://x'];
+    expect(redactHermesArgsForLog(argv)).toEqual([
+      'chat', '--provider', 'custom', '--api-key', '[redacted]', '--base-url', 'http://x',
+    ]);
+  });
+
+  it('leaves argv without a key byte-identical', () => {
+    const argv = ['chat', '--yolo'];
+    expect(redactHermesArgsForLog(argv)).toEqual(argv);
+  });
+
+  it('does not mistake a --api-key value for another flag', () => {
+    // A key that happens to equal a flag name must still be the masked token.
+    expect(redactHermesArgsForLog(['--api-key', '--yolo', '--yolo'])).toEqual([
+      '--api-key', '[redacted]', '--yolo',
+    ]);
   });
 });

@@ -43,6 +43,7 @@ import {
 } from '@cindy/maker-hermes-manager';
 
 import { desktopMakerLogger } from './logger-adapter.js';
+import { createDaemonLogForwarder } from './daemon-log-forward.js';
 
 const log = desktopMakerLogger.child('hermes-manager-client');
 
@@ -747,6 +748,15 @@ async function spawnAndVerify(opts: SpawnAndVerifyOpts): Promise<HermesEnsureRes
   }
   ownedChild = child;
   trackChildExit(child);
+  // ROADMAP §Debt: the daemon's WARN says which argv died and why. Its stderr is
+  // otherwise drained and discarded (waitForReady keeps only a 2 KB tail for a
+  // startup failure), so forward the daemon's own warn/error markers to the log.
+  if (child.stderr) {
+    child.stderr.on(
+      'data',
+      createDaemonLogForwarder((line) => log.warn('hermes-mgr daemon', { line })),
+    );
+  }
   log.info('hermes-mgr forked', {
     pid: child.pid,
     socketPath: opts.socketPath,

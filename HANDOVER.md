@@ -244,6 +244,14 @@ Authoritative list is `AGENTS.md` §1–§3. Summary:
 - **Hermes security scan** blocks community plugins (e.g. `obra/superpowers`: ~170 findings,
   14 HIGH, all in docs/test files). Read each HIGH, install without `--force` where possible,
   inspect `.hermes-plugin/__init__.py`, enable, run `doctor`. Record what you read in `STATUS.md`.
+- **A failed Hermes turn explains itself now.** When a launch dies before its first model call,
+  Hermes 0.23.0 emits a `result` with `exit_code: 1` and no `error`; the cause is in
+  `<session home>/logs/managed-worker.log`, not in the CLI's stderr. The daemon fills `error`
+  from that log's tail (`run-failure.ts`, only a log written since the run started) so the chat
+  banner shows the cause, and WARNs one JSON line `Hermes run failed {…}` with the argv
+  (`--api-key` masked), exit code and stderr tail; the desktop client forwards the daemon's
+  `[hermes-mgr][warn|error]` stderr lines into `apps/desktop/logs/main-*.log` (dev) or
+  `<userData>/logs/` (packaged). Grep `Hermes run failed` there before grepping the Hermes home.
 - **Line-based YAML editing** of `config.yaml` preserves comments but is sensitive to unusual
   formatting. Always back up before a live write (`AGENTS.md` §4).
 - **`sessions.json`** is rewritten every turn via temp-write + rename. A corrupt or truncated

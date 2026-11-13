@@ -16,6 +16,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 function flagValue(name) {
   const i = process.argv.indexOf(name);
@@ -131,6 +132,35 @@ if (behavior === 'happy') {
   emit({ type: 'text', text: 'partial output then boom' });
   process.stderr.write('simulated hermes crash\n');
   process.exit(3);
+} else if (behavior === 'worker-failure') {
+  // Mirrors the installed CLI measured 2026-11-13: a launch that dies before its
+  // first model call emits a `result` with `exit_code: 1` and no `error`, writes
+  // the real cause into the managed worker log, and leaves only install noise on
+  // its own stderr. ROADMAP §Debt: the banner used to show only the exit code.
+  emit({ type: 'system', subtype: 'init', model: 'fake-model', session_id: initSessionId });
+  const logsDir = path.join(process.env.HERMES_HOME ?? '.', 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+  fs.appendFileSync(
+    path.join(logsDir, 'managed-worker.log'),
+    [
+      'Traceback (most recent call last):',
+      '  File "/fake/hermes/worker.py", line 1, in <module>',
+      '    raise AuthError(...)',
+      `[pid ${process.pid}] hermes_cli.auth_constants.AuthError: Unknown provider 'fake-provider'. Check 'hermes model' for available providers.`,
+      '',
+    ].join('\n'),
+  );
+  process.stderr.write('\u26a0 install out of sync (ffmpeg: not installed or outdated) \u2014 run `hermes pm install`\n');
+  process.stderr.write(`Session: ${initSessionId}\n\nsession_id: ${initSessionId}\n`);
+  emit({
+    type: 'result',
+    session_id: sessionId,
+    exit_code: 1,
+    text: 'Worker execution is unknown.',
+    tokens: { input: 0, output: 0, total: 0, cache_read: 0, cache_write: 0 },
+    duration_ms: 553,
+  });
+  process.exit(1);
 } else if (behavior === 'permission-scoped') {
   // Mirrors Hermes 0.22.5 (live 2026-11-02): a `--yolo` session and a
   // `--safe-mode` session live in separate stores, so `--resume <id>` under the
