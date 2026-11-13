@@ -458,6 +458,10 @@ function describeTierStatus(manifestWorkspaces, tier) {
 export function classifyFailure({ stage, exitCode, output }) {
 	if (stage === "preflight") return "PREFLIGHT_FAILED";
 	if (exitCode === 0) return null;
+	// A worker thread killed by SIGSEGV prints no failing assertion; pnpm's own
+	// "Command was killed with SIGSEGV" line contains "FAIL", so this must come
+	// before the assertion branch or a native crash reads as an assertion failure.
+	if (/SIGSEGV|Segmentation fault/i.test(output)) return "WORKER_CRASHED";
 	if (/No test files found/i.test(output)) return "NO_TESTS_REQUIRED";
 	if (/Failed Suites|Cannot find module|Error: Failed to load/i.test(output))
 		return "TEST_COLLECT_FAILED";
@@ -699,6 +703,40 @@ export function runCommand(command, args, options = {}) {
 			finish({ exitCode: code ?? 1 });
 		});
 	});
+}
+
+/**
+ * One retry for a native worker crash (ROADMAP §Debt): V8 can segfault while a
+ * vitest worker thread tears down its isolate, after the files it ran passed.
+ * The documented procedure is "rerun that leg and never count the crashed run as
+ * green", so do exactly that — once, loudly, and only when the run died by
+ * SIGSEGV. A retry that fails again is reported as the failure it is.
+ */
+export async function runTestLegWithWorkerCrashRetry({
+	runCommand,
+	invocation,
+	cwd,
+	onRetry,
+}) {
+	const invoke = () =>
+		runCommand(invocation.command, invocation.args, {
+			cwd,
+			env: invocation.env ? { ...process.env, ...invocation.env } : undefined,
+			shell: invocation.shell,
+			windowsVerbatimArguments: invocation.windowsVerbatimArguments,
+		});
+	const first = await invoke();
+	const firstFailure = classifyFailure({
+		stage: "test",
+		exitCode: first.exitCode,
+		output: first.output,
+	});
+	if (firstFailure !== "WORKER_CRASHED") {
+		return { commandResult: first, retriedWorkerCrash: false, firstFailure };
+	}
+	onRetry?.(first);
+	const second = await invoke();
+	return { commandResult: second, retriedWorkerCrash: true, firstFailure };
 }
 
 /**
@@ -967,24 +1005,29 @@ export async function runPlannedTests({
 				Array.isArray(relatedFiles) ? relatedFiles : undefined,
 			);
 			const invocation = resolveTestInvocation(pnpmArgs);
-			const commandResult = await runCommandImpl(
-				invocation.command,
-				invocation.args,
-				{
+			const { commandResult, retriedWorkerCrash } =
+				await runTestLegWithWorkerCrashRetry({
+					runCommand: async (command, args, options) =>
+						runCommandImpl(command, args, {
+							...options,
+							stdout: reporter ? null : undefined,
+							stderr: reporter ? null : undefined,
+						}),
+					invocation,
 					cwd,
-					env: invocation.env ? { ...process.env, ...invocation.env } : undefined,
-					shell: invocation.shell,
-					windowsVerbatimArguments: invocation.windowsVerbatimArguments,
-					stdout: reporter ? null : undefined,
-					stderr: reporter ? null : undefined,
-				},
-			);
+					onRetry: () => {
+						console.log(
+							`RETRY ${run.workspace.cwd} ${currentTier}: the worker process died by SIGSEGV after its tests passed (known V8 teardown crash, ROADMAP §Debt) — rerunning this leg once`,
+						);
+					},
+				});
 			reporter?.onCommandComplete?.({
 				run,
 				stage: "test",
 				commandResult,
 			});
 			const result = {
+				...(retriedWorkerCrash ? { retriedWorkerCrash: true } : {}),
 				workspace: run.workspace.cwd,
 				tier: currentTier,
 				stage: "test",
@@ -1017,7 +1060,10 @@ export function printSummary(results, manifest) {
 			Number.isFinite(result.durationMs)
 				? ` (${formatElapsed(result.durationMs)})`
 				: "";
-		console.log(`${status} ${workspaceCwd} ${result.tier}${elapsed}`);
+		const retried = result.retriedWorkerCrash
+			? " [retried after a worker SIGSEGV]"
+			: "";
+		console.log(`${status} ${workspaceCwd} ${result.tier}${elapsed}${retried}`);
 		if (result.command)
 			console.log(`  command: ${[result.command, ...(result.args ?? [])].join(" ")}`);
 	}

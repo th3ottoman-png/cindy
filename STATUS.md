@@ -21,6 +21,25 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-13 (u) - SIGSEGV in the desktop unit leg: cause narrowed to V8 worker teardown, reporting fixed, gate tax removed
+
+- **Row**: the §Debt row for the intermittent `apps/desktop unit` worker `SIGSEGV` (threads pool), chosen by the owner. Verdict up front: **the root cause is not in this repo**, and the crash cannot be given a stack on this host without enabling Developer Mode. What is fixed: the crash is no longer misreported, and it no longer needs a human rerun.
+- **Reproduced**: normal gate runs today hit it twice (shard 1 at 19.4 s, shard 6 at 17.8 s, no assertion either time); amplifying with `MallocScribble=1 MallocGuardEdges=1` produced 1 crash in 12 desktop-leg runs (22.2 s).
+- **Ruled out, each with a measurement**:
+  1. *A plain native-addon worker teardown.* ~2,000 `worker_threads` teardowns across `better-sqlite3`, `sharp` and `node-pty` (require-only, open+leak, open+close; six processes in parallel) — **zero** crashes. So the trigger needs vitest's own worker lifecycle, not merely a NAPI addon in a worker.
+  2. *`--poolOptions.threads.isolate=false`* (fewer isolate teardowns). It breaks the suite: **737 tests in 91 files fail** because they rely on per-file module isolation.
+  3. *Node's own report for a stack.* `--report-on-signal --report-signal=SIGSEGV` **swallows** the fault: 33 reports written, process still running 18 minutes later, no crash. Killed it deliberately.
+  4. *`lldb`.* `DevToolsSecurity -status` → **"Developer mode is currently disabled"**, so `lldb --batch -o run` hangs with the inferior suspended (state `T`); enabling it needs `sudo`, which this session cannot do.
+  5. *Core dumps.* `kern.corefile` is `/cores/core.%P` and `/cores` is root-owned and not writable → no core, and macOS wrote no `.ips` for any of these crashes (the only `node-*.ips` present is an unrelated app's).
+- **What was actually wrong in our layer — reporting**: `classifyFailure` (`scripts/test-workspaces.mjs`) tested `/FAIL|AssertionError|expected /` and pnpm's summary is `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL Command was killed with SIGSEGV`, so **every native crash was labelled `TEST_ASSERTION_FAILED`**. That is why each past investigation ("no assertion failed") had to re-discover the truth by hand. It now returns `WORKER_CRASHED` before the assertion branch.
+- **Shipped** (`scripts/test-workspaces.mjs`): new `runTestLegWithWorkerCrashRetry({ runCommand, invocation, cwd, onRetry })`, used by the test stage of every leg. When a leg dies by SIGSEGV it prints `RETRY <workspace> <tier>: the worker process died by SIGSEGV after its tests passed (known V8 teardown crash, ROADMAP §Debt) — rerunning this leg once`, reruns that one invocation, and uses the retry's verdict; `printSummary` appends `[retried after a worker SIGSEGV]` so a passing gate still shows the crash. A second crash fails normally, and a non-crash failure is never retried.
+- **Tests (red-first via the new expectations)**: `scripts/__tests__/test-workspaces.test.mjs` +5 — SIGSEGV classifies as `WORKER_CRASHED` (not `TEST_ASSERTION_FAILED`), a real assertion failure keeps its label, the retry decides the verdict (two invocations, `retriedWorkerCrash: true`), crash-twice stays failed, a real failure is invoked exactly once, and `printSummary` prints the retry marker. 94/94 in that file.
+- **Live in the gate, same session**: with the retry in place the 8-shard gate hit the crash again — shard 3 printed `RETRY apps/desktop unit: the worker process died by SIGSEGV after its tests passed (known V8 teardown crash, ROADMAP §Debt) — rerunning this leg once`, reran, and ended `PASS apps/desktop unit (70.2s) [retried after a worker SIGSEGV]` (a normal shard is ~49 s; `/tmp/proofs/s-shard-3.log`). That is the manual rerun this row used to cost, performed and reported automatically.
+- **Not claimed**: the underlying V8 teardown crash is still there, roughly once per 8–12 desktop-leg runs under load; nothing here makes it rarer. The remaining question is *which* worker/file set crashes, which needs a native stack.
+- **To finish it** (owner action, one line): `sudo DevToolsSecurity -enable`, then the desktop leg can be run under `lldb` and the crashing thread printed — that is the only blocker left on the root cause.
+
+---
+
 ## 2026-11-13 (t) - Vault watcher: lost startup-window events fixed, `unit-tested` (load-reproduced)
 
 - **Row**: the 8.2 §Debt note ("give the watcher test an explicit timeout when that file is next touched"), chosen by the owner over the `SIGSEGV` row because it bit the gate again today.

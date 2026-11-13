@@ -244,6 +244,14 @@ Authoritative list is `AGENTS.md` §1–§3. Summary:
 - **Hermes security scan** blocks community plugins (e.g. `obra/superpowers`: ~170 findings,
   14 HIGH, all in docs/test files). Read each HIGH, install without `--force` where possible,
   inspect `.hermes-plugin/__init__.py`, enable, run `doctor`. Record what you read in `STATUS.md`.
+- **The gate retries one kind of crash.** A vitest worker thread can die by `SIGSEGV` while V8
+  tears its isolate down (macOS, threads pool, ~1 in 8–12 `apps/desktop unit` legs under load).
+  `classifyFailure` reports it as `WORKER_CRASHED` (not an assertion failure), and
+  `runTestLegWithWorkerCrashRetry` reruns that leg **once**, printing
+  `RETRY … rerunning this leg once`; the summary keeps the truth as
+  `PASS … [retried after a worker SIGSEGV]`. A second crash fails. Getting a real stack needs
+  `sudo DevToolsSecurity -enable` first — `lldb` hangs while developer mode is off, and Node's
+  `--report-on-signal` swallows the fault instead of reporting it.
 - **A failed Hermes turn explains itself now.** When a launch dies before its first model call,
   Hermes 0.23.0 emits a `result` with `exit_code: 1` and no `error`; the cause is in
   `<session home>/logs/managed-worker.log`, not in the CLI's stderr. The daemon fills `error`

@@ -27,6 +27,7 @@ import {
 	checkIncludeCoverage,
 	checkTestFiles,
 	classifyFailure,
+	runTestLegWithWorkerCrashRetry,
 	createBoundedOutputBuffer,
 	createOutputForwarder,
 	createWorkspaceRunReporter,
@@ -1651,6 +1652,117 @@ test("classifyFailure distinguishes no tests and collect failures conservatively
 		}),
 		"TEST_ASSERTION_FAILED",
 	);
+});
+
+test("printSummary shows that a passing leg was retried after a worker SIGSEGV", () => {
+	const lines = [];
+	const original = console.log;
+	console.log = (line) => lines.push(String(line));
+	try {
+		printSummary(
+			[
+				{
+					workspace: { cwd: "apps/desktop" },
+					tier: "unit",
+					exitCode: 0,
+					failure: null,
+					durationMs: 1_200,
+					retriedWorkerCrash: true,
+				},
+				{
+					workspace: { cwd: "apps/mobile" },
+					tier: "unit",
+					exitCode: 0,
+					failure: null,
+					durationMs: 800,
+				},
+			],
+			{ workspaces: [] },
+		);
+	} finally {
+		console.log = original;
+	}
+	const text = lines.join("\n");
+	assert.match(text, /PASS apps\/desktop unit \(1\.2s\) \[retried after a worker SIGSEGV\]/);
+	assert.match(text, /PASS apps\/mobile unit \(800ms\)/);
+});
+
+test("a worker killed by SIGSEGV is classified as a crash, not an assertion failure", () => {
+	// pnpm's own line contains "FAIL"; the old ordering reported this as
+	// TEST_ASSERTION_FAILED and sent every investigation after a test that failed.
+	const output =
+		" ✓ src/main/whatever.test.ts (12 tests) 40ms\n" +
+		"ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command was killed with SIGSEGV (Segmentation fault): vitest run --pool=threads";
+	assert.equal(
+		classifyFailure({ stage: "test", exitCode: 1, output }),
+		"WORKER_CRASHED",
+	);
+	assert.equal(
+		classifyFailure({
+			stage: "test",
+			exitCode: 1,
+			output: "Segmentation fault (core dumped)",
+		}),
+		"WORKER_CRASHED",
+	);
+	// A genuine assertion failure is untouched, and so is a normal failure.
+	assert.equal(
+		classifyFailure({ stage: "test", exitCode: 1, output: "FAIL expected 1 to be 2" }),
+		"TEST_ASSERTION_FAILED",
+	);
+});
+
+test("a SIGSEGV leg is retried once and the retry decides the verdict", async () => {
+	const calls = [];
+	const crashed = {
+		exitCode: 1,
+		output: "Command was killed with SIGSEGV (Segmentation fault)",
+	};
+	const passed = { exitCode: 0, output: "Test Files  12 passed" };
+	let retried = 0;
+	const result = await runTestLegWithWorkerCrashRetry({
+		invocation: { command: "pnpm", args: ["test"], shell: false },
+		cwd: process.cwd(),
+		runCommand: async (command, args) => {
+			calls.push([command, ...args].join(" "));
+			return calls.length === 1 ? crashed : passed;
+		},
+		onRetry: () => {
+			retried += 1;
+		},
+	});
+	assert.deepEqual(calls, ["pnpm test", "pnpm test"]);
+	assert.equal(retried, 1);
+	assert.equal(result.retriedWorkerCrash, true);
+	assert.equal(result.commandResult, passed);
+});
+
+test("a leg that crashes twice stays failed, and a real failure is never retried", async () => {
+	const crashed = {
+		exitCode: 1,
+		output: "Command was killed with SIGSEGV (Segmentation fault)",
+	};
+	const twice = await runTestLegWithWorkerCrashRetry({
+		invocation: { command: "pnpm", args: ["test"], shell: false },
+		cwd: process.cwd(),
+		runCommand: async () => crashed,
+		onRetry: () => undefined,
+	});
+	assert.equal(twice.retriedWorkerCrash, true);
+	assert.equal(twice.commandResult, crashed);
+
+	const calls = [];
+	const failed = await runTestLegWithWorkerCrashRetry({
+		invocation: { command: "pnpm", args: ["test"], shell: false },
+		cwd: process.cwd(),
+		runCommand: async () => {
+			calls.push(1);
+			return { exitCode: 1, output: "FAIL expected 1 to be 2" };
+		},
+		onRetry: () => undefined,
+	});
+	assert.equal(calls.length, 1, "a real failure must not be retried");
+	assert.equal(failed.retriedWorkerCrash, false);
 });
 
 test("runCommand resolves spawn errors as failed command results", async () => {
