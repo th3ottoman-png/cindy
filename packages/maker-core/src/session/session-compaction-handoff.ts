@@ -37,6 +37,12 @@ const DECISION_PATTERNS = [
   /\b(?:by decision|ADR|confirmed that|approved)\b/i,
 ];
 
+/** A past-tense completion in the line (skipped by extractPendingNextActions). */
+const COMPLETED_ACTION =
+  /\b(?:completed|finished|appended|added|created|wrote|written|updated|implemented|merged|committed|fixed|removed|done)\b/i;
+/** A marker that still points forward; it keeps the line a to-do next to a completion. */
+const FORWARD_MARKER = /\b(?:next step|next action|still need|remaining|todo|to-do|follow-?up|then)\b/i;
+
 const PENDING_PATTERNS = [
   /\b(?:next step:?|pending:?|todo:?|remaining:?|next action:?)\s*(.+)$/i,
   /(?:^|[-*•\s]|\d+\.)\[ \]\s*(.+)$/,
@@ -160,6 +166,9 @@ export function extractPendingNextActions(messages: readonly HandoffMessage[]): 
 
     const lines = text.split(/(?:\r?\n)+|(?<=[.!?])\s+/).map((l) => l.trim()).filter(Boolean);
     for (const line of lines) {
+      // A finished step often says "pending" while reporting completion ("I completed the
+      // pending task: appended beta"). Only a forward-looking marker keeps it a to-do.
+      if (COMPLETED_ACTION.test(line) && !FORWARD_MARKER.test(line)) continue;
       for (const pat of PENDING_PATTERNS) {
         if (pat.test(line)) {
           let clean = line.replace(/^[-*•\s]+/, '').replace(/^\[ \]\s*/, '').trim();

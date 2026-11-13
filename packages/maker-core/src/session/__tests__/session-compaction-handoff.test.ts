@@ -123,3 +123,28 @@ describe('extractSessionConstraints (ROADMAP 11.5 follow-up)', () => {
     expect(items).toEqual(['Never commit.']);
   });
 });
+
+describe('extractPendingNextActions ignores completion statements (ROADMAP 11.5 follow-up)', () => {
+  it('does not list a finished step as pending just because it says "pending"', () => {
+    // Live 2026-11-13: a chained handoff's section 3 carried
+    // "I have completed the pending task from the handoff: appended the line beta …".
+    const messages: HandoffMessage[] = [
+      { role: 'user', content: 'Step 2 pending: append the line beta to notes.txt.' },
+      {
+        role: 'assistant',
+        content:
+          'I have completed the pending task from the handoff: appended the line beta to /tmp/proofs/115-work/notes.txt.',
+      },
+    ];
+    const pending = extractPendingNextActions(messages);
+    expect(pending.join(' ')).not.toContain('completed the pending task');
+  });
+
+  it('keeps a real next step that also reports progress', () => {
+    const messages: HandoffMessage[] = [
+      { role: 'assistant', content: 'Step 1 done, next step: append beta to notes.txt.' },
+    ];
+    const pending = extractPendingNextActions(messages);
+    expect(pending.join(' ')).toContain('append beta');
+  });
+});

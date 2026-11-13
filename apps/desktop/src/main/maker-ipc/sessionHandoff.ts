@@ -15,6 +15,7 @@ import {
   extractOpenQuestions,
   filterCompletedPendingSteps,
   isCleanSlateHandoffText,
+  parseCleanSlateHandoffConstraints,
   parseCleanSlateHandoffPendingSteps,
   type SessionHandoffTruncation,
 } from '@cindy/maker-core/session-handoff';
@@ -269,7 +270,15 @@ export class SessionHandoffHost {
         gitDiff: tree.gitDiff,
         modifiedFiles: tree.modifiedFiles,
         activeDecisions: extractSessionDecisions(conversation),
-        constraints: extractSessionConstraints(conversation),
+        // A chained handoff's only record of the constraint is the previous payload, so its
+        // section 1 group is read back verbatim — never its framing prose, which reads like an
+        // owner constraint to the transcript extractor.
+        constraints: [
+          ...extractSessionConstraints(conversation),
+          ...payloads.flatMap((m) =>
+            parseCleanSlateHandoffConstraints(m.content ?? m.text ?? ''),
+          ),
+        ],
         pendingNextSteps,
         unresolvedQuestions: extractOpenQuestions(conversation),
         workingDir: session.workingDir || null,

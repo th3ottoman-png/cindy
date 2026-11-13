@@ -10,6 +10,24 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-13 (r) - 11.5b handoff follow-ups: `live-proven` (local Gemma, window lowered for the proof)
+
+- **Row closed**: 11.5b (a) owner-stated constraints in section 1, (b) no repeated steps in a chained handoff, (c) banner and ring on the same window. Entry (q) recorded the implementation and the two failed live attempts; this entry records the proof, the two defects the proof exposed, and their fixes.
+- **Environment**: dev app `pnpm dev:desktop:remote` (CDP 9222), **local Gemma** (`google/gemma-4-26b-a4b-qat` on `lmstudio-local`, the owner confirmed it was loaded), home route pointed at it through `config/setDefaultRoute`, `custom_providers[0].context_length` lowered to **8,000** through `config/setLocalContextWindows` so a modest context reaches 80%. Backups: `~/.hermes-cindy/config.yaml.bak-2026-11-13-115b`; restored at the end and `cmp`-identical (`CONFIG_CMP_OK`). No paid spend in this round (the earlier attempts cost ≈$0.003).
+- **(c) live**: source session `6ac11a66` at 6,935 / 8,000 tokens → banner `Context is 82% full (1461 tokens left)` and the footer ring both read **82%**, while `providers.yaml` still advertises 262,144 for `lmstudio-local`. Pre-fix the banner would have divided by 262,144 (2%) and stayed hidden — the exact disagreement the row is about.
+- **(a) live**: clicking `[data-testid=clean-slate-handoff-btn]` seeded `dc88edb9`, whose first message began with `<!-- cindy-clean-slate-handoff:v1 -->` and whose section 1 read `Owner-stated constraints (do not violate):` / `- Never commit, never touch any other file.` (the pre-fix payload said "Architectural baseline established in previous turns."). Section 3 kept the still-pending beta step.
+- **(b) live**: `dc88edb9` completed beta ("I have completed the pending task from the handoff: appended the line beta…"), then reached 89% and its own handoff produced section 1 with the same constraint and section 3 with **no** beta step and **no** completion sentence.
+- **Two defects the live run exposed, fixed in the same session (red-first each)**:
+  1. A chained handoff's payload was scanned for constraints as if it were conversation, so the payload's own instruction "Continue the task directly from the state described here: do not ask the owner questions…" became an *owner constraint* — while the real one was lost. Fix: `parseCleanSlateHandoffConstraints` reads only the `Owner-stated constraints (do not violate):` group out of a payload, and the host merges that with `extractSessionConstraints(conversation)`. Test asserts the constraint survives and `do not ask the` never appears.
+  2. A finished step reported as "I have completed the pending task … appended beta" was re-listed as a *pending* step because the extractor matches the word "pending". Fix: `extractPendingNextActions` skips a line that contains a past-tense completion (`COMPLETED_ACTION`) unless it also has a forward-looking marker (`FORWARD_MARKER`: next step / still need / remaining / todo / then). Test: the completion sentence is gone, "Step 1 done, next step: append beta" still counts.
+  3. Tuning that made (b) observable: the step-matching stoplist now ignores scaffolding stems (`pend`, `later`, `same`, `file`, `line`, `task`, …) so "append the line beta to that same file" can match "appended beta to the file"; the strict same-sentence + all-salient-words rule is unchanged.
+- **Files**: `packages/maker-core/src/session/session-compaction-handoff.ts`, `packages/maker-core/src/tasks/session-handoff.ts`, `apps/desktop/src/main/maker-ipc/sessionHandoff.ts`, `apps/desktop/src/renderer/features/cc-agent/SessionContextGuardBanner.tsx` (+ their tests). Screenshots `/tmp/proofs/115c-banner.png`, `/tmp/proofs/115c-handoff-b.png`.
+- **Gates (Node 22.23.4, final tree)**: `pnpm typecheck` 0; `pnpm test:runner` 0 (**611 tests: 609 pass, 2 skipped**); `pnpm check:test-hygiene` 0 (361 files); `XDT_UNIT_TEST_SHARD=i/8 pnpm test:unit:related` — shards 1–6 and 8 green first pass, **shard 7 died with the known V8-worker `SIGSEGV`** and passed on rerun (`PASS apps/desktop unit` 48.6 s).
+- **Cleanup**: app stopped, ports 9222/5174 free, `config.yaml` restored `cmp`-identical, `providers.yaml` untouched, no proof files written under the vault.
+- **Open**: the new §Debt row from (p) (a dead Hermes launch still surfaces only "Hermes exited with code 1").
+
+---
+
 ## 2026-11-13 (q) - 11.5 handoff follow-ups (a)(b)(c): implemented, `unit-tested`, live proof open
 
 - **Row added**: ROADMAP 11.5b, covering the three follow-ups the 11.5 live proof left behind. **Shipped and unit-tested; the live proof did not happen** and the row is left open (not ✅).

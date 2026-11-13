@@ -276,12 +276,38 @@ export function parseCleanSlateHandoffPendingSteps(payload: string): string[] {
   return items.slice(0, DEFAULT_MAX_LIST_ITEMS);
 }
 
+/**
+ * The constraints a payload carried, read back out of its section 1. Only the group the
+ * renderer writes is read — never the payload's own instructions ("Continue the task…
+ * do not ask the owner questions"), which read like owner constraints to the transcript
+ * extractor and became a bogus bullet in a chained handoff (live 2026-11-13).
+ */
+export function parseCleanSlateHandoffConstraints(payload: string): string[] {
+  const lines = (payload ?? '').split(/\r?\n/);
+  const start = lines.findIndex((line) => /^\s*Owner-stated constraints/i.test(line));
+  if (start === -1) return [];
+  const items: string[] = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    const line = lines[i]!.trim();
+    if (!line) continue;
+    const match = /^-\s+(.*)$/.exec(line);
+    if (!match) break;
+    const item = match[1]!.trim();
+    if (item && !items.includes(item)) items.push(item);
+  }
+  return items;
+}
+
 const COMPLETION_CUE =
   /\b(?:done|completed|finished|added|appended|created|wrote|written|updated|implemented|merged|committed|passed|fixed|removed)\b/i;
 
+// Scaffolding words carry no identity: "Step 2 pending for later: append the line beta to
+// that same file" must match "appended beta to the file" once the cue is present, otherwise a
+// carried step could never be recognised as done. Stems, because tokens are stemmed first.
 const STEP_STOPWORDS = new Set([
   'the', 'and', 'for', 'with', 'that', 'this', 'then', 'into', 'from', 'your', 'you',
   'run', 'all', 'any', 'not', 'but', 'its', 'our', 'now', 'next', 'step', 'steps',
+  'pend', 'later', 'same', 'file', 'files', 'line', 'lines', 'task', 'tasks', 'also',
 ]);
 
 /** Crude, deterministic stemming: enough to match "append" ↔ "appended". */

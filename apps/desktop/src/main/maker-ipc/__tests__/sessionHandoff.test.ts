@@ -182,6 +182,62 @@ describe('SessionHandoffHost.buildCleanSlateHandoff (ROADMAP 11.5)', () => {
     expect(section1).not.toContain('Architectural baseline established in previous turns.');
   });
 
+  it('carries a constraint forward when the only record of it is the previous payload (11.5 follow-up)', async () => {
+    const firstPayload = [
+      '<!-- cindy-clean-slate-handoff:v1 -->',
+      '# Session handoff — clean slate',
+      '',
+      '## 1. Active decisions and architecture constraints',
+      '',
+      'Owner-stated constraints (do not violate):',
+      '- Never commit, never touch any other file.',
+      '',
+      '## 3. Pending next steps',
+      '',
+      '- Append beta to notes.txt',
+      '',
+    ].join('\n');
+    const host = makeHost({
+      gatherGitState: async () => ({ gitDiff: '', modifiedFiles: [] }),
+      messages: [
+        { role: 'user', content: firstPayload },
+        { role: 'assistant', content: 'Appended beta to notes.txt. Done.' },
+      ],
+    });
+    const res = await host.buildCleanSlateHandoff('sess-clean');
+    expect(res.ok).toBe(true);
+    expect(res.prompt).toContain('Owner-stated constraints (do not violate):');
+    expect(res.prompt).toContain('- Never commit, never touch any other file.');
+  });
+
+  it('never turns a payload\'s own instructions into an owner constraint (11.5 follow-up)', async () => {
+    const firstPayload = [
+      '<!-- cindy-clean-slate-handoff:v1 -->',
+      '# Session handoff — clean slate',
+      '',
+      'You are a fresh session taking over this work. Continue the task directly from the',
+      'state described here: do not ask the owner questions that this handoff answers.',
+      '',
+      '## 1. Active decisions and architecture constraints',
+      '',
+      'Owner-stated constraints (do not violate):',
+      '- Never commit, never touch any other file.',
+      '',
+    ].join('\n');
+    const host = makeHost({
+      gatherGitState: async () => ({ gitDiff: '', modifiedFiles: [] }),
+      messages: [{ role: 'user', content: firstPayload }],
+    });
+    const res = await host.buildCleanSlateHandoff('sess-clean');
+    expect(res.ok).toBe(true);
+    const section1 = res.prompt.slice(
+      res.prompt.indexOf('## 1. Active decisions'),
+      res.prompt.indexOf('## 2. Working tree state'),
+    );
+    expect(section1).toContain('- Never commit, never touch any other file.');
+    expect(section1).not.toContain('do not ask the');
+  });
+
   it('a handoff of a handoff does not re-list steps the fresh session already did (11.5 follow-up)', async () => {
     const firstPayload = [
       '<!-- cindy-clean-slate-handoff:v1 -->',
