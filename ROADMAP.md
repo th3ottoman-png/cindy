@@ -299,7 +299,8 @@ a Qwen adapter and writing into `~/.claude/agents` / `~/.qwen/agents` are out of
 
 Source: the owner's screenshots of Qwen Code desktop Settings, reviewed 2026-11-13. Most of that surface already
 exists in Cindy or is ruled out (model fallbacks vs 2.4, telemetry/auto-update Dropped, phone control Parked);
-these seven rows are the remainder. **Blueprint: `docs/phase-13-blueprint.md`** — read §0 (owner runs ~80 % API /
+these seven rows are the remainder. Rows 13.8–13.10 were added the same day from the DeepSeek harness Plugins page
+(Subagent model choice, conversation-following titles, Shell limits). **Blueprint: `docs/phase-13-blueprint.md`** — read §0 (owner runs ~80 % API /
 20 % local models: every row must work on any route, show its route/model and cost, and stay off when not routed —
 never fall back to the chat model) and §11 (guards) before any row.
 
@@ -314,6 +315,10 @@ never fall back to the chat model) and §11 (guards) before any row.
 | 13.5 | **Web-search budget.** `~/.cindy-harness/web-budget.yaml` (`max_searches_per_session`, default 50, 0 = off; `tool_names` confirmed by live probe). Enforced in the `pre_tool_call` path: block with a reason at the cap; manifest shows `web N/M`. Accepts that a non-zero cap installs the hook on every Hermes session. | 🧪 + live: cap 2 → third search blocked, reply still arrives | 🔲 |
 | 13.6 | **Always-visible message timestamps.** `showTimestamps` (default off) in `responsePreferences.ts`; `MessageActionBar` keeps the time visible from persisted `createdAt`. | 🧪 + live toggle across days and reload | 🔲 |
 | 13.7 | **Chat width preference.** `chatWidth` = regular (914 px, today) / wide (1200) / full in the same store; one `chatMaxWidth()` helper replaces the literal 914 in `CCAgentSessionView.tsx` and `NewMakerDraftRoute.tsx`. | 🧪 + live at 1600 px, compact rail unchanged | 🔲 |
+| 13.8 | **Approved models for helper agents.** Managed `workers:` block in `routing.yaml` (`allow_model_choice`, `allowed_routes`). A lead-chosen worker `model` outside the list is refused before any slot is reserved (`orcaHermesWorker.ts:96`); expert routes and `hermes-default` are always allowed. Settings checklist of routes marked API/local. Non-Hermes workers checked only at the Cindy tool boundary (adapters untouched). | 🧪 + live: unlisted route refused with the allowed list, listed route starts | 🔲 |
+| 13.9 | **Titles that follow the conversation.** After ≥ 6 user turns since the last title, the routed `title` model decides `{changed, title}`; only auto titles change (owner renames are permanent); last 3 titles kept for one-click undo; off when `title` is not routed. | 🧪 + live: topic A→B session re-titled once, renamed session untouched | 🔲 |
+| 13.10a | **Shell limits probe.** Which Hermes 0.23 `terminal` settings exist (timeout, output cap), what the model sees at the limit, whether a session-home config change needs a gateway restart. Pin in HANDOVER §Versions. No feature code. | STATUS entry with observed evidence | 🔲 |
+| 13.10b | **Shell limits.** `~/.cindy-harness/shell-limits.yaml` (`timeout_seconds` 300, `max_output_chars` 20000); daemon writes them into each session home's config; manifest shows the limits; a limited command is marked in its tool row. Only settings 13.10a proved exist. | 🧪 + live: `sleep 30` stopped at 5 s, `seq 1 100000` cut at 2000 chars | 🔲 |
 
 ---
 

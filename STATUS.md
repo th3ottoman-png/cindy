@@ -17,6 +17,7 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 - **Surprising / next-agent notes**: logs were *not* the disk problem — `logger.ts` already keeps 30 days. The growth is `~/.hermes-cindy/session-homes/` (1.5 GB, 151 homes, ~7–10 MB each, oldest 2026-10-29): `reapOrphanHomes` only removes homes of unregistered sessions. `~/.hermes-cindy/cache` is 443 MB; `~/.cindy-harness` has dozens of `*.bak-*` files. Hermes passes attached images to the model only as a path string (`agent.ts:186`); `providers.yaml` already has `capabilities.vision`; Hermes base config has no `auxiliary.vision` block. Hover timestamps already exist (`MessageActionBar.tsx`), so 13.6 is the always-visible toggle only.
 - **Verification**: none needed beyond reading — docs only, no code touched, so no gates run.
 - **Open**: every Phase 13 row. Suggested start: 13.6 + 13.7 (small), then 13.1a.
+- **Addendum (same session)**: owner compared the DeepSeek harness Plugins page and chose three more rows: 13.8 worker model allowlist (`orcaHermesWorker.ts:96` takes any lead-chosen `model` unchecked today), 13.9 conversation-following titles (today titles come once from the first message via `scheduleAutoName`), 13.10a/b shell limits (base Hermes config has no `terminal` section; probe first). Already present, not added: model-based auto review (1.13), plugin marketplace sources, worktrees + PR badge, computer use, Codex/Claude Code workers, worker hard limit + depth 1. Blueprint §10–§12.
 
 ---
 

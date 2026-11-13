@@ -5,7 +5,9 @@
 `~/.hermes-cindy` only (never `~/.hermes`), no deletion of upstream code, no edits to existing
 agents' system-prompt text, one task per session, honest labels, back up before mutating user state.
 **Source inspiration:** the owner's screenshots of the Qwen Code desktop Settings (Tools, General,
-UI, Context, Privacy, Model, Experimental, Daemon, Advanced, Connections), reviewed 2026-11-13.
+UI, Context, Privacy, Model, Experimental, Daemon, Advanced, Connections), reviewed 2026-11-13;
+rows 13.8–13.10 come from the DeepSeek harness Plugins page (Subagent, Shell, conversation-following
+titles), reviewed the same day.
 **Status of this document:** design only. Nothing here is built. Task status lives in
 `ROADMAP.md` Phase 13, never here.
 
@@ -311,7 +313,113 @@ can loop on search. There is no per-session cap.
 
 ---
 
-## 10. Build order and dependencies
+## 10. Task 13.8 — Approved models for helper agents (worker model allowlist)
+
+### Problem
+When an Orca lead starts a Hermes worker, the worker's model is
+`params.model ?? expert.model ?? 'hermes-default'` (`apps/desktop/src/main/maker-ipc/orcaHermesWorker.ts:96`).
+`params.model` is whatever the lead model wrote, and nothing checks it. A lead can therefore start a worker on any
+route, including the most expensive API model, without the owner choosing that. With an API-first model
+mix (§0) this is a cost hole, and it is the spirit of ROADMAP 2.4 ("no model switch without the owner").
+
+### Design
+- New managed block in `routing.yaml`, written the same way as the existing `cindy-council` block
+  (BEGIN/END markers, rewritten by Cindy, hand edits outside the block untouched):
+  ```yaml
+  workers:
+    allow_model_choice: true          # false = the lead can never pass `model`
+    allowed_routes: [cheap-api, local-small, qwen-vl]
+  ```
+  Parse it in `packages/model-providers/src/routingFile.ts` (unknown route name → listed error, block
+  ignored, **fail closed** = choice disabled).
+- Enforcement in `orcaHermesWorker.ts` before any slot is reserved (same place as the Auto-mode refusal):
+  - `params.model` given and `allow_model_choice` false, or route not in `allowed_routes` → `invalid(...)`
+    with a message the lead model can act on: *"model X is not in the owner's worker allowlist; allowed:
+    a, b, c — or omit model to use the expert's route"*.
+  - `expert.model` and `hermes-default` are **always** allowed: they are owner-written choices.
+  - No block in the file = today's behaviour (allowed), with a one-line hint in Settings.
+- Non-Hermes workers (Claude Code / Codex / Pi via `orcaWorkerCreationService.ts` `createWorkerInTeam`):
+  the Claude Code / Codex / Pi adapters are off-limits (AGENTS.md §3), so check only the `model` argument
+  at the Cindy tool boundary, before creation. Do not touch adapter internals. If that boundary does not
+  exist for a kind, say so in STATUS and narrow the row to Hermes (`13.8a` done / `13.8b` open).
+- Settings: a "Helper agents" section with a toggle and a checklist of routes from `routing.yaml`, grouped by
+  provider, each marked API or local (like the DeepSeek screenshot). Saving rewrites only the managed block
+  (atomic write, back up `routing.yaml` first during live tests).
+- Visible state: the worker card / manifest shows the worker's route and whether it came from the lead,
+  the expert or the default.
+
+### Tests and proof
+- Unit: block parse (valid, unknown route, missing), decision table (lead model allowed / refused / choice
+  off / expert model always allowed / default always allowed), refusal message names the allowed routes.
+- Live: allowlist `[cheap-api]`. Ask an orchestrator to start a worker on a route that is not listed: the
+  start is refused with the message, and the lead retries with an allowed route or none. Then a listed
+  route starts normally.
+
+---
+
+## 11. Task 13.9 — Titles that follow the conversation
+
+### Problem
+`scheduleAutoName` (`apps/desktop/src/renderer/lib/makerChatStore.ts:14985`) names a session from its
+first message, through `auxiliary-title-one-shot.ts`, which uses the routed `title` model when one exists.
+In long daily-driver sessions the main task changes and the title goes stale.
+
+### Design
+- Re-title check after a completed turn when **all** of the following hold: the title was set by Cindy and
+  never by the owner (manual renames are permanent; track `titleSource: 'auto' | 'owner'`), at least 6
+  user turns since the last title, and the session is not running.
+- One call to the routed `title` model with the current title and the last ~8 user messages (bounded about
+  3 k tokens), asking for JSON `{ "changed": boolean, "title": string }`. It changes only when the main task
+  changed, not on every tangent. Any new prompt text belongs to this feature only. Existing title prompt
+  text is not edited (AGENTS.md §3).
+- `title` not routed → feature off (the existing first-message titling is unchanged). A blocked or failed
+  route → keep the old title, one warn log line, no fallback.
+- At most one re-title per 6 user turns. The sidebar shows a subtle "renamed" fade, and the previous title
+  goes into a small history (last 3) reachable from the rename menu, so a bad re-title is one click to undo.
+- Setting: "Update titles as the conversation changes" (default on, inert until `title` is routed), with the
+  usual "bills on API routes" text.
+
+### Tests and proof
+- Unit: trigger decision (owner-renamed never re-titled, turn threshold, running skip), JSON reply parse
+  (invalid → keep title), history ring of 3.
+- Live: an API `title` route. A session that starts on topic A and moves to topic B for 6+ turns gets
+  re-titled once. A manually renamed session is never touched, and undo restores the previous title.
+
+---
+
+## 12. Task 13.10 — Shell limits (command timeout + output cap)
+
+### Problem
+Cindy sets no limit on how long a Hermes shell (`terminal`) command may run or how much output it returns
+to the model. A hung command blocks the turn, and a huge output fills the context, which costs real money
+on API models. The base `~/.hermes-cindy/config.yaml` has no `terminal` section today.
+
+### Step 13.10a — probe (no feature code)
+On Hermes 0.23 (record the exact version), in a **copy** of a session home: find which `terminal` settings
+exist (timeout, max output, foreground vs background), what happens at the limit (killed? truncated with a
+marker the model sees?), and whether per-session home config is honoured by the long-lived gateway or
+needs a gateway restart. Record it in STATUS and pin it in HANDOVER §Versions with a runtime warning on
+mismatch (AGENTS.md §4).
+
+### Step 13.10b — design (only what 13.10a proves exists)
+- File `~/.cindy-harness/shell-limits.yaml`: `timeout_seconds` (default 300, 0 = Hermes default),
+  `max_output_chars` (default 20000, 0 = Hermes default).
+- The daemon writes the matching keys into **each session home's** `config.yaml` in `prepareSessionHome`,
+  using the same keep-formatting writer as the hook block. Never the base config, never by hand.
+- If Hermes has **no** output-cap setting, do **not** rewrite tool results in the stream (hot path).
+  Narrow the row to the timeout and record the output cap as a follow-up.
+- Visible state: the session manifest shows `shell 300s · 20k chars`. A command that hit a limit is marked
+  in its tool row ("stopped at 300 s" / "output cut at 20 000 chars").
+
+### Tests and proof
+- Unit: file parse (defaults, invalid values → listed error and defaults), config block writer
+  (idempotent, keeps comments, session home only).
+- Live: timeout 5 s → `sleep 30` is stopped and marked. Output cap 2000 → `seq 1 100000` reaches the model
+  cut with the marker. The same commands run normally with limits set to 0.
+
+---
+
+## 13. Build order and dependencies
 
 ```
 13.6 timestamps ─┐  (tiny, independent; good warm-up)
@@ -321,6 +429,9 @@ can loop on search. There is no per-session cap.
 13.3 recap      (needs §2 mechanism)
 13.4 tool labels (needs §2; hot path, do after 13.3)
 13.5 web budget  (independent; touches auto-review-gate.ts)
+13.8 worker model allowlist (independent; touches routing.yaml managed block + orcaHermesWorker.ts)
+13.9 conversation-following titles (independent; needs `title` routed)
+13.10a probe ──► 13.10b shell limits
 ```
 
 Each row is one session. Each row ends with the three edits from AGENTS.md §5 (ROADMAP row,
@@ -328,12 +439,12 @@ STATUS entry, HANDOVER only for stable facts such as Hermes tool names or versio
 checklist. If a row is narrowed to fit a session, split it (`13.xa` done / `13.xb` open). Never
 mark the parent done.
 
-## 11. Non-negotiable guards (every row)
+## 14. Non-negotiable guards (every row)
 
 1. API-first and local-capable: everything works on any route in `providers.yaml`. No code path
    assumes a local model.
 2. Not routed = off, with a hint. No fallback to the chat model or any other provider.
-3. Background spend is visible: the route/model is named where the output shows, and the
+3. Background spend is visible (13.1, 13.3, 13.4, 13.9): the route/model is named where the output shows, and the
    setting text says it bills.
 4. No path or command touches `~/.hermes`. Session-home config edits go through the daemon writer.
 5. No new outbound call except the one routed request each feature exists to make, sent to the
