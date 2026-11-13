@@ -32,6 +32,15 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-13 (w) - Session closed: SIGSEGV parked, handover for the next agent (`docs/handover-2026-11-13.md`)
+
+- **Parked by the owner**: the `apps/desktop unit` worker SIGSEGV. It is a Node/V8 worker-isolate teardown bug (captured in (v)); the mitigation from (u) stands, and the row says "no further work unless the desktop unit tier moves to Node 24+". No code changed for this.
+- **Handover written** for the next agent: `docs/handover-2026-11-13.md` — where the repo is, what this session finished with labels and commits, the two candidate next rows (12.1 imported-agents roster, 13.1 vision bridge) with their blueprints, the exact gate/dev-app commands, the hard rules that have bitten agents, the traps learned this session (lldb `-K`, the muted `--report-on-signal`, bash 3.2, the Prettier hook), and a copy-paste prompt in §7.
+- **Environment left as-is**: developer mode stays **enabled** (owner's choice), app not running, ports 9222/5174 free, `~/.hermes-cindy/config.yaml` `cmp`-identical to its backup, tree clean.
+- **Caught while committing**: another agent session commits to this same checkout (`93c1ef44a3`, `0190dd17a1`), so `git add -A` is unsafe — an untracked `docs/phase-13-blueprint.md` was swept into `fc880b35ce`. The handover tells the next agent to commit only its own paths.
+
+---
+
 ## 2026-11-13 (v) - SIGSEGV root cause captured: Node/V8 worker-isolate teardown (third-party), mitigation confirmed
 
 - **Owner action first**: `sudo DevToolsSecurity -enable` (developer mode had been disabled, which is why `lldb` hung earlier). Developer mode is **still enabled** on this machine — turning it back off needs the same `sudo` (`sudo DevToolsSecurity -disable`), which this session cannot run.
