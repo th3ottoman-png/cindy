@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   assembleHandoffPrompt,
   extractPendingNextActions,
+  extractSessionConstraints,
   extractSessionDecisions,
   type HandoffMessage,
   type SessionHandoffResult,
@@ -12,6 +13,9 @@ import {
 import {
   assembleSessionHandoff,
   extractOpenQuestions,
+  filterCompletedPendingSteps,
+  isCleanSlateHandoffText,
+  parseCleanSlateHandoffPendingSteps,
   type SessionHandoffTruncation,
 } from '@cindy/maker-core/session-handoff';
 import { MAKER_INVOKE } from './channels';
@@ -241,13 +245,33 @@ export class SessionHandoffHost {
           : Promise.resolve({ gitDiff: '', modifiedFiles: [] } satisfies WorkingTreeState),
       ]);
 
+      // ROADMAP 11.5 follow-up: a handoff of a handoff must not read its own payload as a
+      // conversation turn (it re-listed steps the fresh session had already done). Payloads
+      // are separated out, their carried steps are read back, and a carried step is dropped
+      // only when a later assistant sentence reports it as done.
+      const payloads = messages.filter((m) => isCleanSlateHandoffText(m.content ?? m.text));
+      const conversation = messages.filter((m) => !isCleanSlateHandoffText(m.content ?? m.text));
+      const lastPayload = payloads[payloads.length - 1];
+      const afterPayload = lastPayload ? messages.slice(messages.indexOf(lastPayload) + 1) : [];
+      const carried = lastPayload
+        ? filterCompletedPendingSteps(
+            parseCleanSlateHandoffPendingSteps(lastPayload.content ?? lastPayload.text ?? ''),
+            afterPayload,
+          )
+        : [];
+      const extracted = extractPendingNextActions(conversation);
+      const pendingNextSteps = carried.length
+        ? [...carried, ...extracted.filter((step) => !carried.includes(step))]
+        : extracted;
+
       const payload = assembleSessionHandoff({
         synthesis,
         gitDiff: tree.gitDiff,
         modifiedFiles: tree.modifiedFiles,
-        activeDecisions: extractSessionDecisions(messages),
-        pendingNextSteps: extractPendingNextActions(messages),
-        unresolvedQuestions: extractOpenQuestions(messages),
+        activeDecisions: extractSessionDecisions(conversation),
+        constraints: extractSessionConstraints(conversation),
+        pendingNextSteps,
+        unresolvedQuestions: extractOpenQuestions(conversation),
         workingDir: session.workingDir || null,
         sessionTitle: session.title || null,
       });

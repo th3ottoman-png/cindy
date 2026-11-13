@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CLEAN_SLATE_HANDOFF_MARKER,
   assembleSessionHandoff,
   estimateHandoffTokens,
   extractOpenQuestions,
   extractSynthesisSections,
+  filterCompletedPendingSteps,
+  isCleanSlateHandoffText,
+  parseCleanSlateHandoffPendingSteps,
 } from '../session-handoff';
 
 const SYNTHESIS = [
@@ -241,5 +245,90 @@ describe('assembleSessionHandoff', () => {
     });
     expect(prompt).toContain('````diff');
     expect(prompt).toContain('````\n');
+  });
+});
+
+describe('owner-stated constraints in section 1 (ROADMAP 11.5 follow-up)', () => {
+  const base = {
+    workingDir: '/work',
+    generatedAt: FIXED_TIME,
+    activeDecisions: ['Use the amber card for blast radius'],
+  };
+
+  it('renders the constraints above the decisions, verbatim', () => {
+    const { prompt } = assembleSessionHandoff({
+      ...base,
+      constraints: ['Never commit, never touch any other file.'],
+    });
+    const section = prompt.slice(prompt.indexOf('## 1. Active decisions'));
+    const constraintAt = section.indexOf('Owner-stated constraints (do not violate):');
+    const decisionAt = section.indexOf('Use the amber card for blast radius');
+    expect(constraintAt).toBeGreaterThan(-1);
+    expect(constraintAt).toBeLessThan(decisionAt);
+    expect(section).toContain('- Never commit, never touch any other file.');
+  });
+
+  it('shows the constraint group only when constraints were recorded', () => {
+    expect(assembleSessionHandoff({ ...base }).prompt).toContain('None recorded.');
+    expect(assembleSessionHandoff({ ...base }).prompt).not.toContain('Owner-stated constraints');
+    expect(
+      assembleSessionHandoff({ ...base, constraints: ['Never commit.'] }).prompt,
+    ).toContain('Owner-stated constraints (do not violate):');
+  });
+
+  it('redacts a secret that appears in a constraint', () => {
+    const { prompt } = assembleSessionHandoff({
+      ...base,
+      constraints: ['Never paste api_key="sk-abcdefghijklmnopqrstuvwx" into a chat.'],
+    });
+    expect(prompt).not.toContain('sk-abcdefghijklmnopqrstuvwx');
+  });
+});
+
+describe('clean-slate payload round-trip (ROADMAP 11.5 follow-up)', () => {
+  const payload = () =>
+    assembleSessionHandoff({
+      workingDir: '/work',
+      generatedAt: FIXED_TIME,
+      pendingNextSteps: ['Append beta to notes.txt', 'Run the gates'],
+    }).prompt;
+
+  it('stamps a marker a later handoff can recognise', () => {
+    expect(payload().startsWith(CLEAN_SLATE_HANDOFF_MARKER)).toBe(true);
+    expect(isCleanSlateHandoffText(payload())).toBe(true);
+    expect(isCleanSlateHandoffText('Step 1 now: append alpha. Never commit.')).toBe(false);
+  });
+
+  it('recognises a payload written before the marker existed', () => {
+    expect(isCleanSlateHandoffText('# Session handoff — clean slate\n\nstuff')).toBe(true);
+  });
+
+  it('reads back the pending steps from section 3', () => {
+    expect(parseCleanSlateHandoffPendingSteps(payload())).toEqual([
+      'Append beta to notes.txt',
+      'Run the gates',
+    ]);
+  });
+
+  it('drops carried steps the later turns already report as done', () => {
+    const later = [
+      { role: 'user', content: 'Go on.' },
+      { role: 'assistant', content: 'Step 1 done — I appended beta to notes.txt.' },
+    ];
+    expect(
+      filterCompletedPendingSteps(['Append beta to notes.txt', 'Run the gates'], later),
+    ).toEqual(['Run the gates']);
+  });
+
+  it('keeps a step when no later turn reports it (never silently drops work)', () => {
+    const later = [{ role: 'assistant', content: 'Appended alpha to notes.txt.' }];
+    expect(filterCompletedPendingSteps(['Append beta to notes.txt'], later)).toEqual([
+      'Append beta to notes.txt',
+    ]);
+  });
+
+  it('ignores completion words that belong to another step', () => {
+    const later = [{ role: 'assistant', content: 'Done. Run the gates next.' }];
+    expect(filterCompletedPendingSteps(['Run the gates'], later)).toEqual(['Run the gates']);
   });
 });

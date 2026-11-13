@@ -35,6 +35,8 @@ export interface SessionHandoffSources {
   modifiedFiles?: readonly string[];
   /** Task-level settled decisions, merged with the note's `Key Decisions` section. */
   activeDecisions?: readonly string[];
+  /** Constraints the owner stated in chat (ROADMAP 11.5 follow-up); rendered first in section 1. */
+  constraints?: readonly string[];
   /** Task-level next steps, merged with the note's `Next Actions` section. */
   pendingNextSteps?: readonly string[];
   /** Task-level open questions, merged with the note's `Open Questions` section. */
@@ -226,6 +228,103 @@ function dedupe(items: readonly string[]): string[] {
 }
 
 /**
+ * Machine-readable stamp on every clean-slate payload (ROADMAP 11.5 follow-up).
+ *
+ * A handoff of a handoff re-read its own payload as if it were conversation, so
+ * section 3 re-listed steps the fresh session had already done. The marker lets the
+ * next handoff recognise a payload, read its step list back, and drop the items the
+ * later turns report as done. Invisible in the rendered prompt (an HTML comment),
+ * and recognised by its opening heading for payloads written before it existed.
+ */
+export const CLEAN_SLATE_HANDOFF_MARKER = '<!-- cindy-clean-slate-handoff:v1 -->';
+
+const LEGACY_PAYLOAD_HEADINGS = [
+  '# Session handoff — clean slate',
+  '# Session Continuation & Handoff',
+];
+
+/** True when this text is a handoff payload rather than a real conversation turn. */
+export function isCleanSlateHandoffText(text: string | null | undefined): boolean {
+  const trimmed = (text ?? '').trimStart();
+  if (!trimmed) return false;
+  if (trimmed.startsWith(CLEAN_SLATE_HANDOFF_MARKER)) return true;
+  return LEGACY_PAYLOAD_HEADINGS.some((heading) => trimmed.startsWith(heading));
+}
+
+/**
+ * The pending steps a payload carried, read back out of section 3. Both generated
+ * shapes are accepted (`## 3. Pending next steps` / `## Pending Next Actions`) and
+ * the overflow marker `- [N more items omitted]` is ignored, so a chained handoff
+ * carries exactly what was still outstanding.
+ */
+export function parseCleanSlateHandoffPendingSteps(payload: string): string[] {
+  const lines = (payload ?? '').split(/\r?\n/);
+  const headingIndex = lines.findIndex((line) =>
+    /^##\s*(?:\d+\.\s*)?(?:pending next steps|pending next actions)\s*$/i.test(line.trim()),
+  );
+  if (headingIndex === -1) return [];
+  const items: string[] = [];
+  for (let i = headingIndex + 1; i < lines.length; i++) {
+    const line = lines[i]!.trim();
+    if (/^##\s/.test(line)) break;
+    const match = /^-\s+(?:\[ \]\s*)?(.*)$/.exec(line);
+    if (!match) continue;
+    const item = match[1]!.trim();
+    if (!item || /^\[\d+ more items omitted\]$/.test(item)) continue;
+    if (!items.includes(item)) items.push(item);
+  }
+  return items.slice(0, DEFAULT_MAX_LIST_ITEMS);
+}
+
+const COMPLETION_CUE =
+  /\b(?:done|completed|finished|added|appended|created|wrote|written|updated|implemented|merged|committed|passed|fixed|removed)\b/i;
+
+const STEP_STOPWORDS = new Set([
+  'the', 'and', 'for', 'with', 'that', 'this', 'then', 'into', 'from', 'your', 'you',
+  'run', 'all', 'any', 'not', 'but', 'its', 'our', 'now', 'next', 'step', 'steps',
+]);
+
+/** Crude, deterministic stemming: enough to match "append" ↔ "appended". */
+function stemToken(token: string): string {
+  return token.replace(/(?:ed|ing|es|s)$/, '');
+}
+
+function salientTokens(text: string): string[] {
+  return (text.toLowerCase().match(/[a-z0-9_]+/g) ?? [])
+    .map(stemToken)
+    .filter((token) => token.length >= 3 && !STEP_STOPWORDS.has(token));
+}
+
+/**
+ * Drop carried steps that the turns after the payload already report as done.
+ *
+ * One rule, deliberately strict: a *single* later assistant sentence must contain
+ * both a completion cue and **every** salient word of the step. Anything less keeps
+ * the step pending — repeating a step the owner sees is recoverable, silently
+ * dropping an outstanding one is not. "Done. Run the gates next." therefore keeps
+ * "Run the gates" (the cue and the words are in different sentences).
+ */
+export function filterCompletedPendingSteps(
+  items: readonly string[],
+  laterMessages: readonly SessionHandoffMessage[],
+): string[] {
+  const sentences = laterMessages
+    .filter((m) => m.role === 'assistant')
+    .flatMap((m) => ((m.content || m.text || '').split(/(?:\r?\n)+|(?<=[.!?])\s+/)))
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return items.filter((item) => {
+    const needed = [...new Set(salientTokens(item))];
+    if (needed.length === 0) return true;
+    return !sentences.some((sentence) => {
+      if (!COMPLETION_CUE.test(sentence)) return false;
+      const present = new Set(salientTokens(sentence));
+      return needed.every((token) => present.has(token));
+    });
+  });
+}
+
+/**
  * Assemble the clean-slate handoff prompt. Pure: same inputs, same output.
  */
 export function assembleSessionHandoff(
@@ -241,6 +340,7 @@ export function assembleSessionHandoff(
   const sections = extractSynthesisSections(sources.synthesis ?? '');
   const files = dedupe(sources.modifiedFiles ?? []);
   const decisionItems = dedupe(sources.activeDecisions ?? []);
+  const constraintItems = dedupe(sources.constraints ?? []);
   const stepItems = dedupe(sources.pendingNextSteps ?? []);
   const questionItems = dedupe(sources.unresolvedQuestions ?? []);
 
@@ -260,6 +360,19 @@ export function assembleSessionHandoff(
     maxListItems,
     maxItemChars,
   );
+  // Owner-stated constraints ride the same fitted body as the note's constraints, so
+  // the budget can never drop them for the diff.
+  const constraintBullets = renderBullets(
+    constraintItems.map((c) => redactSecrets(c)),
+    maxListItems,
+    maxItemChars,
+  );
+  const constraintsBody = [
+    constraintBullets ? `Owner-stated constraints (do not violate):\n${constraintBullets}` : '',
+    constraints,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
   const stepBullets = renderBullets(
     stepItems.map((s) => redactSecrets(s)),
     maxListItems,
@@ -290,6 +403,7 @@ export function assembleSessionHandoff(
         )
       : 'No uncommitted changes.';
     return [
+      CLEAN_SLATE_HANDOFF_MARKER,
       '# Session handoff — clean slate',
       '',
       'You are a fresh session taking over this work. Everything you need to continue is',
@@ -302,7 +416,8 @@ export function assembleSessionHandoff(
       '',
       '## 1. Active decisions and architecture constraints',
       '',
-      renderMergedSection(decisionBullets, bodies.constraints),
+      // Constraints first: they are the thing a fresh session must not violate.
+      renderMergedSection(bodies.constraints, decisionBullets),
       '',
       '## 2. Working tree state (uncommitted)',
       '',
@@ -332,7 +447,7 @@ export function assembleSessionHandoff(
   // (settled decisions), then open questions, then next steps; the diff is trimmed
   // first because git can regenerate it from the file list above it.
   const wants: Array<[keyof typeof emptyBodies, string, string, number]> = [
-    ['constraints', constraints, 'handoff section', maxSynthesisChars],
+    ['constraints', constraintsBody, 'handoff section', maxSynthesisChars],
     ['questionsBody', questionsBody, 'handoff section', maxSynthesisChars],
     ['stepsBody', stepsBody, 'handoff section', maxSynthesisChars],
     ['diff', diffText, 'diff', maxDiffChars],

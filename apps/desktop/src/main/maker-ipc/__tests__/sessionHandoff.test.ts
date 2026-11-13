@@ -121,6 +121,7 @@ describe('SessionHandoffHost.buildCleanSlateHandoff (ROADMAP 11.5)', () => {
   const makeHost = (overrides?: {
     gatherGitState?: () => Promise<{ gitDiff: string; modifiedFiles: string[] }>;
     workingDir?: string | null;
+    messages?: Array<{ role: string; content?: string }>;
   }) =>
     new SessionHandoffHost({
       getSessionRow: vi.fn().mockResolvedValue({
@@ -129,7 +130,7 @@ describe('SessionHandoffHost.buildCleanSlateHandoff (ROADMAP 11.5)', () => {
         workingDir: overrides?.workingDir ?? '/workspace/cindy',
         model: 'hermes-default',
       }),
-      listMessages: vi.fn().mockResolvedValue(baseMessages),
+      listMessages: vi.fn().mockResolvedValue(overrides?.messages ?? baseMessages),
       readSynthesisNote: vi
         .fn()
         .mockResolvedValue(
@@ -155,6 +156,70 @@ describe('SessionHandoffHost.buildCleanSlateHandoff (ROADMAP 11.5)', () => {
     expect(res.prompt).toContain('What colour should the banner be?');
     expect(res.tokenCount).toBeGreaterThan(0);
     expect(res.truncated).toMatchObject({ payload: false });
+  });
+
+  it('carries the constraints the owner stated in chat into section 1 (11.5 follow-up)', async () => {
+    const host = makeHost({
+      messages: [
+        { role: 'user', content: 'Append alpha to notes.txt, then stop.' },
+        { role: 'assistant', content: 'Appended alpha to notes.txt.' },
+        {
+          role: 'user',
+          content:
+            'Step 2 pending: append beta to notes.txt. Never commit, never touch any other file.',
+        },
+      ],
+    });
+    const res = await host.buildCleanSlateHandoff('sess-clean');
+    expect(res.ok).toBe(true);
+    const section1 = res.prompt.slice(
+      res.prompt.indexOf('## 1. Active decisions'),
+      res.prompt.indexOf('## 2. Working tree state'),
+    );
+    expect(section1).toContain('Owner-stated constraints (do not violate):');
+    expect(section1).toContain('- Never commit, never touch any other file.');
+    // The old failure: the generic line instead of the owner's instruction.
+    expect(section1).not.toContain('Architectural baseline established in previous turns.');
+  });
+
+  it('a handoff of a handoff does not re-list steps the fresh session already did (11.5 follow-up)', async () => {
+    const firstPayload = [
+      '<!-- cindy-clean-slate-handoff:v1 -->',
+      '# Session handoff — clean slate',
+      '',
+      '## 1. Active decisions and architecture constraints',
+      '',
+      '- Never commit, never touch any other file.',
+      '',
+      '## 2. Working tree state (uncommitted)',
+      '',
+      'No uncommitted changes.',
+      '',
+      '## 3. Pending next steps',
+      '',
+      '- Append alpha to notes.txt',
+      '- Append beta to notes.txt',
+      '',
+      '## 4. Unresolved questions',
+      '',
+      'None recorded.',
+      '',
+    ].join('\n');
+    const host = makeHost({
+      gatherGitState: async () => ({ gitDiff: '', modifiedFiles: [] }),
+      messages: [
+        { role: 'user', content: firstPayload },
+        { role: 'assistant', content: 'Appended alpha to notes.txt. Next step: append beta to notes.txt.' },
+      ],
+    });
+    const res = await host.buildCleanSlateHandoff('sess-clean');
+    expect(res.ok).toBe(true);
+    const section3 = res.prompt.slice(
+      res.prompt.indexOf('## 3. Pending next steps'),
+      res.prompt.indexOf('## 4. Unresolved questions'),
+    );
+    expect(section3).toContain('Append beta to notes.txt');
+    expect(section3).not.toContain('Append alpha to notes.txt');
   });
 
   it('redacts secrets from the gathered diff', async () => {

@@ -100,11 +100,50 @@ export function extractSessionDecisions(messages: readonly HandoffMessage[]): st
     }
   }
 
-  if (decisions.length === 0) {
-    decisions.push('Architectural baseline established in previous turns.');
-  }
-
+  // No placeholder: an invented "Architectural baseline established…" line made a
+  // dropped constraint look like recorded context (ROADMAP 11.5 follow-up live proof).
+  // Callers that need a stand-in render it themselves.
   return decisions.slice(0, 8);
+}
+
+const CONSTRAINT_PATTERNS = [
+  /\b(?:never|do not|don't|must not|mustn't|should not|shouldn't|may not)\b/i,
+  /\bonly\s+(?:edit|modify|change|touch|commit|append|write|run|use|update|read)\b/i,
+  /\bwithout\s+(?:touching|changing|committing|modifying|breaking)\b/i,
+  /\b(?:keep|leave)\b[^.!?]*\b(?:unchanged|as is|intact|untouched)\b/i,
+];
+
+/**
+ * Owner-stated constraints from the outgoing transcript (ROADMAP 11.5 follow-up).
+ *
+ * The decisions extractor only recognises "decided to / we will / ADR", so an
+ * instruction like "never commit, never touch any other file" was dropped and the
+ * handoff's section 1 fell back to "Architectural baseline established in previous
+ * turns." — the fresh session then re-ran work the owner had forbidden (live proof
+ * 2026-11-12). Only **user** messages are read: a model restating a constraint does
+ * not make it the owner's, and assistant prose would double every list.
+ *
+ * A heuristic, and deliberately so: it keeps the owner's own wording verbatim
+ * (first letter capitalised, trailing period added) so the fresh session reads the
+ * instruction, not a paraphrase. Questions are skipped, as are sentences without a
+ * negative or exclusive cue.
+ */
+export function extractSessionConstraints(messages: readonly HandoffMessage[]): string[] {
+  const out: string[] = [];
+  for (const m of messages) {
+    if (m.role !== 'user') continue;
+    const text = m.content || m.text || '';
+    if (!text) continue;
+    for (const raw of text.split(/(?:\r?\n)+|(?<=[.!?])\s+/)) {
+      const sentence = raw.replace(/^[-*\u2022\d.)\s]+/, '').trim();
+      if (!sentence || sentence.endsWith('?')) continue;
+      if (!CONSTRAINT_PATTERNS.some((pat) => pat.test(sentence))) continue;
+      const capitalized = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+      const clean = /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
+      if (!out.includes(clean)) out.push(clean);
+    }
+  }
+  return out.slice(0, 8);
 }
 
 /**
@@ -194,7 +233,7 @@ export function assembleHandoffPrompt(input: SessionHandoffInput): SessionHandof
     summary,
     '',
     '## Key Decisions Made',
-    ...decisions.map((d) => `- ${d}`),
+    ...(decisions.length ? decisions.map((d) => `- ${d}`) : ['- None recorded.']),
     '',
     touchedFiles.length > 0 ? '## Relevant Files' : null,
     touchedFiles.length > 0 ? touchedFiles.map((f) => `- \`${f}\``).join('\n') : null,

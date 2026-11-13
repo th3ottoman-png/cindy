@@ -121,6 +121,30 @@ describe('SessionContextGuardBanner (ROADMAP 2.5b)', () => {
     })).toBeUndefined();
   });
 
+  it('never claims more room than the window Hermes enforces (11.5 follow-up: banner vs footer)', () => {
+    // Live 2026-11-12: providers.yaml said 262,144 for lmstudio-local while the Hermes
+    // home's custom_providers entry said 65,536. The banner divided by 262k and the footer
+    // ring by 65,536, so one session read "8%" on the banner and "33%" in the ring.
+    const withCap = (contextLength: number) =>
+      providers.map((p) =>
+        p.id === 'lmstudio-local' ? { ...p, capabilities: { ...p.capabilities, contextLength } } : p,
+      );
+    const base = {
+      sessionModel: 'google/gemma-4-26b-a4b-qat',
+      sessionProviderId: 'lmstudio-local',
+      runtimeContextWindow: 65_536,
+      routing,
+    };
+    expect(resolveSessionContextLength({ ...base, providers: withCap(262_144) })).toBe(65_536);
+    // A deliberately lowered providers.yaml cap still wins: the 11.5 live proof shaped the
+    // banner with it, and warning early is the point of that setting.
+    expect(resolveSessionContextLength({ ...base, providers: withCap(17_000) })).toBe(17_000);
+    // No reported window yet (first turn): the configured cap is all there is.
+    expect(
+      resolveSessionContextLength({ ...base, runtimeContextWindow: 0, providers: withCap(262_144) }),
+    ).toBe(262_144);
+  });
+
   it('never measures the Hermes home model against a local route (ROADMAP 3.7b)', () => {
     // Owner repro 2026-11-02: a hermes-default (DeepSeek) Orca lead at 57k tokens showed
     // "174% full" because the 32k chat.default/provider limit was used.

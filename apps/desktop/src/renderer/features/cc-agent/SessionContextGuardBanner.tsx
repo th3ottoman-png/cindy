@@ -64,6 +64,14 @@ export function resolveSessionUsedTokens(
  * online endpoint whose discovered model list includes the session model, falling
  * back to the runtime window the footer ring shows, then `session.contextWindow`.
  * Never borrows the `chat.default` route's limit: unknown means no banner.
+ *
+ * When both a configured cap and the runtime window are known, the **smaller** wins
+ * (ROADMAP 11.5 follow-up). The runtime window is what Hermes itself enforces (`logs/agent.log`
+ * call lines → `hermes-context.ts`, from the home's `custom_providers.context_length` or
+ * models.dev); a cap above it made the banner divide by more room than the session has, so
+ * the banner and the footer ring disagreed about the same session (live 2026-11-12:
+ * providers.yaml 262,144 vs Hermes 65,536). A cap *below* it still wins, because warning
+ * early is what that setting is for.
  */
 export function resolveSessionContextLength(params: {
   sessionModel?: string | null;
@@ -89,9 +97,12 @@ export function resolveSessionContextLength(params: {
     return reportedWindow;
   }
 
+  const withinRuntimeWindow = (cap: number): number =>
+    reportedWindow ? Math.min(cap, reportedWindow) : cap;
+
   if (sessionProviderId && byId.has(sessionProviderId)) {
     const cap = byId.get(sessionProviderId)?.capabilities.contextLength;
-    if (typeof cap === 'number' && cap > 0) return cap;
+    if (typeof cap === 'number' && cap > 0) return withinRuntimeWindow(cap);
   }
 
   const trimmedModel = sessionModel?.trim();
@@ -101,7 +112,7 @@ export function resolveSessionContextLength(params: {
     );
     if (matched) {
       const cap = byId.get(matched.provider)?.capabilities.contextLength;
-      if (typeof cap === 'number' && cap > 0) return cap;
+      if (typeof cap === 'number' && cap > 0) return withinRuntimeWindow(cap);
     }
     // Models discovered on an endpoint (not hand-listed in routing.yaml) run on that
     // endpoint, so its limit applies, not chat.default's.
@@ -109,7 +120,7 @@ export function resolveSessionContextLength(params: {
       (probe) => probe.status === 'online' && probe.models.includes(trimmedModel),
     );
     const servingCap = serving ? byId.get(serving.id)?.capabilities.contextLength : undefined;
-    if (typeof servingCap === 'number' && servingCap > 0) return servingCap;
+    if (typeof servingCap === 'number' && servingCap > 0) return withinRuntimeWindow(servingCap);
   }
 
   // A model providers.yaml does not describe (e.g. a routed API model such as

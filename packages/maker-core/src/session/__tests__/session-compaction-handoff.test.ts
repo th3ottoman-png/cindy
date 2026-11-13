@@ -4,6 +4,7 @@ import {
   extractSessionDecisions,
   extractTouchedFiles,
   extractPendingNextActions,
+  extractSessionConstraints,
   type HandoffMessage,
 } from '../session-compaction-handoff';
 
@@ -67,5 +68,58 @@ describe('session-compaction-handoff (ROADMAP 7.8)', () => {
     // Verify secret redaction
     expect(result.prompt).not.toContain('sk-secret1234567890123456');
     expect(result.prompt).toContain('[redacted]');
+  });
+});
+
+describe('extractSessionConstraints (ROADMAP 11.5 follow-up)', () => {
+  it('keeps the owner-stated constraints that the decisions extractor misses', () => {
+    // The 2026-11-12 live wording. "never commit" was lost: section 1 fell back to
+    // "Architectural baseline established in previous turns."
+    const messages: HandoffMessage[] = [
+      { role: 'assistant', content: 'Ready.' },
+      {
+        role: 'user',
+        content:
+          'Step 1 now: append alpha to notes.txt. Step 2 pending: append beta. Never commit, never touch any other file.',
+      },
+      { role: 'assistant', content: 'Step 1 done, next step: append beta to notes.txt' },
+    ];
+    expect(extractSessionConstraints(messages)).toEqual([
+      'Never commit, never touch any other file.',
+    ]);
+  });
+
+  it('reads each negative or exclusive instruction as its own item', () => {
+    const messages: HandoffMessage[] = [
+      {
+        role: 'user',
+        content:
+          "Don't run the gates twice.\nOnly edit src/calc.js.\nKeep the public API unchanged.\nDo not commit.",
+      },
+    ];
+    expect(extractSessionConstraints(messages)).toEqual([
+      "Don't run the gates twice.",
+      'Only edit src/calc.js.',
+      'Keep the public API unchanged.',
+      'Do not commit.',
+    ]);
+  });
+
+  it('ignores assistant restatements, questions and ordinary prose', () => {
+    const messages: HandoffMessage[] = [
+      { role: 'user', content: 'Hi, please look at the failing test.' },
+      { role: 'assistant', content: 'Do not worry, I never commit without asking.' },
+      { role: 'user', content: 'Why would you never commit?' },
+    ];
+    expect(extractSessionConstraints(messages)).toEqual([]);
+  });
+
+  it('dedupes and caps the list', () => {
+    const messages: HandoffMessage[] = Array.from({ length: 12 }, () => ({
+      role: 'user',
+      content: 'Never commit.',
+    }));
+    const items = extractSessionConstraints(messages);
+    expect(items).toEqual(['Never commit.']);
   });
 });
