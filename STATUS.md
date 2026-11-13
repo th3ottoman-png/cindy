@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-13 (v) - Phase 13 "Model-aware daily-driver add-ons" planned: ROADMAP rows + blueprint, no code (`unverified` — planning only)
+
+- **Owner request**: compare Qwen Code desktop Settings (10 screenshots) with Cindy, then put the five worthwhile gaps plus always-visible timestamps and a chat-width setting on the roadmap with a blueprint per add-on. Owner correction: Cindy runs ~80 % API models and ~20 % local — never design as if it were local-only.
+- **Added**: `ROADMAP.md` Phase 13 (rows 13.1a, 13.1, 13.2a, 13.2b, 13.3, 13.4, 13.5, 13.6, 13.7, all 🔲) and `docs/phase-13-blueprint.md` (existing seams with file paths, the three new task classes `vision` / `recap` / `tool-label`, per-row design, tests, live proofs, build order, guards). Two rows start with a no-code probe + ADR (0013 vision bridge, 0014 storage) because the design depends on what Hermes and the session homes actually do.
+- **Surprising / next-agent notes**: logs were *not* the disk problem — `logger.ts` already keeps 30 days. The growth is `~/.hermes-cindy/session-homes/` (1.5 GB, 151 homes, ~7–10 MB each, oldest 2026-10-29): `reapOrphanHomes` only removes homes of unregistered sessions. `~/.hermes-cindy/cache` is 443 MB; `~/.cindy-harness` has dozens of `*.bak-*` files. Hermes passes attached images to the model only as a path string (`agent.ts:186`); `providers.yaml` already has `capabilities.vision`; Hermes base config has no `auxiliary.vision` block. Hover timestamps already exist (`MessageActionBar.tsx`), so 13.6 is the always-visible toggle only.
+- **Verification**: none needed beyond reading — docs only, no code touched, so no gates run.
+- **Open**: every Phase 13 row. Suggested start: 13.6 + 13.7 (small), then 13.1a.
+
+---
+
 ## 2026-11-13 (u) - Phase 12 "Agent roster" planned: ROADMAP rows + blueprint, no code (`unverified` — planning only)
 
 - **Owner request**: compare the Qwen Code desktop app's Agents / Squads / Runtimes page, New-agent form and 74-agent library (screenshots) with Cindy, then put all five proposed features on the roadmap with a blueprint other agents can follow.
@@ -18,6 +28,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 - **Surprising / next-agent notes**: `~/.claude/agents` has 278 entries and `~/.qwen/agents` 68 `.md` files, same frontmatter (`name`, `description`, `tools`, `model`). Upstream bot groups have main-process handlers (`maker:bot-group:*` in `maker-ipc/channels.ts` / `register.ts`), but nobody has checked whether they work with no network; 12.4a exists for that. Remote runtimes stay out (Dropped: cloud).
 - **Verification**: none needed beyond reading — docs only, no code touched, so no gates run.
 - **Open**: every Phase 12 row. Start with 12.1.
+
+---
+
+## 2026-11-13 (v) - SIGSEGV root cause captured: Node/V8 worker-isolate teardown (third-party), mitigation confirmed
+
+- **Owner action first**: `sudo DevToolsSecurity -enable` (developer mode had been disabled, which is why `lldb` hung earlier). Developer mode is **still enabled** on this machine — turning it back off needs the same `sudo` (`sudo DevToolsSecurity -disable`), which this session cannot run.
+- **Captured, not guessed** (evidence file `docs/evidence/2026-11-13-desktop-worker-sigsegv-lldb.md`): two `lldb` sessions, each running the desktop `standard` project (515 files, `--pool=threads --maxWorkers=8`), both faulted inside the **first** attempt (~3.5 min in). `EXC_BAD_ACCESS (code=1)`, `pc == x8 ==` an unmapped heap page, on one chain in all captures:
+  `node::worker::Worker::StartThread` → `Worker::Run()+3200` → `node::IsolateData::~IsolateData()` → `v8::internal::CppHeap::DetachIsolate()+72` → `Heap::CollectGarbage()+596` → `PushAllRegistersAndIterateStack` → `heap::base::Stack::SetMarkerAndCallbackImpl<…>` → the GC marking lambda → bad PC.
+- **Why that settles it**: the faulting thread is a vitest worker destroying its isolate, *after* the run printed `Duration 207.39s / 952 passed`, i.e. no test caused it; the crashing thread was `#1340` (also `#1149`, `#1055`, `#399`) — hundreds of live threads at teardown, one isolate per test file. It is the same code path as `nodejs/node#51129` / PR #51138 ("enter isolate before destructing IsolateData"), a GC started by `Isolate::DetachCppHeap` expecting an entered isolate; 22.23.4 already carries that fix, so the remainder is the concurrency variant (one isolate's teardown GC racing another isolate's platform threads at 8 workers).
+- **Two lldb traps worth keeping**: (1) lldb's argv expansion fails on this repo's spaced `=ai space=` path (`lldb-argdumper exited with error 1`) — run from `apps/desktop` with a relative `../../node_modules/vitest/vitest.mjs`; (2) `-o "thread backtrace all"` never runs because the process finishes exiting the moment lldb stops it — commands must be attached with `-K` (source-on-crash). `MallocScribble`/`MallocGuardEdges` do raise the fault rate but fail 17 tests, so the clean capture runs without them.
+- **Not fixable from userland on this machine**: `--pool=forks` for desktop is the launchservicesd churn tradeoff the config deliberately rejects on Node 22 (and which Node 24+ forces anyway), `--poolOptions.threads.isolate=false` fails 737 tests in 91 files, and no 22.x patch is known to cover the race. The mitigation from (u) stands and was re-confirmed live in this session's gate (shard 3 auto-retried, `PASS … [retried after a worker SIGSEGV]`).
+- **Files**: `docs/evidence/2026-11-13-desktop-worker-sigsegv-lldb.md` (new), `ROADMAP.md` §Debt row, this entry. No product code changed in this round.
 
 ---
 
