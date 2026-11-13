@@ -182,6 +182,42 @@ describe('HermesManager socket integration (fake hermes)', () => {
     expect(argv).not.toContain('--safe-mode');
   }, 20_000);
 
+  it('rewrites a custom-provider route so a --safe-mode turn can resolve it', async () => {
+    const h = current!;
+    // The home config is what `--safe-mode` ignores; its `custom_providers` entry is the only
+    // record of what `--provider lmstudio-local` means (ROADMAP §Debt).
+    fs.writeFileSync(
+      path.join(h.dir, 'home', 'config.yaml'),
+      'model:\n  default: fake/default-model\n  provider: fake-provider\n' +
+        'custom_providers:\n  - name: lmstudio-local\n    base_url: http://127.0.0.1:1234/v1\n    context_length: 65536\n',
+    );
+    const rec = recordPath(h.dir, 'safemode-custom');
+    process.env.FAKE_RECORD = rec;
+    try {
+      await h.client.request(METHODS.QUERY_START, {
+        sessionId: 'sm1',
+        cwd: h.dir,
+        permissionMode: 'default',
+        model: 'google/gemma-4-26b-a4b-qat',
+        provider: 'lmstudio-local',
+      }, { timeoutMs: 5_000 });
+      await h.client.request(METHODS.QUERY_SEND, { sessionId: 'sm1', text: 'hi' }, { timeoutMs: 5_000 });
+      await h.collector.waitFor(
+        (n) =>
+          n.method === NOTIFICATIONS.SESSION_CLOSED &&
+          (n.params as SessionClosedNotification).sessionId === 'sm1',
+      );
+    } finally {
+      delete process.env.FAKE_RECORD;
+    }
+
+    const argv = JSON.parse(fs.readFileSync(rec, 'utf8')) as string[];
+    expect(argv).toContain('--safe-mode');
+    expect(argv[argv.indexOf('--provider') + 1]).toBe('custom');
+    expect(argv[argv.indexOf('--base-url') + 1]).toBe('http://127.0.0.1:1234/v1');
+    expect(argv).not.toContain('lmstudio-local');
+  }, 20_000);
+
   it('resumes the bound hermes session on the next turn and maps safe mode to --safe-mode', async () => {
     const h = current!;
     await h.client.request(METHODS.QUERY_START, {

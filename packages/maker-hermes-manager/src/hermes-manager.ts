@@ -11,6 +11,7 @@
 
 import { encodeMessage } from './codec.js';
 import {
+  readHermesCustomProviderBaseUrls,
   readHermesDefaultRoute,
   writeHermesDefaultRoute,
   readHermesFallbackModel,
@@ -801,6 +802,18 @@ export class HermesManager {
         );
       }
 
+      // ROADMAP §Debt: `--safe-mode` (default/ask and chat-only) implies `--ignore-user-config`,
+      // so a `--provider <custom_providers name>` has no resolver and Hermes exits with
+      // `Unknown provider '<name>'` before any model call. Hand the argv builder the home's
+      // name → base_url map; it rewrites only safe-mode launches, and only names it can map.
+      const safeModeLaunch =
+        rec.chatOnly === true || permissionModeToFlags(rec.permissionMode).includes('--safe-mode');
+      const customProviderMap = safeModeLaunch
+        ? await readHermesCustomProviderBaseUrls(turnHome)
+        : new Map<string, string>();
+      const customProviderBaseUrls =
+        customProviderMap.size > 0 ? Object.fromEntries(customProviderMap) : undefined;
+
       // ROADMAP 11.1 Tier 1: prefer the file `prepareSessionHome` wrote (per-session homes),
       // and fall back to compiling here when session homes are disabled so the feature still
       // works. Chat-only sessions have no strip. Bounded and first-turn only, like the rest.
@@ -839,6 +852,7 @@ export class HermesManager {
         cwd: rec.cwd,
         text: turnText,
         ...(preamble ? { preamble } : {}),
+        ...(customProviderBaseUrls ? { customProviderBaseUrls } : {}),
         ...(rec.permissionMode ? { permissionMode: rec.permissionMode } : {}),
         ...(rec.maxTurns !== undefined ? { maxTurns: rec.maxTurns } : {}),
         ...(rec.toolsets ? { toolsets: rec.toolsets } : {}),

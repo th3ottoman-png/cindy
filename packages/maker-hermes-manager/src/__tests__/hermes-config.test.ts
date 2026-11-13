@@ -17,6 +17,8 @@ import {
   removeHermesMcpServer,
   filterDisabledMcpServers,
   parseHermesCustomProviders,
+  parseHermesCustomProviderBaseUrls,
+  rewriteProviderForSafeMode,
   writeHermesLocalContextWindows,
 } from '../hermes-config.js';
 
@@ -753,5 +755,68 @@ describe('writeHermesLocalContextWindows', () => {
     expect(written).toContain('custom_providers:\n');
     expect(parseHermesCustomProviders(written)).toEqual(entries);
     await rm(home, { recursive: true, force: true });
+  });
+});
+
+describe('parseHermesCustomProviderBaseUrls', () => {
+  it('pairs each custom_providers entry name with its base_url', () => {
+    const yaml = [
+      'model:',
+      '  default: deepseek-flash',
+      'custom_providers:',
+      '  - name: lmstudio-local',
+      '    base_url: http://127.0.0.1:1234/v1',
+      '    context_length: 65536',
+      '  - name: "ollama-local"',
+      "    base_url: 'http://127.0.0.1:11434/v1'",
+      'agent:',
+      '  max_turns: 150',
+      '',
+    ].join('\n');
+    expect([...parseHermesCustomProviderBaseUrls(yaml)]).toEqual([
+      ['lmstudio-local', 'http://127.0.0.1:1234/v1'],
+      ['ollama-local', 'http://127.0.0.1:11434/v1'],
+    ]);
+  });
+
+  it('skips entries without a base_url and tolerates CRLF plus comments', () => {
+    const yaml = 'custom_providers:\r\n  # local\r\n  - name: no-url\r\n    context_length: 4096\r\n  - name: ok\r\n    base_url: http://h/v1\r\n';
+    expect([...parseHermesCustomProviderBaseUrls(yaml)]).toEqual([['ok', 'http://h/v1']]);
+  });
+
+  it('does not read name/base_url pairs from any other block', () => {
+    const yaml = 'model:\n  default: x\n  provider: y\nmcp_servers:\n  - name: srv\n    base_url: http://nope/v1\n';
+    expect(parseHermesCustomProviderBaseUrls(yaml).size).toBe(0);
+  });
+
+  it('returns an empty map for a missing block', () => {
+    expect(parseHermesCustomProviderBaseUrls('agent:\n  max_turns: 150\n').size).toBe(0);
+  });
+});
+
+describe('rewriteProviderForSafeMode', () => {
+  const providers = new Map([['lmstudio-local', 'http://127.0.0.1:1234/v1']]);
+
+  it('rewrites a custom_providers name to the built-in `custom` provider plus its base URL', () => {
+    expect(rewriteProviderForSafeMode({ provider: 'lmstudio-local' }, providers)).toEqual({
+      provider: 'custom',
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      rewrittenFrom: 'lmstudio-local',
+    });
+  });
+
+  it('keeps the base URL the caller already has', () => {
+    expect(
+      rewriteProviderForSafeMode({ provider: 'lmstudio-local', baseUrl: 'http://127.0.0.1:9999/v1' }, providers),
+    ).toEqual({ provider: 'custom', baseUrl: 'http://127.0.0.1:9999/v1', rewrittenFrom: 'lmstudio-local' });
+  });
+
+  it('leaves built-in providers, `custom` and an absent provider alone', () => {
+    expect(rewriteProviderForSafeMode({ provider: 'deepseek' }, providers)).toEqual({ provider: 'deepseek' });
+    expect(rewriteProviderForSafeMode({ provider: 'custom', baseUrl: 'http://h/v1' }, providers)).toEqual({
+      provider: 'custom',
+      baseUrl: 'http://h/v1',
+    });
+    expect(rewriteProviderForSafeMode({}, providers)).toEqual({});
   });
 });

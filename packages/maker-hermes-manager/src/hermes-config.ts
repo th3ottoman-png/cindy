@@ -900,6 +900,105 @@ export function parseHermesCustomProviders(
   return entries;
 }
 
+/**
+ * `name → base_url` for the home's `custom_providers:` (and `providers:`) list entries.
+ *
+ * `--safe-mode` implies `--ignore-user-config`, so a `--provider <name>` that only exists in
+ * that config cannot resolve and Hermes exits with `Unknown provider '<name>'` before any model
+ * call (ROADMAP §Debt). The built-in `custom` provider plus `--base-url` is the same endpoint
+ * without needing the config, so the daemon hands this map to the argv builder.
+ *
+ * Only list-shaped entries (`- name: …` + `base_url:`) are read; an entry without a usable
+ * base_url is omitted, and any other block shape yields nothing, so the caller leaves the
+ * route untouched rather than guessing. Comments and the entries' other keys are ignored.
+ */
+export function parseHermesCustomProviderBaseUrls(configYaml: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const lines = configYaml.split(/\r?\n/);
+  let inBlock = false;
+  let itemIndent: number | null = null;
+  let current: { name: string; baseUrl: string } | null = null;
+
+  const flush = (): void => {
+    if (current && current.name && current.baseUrl) out.set(current.name, current.baseUrl);
+    current = null;
+  };
+  const readKey = (content: string): void => {
+    if (!current) return;
+    const match = /^([A-Za-z0-9_]+)\s*:\s*(.*)$/.exec(content);
+    if (!match) return;
+    const value = unquote(match[2]!);
+    if (match[1] === 'name') current.name = value;
+    else if (match[1] === 'base_url' || match[1] === 'baseUrl') current.baseUrl = value;
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) {
+      flush();
+      itemIndent = null;
+      const header = /^([A-Za-z0-9_]+)\s*:(\s|#|$)/.exec(line)?.[1];
+      inBlock = header === 'custom_providers' || header === 'providers';
+      continue;
+    }
+    if (!inBlock) continue;
+    const item = /^(\s*)-\s*(.*)$/.exec(line);
+    if (item && (itemIndent === null || item[1]!.length <= itemIndent)) {
+      flush();
+      itemIndent = item[1]!.length;
+      current = { name: '', baseUrl: '' };
+      readKey(item[2]!);
+      continue;
+    }
+    // Continuation keys sit one level under the item; anything deeper is a nested block.
+    if (current && itemIndent !== null && indent <= itemIndent + 2) readKey(trimmed);
+  }
+  flush();
+  return out;
+}
+
+/** Read {@link parseHermesCustomProviderBaseUrls} from a home; missing/unreadable → empty. */
+export async function readHermesCustomProviderBaseUrls(
+  hermesHome: string,
+): Promise<Map<string, string>> {
+  try {
+    return parseHermesCustomProviderBaseUrls(await readFile(path.join(hermesHome, 'config.yaml'), 'utf8'));
+  } catch {
+    return new Map();
+  }
+}
+
+export interface SafeModeRouteRewrite {
+  provider?: string;
+  baseUrl?: string;
+  /** The custom-provider name that was replaced by the built-in `custom` provider. */
+  rewrittenFrom?: string;
+}
+
+/**
+ * Spell a custom-provider route in the one form `--safe-mode` can resolve.
+ *
+ * `--provider <custom_providers name>` needs the user config that safe-mode ignores, so it fails
+ * with `Unknown provider '<name>'`; `--provider custom --base-url <url>` needs nothing. Built-in
+ * providers, an already-`custom` route and unknown names are returned untouched — the daemon must
+ * not invent an endpoint it does not know.
+ */
+export function rewriteProviderForSafeMode(
+  route: { provider?: string; baseUrl?: string },
+  customProviderBaseUrls: ReadonlyMap<string, string>,
+): SafeModeRouteRewrite {
+  const provider = route.provider?.trim();
+  const baseUrl = route.baseUrl?.trim();
+  if (!provider || provider === 'custom') {
+    return { ...(provider ? { provider } : {}), ...(baseUrl ? { baseUrl } : {}) };
+  }
+  const knownBaseUrl = customProviderBaseUrls.get(provider);
+  if (!knownBaseUrl) return { provider, ...(baseUrl ? { baseUrl } : {}) };
+  return { provider: 'custom', baseUrl: baseUrl || knownBaseUrl, rewrittenFrom: provider };
+}
+
 function serializeCustomProviderLines(
   entry: HermesLocalContextWindowEntry,
   itemIndent: string,

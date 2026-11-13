@@ -8,6 +8,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
+import { rewriteProviderForSafeMode } from './hermes-config.js';
 import type { HermesPermissionMode } from './protocol.js';
 import { repairHermesToolEvent } from './tool-call-repair.js';
 
@@ -24,6 +25,14 @@ export interface HermesSpawnSpec {
   provider?: string;
   baseUrl?: string;
   apiKey?: string;
+  /**
+   * `name → base_url` for the home's `custom_providers:` entries (ROADMAP §Debt). `--safe-mode`
+   * implies `--ignore-user-config`, so `--provider <name>` cannot resolve there and Hermes exits
+   * with `Unknown provider '<name>'` before any model call; `--provider custom --base-url <url>`
+   * needs no config and reaches the same endpoint. Read by the daemon, applied only under
+   * safe-mode (default/ask, chat-only).
+   */
+  customProviderBaseUrls?: Record<string, string>;
   permissionMode?: HermesPermissionMode;
   /**
    * ROADMAP 10.3 chat-only: run Hermes with `--safe-mode` (no toolsets, no MCP servers, no
@@ -104,6 +113,17 @@ export function buildHermesArgs(spec: HermesSpawnSpec): string[] {
   // authoritative and always present below. `--run-budget` is likewise
   // gateway-refused (config.yaml `agent.run_budget_seconds` owns it), so the
   // spec field is intentionally not forwarded.
+  // ROADMAP §Debt: a custom endpoint must be reachable in every permission mode, not only
+  // `--yolo`. Safe-mode ignores the user config, so a `custom_providers` name has no resolver
+  // there; spell the same endpoint with the built-in `custom` provider instead.
+  const safeMode = spec.chatOnly === true || permissionModeToFlags(spec.permissionMode).includes('--safe-mode');
+  const route =
+    safeMode && spec.customProviderBaseUrls
+      ? rewriteProviderForSafeMode(
+          { provider: spec.provider, baseUrl: spec.baseUrl },
+          new Map(Object.entries(spec.customProviderBaseUrls)),
+        )
+      : { provider: spec.provider, baseUrl: spec.baseUrl };
   const args = [
     ...(spec.extraArgs ?? []),
     'chat',
@@ -113,8 +133,8 @@ export function buildHermesArgs(spec: HermesSpawnSpec): string[] {
   ];
   if (spec.resumeHermesSessionId) args.push('--resume', spec.resumeHermesSessionId);
   if (spec.model) args.push('-m', spec.model);
-  if (spec.provider) args.push('--provider', spec.provider);
-  if (spec.baseUrl) args.push('--base-url', spec.baseUrl);
+  if (route.provider) args.push('--provider', route.provider);
+  if (route.baseUrl) args.push('--base-url', route.baseUrl);
   if (spec.apiKey) args.push('--api-key', spec.apiKey);
   if (spec.maxTurns !== undefined) args.push('--max-turns', String(spec.maxTurns));
   // Chat-only (10.3) needs *two* flags, which is not obvious:
