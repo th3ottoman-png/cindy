@@ -5567,7 +5567,8 @@ interface ElectronAPI {
       ) => () => void;
       /** ROADMAP 3.2a: the expert the next fresh Hermes session starts as. */
       getPending: () => Promise<string | null>;
-      setPending: (slug: string | null) => Promise<string | null>;
+      /** ROADMAP 12.1: also accepts an imported-agent id; projectDir scopes project sources. */
+      setPending: (slug: string | null, projectDir?: string | null) => Promise<string | null>;
       getSessionBinding: (
         sessionId: string,
       ) => Promise<import('../main/maker-ipc/expertSessions').ExpertSessionBindingView | null>;
@@ -5597,6 +5598,24 @@ interface ElectronAPI {
       goAhead: (request: {
         sessionId: string;
       }) => Promise<import('../main/maker-ipc/expertsHandlers').GoAheadResult>;
+    };
+    importedAgents: {
+      /** ROADMAP 12.1: read-only foreign agent definitions (Claude/Qwen, user/project). */
+      list: (
+        projectDir?: string | null,
+      ) => Promise<import('../main/maker-ipc/importedAgents').ImportedAgentsDiscovery>;
+      read: (
+        id: string,
+        projectDir?: string | null,
+      ) => Promise<import('../main/maker-ipc/importedAgents').ImportedAgentReadResult>;
+      /** Copy one imported agent into ~/.cindy-harness/experts via the 3.8 draft path. */
+      copyToExpert: (
+        id: string,
+        projectDir?: string | null,
+      ) => Promise<import('../main/maker-ipc/importedAgents').ImportedAgentCopyResult>;
+      onChanged: (
+        cb: (view: import('../main/maker-ipc/importedAgents').ImportedAgentsDiscovery) => void,
+      ) => () => void;
     };
     extPlugins: {
       /** ROADMAP 4.2b: local extension plugins (~/.cindy-harness/plugins) with their load state. */

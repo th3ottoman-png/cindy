@@ -4,14 +4,28 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExpertEntry } from '@cindy/maker-core/experts';
+import { parseImportedAgent, type ImportedAgent } from '@cindy/maker-core/imported-agents';
 
 import { HermesExpertLabelView } from '@/features/cc-agent/HermesExpertLabel';
 import {
   HermesExpertPicker,
   HermesExpertPickerView,
   buildExpertOptions,
+  buildImportedAgentOptions,
   resolveExpertDraftModel,
 } from '@/features/cc-agent/HermesExpertPicker';
+import { patchVendorPrefs } from '@/state/newMakerDraft';
+
+vi.mock('@/state/newMakerDraft', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/state/newMakerDraft')>();
+  return { ...actual, patchVendorPrefs: vi.fn() };
+});
+
+const importedAgent = (tools: string, extra: { name?: string } = {}): ImportedAgent =>
+  parseImportedAgent(
+    `---\nname: ${extra.name ?? 'Imported Reviewer'}\ndescription: Reviews.\ntools: ${tools}\nmodel: opus\n---\nYou are imported.`,
+    { source: 'claude-user', absolutePath: '/home/o/.claude/agents/reviewer.md', relPath: 'reviewer.md' },
+  );
 
 const expert = (slug: string, extra: Partial<NonNullable<ExpertEntry['expert']>> = {}): ExpertEntry => ({
   slug,
@@ -77,6 +91,47 @@ describe('Hermes expert picker (ROADMAP 3.2a)', () => {
 
   it('renders nothing when there are no experts, so the toolbar is unchanged', () => {
     expect(renderToStaticMarkup(<HermesExpertPickerView options={[]} value={null} onChange={() => undefined} />)).toBe('');
+  });
+
+  it('imported agents are pickable when they run on the vendor, blocked tools are named (ROADMAP 12.1)', () => {
+    const options = buildImportedAgentOptions([
+      importedAgent('Read, Grep'),
+      importedAgent('Read, WebSearch', { name: 'Web Agent' }),
+    ]);
+    expect(options[0]).toEqual({
+      slug: 'imported:claude-user:reviewer.md',
+      label: 'Imported Reviewer (imported · claude-user)',
+      disabled: false,
+      title: 'Reviews.\nDeclared model: opus (not mapped; the session keeps its own model)\n/home/o/.claude/agents/reviewer.md',
+    });
+    expect(options[1].disabled).toBe(true);
+    expect(options[1].title).toContain('WebSearch');
+    // The blocked agent runs on Claude Code.
+    const claude = buildImportedAgentOptions([importedAgent('Read, WebSearch')], 'claude-code');
+    expect(claude[0].disabled).toBe(false);
+    // A malformed file is listed but never pickable.
+    const broken = buildImportedAgentOptions([
+      parseImportedAgent('---\nname: [unclosed\n---\nBody.', { source: 'qwen-user', absolutePath: '/x/bad.md', relPath: 'bad.md' }),
+    ]);
+    expect(broken[0].disabled).toBe(true);
+    expect(broken[0].label).toContain('(broken)');
+  });
+
+  it('header chip shows imported · source · name and the foreign file path (ROADMAP 12.1)', () => {
+    const html = renderToStaticMarkup(
+      <HermesExpertLabelView
+        binding={{
+          sessionId: 's1',
+          slug: 'imported:claude-user:reviewer.md',
+          dir: '/home/o/.claude/agents/reviewer.md',
+          name: 'Imported Reviewer',
+          imported: { source: 'claude-user', absolutePath: '/home/o/.claude/agents/reviewer.md' },
+        }}
+      />,
+    );
+    expect(html).toContain('data-testid="hermes-session-expert"');
+    expect(html).toContain('imported · claude-user · Imported Reviewer');
+    expect(html).toContain('/home/o/.claude/agents/reviewer.md');
   });
 
   it('header chip names the expert and shows its folder; a broken expert stays visible', () => {
@@ -151,6 +206,10 @@ describe('Hermes expert picker (ROADMAP 3.2a)', () => {
             setPending: mockSetPending,
             onChanged: mockOnChanged,
             onSessionEvent: mockOnSessionEvent,
+          },
+          importedAgents: {
+            list: vi.fn().mockResolvedValue({ agents: [importedAgent('Read, Grep')], capped: false }),
+            onChanged: vi.fn().mockReturnValue(() => undefined),
           },
           providers: {
             getRouting: mockGetRouting,
@@ -251,6 +310,32 @@ describe('Hermes expert picker (ROADMAP 3.2a)', () => {
       await waitFor(() => {
         expect(onSelectModel).toHaveBeenCalledTimes(2);
       });
+    });
+
+    it('fallback model apply keys vendor prefs by the DB form (cc, not claude-code)', async () => {
+      mockGetPending.mockResolvedValue('code-reviewer');
+      render(<HermesExpertPicker activeVendor="claude-code" />);
+      await waitFor(() => {
+        expect(patchVendorPrefs).toHaveBeenCalledWith('cc', { model: 'qwen3-8b' });
+      });
+    });
+
+    it('lists imported agents and picks one with the project dir, never applying its model (ROADMAP 12.1)', async () => {
+      const onSelectModel = vi.fn();
+      render(<HermesExpertPicker onSelectModel={onSelectModel} projectDir="/proj" />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('hermes-expert-picker')).toBeTruthy();
+      });
+      const select = screen.getByTestId('hermes-expert-picker') as HTMLSelectElement;
+      const option = Array.from(select.options).find((o) => o.value === 'imported:claude-user:reviewer.md');
+      expect(option?.textContent).toBe('Imported Reviewer (imported · claude-user)');
+
+      fireEvent.change(select, { target: { value: 'imported:claude-user:reviewer.md' } });
+      await waitFor(() => {
+        expect(mockSetPending).toHaveBeenCalledWith('imported:claude-user:reviewer.md', '/proj');
+      });
+      expect(onSelectModel).not.toHaveBeenCalled();
     });
   });
 });

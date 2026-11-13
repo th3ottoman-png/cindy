@@ -798,6 +798,7 @@ const fanOutMakerEvent = createIpcFanOut('maker:event');
 const fanOutMakerAgentsChanged = createIpcFanOut('maker:agents:changed');
 const fanOutMakerExpertsChanged = createIpcFanOut('maker:experts:changed');
 const fanOutMakerExpertsSessionEvent = createIpcFanOut('maker:experts:session-event');
+const fanOutMakerImportedAgentsChanged = createIpcFanOut('maker:imported-agents:changed');
 const fanOutMakerExpertsDraftEvent = createIpcFanOut('maker:experts:draft-event');
 const fanOutMakerExtPluginsChanged = createIpcFanOut('maker:ext-plugins:changed');
 const fanOutMakerMcpCatalogChanged = createIpcFanOut('maker:mcp-catalog:changed');
@@ -6328,8 +6329,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('maker:experts:list'),
       onChanged: fanOutMakerExpertsChanged,
       getPending: (): Promise<string | null> => ipcRenderer.invoke('maker:experts:get-pending'),
-      setPending: (slug: string | null): Promise<string | null> =>
-        ipcRenderer.invoke('maker:experts:set-pending', slug),
+      setPending: (slug: string | null, projectDir?: string | null): Promise<string | null> =>
+        ipcRenderer.invoke('maker:experts:set-pending', slug, projectDir ?? null),
       getSessionBinding: (
         sessionId: string,
       ): Promise<import('../main/maker-ipc/expertSessions').ExpertSessionBindingView | null> =>
@@ -6359,6 +6360,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
         sessionId: string;
       }): Promise<import('../main/maker-ipc/expertsHandlers').GoAheadResult> =>
         ipcRenderer.invoke('maker:experts:go-ahead', request),
+    },
+    importedAgents: {
+      list: (
+        projectDir?: string | null,
+      ): Promise<import('../main/maker-ipc/importedAgents').ImportedAgentsDiscovery> =>
+        ipcRenderer.invoke('maker:imported-agents:list', projectDir ?? null),
+      read: (
+        id: string,
+        projectDir?: string | null,
+      ): Promise<import('../main/maker-ipc/importedAgents').ImportedAgentReadResult> =>
+        ipcRenderer.invoke('maker:imported-agents:read', id, projectDir ?? null),
+      copyToExpert: (
+        id: string,
+        projectDir?: string | null,
+      ): Promise<import('../main/maker-ipc/importedAgents').ImportedAgentCopyResult> =>
+        ipcRenderer.invoke('maker:imported-agents:copy-to-expert', id, projectDir ?? null),
+      onChanged: fanOutMakerImportedAgentsChanged,
     },
     extPlugins: {
       list: (): Promise<import('../main/maker-ipc/extensionPlugins').ExtensionPluginListView> =>

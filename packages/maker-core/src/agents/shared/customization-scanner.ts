@@ -30,21 +30,27 @@ export interface SourceDef {
 export function parseFrontmatter(raw: string): {
   description?: string;
   frontmatter?: Record<string, unknown>;
+  /** The markdown body after the frontmatter (the whole text when there is none). */
+  content?: string;
   parseError?: string;
 } {
   try {
-    const parsed = matter(raw);
+    // gray-matter caches by input string and a failed YAML parse is cached as "no
+    // frontmatter", hiding the error on every re-read; {} skips the cache (expert-loader
+    // does the same). ROADMAP 12.1.
+    const parsed = matter(raw, {});
     if (parsed.data && typeof parsed.data === 'object') {
       const fm = parsed.data as Record<string, unknown>;
       const desc = fm.description;
       return {
         frontmatter: fm,
+        content: parsed.content,
         ...(typeof desc === 'string' && desc.trim()
           ? { description: desc.trim().slice(0, 500) }
           : {}),
       };
     }
-    return {};
+    return { content: parsed.content };
   } catch (err) {
     return { parseError: err instanceof Error ? err.message : String(err) };
   }

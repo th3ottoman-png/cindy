@@ -12,12 +12,18 @@ type ExpertSessionBindingView = NonNullable<Awaited<ReturnType<Window['electronA
 export function HermesExpertLabelView({ binding }: { binding: ExpertSessionBindingView | null }) {
   if (!binding) return null;
   const broken = Boolean(binding.error);
-  const label = broken ? `${binding.slug} (broken)` : binding.name ?? binding.slug;
+  const imported = binding.imported;
+  // ROADMAP 12.1: an imported agent shows its source and name; the path stays in the tooltip.
+  const label = broken
+    ? `${binding.slug} (broken)`
+    : imported
+      ? `imported · ${imported.source} · ${binding.name ?? binding.slug}`
+      : binding.name ?? binding.slug;
   const title = [
-    `Expert: ${label}`,
+    imported ? `Imported agent (${imported.source}): ${binding.name ?? binding.slug}` : `Expert: ${label}`,
     binding.model ? `Model route: ${binding.model}` : '',
     binding.error ?? '',
-    binding.dir,
+    imported ? imported.absolutePath : binding.dir,
   ].filter(Boolean).join('\n');
   return (
     <span

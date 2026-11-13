@@ -914,6 +914,7 @@ import {
 } from './sessionReferenceResolver.js';
 import { registerAndroidAutomationHandlers } from './androidHandlers.js';
 import { registerExpertsHandlers } from './expertsHandlers.js';
+import { registerImportedAgentsHandlers } from './importedAgents.js';
 import {
   createDesktopExtensionPluginsHost,
   registerExtensionPluginsHandlers,
@@ -25718,6 +25719,14 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         rows: await listMessagesForAgentHandoff(sessionId, 400),
       };
     },
+  });
+
+  // ── Imported agents (ROADMAP 12.1): read-only foreign agent definitions ──
+  registerImportedAgentsHandlers(createElectronIpcHandlerRegistry(), {
+    homeDir: os.homedir(),
+    expertsRoot: path.join(os.homedir(), '.cindy-harness', 'experts'),
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
   });
 
   // ── Local extension plugins (ROADMAP 4.2b): load ~/.cindy-harness/plugins at startup ──

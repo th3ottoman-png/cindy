@@ -19,13 +19,21 @@ import * as path from 'node:path';
 
 import { readExpertMemory, type MemoryTarget } from '@cindy/maker-core/expert-memory';
 import { isToolAllowed, isMcpServerAllowed } from '@cindy/maker-core/expert-tools';
-import { loadExpert, type Expert } from '@cindy/maker-core/experts';
+import { loadExpert, type Expert, type ExpertAgent } from '@cindy/maker-core/experts';
+import { isImportedAgentId, type ImportedAgent, type ImportedAgentSource } from '@cindy/maker-core/imported-agents';
+
+import { readImportedAgentById } from './importedAgents.js';
 
 /** Expert slugs are directory names under the experts root; nothing else is accepted. */
 const SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 export function isValidExpertSlug(slug: unknown): slug is string {
   return typeof slug === 'string' && SLUG.test(slug) && !slug.includes('..');
+}
+
+/** Roster ids: an expert slug or an imported-agent id (ROADMAP 12.1, one id space). */
+function isRosterId(id: unknown): id is string {
+  return isValidExpertSlug(id) || isImportedAgentId(id);
 }
 
 /** A pending pick older than this is ignored, so a forgotten pick never captures a later session. */
@@ -48,11 +56,13 @@ export interface ExpertSessionBindingView {
   error?: string;
   /** The expert's built-in toolsets lock (ROADMAP 3.10); present only for a locked Hermes expert. */
   toolsets?: string[];
+  /** ROADMAP 12.1: present when the session was started as an imported (foreign) agent. */
+  imported?: { source: ImportedAgentSource; absolutePath: string };
 }
 
 interface BindingsFile {
   version: 1;
-  sessions: Record<string, { slug: string; boundAt: string }>;
+  sessions: Record<string, { slug: string; boundAt: string; projectDir?: string }>;
 }
 
 export interface ExpertSessionStoreOptions {
@@ -61,6 +71,8 @@ export interface ExpertSessionStoreOptions {
   /** Binding file (production: ~/.cindy-harness/expert-sessions.json). */
   bindingsFile: string;
   now?: () => number;
+  /** ROADMAP 12.1: resolve an imported-agent id against the foreign directories. */
+  resolveImported?: (id: string, projectDir?: string | null) => ImportedAgent | null;
 }
 
 /** Model route check, injected so tests need no providers.yaml. */
@@ -69,7 +81,7 @@ export type RouteMatcher = (expertRoute: string, sessionModel: string) =>
   | { ok: false; message: string };
 
 export class ExpertSessionStore {
-  private pending: { slug: string; at: number } | null = null;
+  private pending: { slug: string; at: number; projectDir?: string | null } | null = null;
   private readonly listeners = new Set<(event: ExpertSessionEvent) => void>();
   private readonly now: () => number;
 
@@ -92,18 +104,22 @@ export class ExpertSessionStore {
     }
   }
 
-  getPending(): string | null {
+  private pendingRecord(): { slug: string; at: number; projectDir?: string | null } | null {
     if (!this.pending) return null;
     if (this.now() - this.pending.at > PENDING_EXPERT_TTL_MS) {
       this.pending = null;
       return null;
     }
-    return this.pending.slug;
+    return this.pending;
   }
 
-  setPending(slug: string | null): string | null {
-    if (slug !== null && !isValidExpertSlug(slug)) throw new Error(`invalid expert "${String(slug)}"`);
-    this.pending = slug === null ? null : { slug, at: this.now() };
+  getPending(): string | null {
+    return this.pendingRecord()?.slug ?? null;
+  }
+
+  setPending(slug: string | null, opts: { projectDir?: string | null } = {}): string | null {
+    if (slug !== null && !isRosterId(slug)) throw new Error(`invalid expert "${String(slug)}"`);
+    this.pending = slug === null ? null : { slug, at: this.now(), projectDir: opts.projectDir ?? null };
     this.emit({ type: 'pending', slug });
     return slug;
   }
@@ -130,12 +146,16 @@ export class ExpertSessionStore {
 
   getBoundSlug(sessionId: string): string | null {
     const slug = this.readFile().sessions[sessionId]?.slug;
-    return isValidExpertSlug(slug) ? slug : null;
+    return isRosterId(slug) ? slug : null;
   }
 
-  private bind(sessionId: string, slug: string): void {
+  private bind(sessionId: string, slug: string, projectDir?: string | null): void {
     const data = this.readFile();
-    data.sessions[sessionId] = { slug, boundAt: new Date(this.now()).toISOString() };
+    data.sessions[sessionId] = {
+      slug,
+      boundAt: new Date(this.now()).toISOString(),
+      ...(projectDir ? { projectDir } : {}),
+    };
     this.writeFile(data);
     this.emit({ type: 'bound', sessionId, slug });
   }
@@ -144,9 +164,9 @@ export class ExpertSessionStore {
    * Bind a session to an expert directly (ROADMAP 3.9a, ADR 0008): an Orca worker started as an
    * expert is bound right after it is created, before its first turn. The pending pick is untouched.
    */
-  bindSession(sessionId: string, slug: string): void {
-    if (!isValidExpertSlug(slug)) throw new Error(`invalid expert "${String(slug)}"`);
-    this.bind(sessionId, slug);
+  bindSession(sessionId: string, slug: string, opts: { projectDir?: string | null } = {}): void {
+    if (!isRosterId(slug)) throw new Error(`invalid expert "${String(slug)}"`);
+    this.bind(sessionId, slug, opts.projectDir ?? null);
   }
 
   /**
@@ -154,6 +174,9 @@ export class ExpertSessionStore {
    * expert. Returns its model route so the worker session is created on it.
    */
   checkWorkerExpert(slug: string): { ok: true; model?: string } | { ok: false; message: string } {
+    if (isImportedAgentId(slug)) {
+      return { ok: false, message: 'Imported agents cannot start as Orca workers yet; copy the agent to your experts first (ROADMAP 12.1).' };
+    }
     if (!isValidExpertSlug(slug)) return { ok: false, message: `invalid expert "${String(slug)}"` };
     const dir = path.join(this.opts.rootDir, slug);
     const entry = loadExpert(dir);
@@ -169,6 +192,21 @@ export class ExpertSessionStore {
   describeBinding(sessionId: string): ExpertSessionBindingView | null {
     const slug = this.getBoundSlug(sessionId);
     if (!slug) return null;
+    if (isImportedAgentId(slug)) {
+      const record = this.readFile().sessions[sessionId];
+      const agent = this.opts.resolveImported?.(slug, record?.projectDir ?? null) ?? null;
+      if (!agent) {
+        return { sessionId, slug, dir: '', error: `imported agent "${slug}" is no longer available` };
+      }
+      return {
+        sessionId,
+        slug,
+        dir: agent.absolutePath,
+        name: agent.name,
+        imported: { source: agent.source, absolutePath: agent.absolutePath },
+        ...(agent.error ? { error: agent.error } : {}),
+      };
+    }
     const dir = path.join(this.opts.rootDir, slug);
     const entry = loadExpert(dir);
     return {
@@ -191,6 +229,8 @@ export class ExpertSessionStore {
   expertAllowsTool(sessionId: string, tool: string, opts: { includePending?: boolean } = {}): boolean {
     const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
     if (!slug) return false;
+    // Imported agents grant no Cindy tools (ROADMAP 12.1): fail closed, like their drafts.
+    if (isImportedAgentId(slug)) return false;
     const expert = loadExpert(path.join(this.opts.rootDir, slug)).expert;
     if (!expert || expert.agent !== 'hermes') return false;
     return isToolAllowed(tool, expert.toolsPolicy, expert.tools);
@@ -203,6 +243,8 @@ export class ExpertSessionStore {
   expertAllowsMcpServer(sessionId: string, server: string, opts: { includePending?: boolean } = {}): boolean {
     const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
     if (!slug) return true;
+    // An imported agent has no tools policy: unrestricted, like a plain session (12.1).
+    if (isImportedAgentId(slug)) return true;
     const expert = loadExpert(path.join(this.opts.rootDir, slug)).expert;
     if (!expert || expert.agent !== 'hermes') return false;
     return isMcpServerAllowed(server, expert.toolsPolicy);
@@ -216,6 +258,7 @@ export class ExpertSessionStore {
   expertAllowsVaultTool(sessionId: string, tool: string, opts: { includePending?: boolean } = {}): boolean {
     const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
     if (!slug) return false;
+    if (isImportedAgentId(slug)) return false;
     const expert = loadExpert(path.join(this.opts.rootDir, slug)).expert;
     if (!expert || expert.agent !== 'hermes') return false;
 
@@ -272,6 +315,7 @@ export class ExpertSessionStore {
   expertMemoryTarget(sessionId: string, opts: { includePending?: boolean } = {}): MemoryTarget | null {
     const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
     if (!slug) return null;
+    if (isImportedAgentId(slug)) return null;
     const expert = loadExpert(path.join(this.opts.rootDir, slug)).expert;
     return expert?.agent === 'hermes' && expert.memory ? { dir: expert.dir, memory: true } : null;
   }
@@ -294,6 +338,8 @@ export class ExpertSessionStore {
   expertToolsets(sessionId: string, opts: { includePending?: boolean } = {}): string[] | null {
     const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
     if (!slug) return null;
+    // Imported agents carry no toolsets lock (ROADMAP 12.1).
+    if (isImportedAgentId(slug)) return null;
     const dir = path.join(this.opts.rootDir, slug);
     const entry = loadExpert(dir);
     if (!entry.expert) {
@@ -309,6 +355,7 @@ export class ExpertSessionStore {
   expertSkillsDir(sessionId: string, opts: { includePending?: boolean } = {}): string | null {
     const slug = this.getBoundSlug(sessionId) ?? (opts.includePending ? this.getPending() : null);
     if (!slug) return null;
+    if (isImportedAgentId(slug)) return null;
     const dir = path.join(this.opts.rootDir, slug);
     const entry = loadExpert(dir);
     if (entry.expert && entry.expert.skillFiles.length > 0) {
@@ -323,13 +370,18 @@ export class ExpertSessionStore {
     matchRoute: RouteMatcher,
   ): string | null {
     let slug = this.getBoundSlug(input.sessionId);
+    let projectDir: string | null = this.readFile().sessions[input.sessionId]?.projectDir ?? null;
     if (!slug) {
-      const pending = this.getPending();
+      const pending = this.pendingRecord();
       if (!pending) return null;
       this.pending = null;
-      this.bind(input.sessionId, pending);
+      this.bind(input.sessionId, pending.slug, pending.projectDir ?? null);
       this.emit({ type: 'pending', slug: null });
-      slug = pending;
+      slug = pending.slug;
+      projectDir = pending.projectDir ?? null;
+    }
+    if (isImportedAgentId(slug)) {
+      return this.importedPreamble(slug, projectDir, input.agent ?? 'hermes');
     }
     const dir = path.join(this.opts.rootDir, slug);
     const entry = loadExpert(dir);
@@ -356,6 +408,26 @@ export class ExpertSessionStore {
     }
     const memory = expert.memory ? readExpertMemory(expert, { maxChars: EXPERT_MEMORY_PREAMBLE_CHARS }) : undefined;
     return buildExpertPreamble(expert, memory);
+  }
+
+  /**
+   * ROADMAP 12.1: an imported agent's prompt rides the first turn exactly like an expert's.
+   * Fail closed: a missing file or an adapter the agent cannot run on refuses the send.
+   * No model check (a foreign `model:` is never mapped), no toolsets lock, no memory.
+   */
+  private importedPreamble(id: string, projectDir: string | null, expectedAgent: string): string {
+    const agent = this.opts.resolveImported?.(id, projectDir) ?? null;
+    if (!agent) {
+      throw new Error(`Imported agent "${id}" is no longer available. Pick another agent and send again.`);
+    }
+    if (agent.error) {
+      throw new Error(`Imported agent "${agent.name}" cannot be applied: ${agent.error}`);
+    }
+    if (!agent.runsOn.includes(expectedAgent as ExpertAgent)) {
+      const blocked = agent.blockedTools?.length ? ` Tools that block it: ${agent.blockedTools.join(', ')}.` : '';
+      throw new Error(`Imported agent "${agent.name}" cannot run on "${expectedAgent}".${blocked} Pick an agent that supports this program, or copy it to your experts and adjust it.`);
+    }
+    return buildExpertPreamble({ name: agent.name, prompt: agent.prompt });
   }
 }
 
@@ -425,6 +497,7 @@ export function getDesktopExpertSessionStore(): ExpertSessionStore {
   desktopStore ??= new ExpertSessionStore({
     rootDir: path.join(os.homedir(), '.cindy-harness', 'experts'),
     bindingsFile: path.join(os.homedir(), '.cindy-harness', 'expert-sessions.json'),
+    resolveImported: (id, projectDir) => readImportedAgentById(id, { homeDir: os.homedir(), projectDir: projectDir ?? null }),
   });
   return desktopStore;
 }

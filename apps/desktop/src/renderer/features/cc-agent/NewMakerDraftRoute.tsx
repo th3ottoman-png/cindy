@@ -5989,9 +5989,10 @@ export function NewMakerDraftRoute() {
                             disabled={wtCreating}
                             hiddenVendors={hiddenSwitcherVendors}
                           />
-                          {/* ROADMAP 3.2: start task as an expert. Auto-selects expert's model in draft. */}
-                          {['hermes', 'claude-code', 'codex', 'pi'].includes(draft.vendor) ? (
-                            <HermesExpertPicker activeVendor={draft.vendor} onSelectModel={handleModelDidChange} />
+                          {/* ROADMAP 3.2 / 12.1: start task as an expert or imported agent. The draft
+                              vendor is DB-form ('cc'); the picker filters on the maker form. */}
+                          {['hermes', 'cc', 'codex', 'pi'].includes(draft.vendor) ? (
+                            <HermesExpertPicker activeVendor={dbToMakerAgentKind(draft.vendor)} onSelectModel={handleModelDidChange} projectDir={effectiveWorkingDir} />
                           ) : null}
                         </>
                       )

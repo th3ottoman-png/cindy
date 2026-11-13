@@ -4,6 +4,8 @@ import * as path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { parseImportedAgent, type ImportedAgent } from '@cindy/maker-core/imported-agents';
+
 import { MAKER_INVOKE, MAKER_PUSH } from '../channels';
 import {
   EXPERT_MEMORY_PREAMBLE_CHARS,
@@ -564,6 +566,120 @@ describe('ExpertSessionStore vault notes access (ROADMAP 5.1)', () => {
     expect(store.sessionHasVaultAccess('s1')).toBe(false);
     expect(store.expertAllowsVaultTool('non-existent-session', 'read_note')).toBe(false);
     expect(store.sessionHasVaultAccess('non-existent-session')).toBe(false);
+  });
+});
+
+describe('ExpertSessionStore imported agents (ROADMAP 12.1)', () => {
+  const ID = 'imported:claude-user:reviewer.md';
+
+  function imported(tools = 'Read, Grep', source: 'claude-user' | 'claude-project' = 'claude-user'): ImportedAgent {
+    return parseImportedAgent(
+      `---\nname: Imported Reviewer\ndescription: Reviews.\ntools: ${tools}\nmodel: opus\n---\nYou are imported.`,
+      { source, absolutePath: `/foreign/${source}/reviewer.md`, relPath: 'reviewer.md' },
+    );
+  }
+
+  function storeWith(resolveImported: (id: string, projectDir?: string | null) => ImportedAgent | null): ExpertSessionStore {
+    return new ExpertSessionStore({ rootDir: root, bindingsFile, resolveImported });
+  }
+
+  it('binds a pending imported pick and applies its prompt on the first turn', () => {
+    const store = storeWith(() => imported());
+    store.setPending(ID);
+    const preamble = store.resolveFirstTurnPreamble({ sessionId: 's1', model: 'm' }, anyRoute);
+    expect(preamble).toContain('[Cindy expert: Imported Reviewer]');
+    expect(preamble).toContain('You are imported.');
+    expect(store.getPending()).toBeNull();
+    const raw = JSON.parse(fs.readFileSync(bindingsFile, 'utf8'));
+    expect(raw.sessions.s1.slug).toBe(ID);
+    expect(store.describeBinding('s1')).toMatchObject({
+      slug: ID,
+      name: 'Imported Reviewer',
+      imported: { source: 'claude-user', absolutePath: '/foreign/claude-user/reviewer.md' },
+    });
+  });
+
+  it('applies to claude-code sessions as well', () => {
+    const store = storeWith(() => imported());
+    store.setPending(ID);
+    const preamble = store.resolveFirstTurnPreamble({ sessionId: 's1', model: 'm', agent: 'claude-code' }, anyRoute);
+    expect(preamble).toContain('You are imported.');
+  });
+
+  it('never maps the declared model: the session route is untouched', () => {
+    const store = storeWith(() => imported());
+    store.setPending(ID);
+    const strictRoute: RouteMatcher = () => { throw new Error('route matcher must not be called for imported agents'); };
+    expect(store.resolveFirstTurnPreamble({ sessionId: 's1', model: 'anything' }, strictRoute)).toContain('Imported Reviewer');
+  });
+
+  it('fails closed on an adapter the agent cannot run on, naming the blocked tool', () => {
+    const store = storeWith(() => imported('Read, WebSearch'));
+    store.setPending(ID);
+    expect(() => store.resolveFirstTurnPreamble({ sessionId: 's1', model: 'm' }, anyRoute))
+      .toThrow(/cannot run on "hermes".*WebSearch/);
+    store.setPending(ID);
+    expect(store.resolveFirstTurnPreamble({ sessionId: 's2', model: 'm', agent: 'claude-code' }, anyRoute))
+      .toContain('Imported Reviewer');
+  });
+
+  it('fails closed when the imported file is gone, and the header shows the error', () => {
+    const store = storeWith(() => null);
+    store.setPending(ID);
+    expect(() => store.resolveFirstTurnPreamble({ sessionId: 's1', model: 'm' }, anyRoute))
+      .toThrow(/no longer available/);
+    expect(store.describeBinding('s1')).toMatchObject({ slug: ID, error: expect.stringContaining('no longer available') });
+  });
+
+  it('keeps the project dir with the binding so project agents resolve after a restart', () => {
+    const calls: Array<[string, string | null | undefined]> = [];
+    const resolver = (id: string, projectDir?: string | null): ImportedAgent | null => {
+      calls.push([id, projectDir]);
+      return id === 'imported:claude-project:reviewer.md' && projectDir === '/proj' ? imported('Read', 'claude-project') : null;
+    };
+    const store = storeWith(resolver);
+    store.setPending('imported:claude-project:reviewer.md', { projectDir: '/proj' });
+    expect(store.resolveFirstTurnPreamble({ sessionId: 's1', model: 'm' }, anyRoute)).toContain('Imported Reviewer');
+    expect(calls[0]).toEqual(['imported:claude-project:reviewer.md', '/proj']);
+
+    const restarted = storeWith(resolver);
+    expect(restarted.describeBinding('s1')).toMatchObject({ name: 'Imported Reviewer' });
+    expect(restarted.resolveFirstTurnPreamble({ sessionId: 's1', model: 'm' }, anyRoute)).toContain('Imported Reviewer');
+    expect(calls[calls.length - 1]).toEqual(['imported:claude-project:reviewer.md', '/proj']);
+  });
+
+  it('imported sessions have no toolsets lock, no Cindy tools, unrestricted MCP', () => {
+    const store = storeWith(() => imported());
+    store.setPending(ID);
+    store.resolveFirstTurnPreamble({ sessionId: 's1', model: 'm' }, anyRoute);
+    expect(store.expertToolsets('s1')).toBeNull();
+    expect(store.expertAllowsTool('s1', 'draft_expert')).toBe(false);
+    expect(store.expertAllowsMcpServer('s1', 'cindy_browser')).toBe(true);
+    expect(store.expertMemoryTarget('s1')).toBeNull();
+    expect(store.expertSkillsDir('s1')).toBeNull();
+    expect(store.sessionHasVaultAccess('s1')).toBe(false);
+  });
+
+  it('refuses invalid imported ids and keeps refusing invalid expert slugs', () => {
+    const store = storeWith(() => imported());
+    for (const bad of ['imported:claude-user:../escape.md', 'imported:other:x.md', 'imported:claude-user:', '../outside', 'a/b']) {
+      expect(() => store.setPending(bad)).toThrow('invalid expert');
+    }
+  });
+
+  it('Orca workers cannot start as imported agents yet', () => {
+    const store = storeWith(() => imported());
+    expect(store.checkWorkerExpert(ID)).toMatchObject({ ok: false });
+  });
+
+  it('EXPERTS_SET_PENDING accepts an imported id with a project dir over IPC', async () => {
+    const store = storeWith(() => imported());
+    const harness = new IpcHarness();
+    handle = registerExpertsHandlers(harness, { rootDir: root, assertTrusted: vi.fn(), broadcast: vi.fn(), sessions: store });
+    const pending = await harness.invoke(MAKER_INVOKE.EXPERTS_SET_PENDING, ID, '/proj');
+    expect(pending).toBe(ID);
+    expect(store.getPending()).toBe(ID);
+    await expect(harness.invoke(MAKER_INVOKE.EXPERTS_SET_PENDING, 'imported:claude-user:../x.md')).rejects.toThrow('invalid expert');
   });
 });
 

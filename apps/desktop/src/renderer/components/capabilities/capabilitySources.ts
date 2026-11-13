@@ -77,6 +77,30 @@ export function buildCapabilitySources(): CapabilitySource[] {
       },
     },
     {
+      // ROADMAP 12.1: read-only foreign agent definitions. User-level sources only here;
+      // project-scoped agents appear in the new-task picker, which knows the working dir.
+      kind: 'imported-agent',
+      id: 'imported-agents',
+      declaredInterface: 'agent markdown frontmatter',
+      read: async () => {
+        const view = await window.electronAPI.maker.importedAgents.list();
+        return view.agents.map((agent) =>
+          row('imported-agent', agent.id, {
+            title: agent.name,
+            source: agent.absolutePath,
+            trust: 'local-file',
+            declaredInterface: 'agent markdown frontmatter',
+            enabled: !agent.error && agent.runsOn.length > 0,
+            subtitle: agent.error ?? agent.description,
+            detail: agent.blockedTools?.length
+              ? `Not runnable on Hermes: ${agent.blockedTools.join(', ')}`
+              : undefined,
+            tags: ['imported-agent', agent.source, ...agent.runsOn],
+          }),
+        );
+      },
+    },
+    {
       kind: 'skill',
       id: 'skills',
       declaredInterface: 'SKILL.md',

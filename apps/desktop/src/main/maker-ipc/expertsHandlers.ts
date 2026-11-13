@@ -31,6 +31,7 @@ import {
 } from '@cindy/maker-core/expert-draft';
 import { buildExpertHandoff, buildGoAheadHandoff } from '@cindy/maker-core/expert-handoff';
 import { loadExpert, loadExperts, watchExperts, type ExpertEntry, type ExpertWatcher } from '@cindy/maker-core/experts';
+import { isImportedAgentId } from '@cindy/maker-core/imported-agents';
 import * as path from 'node:path';
 
 import type { HandoffSourceMessage } from './agentHandoff.js';
@@ -182,7 +183,8 @@ export type ExpertSaveRequest =
 
 const readFileUtf8 = (file: string): string => readFileSync(file, 'utf8');
 
-function saveExpert(rootDir: string, request: unknown): ExpertSaveResult {
+/** The EXPERTS_SAVE write path, shared with the 12.1 imported-agent copy. */
+export function saveExpert(rootDir: string, request: unknown): ExpertSaveResult {
   const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
   const str = (v: unknown): string => (typeof v === 'string' ? v : '');
   switch (r.op) {
@@ -242,10 +244,10 @@ export function registerExpertsHandlers(
       deps.assertTrusted(event);
       return sessions.getPending();
     });
-    registry.handle(MAKER_INVOKE.EXPERTS_SET_PENDING, (event, slug: unknown) => {
+    registry.handle(MAKER_INVOKE.EXPERTS_SET_PENDING, (event, slug: unknown, projectDir: unknown) => {
       deps.assertTrusted(event);
-      if (slug !== null && !isValidExpertSlug(slug)) throw new Error('invalid expert slug');
-      return sessions.setPending(slug);
+      if (slug !== null && !isValidExpertSlug(slug) && !isImportedAgentId(slug)) throw new Error('invalid expert slug');
+      return sessions.setPending(slug, { projectDir: typeof projectDir === 'string' ? projectDir : null });
     });
     registry.handle(MAKER_INVOKE.EXPERTS_SESSION_BINDING, (event, sessionId: unknown) => {
       deps.assertTrusted(event);
