@@ -11,6 +11,7 @@ import { AddAccountLoginPage } from '@/components/login/AddAccountLoginPage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { GuestRoute } from '@/components/auth/GuestRoute';
 import { LocalDbGate } from '@/components/auth/LocalDbGate';
+import { AgentsPage } from '@/features/agents/AgentsPage';
 import { CCAgentFeatureLayout } from '@/features/cc-agent/CCAgentFeatureLayout';
 import { CCAgentIndexRedirect } from '@/features/cc-agent/CCAgentIndexRedirect';
 import { SecondaryWindowBootGate } from '@/features/cc-agent/SecondaryWindowBootGate';
@@ -184,6 +185,8 @@ export const router = createHashRouter([
                       },
                     ],
                   },
+                  // ROADMAP 12.2: one roster over experts + imported agents.
+                  { path: 'agents', element: <AgentsPage /> },
                   { path: 'settings', element: <SettingsView /> },
                   { path: 'plugins', element: <GhostPluginPage /> },
                   { path: 'apps/:ghostId', element: <GhostMainViewFeatureLayout /> },

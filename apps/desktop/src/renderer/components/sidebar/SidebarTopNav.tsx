@@ -31,6 +31,7 @@ import {
   CirclePlus,
   Ellipsis,
   SlidersHorizontal,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { useLocation, useNavigate, useMatch } from 'react-router-dom';
@@ -439,6 +440,7 @@ export function SidebarTopNav({
   const [searchOpenSignal, setSearchOpenSignal] = useState(0);
   const capabilitiesOpen = useCapabilitiesHubOpen();
   const libraryOpen = useLibraryOpen();
+  const agentsOpen = location.pathname === '/agents' || location.pathname.startsWith('/agents/');
   const actions = useSidebarNavigationActions(() => {
     setShowHiddenSearch(true);
     setSearchOpenSignal((signal) => signal + 1);
@@ -666,6 +668,28 @@ export function SidebarTopNav({
             )}
           />
           <span className="leading-none">Library</span>
+        </button>
+      )}
+      {/* ROADMAP 12.2: Agents roster page, same always-on treatment as 8.1. */}
+      {showPinned && (
+        <button
+          type="button"
+          onClick={() => navigate('/agents')}
+          className={cn(ROW_CLASS, agentsOpen && ROW_ACTIVE_CLASS)}
+          aria-label="Agents"
+          aria-current={agentsOpen ? 'page' : undefined}
+        >
+          <Users
+            size={15}
+            strokeWidth={1.8}
+            className={cn(
+              'shrink-0',
+              agentsOpen
+                ? 'text-sidebar-item-active-foreground'
+                : 'text-[var(--sidebar-nav-text)]',
+            )}
+          />
+          <span className="leading-none">Agents</span>
         </button>
       )}
       {showScrollable &&

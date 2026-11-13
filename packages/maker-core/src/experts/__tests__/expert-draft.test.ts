@@ -4,8 +4,8 @@ import * as path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { renderExpertMarkdown, validateExpertDraft, writeExpertDraft, type ExpertDraft } from '../expert-draft';
-import { loadExperts } from '../expert-loader';
+import { renderExpertMarkdown, validateExpertDraft, writeExpertDraft, writeExpertFromForm, type ExpertDraft } from '../expert-draft';
+import { loadExpert, loadExperts } from '../expert-loader';
 
 let root: string;
 beforeEach(() => {
@@ -115,5 +115,61 @@ describe('writeExpertDraft', () => {
     expect(res).toMatchObject({ ok: false, reason: 'invalid' });
     expect(fs.readdirSync(root)).toEqual([]);
     expect(fs.existsSync(path.join(root, '..', 'escape'))).toBe(false);
+  });
+});
+
+describe('writeExpertFromForm (ROADMAP 12.2)', () => {
+  const form = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    slug: 'form-agent',
+    name: 'Form Agent',
+    description: 'Does form things.',
+    agent: 'hermes',
+    prompt: 'You are a form agent.',
+    ...over,
+  });
+
+  it('writes an owner-authored expert with program and cap, no tools', () => {
+    const res = writeExpertFromForm(root, form({ agent: 'claude-code', model: 'local-small', maxConcurrent: 2 }));
+    expect(res.ok).toBe(true);
+    const entry = loadExpert(path.join(root, 'form-agent'));
+    expect(entry.error).toBeUndefined();
+    expect(entry.expert?.agent).toBe('claude-code');
+    expect(entry.expert?.model).toBe('local-small');
+    expect(entry.expert?.maxConcurrent).toBe(2);
+    expect(entry.expert?.tools).toEqual([]);
+    expect(entry.expert?.prompt).toBe('You are a form agent.');
+  });
+
+  it('accepts every program the loader knows', () => {
+    for (const agent of ['hermes', 'claude-code', 'codex', 'pi']) {
+      const res = writeExpertFromForm(root, form({ slug: `agent-${agent}`, agent }));
+      expect(res.ok, agent).toBe(true);
+    }
+  });
+
+  it('refuses unknown programs, invalid caps and draft-rule violations', () => {
+    for (const bad of [
+      form({ agent: 'qwen' }),
+      form({ maxConcurrent: 0 }),
+      form({ maxConcurrent: 1.5 }),
+      form({ name: '' }),
+      form({ description: '' }),
+      form({ prompt: '' }),
+      form({ slug: '../escape' }),
+      form({ tools: ['draft_expert'] }),
+    ]) {
+      const res = writeExpertFromForm(root, bad);
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.reason).toBe('invalid');
+    }
+    expect(fs.readdirSync(root)).toEqual([]);
+  });
+
+  it('never overwrites an existing folder', () => {
+    fs.mkdirSync(path.join(root, 'form-agent'));
+    fs.writeFileSync(path.join(root, 'form-agent', 'expert.md'), 'hand written');
+    const res = writeExpertFromForm(root, form());
+    expect(res).toMatchObject({ ok: false, reason: 'exists' });
+    expect(fs.readFileSync(path.join(root, 'form-agent', 'expert.md'), 'utf8')).toBe('hand written');
   });
 });

@@ -537,6 +537,16 @@ export function catalogSurfaces() {
       routeEntryComponents: { '/cc-agent/files/:sessionId': 'WorkdirBrowseRoute' },
     },
     {
+      id: 'desktop.agents',
+      platform: 'desktop',
+      title: 'Agents 名册页（experts + 导入代理）',
+      productionEntry: 'hash `/agents`（AgentsPage）',
+      reachableComponents: ['AgentsPage', 'AgentDetailDrawer', 'NewAgentForm'],
+      styleRoots: ['apps/desktop/src/renderer/features/agents'],
+      routerPaths: ['/agents'],
+      routeEntryComponents: { '/agents': 'AgentsPage' },
+    },
+    {
       id: 'desktop.bots',
       platform: 'desktop',
       title: '伙伴（列表 / 对话 / 设置 / 历史 / 伙伴私聊 / 群聊）',

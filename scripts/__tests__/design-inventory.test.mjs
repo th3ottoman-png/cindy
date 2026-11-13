@@ -111,6 +111,7 @@ test('extractRouterFacts: 真实 router.tsx 的三类去向逐条钉死', () => 
   // 全路径由父子结构拼出，不是手写前缀表 —— 嵌套段与 index 路由都必须落到完整 hash 路径。
   assert.deepEqual(production.map((row) => `${row.path} ${row.component}`), [
     '/add-account AddAccountLoginPage',
+    '/agents AgentsPage',
     '/apps/:ghostId GhostMainViewFeatureLayout',
     '/bots BotsHomeView',
     '/bots/:botId BotsHomeView',

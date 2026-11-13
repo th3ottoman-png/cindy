@@ -216,3 +216,26 @@ describe('watchExperts', () => {
     }
   }, 60_000);
 });
+
+describe('max_concurrent (ROADMAP 12.2)', () => {
+  it('is optional and absent means the default cap of 1', () => {
+    const dir = writeExpert('plain', '---\nname: Plain\n---\nBody.');
+    const entry = loadExpert(dir);
+    expect(entry.error).toBeUndefined();
+    expect(entry.expert?.maxConcurrent).toBeUndefined();
+  });
+
+  it('accepts a positive integer', () => {
+    const dir = writeExpert('cap', '---\nname: Cap\nmax_concurrent: 3\n---\nBody.');
+    expect(loadExpert(dir).expert?.maxConcurrent).toBe(3);
+  });
+
+  it('lists the expert with an error for invalid values', () => {
+    for (const bad of ['0', '-2', '1.5', '"two"', 'true']) {
+      const dir = writeExpert('bad', `---\nname: Bad\nmax_concurrent: ${bad}\n---\nBody.`);
+      const entry = loadExpert(dir);
+      expect(entry.expert).toBeUndefined();
+      expect(entry.error).toContain('max_concurrent');
+    }
+  });
+});

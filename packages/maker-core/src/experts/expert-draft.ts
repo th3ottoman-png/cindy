@@ -23,7 +23,8 @@ import * as path from 'node:path';
 import matter from 'gray-matter';
 
 import { EXPERT_MEMORY_FILE } from './expert-memory';
-import { loadExpert, type ExpertAgent } from './expert-loader';
+import { expertFormToMarkdown } from './expert-form';
+import { EXPERT_AGENTS, loadExpert, type ExpertAgent } from './expert-loader';
 
 /** Lowercase kebab-case folder name, 2–64 characters. */
 const DRAFT_SLUG = /^[a-z0-9][a-z0-9-]{1,63}$/;
@@ -203,6 +204,50 @@ export function writeExpertDraft(rootDir: string, draft: ExpertDraft, opts: { no
     clean.slug,
     'draft',
     (tmp) => fs.writeFileSync(path.join(tmp, 'expert.md'), renderExpertMarkdown(clean), { flag: 'wx' }),
+    opts.now ?? Date.now,
+  );
+}
+
+/**
+ * The owner-authored New-agent form (ROADMAP 12.2). Same validation and atomic write as a
+ * draft, plus the two fields the owner may choose directly: the program (`agent:`) and
+ * conversations at once (`max_concurrent:`). Tools stay hand-edit-only, exactly like drafts.
+ * Never overwrites an existing folder.
+ */
+export function writeExpertFromForm(rootDir: string, input: unknown, opts: { now?: () => number } = {}): WriteExpertDraftResult {
+  const raw = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  const agent = raw.agent === undefined ? 'hermes' : raw.agent;
+  if (typeof agent !== 'string' || !(EXPERT_AGENTS as readonly string[]).includes(agent)) {
+    errors.push(`"agent" must be one of ${EXPERT_AGENTS.join(', ')}`);
+  }
+  let maxConcurrent: number | undefined;
+  if (raw.maxConcurrent !== undefined && raw.maxConcurrent !== null) {
+    if (typeof raw.maxConcurrent !== 'number' || !Number.isInteger(raw.maxConcurrent) || raw.maxConcurrent < 1) {
+      errors.push('"maxConcurrent" must be an integer of at least 1');
+    } else {
+      maxConcurrent = raw.maxConcurrent;
+    }
+  }
+  // The 3.8 draft rules own slug/name/description/model/prompt (and still refuse tools).
+  const { agent: _agent, maxConcurrent: _cap, ...rest } = raw;
+  const check = validateExpertDraft(rest);
+  if (!check.ok) return { ok: false, reason: 'invalid', message: [...errors, ...check.errors].join('; ') };
+  if (errors.length > 0) return { ok: false, reason: 'invalid', message: errors.join('; ') };
+  const draft = check.draft;
+  const markdown = expertFormToMarkdown({
+    name: draft.name,
+    description: draft.description,
+    agent: agent as ExpertAgent,
+    ...(draft.model ? { model: draft.model } : {}),
+    ...(maxConcurrent !== undefined ? { maxConcurrent } : {}),
+    prompt: draft.prompt,
+  });
+  return commitNewExpertFolder(
+    rootDir,
+    draft.slug,
+    'form',
+    (tmp) => fs.writeFileSync(path.join(tmp, 'expert.md'), markdown, { flag: 'wx' }),
     opts.now ?? Date.now,
   );
 }

@@ -26,6 +26,7 @@ import {
   readExpertSource,
   saveExpertEdit,
   writeExpertDraft,
+  writeExpertFromForm,
   hashExpertMarkdown,
   type ExpertSaveResult,
 } from '@cindy/maker-core/expert-draft';
@@ -177,6 +178,8 @@ async function buildGoAhead(
 /** What the Settings editor sends to `EXPERTS_SAVE`. */
 export type ExpertSaveRequest =
   | { op: 'create'; slug: string; fields: unknown }
+  /** ROADMAP 12.2: the Agents page New-agent form (owner-authored program + cap). */
+  | { op: 'create-from-form'; slug: string; fields: unknown }
   | { op: 'duplicate'; from: string; slug: string; name: string }
   | { op: 'edit'; slug: string; baseHash: string; fields: unknown }
   | { op: 'delete'; slug: string };
@@ -192,6 +195,12 @@ export function saveExpert(rootDir: string, request: unknown): ExpertSaveResult 
       // Create is the expert creator's write path: same checks, a new folder, no tools.
       const fields = (r.fields && typeof r.fields === 'object' ? r.fields : {}) as Record<string, unknown>;
       const res = writeExpertDraft(rootDir, { ...fields, slug: str(r.slug) } as Parameters<typeof writeExpertDraft>[1]);
+      if (!res.ok) return res;
+      return { ok: true, slug: str(r.slug).trim(), dir: res.dir, file: res.file, hash: hashExpertMarkdown(readFileUtf8(res.file)) };
+    }
+    case 'create-from-form': {
+      const fields = (r.fields && typeof r.fields === 'object' ? r.fields : {}) as Record<string, unknown>;
+      const res = writeExpertFromForm(rootDir, { ...fields, slug: str(r.slug) });
       if (!res.ok) return res;
       return { ok: true, slug: str(r.slug).trim(), dir: res.dir, file: res.file, hash: hashExpertMarkdown(readFileUtf8(res.file)) };
     }

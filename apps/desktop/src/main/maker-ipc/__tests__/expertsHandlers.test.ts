@@ -185,4 +185,34 @@ describe('experts IPC', () => {
       expect(fs.readdirSync(root)).toEqual([]);
     });
   });
+
+  describe('create-from-form (ROADMAP 12.2)', () => {
+    it('writes an owner-authored expert with program and cap, and pushes the fresh list', async () => {
+      const broadcast = vi.fn();
+      const harness = new IpcHarness();
+      handle = registerExpertsHandlers(harness, { rootDir: root, assertTrusted: vi.fn(), broadcast, watch: fakeWatch().watch });
+      const res = await harness.invoke(MAKER_INVOKE.EXPERTS_SAVE, {
+        op: 'create-from-form',
+        slug: 'form-agent',
+        fields: { name: 'Form Agent', description: 'Does form things.', agent: 'claude-code', maxConcurrent: 2, prompt: 'You are a form agent.' },
+      }) as { ok: boolean; slug?: string };
+      expect(res).toMatchObject({ ok: true, slug: 'form-agent' });
+      const loaded = loadExperts(root).find((e) => e.slug === 'form-agent');
+      expect(loaded?.expert?.agent).toBe('claude-code');
+      expect(loaded?.expert?.maxConcurrent).toBe(2);
+      expect(broadcast).toHaveBeenCalledWith(MAKER_PUSH.EXPERTS_CHANGED, expect.any(Array));
+    });
+
+    it('refuses invalid form input without writing', async () => {
+      const harness = new IpcHarness();
+      handle = registerExpertsHandlers(harness, { rootDir: root, assertTrusted: vi.fn(), broadcast: vi.fn(), watch: fakeWatch().watch });
+      const res = await harness.invoke(MAKER_INVOKE.EXPERTS_SAVE, {
+        op: 'create-from-form',
+        slug: 'form-agent',
+        fields: { name: 'Form Agent', description: 'D.', agent: 'qwen', prompt: 'Body.' },
+      });
+      expect(res).toMatchObject({ ok: false, reason: 'invalid' });
+      expect(fs.readdirSync(root)).toEqual([]);
+    });
+  });
 });

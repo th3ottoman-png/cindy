@@ -11,10 +11,11 @@
 
 生成命令：`pnpm design:inventory`。裸颜色匹配与 `scripts/hardcoded-color-audit.mjs` 共用 `scripts/shared/hardcoded-color-match.mjs`（HEX / RGB / HSL / OKLCH 等字面通道），两者在共享 matcher 内统一排除纯语义包装、注释及 PR 编号；数值颜色函数还需位于样式属性、CSS 声明/函数或任意值语境，普通文案字符串里的颜色函数文本不计入；字面 fallback 仍计入——语义 token 消费与注释引用不是迁移债务；裸圆角为粗粒度（`rounded*` class、`border-radius:` 与 React style 对象的 `borderRadius:`）。Token 计数为样式源里 `var(--token)` / `hsl(var(--token)` 的去重 ID 数；Mobile 的 ThemeColors / typeScale 等 RN 属性不计入此列，不能将 0 解释为未使用 Token。
 
-登记 surface 数：54。平台包含 Desktop 与 Mobile；静态入口发现不表示已迁移或已实机验证。
+登记 surface 数：55。平台包含 Desktop 与 Mobile；静态入口发现不表示已迁移或已实机验证。
 
 | ID | 平台 | 标题 | 生产入口 | 可达组件 | 样式来源 | Token 数 | 裸颜色 | 裸圆角 |
 | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: |
+| `desktop.agents` | desktop | Agents 名册页（experts + 导入代理） | hash `/agents`（AgentsPage） | AgentDetailDrawer, AgentsPage, NewAgentForm | apps/desktop/src/renderer/features/agents/AgentDetailDrawer.tsx, apps/desktop/src/renderer/features/agents/AgentsPage.tsx, apps/desktop/src/renderer/features/agents/NewAgentForm.tsx, apps/desktop/src/renderer/features/agents/agentsRosterModel.ts | 9 | 16 | 19 |
 | `desktop.auth.add-account` | desktop | 添加账号 | hash `/add-account`（ProtectedRoute → AddAccountLoginPage） | AddAccountLoginPage | apps/desktop/src/renderer/components/login/AddAccountLoginPage.tsx, apps/desktop/src/renderer/components/login/LoginBrandStage.tsx, apps/desktop/src/renderer/components/login/LoginCaptchaOverlay.tsx, apps/desktop/src/renderer/components/login/LoginControls.tsx, apps/desktop/src/renderer/components/login/LoginPage.tsx, apps/desktop/src/renderer/components/login/loginDesignTokens.ts | 59 | 0 | 20 |
 | `desktop.auth.legacy-migration` | desktop | 首登数据迁移弹窗 | App 顶层挂载 LegacyMigrationDialog（仅主窗；main 检测到旧版 userData 经 `legacy-migration:state` 驱动） | LegacyMigrationDialog | apps/desktop/src/renderer/components/auth/LegacyMigrationDialog.tsx | 8 | 0 | 2 |
 | `desktop.auth.login` | desktop | 登录页 | hash `/login`（GuestRoute → LoginPage） | LoginBrandStage, LoginCaptchaOverlay, LoginControls, LoginPage | apps/desktop/src/renderer/components/login/LoginBrandStage.tsx, apps/desktop/src/renderer/components/login/LoginCaptchaOverlay.tsx, apps/desktop/src/renderer/components/login/LoginControls.tsx, apps/desktop/src/renderer/components/login/LoginPage.tsx, apps/desktop/src/renderer/components/login/loginDesignTokens.ts | 59 | 0 | 20 |
@@ -77,6 +78,7 @@
 | 路由 | 组件 | surface ID |
 | --- | --- | --- |
 | `/add-account` | AddAccountLoginPage | `desktop.auth.add-account` |
+| `/agents` | AgentsPage | `desktop.agents` |
 | `/apps/:ghostId` | GhostMainViewFeatureLayout | `desktop.plugins.app-main` |
 | `/bots` | BotsHomeView | `desktop.bots` |
 | `/bots/:botId` | BotsHomeView | `desktop.bots` |
@@ -190,6 +192,7 @@ Mobile 已由 DS-7 纳入同一台账（2026-09-10 静态入口发现），保�
 
 | ID | owner | 迁移状态 | protected | 目标道路 | 下一动作 |
 | ------------------------------------------ | ------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `desktop.agents` | unassigned | legacy | — | 查现有标准组件与治理 §12 当前路线；按人工下一动作接管 | 保持现状；发现问题记下一动作，本张不修视觉 |
 | `desktop.auth.add-account` | Codex（DS-9 影响核对）/ kirozeng（验收协调） | legacy | DESIGN.md §16 登录链路 | DS-9 保留现有专属表面；未改全局 Button/主题源，按共享依赖核影响 | 本批未直接改该入口；无真实实例的独立/原生/账号/插件场景保留原合同，未作完整运行验收；kirozeng 安排所需环境，Codex 核对，2026-09-17 或 DS-10 开工前复查 |
 | `desktop.auth.legacy-migration` | Codex（DS-9 影响核对）/ kirozeng（验收协调） | legacy | DESIGN.md §16 登录链路（消费 --login-callback-* 品牌豁免族 component token） | DS-9 保留现有专属表面；未改全局 Button/主题源，按共享依赖核影响 | 本批未直接改该入口；无真实实例的独立/原生/账号/插件场景保留原合同，未作完整运行验收；kirozeng 安排所需环境，Codex 核对，2026-09-17 或 DS-10 开工前复查 |
 | `desktop.auth.login` | Codex（DS-9 影响核对）/ kirozeng（验收协调） | legacy | DESIGN.md §16 登录链路 | 既有登录品牌保护；本批无全局按钮/主题变更 | 真实隔离窗口走过登录→本地模式；没有验证 Apple/Google/企业账号登录；2026-09-17 或 DS-10 开工前复查 |

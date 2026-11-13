@@ -19,7 +19,7 @@ import * as path from 'node:path';
 
 import { readExpertMemory, type MemoryTarget } from '@cindy/maker-core/expert-memory';
 import { isToolAllowed, isMcpServerAllowed } from '@cindy/maker-core/expert-tools';
-import { loadExpert, type Expert, type ExpertAgent } from '@cindy/maker-core/experts';
+import { checkExpertConcurrency, loadExpert, type Expert, type ExpertAgent, type RunningExpertSession } from '@cindy/maker-core/experts';
 import { isImportedAgentId, type ImportedAgent, type ImportedAgentSource } from '@cindy/maker-core/imported-agents';
 
 import { readImportedAgentById } from './importedAgents.js';
@@ -73,6 +73,8 @@ export interface ExpertSessionStoreOptions {
   now?: () => number;
   /** ROADMAP 12.1: resolve an imported-agent id against the foreign directories. */
   resolveImported?: (id: string, projectDir?: string | null) => ImportedAgent | null;
+  /** ROADMAP 12.2: the sessions currently alive, for the conversations-at-once cap. */
+  activeSessions?: () => ReadonlyArray<{ id: string; title?: string | null }>;
 }
 
 /** Model route check, injected so tests need no providers.yaml. */
@@ -186,7 +188,27 @@ export class ExpertSessionStore {
     if (entry.expert.agent !== 'hermes') {
       return { ok: false, message: `Expert "${entry.expert.name}" is set to agent "${entry.expert.agent}"; only hermes experts can be started as workers.` };
     }
+    const cap = checkExpertConcurrency(entry.expert.name, entry.expert.maxConcurrent, this.runningExpertSessions(slug));
+    if (!cap.ok) return { ok: false, message: cap.message };
     return entry.expert.model ? { ok: true, model: entry.expert.model } : { ok: true };
+  }
+
+  /**
+   * ROADMAP 12.2: sessions bound to this expert that are still alive, excluding the one
+   * being started. Without an active-session provider the list is empty (the cap is a
+   * convenience, so it fails open rather than blocking every start).
+   */
+  private runningExpertSessions(slug: string, excludeSessionId?: string): RunningExpertSession[] {
+    const active = this.opts.activeSessions?.();
+    if (!active || active.length === 0) return [];
+    const activeById = new Map(active.map((s) => [s.id, s]));
+    const out: RunningExpertSession[] = [];
+    for (const [sessionId, record] of Object.entries(this.readFile().sessions)) {
+      if (record.slug !== slug || sessionId === excludeSessionId) continue;
+      const live = activeById.get(sessionId);
+      if (live) out.push({ sessionId, title: live.title ?? null });
+    }
+    return out;
   }
 
   describeBinding(sessionId: string): ExpertSessionBindingView | null {
@@ -389,6 +411,9 @@ export class ExpertSessionStore {
       throw new Error(`Expert "${slug}" cannot be loaded: ${entry.error ?? 'unknown error'}. Fix ${path.join(dir, 'expert.md')} and send again.`);
     }
     const expert = entry.expert;
+    // ROADMAP 12.2: conversations-at-once cap, checked before the preamble is applied.
+    const cap = checkExpertConcurrency(expert.name, expert.maxConcurrent, this.runningExpertSessions(slug, input.sessionId));
+    if (!cap.ok) throw new Error(cap.message);
     const expectedAgent = input.agent ?? 'hermes';
     if (expert.agent !== expectedAgent) {
       throw new Error(`Expert "${expert.name}" is set to agent "${expert.agent}", but this session is running on "${expectedAgent}".`);
@@ -492,12 +517,22 @@ export function createRouteMatcher(
 
 let desktopStore: ExpertSessionStore | undefined;
 
+/** ROADMAP 12.2: wired by register.ts once the maker host can list live sessions. */
+let activeSessionsProvider: (() => ReadonlyArray<{ id: string; title?: string | null }>) | null = null;
+
+export function setExpertSessionActiveSessionsProvider(
+  provider: (() => ReadonlyArray<{ id: string; title?: string | null }>) | null,
+): void {
+  activeSessionsProvider = provider;
+}
+
 /** The one store the IPC handlers and the Hermes first-turn hook share (~/.cindy-harness). */
 export function getDesktopExpertSessionStore(): ExpertSessionStore {
   desktopStore ??= new ExpertSessionStore({
     rootDir: path.join(os.homedir(), '.cindy-harness', 'experts'),
     bindingsFile: path.join(os.homedir(), '.cindy-harness', 'expert-sessions.json'),
     resolveImported: (id, projectDir) => readImportedAgentById(id, { homeDir: os.homedir(), projectDir: projectDir ?? null }),
+    activeSessions: () => activeSessionsProvider?.() ?? [],
   });
   return desktopStore;
 }

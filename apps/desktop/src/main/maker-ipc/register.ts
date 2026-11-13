@@ -923,7 +923,7 @@ import { registerMcpCatalogHandlers } from './mcpCatalog.js';
 import { createDesktopMcpCatalogHost } from './mcpCatalogDesktop.js';
 import { registerSkillsHandlers } from './skills.js';
 import { createDesktopSkillsHost } from './skillsDesktop.js';
-import { getDesktopExpertSessionStore } from './expertSessions.js';
+import { getDesktopExpertSessionStore, setExpertSessionActiveSessionsProvider } from './expertSessions.js';
 import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
 import { registerCouncilReviewIpc } from '../git-review/councilIpc.js';
@@ -25700,6 +25700,8 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   registerAndroidAutomationHandlers(createElectronIpcHandlerRegistry());
 
   // ── Experts (ROADMAP 3.1b): read-only list + change push over ~/.cindy-harness/experts ──
+  // ROADMAP 12.2: the conversations-at-once cap counts live sessions from the maker host.
+  setExpertSessionActiveSessionsProvider(() => getMakerIfReady()?.listActiveSessions().map((s) => ({ id: s.id })) ?? []);
   registerExpertsHandlers(createElectronIpcHandlerRegistry(), {
     rootDir: path.join(os.homedir(), '.cindy-harness', 'experts'),
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),

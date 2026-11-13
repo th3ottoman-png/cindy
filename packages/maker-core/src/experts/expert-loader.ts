@@ -30,6 +30,8 @@ export interface Expert {
   agent: ExpertAgent;
   /** Route name from routing.yaml (ROADMAP 2.3); resolved elsewhere. */
   model?: string;
+  /** Conversations at once (ROADMAP 12.2); absent = the default cap of 1. */
+  maxConcurrent?: number;
   temperature?: number;
   tools: string[];
   /**
@@ -139,6 +141,10 @@ export function loadExpert(dir: string): ExpertEntry {
     if (data.model !== undefined && (typeof data.model !== 'string' || !data.model.trim())) {
       throw new Error('"model" must be a non-empty string (a route name)');
     }
+    if (data.max_concurrent !== undefined &&
+      (typeof data.max_concurrent !== 'number' || !Number.isInteger(data.max_concurrent) || data.max_concurrent < 1)) {
+      throw new Error('"max_concurrent" must be an integer of at least 1');
+    }
     let temperature: number | undefined;
     if (data.temperature !== undefined) {
       if (typeof data.temperature !== 'number' || data.temperature < 0 || data.temperature > 2) {
@@ -173,6 +179,7 @@ export function loadExpert(dir: string): ExpertEntry {
       description: typeof data.description === 'string' ? data.description.trim() : '',
       agent: agentRaw as ExpertAgent,
       ...(typeof data.model === 'string' ? { model: data.model.trim() } : {}),
+      ...(typeof data.max_concurrent === 'number' ? { maxConcurrent: data.max_concurrent } : {}),
       ...(temperature !== undefined ? { temperature } : {}),
       tools: optionalStringList(data, 'tools'),
       ...(toolsets ? { toolsets } : {}),
@@ -273,5 +280,50 @@ export function watchExperts(
       if (poll) clearInterval(poll);
       watcher?.close();
     },
+  };
+}
+
+/**
+ * The starter experts shipped in docs/experts-examples (ROADMAP 3.5), by slug. The Agents
+ * page "Built-in" chip uses this vocabulary; the starter-experts test keeps it in sync with
+ * the directory. A starter the owner has edited is still starter-derived.
+ */
+export const STARTER_EXPERT_SLUGS = [
+  'code-reviewer',
+  'decision-recorder',
+  'expert-creator',
+  'options-first',
+  'orchestrator',
+  'prompt-engineer',
+  'repo-explainer',
+  'research-analyst',
+  'vault-researcher',
+] as const;
+
+export function isStarterExpert(slug: string): boolean {
+  return (STARTER_EXPERT_SLUGS as readonly string[]).includes(slug);
+}
+
+export interface RunningExpertSession {
+  sessionId: string;
+  title?: string | null;
+}
+
+/**
+ * Conversations-at-once cap (ROADMAP 12.2). Pure: the caller supplies the running sessions
+ * bound to the expert (already excluding the session being started). Default cap 1; at the
+ * cap the refusal names every running session so the owner knows what to close. No queue.
+ */
+export function checkExpertConcurrency(
+  expertName: string,
+  maxConcurrent: number | undefined,
+  running: readonly RunningExpertSession[],
+): { ok: true } | { ok: false; message: string } {
+  const cap = maxConcurrent ?? 1;
+  if (running.length < cap) return { ok: true };
+  const names = running.map((s) => s.title?.trim() || s.sessionId.slice(0, 8)).join(', ');
+  return {
+    ok: false,
+    message: `Expert "${expertName}" allows ${cap} conversation${cap === 1 ? '' : 's'} at once; already running: ${names}. Close one first, or raise "max_concurrent" in expert.md.`,
   };
 }

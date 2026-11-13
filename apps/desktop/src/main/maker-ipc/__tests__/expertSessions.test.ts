@@ -683,3 +683,77 @@ describe('ExpertSessionStore imported agents (ROADMAP 12.1)', () => {
   });
 });
 
+describe('ExpertSessionStore max_concurrent (ROADMAP 12.2)', () => {
+  function cappedStore(cap: number | undefined, active: Array<{ id: string; title?: string | null }>): ExpertSessionStore {
+    const frontmatter = cap === undefined ? 'name: Solo\nagent: hermes' : `name: Solo\nagent: hermes\nmax_concurrent: ${cap}`;
+    writeExpert('solo', frontmatter);
+    return new ExpertSessionStore({ rootDir: root, bindingsFile, activeSessions: () => active });
+  }
+
+  it('refuses a second session at the default cap of 1, naming the running one', () => {
+    const store = cappedStore(undefined, [{ id: 'first-session', title: 'First chat' }]);
+    store.bindSession('first-session', 'solo');
+    store.setPending('solo');
+    expect(() => store.resolveFirstTurnPreamble({ sessionId: 'second-session', model: 'm' }, anyRoute))
+      .toThrow(/allows 1 conversation at once.*First chat/s);
+  });
+
+  it('counts only sessions bound to the same expert that are still active', () => {
+    // 'other-expert-session' is active but bound to another expert; 'closed-solo-session'
+    // is bound to solo but no longer active. Neither may count against the cap.
+    const store = cappedStore(1, [{ id: 'other-expert-session' }]);
+    store.bindSession('other-expert-session', 'code-reviewer');
+    store.bindSession('closed-solo-session', 'solo');
+    store.setPending('solo');
+    expect(store.resolveFirstTurnPreamble({ sessionId: 'new', model: 'm' }, anyRoute)).toContain('[Cindy expert: Solo]');
+  });
+
+  it('excludes the session being started, so a refused send can retry after the other closes', () => {
+    const active: Array<{ id: string }> = [{ id: 'first' }];
+    const store = cappedStore(1, active);
+    store.bindSession('first', 'solo');
+    store.setPending('solo');
+    expect(() => store.resolveFirstTurnPreamble({ sessionId: 'second', model: 'm' }, anyRoute)).toThrow(/already running/);
+    // The refusal bound the session (like a broken expert); once the first closes, retry works.
+    active.length = 0;
+    expect(store.resolveFirstTurnPreamble({ sessionId: 'second', model: 'm' }, anyRoute)).toContain('[Cindy expert: Solo]');
+  });
+
+  it('honours a raised cap and refuses at it', () => {
+    const store = cappedStore(2, [{ id: 'a' }, { id: 'b' }]);
+    store.bindSession('a', 'solo');
+    store.setPending('solo');
+    expect(store.resolveFirstTurnPreamble({ sessionId: 'b', model: 'm' }, anyRoute)).toContain('Solo');
+    store.setPending('solo');
+    expect(() => store.resolveFirstTurnPreamble({ sessionId: 'c', model: 'm' }, anyRoute)).toThrow(/allows 2 conversations at once/);
+  });
+
+  it('Orca workers are refused at the cap too', () => {
+    const store = cappedStore(1, [{ id: 'first', title: 'First chat' }]);
+    store.bindSession('first', 'solo');
+    expect(store.checkWorkerExpert('solo')).toMatchObject({ ok: false, message: expect.stringContaining('First chat') });
+  });
+
+  it('imported agents are not capped (the field belongs to expert.md)', () => {
+    writeExpert('unused', 'name: Unused\nagent: hermes');
+    const store = new ExpertSessionStore({
+      rootDir: root,
+      bindingsFile,
+      activeSessions: () => [{ id: 'i1' }, { id: 'i2' }],
+      resolveImported: () => parseImportedAgent('---\nname: Imp\ndescription: D.\n---\nBody.', { source: 'claude-user', absolutePath: '/x/imp.md', relPath: 'imp.md' }),
+    });
+    store.bindSession('i1', 'imported:claude-user:imp.md');
+    store.bindSession('i2', 'imported:claude-user:imp.md');
+    store.setPending('imported:claude-user:imp.md');
+    expect(store.resolveFirstTurnPreamble({ sessionId: 'i3', model: 'm' }, anyRoute)).toContain('[Cindy expert: Imp]');
+  });
+
+  it('without an active-session provider the cap does not block (convenience, fail open)', () => {
+    writeExpert('solo', 'name: Solo\nagent: hermes');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    store.bindSession('first', 'solo');
+    store.setPending('solo');
+    expect(store.resolveFirstTurnPreamble({ sessionId: 'second', model: 'm' }, anyRoute)).toContain('Solo');
+  });
+});
+

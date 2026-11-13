@@ -274,6 +274,7 @@ import {
 } from './auto-review-model-router.js';
 import { ensureCurrentAccountProviderReadiness } from './account-provider-readiness-ensure.js';
 import { ACCOUNT_PROVIDER_NOT_READY_CODE } from '../../shared/accountProviderReadiness.js';
+import { dbToMakerAgentKind } from '../../shared/agentKindConversion.js';
 import { listBotImConnectionsForBot } from '../im/shared/botImConnectionStore.js';
 import {
   armCodexHttpRecovery,
@@ -3172,11 +3173,12 @@ export function getMaker(): Maker {
             getActiveCatalog(),
           );
           await preparePersistedOrcaSessionStart(sessionId, opts as MakerSessionCreateOpts);
-          // ROADMAP 3.2: start Claude Code, Codex, or Pi session as an expert
+          // ROADMAP 3.2: start Claude Code, Codex, or Pi session as an expert.
+          // opts.agentKind is DB-form ('cc'); the expert's agent: is maker-form (12.2).
           if (opts.agentKind && opts.agentKind !== 'hermes') {
             const expertStore = getDesktopExpertSessionStore();
             const preamble = expertStore.resolveFirstTurnPreamble(
-              { sessionId, model: opts.model ?? '', agent: opts.agentKind },
+              { sessionId, model: opts.model ?? '', agent: dbToMakerAgentKind(opts.agentKind) },
               createRouteMatcher((model) => resolveModelRoute(model)),
             );
             if (preamble) {

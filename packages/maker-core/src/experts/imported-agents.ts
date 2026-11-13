@@ -17,6 +17,7 @@ import * as path from 'node:path';
 
 import { parseFrontmatter } from '../agents/shared/customization-scanner.js';
 import { EXPERT_DRAFT_LIMITS, type ExpertDraft } from './expert-draft.js';
+import { expertSlugFromName } from './expert-form.js';
 import type { ExpertAgent } from './expert-loader.js';
 
 export const IMPORTED_AGENT_SOURCES = ['claude-user', 'claude-project', 'qwen-user', 'qwen-project'] as const;
@@ -146,13 +147,6 @@ function oneLine(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-/** Lowercase kebab-case, 2–64 characters, starting with a letter or digit (3.8 slug rule). */
-function slugifyImportedName(value: string): string {
-  const slug = oneLine(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
-  const cleaned = slug.replace(/^[^a-z0-9]+/, '');
-  return cleaned.length >= 2 ? cleaned : `agent-${cleaned}`.slice(0, 64);
-}
-
 /**
  * "Copy to my experts" as a 3.8 draft: same validation as the expert creator, no `tools:`
  * and no `model:` (the owner adds those by hand; a foreign `model: opus` is never mapped
@@ -160,7 +154,7 @@ function slugifyImportedName(value: string): string {
  */
 export function importedAgentToExpertDraft(agent: ImportedAgent, opts: ImportedAgentDraftOptions = {}): ExpertDraft {
   const isTaken = opts.isSlugTaken ?? (() => false);
-  const base = slugifyImportedName(agent.name);
+  const base = expertSlugFromName(agent.name);
   let slug = base;
   for (let n = 2; isTaken(slug); n += 1) {
     slug = `${base.slice(0, 60)}-${n}`;
