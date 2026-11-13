@@ -145,6 +145,7 @@ import {
 import { useProvisionalDraftEmptyCleanup } from './hooks/useProvisionalDraftEmptyCleanup';
 import { ExpertSuggestionSlot } from './ExpertSuggestionChip';
 import { TurnAttachmentSlot } from '@/components/turn-attachments/TurnAttachmentSlot';
+import { TeammatePickerSlot } from '@/components/teammates/TeammatePickerSlot';
 import { getTurnAttachments } from '@/components/turn-attachments/turnAttachmentStore';
 import { applyTurnAttachments } from '@cindy/maker-core/turn-attachment';
 import { applyPinnedSkillsForTurn } from './pinnedSkillPreamble';
@@ -5922,6 +5923,31 @@ export function NewMakerDraftRoute() {
                         { preserveRemoteOptimisticRecovery: true },
                       );
                     }}
+                  />
+                  {/* ROADMAP 12.3b: @agent: teammate picker. Ownership hands over at the
+                      colon; picking a row writes the visible token, the join happens at send.
+                      Keyed by data owner: draft keys are owner-namespaced (see session view). */}
+                  <TeammatePickerSlot
+                    key={dataOwnerId ?? 'signed-out'}
+                    getDocument={() => getComposerDraft(NEW_MAKER_DRAFT_KEY)?.text}
+                    subscribe={(onChange) =>
+                      subscribeDraftContent(NEW_MAKER_DRAFT_KEY, onChange)
+                    }
+                    saveDocument={(text) => {
+                      const existing = getComposerDraft(NEW_MAKER_DRAFT_KEY);
+                      saveComposerDraft(
+                        NEW_MAKER_DRAFT_KEY,
+                        {
+                          ...existing,
+                          text,
+                          attachments: existing?.attachments ?? [],
+                          quotes: existing?.quotes ?? [],
+                          browserComments: existing?.browserComments ?? [],
+                        },
+                        { preserveRemoteOptimisticRecovery: true },
+                      );
+                    }}
+                    projectDir={effectiveWorkingDir ?? null}
                   />
                   {/* ROADMAP 7.2: non-intrusive one-click expert suggestion above the composer. */}
                   <ExpertSuggestionSlot

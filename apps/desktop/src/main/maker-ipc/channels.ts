@@ -51,6 +51,10 @@ export const MAKER_INVOKE = {
   TEAMMATES_LIST: 'maker:teammates:list',
   /** ROADMAP 12.3: remove one joined teammate (archives its worker; last one ends the team). */
   TEAMMATES_REMOVE: 'maker:teammates:remove',
+  /** ROADMAP 12.3b: opt a joined teammate in/out of "may bring in others" (propose-only). */
+  TEAMMATES_SET_MAY_PROPOSE: 'maker:teammates:set-may-propose',
+  /** ROADMAP 12.3b: owner confirms (joins the target as a second worker) or dismisses a proposal. */
+  TEAMMATES_PROPOSAL_DECIDE: 'maker:teammates:proposal-decide',
   /** ROADMAP 4.2b: list local extension plugins (~/.cindy-harness/plugins) with their load state. */
   EXT_PLUGINS_LIST: 'maker:ext-plugins:list',
   /** ROADMAP 4.2b: enable/disable one plugin; persists in plugins.json and applies at once. */

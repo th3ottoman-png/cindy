@@ -77,7 +77,7 @@ export async function collectSessionManifest(
     // ROADMAP 11.8: past ADRs matched against the first prompt. Absent host → no rows.
     maybe<SessionAdrsEntry>(() => maker.vault.getSessionAdrs(session.id), { adrs: [] }),
     // ROADMAP 12.3: joined @agent: teammates. Absent host → no rows.
-    maybe<SessionTeammatesView>(() => maker.teammates.list(session.id), { teammates: [] }),
+    maybe<SessionTeammatesView>(() => maker.teammates.list(session.id), { teammates: [], proposals: [] }),
   ]);
 
   const entry = binding ? expertEntries.find((item) => item.slug === binding.slug) : undefined;
@@ -139,6 +139,7 @@ export async function collectSessionManifest(
       name: teammate.name,
       workerSessionId: teammate.workerSessionId,
       ...(teammate.file ? { file: teammate.file } : {}),
+      ...(teammate.mayPropose ? { mayPropose: true } : {}),
     })),
   };
 

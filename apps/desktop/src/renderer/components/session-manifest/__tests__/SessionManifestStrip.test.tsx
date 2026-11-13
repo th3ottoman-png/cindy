@@ -42,6 +42,8 @@ const mockApi = {
     teammates: {
       list: vi.fn(),
       remove: vi.fn(),
+      setMayPropose: vi.fn(),
+      decideProposal: vi.fn(),
       onChanged: vi.fn(),
     },
   },
@@ -111,8 +113,10 @@ function defaultData() {
   mockApi.maker.vault.onPinnedChanged.mockReturnValue(() => undefined);
   mockApi.maker.vault.getSessionAdrs.mockResolvedValue({ adrs: [] });
   mockApi.maker.vault.onSessionAdrsChanged.mockReturnValue(() => undefined);
-  mockApi.maker.teammates.list.mockResolvedValue({ teammates: [] });
+  mockApi.maker.teammates.list.mockResolvedValue({ teammates: [], proposals: [] });
   mockApi.maker.teammates.remove.mockResolvedValue({ ok: true });
+  mockApi.maker.teammates.setMayPropose.mockResolvedValue({ ok: true });
+  mockApi.maker.teammates.decideProposal.mockResolvedValue({ ok: true });
   mockApi.maker.teammates.onChanged.mockReturnValue(() => undefined);
 }
 
@@ -398,5 +402,91 @@ describe('SessionManifestStrip teammates (ROADMAP 12.3, ADR 0011)', () => {
     fireEvent.click(chips().find((c) => c.getAttribute('data-kind') === 'teammate')!);
     fireEvent.click(await screen.findByTestId('manifest-remove-teammate'));
     await waitFor(() => expect(screen.getByTestId('manifest-result').textContent).toContain('worker is busy'));
+  });
+});
+
+describe('SessionManifestStrip propose/confirm (ROADMAP 12.3b, ADR 0011 §4)', () => {
+  const joined = {
+    rosterId: 'expert:historian',
+    name: 'Historian',
+    workerId: 'worker-1',
+    workerSessionId: 'worker-session-1',
+    teamId: 'team-1',
+    joinedAt: '2026-11-13T00:00:00.000Z',
+    status: 'idle',
+  };
+  const proposal = {
+    id: 'prop-1',
+    rosterId: 'expert:geographer',
+    name: 'Geographer',
+    reason: 'Needs maps for the trade routes.',
+    proposedByRosterId: 'expert:historian',
+    proposedByName: 'Historian',
+    proposedByWorkerSessionId: 'worker-session-1',
+    createdAt: '2026-11-13T01:00:00.000Z',
+  };
+
+  it('the teammate card carries a May bring in others toggle, off by default', async () => {
+    mockApi.maker.teammates.list.mockResolvedValue({ teammates: [joined], proposals: [] });
+    render(<Harness />);
+    await waitFor(() => expect(screen.queryByTestId('manifest-loading')).toBeNull());
+    fireEvent.click(chips().find((c) => c.getAttribute('data-kind') === 'teammate')!);
+    const toggle = await screen.findByTestId('manifest-teammate-may-propose');
+    expect(toggle.getAttribute('data-roster-id')).toBe('expert:historian');
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(toggle);
+    await waitFor(() => expect(mockApi.maker.teammates.setMayPropose).toHaveBeenCalledWith('session-1', 'expert:historian', true));
+  });
+
+  it('the toggle reflects the stored opt-in and can turn it off', async () => {
+    mockApi.maker.teammates.list.mockResolvedValue({ teammates: [{ ...joined, mayPropose: true }], proposals: [] });
+    render(<Harness />);
+    await waitFor(() => expect(screen.queryByTestId('manifest-loading')).toBeNull());
+    fireEvent.click(chips().find((c) => c.getAttribute('data-kind') === 'teammate')!);
+    const toggle = await screen.findByTestId('manifest-teammate-may-propose');
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(toggle);
+    await waitFor(() => expect(mockApi.maker.teammates.setMayPropose).toHaveBeenCalledWith('session-1', 'expert:historian', false));
+  });
+
+  it('pending proposals are visible without opening any panel, with the reason', async () => {
+    mockApi.maker.teammates.list.mockResolvedValue({ teammates: [joined], proposals: [proposal] });
+    render(<Harness />);
+    await waitFor(() => expect(screen.queryByTestId('manifest-loading')).toBeNull());
+    const row = await screen.findByTestId('manifest-teammate-proposal');
+    expect(row.getAttribute('data-proposal-id')).toBe('prop-1');
+    expect(row.textContent).toContain('Historian');
+    expect(row.textContent).toContain('Geographer');
+    expect(row.textContent).toContain('Needs maps for the trade routes.');
+    expect(screen.getByTestId('manifest-proposal-confirm')).toBeTruthy();
+    expect(screen.getByTestId('manifest-proposal-dismiss')).toBeTruthy();
+  });
+
+  it('Confirm calls the host with confirm and refreshes; Dismiss with dismiss', async () => {
+    mockApi.maker.teammates.list.mockResolvedValue({ teammates: [joined], proposals: [proposal] });
+    render(<Harness />);
+    await waitFor(() => expect(screen.queryByTestId('manifest-loading')).toBeNull());
+    const callsBefore = mockApi.maker.teammates.list.mock.calls.length;
+    fireEvent.click(await screen.findByTestId('manifest-proposal-confirm'));
+    await waitFor(() => expect(mockApi.maker.teammates.decideProposal).toHaveBeenCalledWith('session-1', 'prop-1', 'confirm'));
+    await waitFor(() => expect(mockApi.maker.teammates.list.mock.calls.length).toBeGreaterThan(callsBefore));
+    fireEvent.click(await screen.findByTestId('manifest-proposal-dismiss'));
+    await waitFor(() => expect(mockApi.maker.teammates.decideProposal).toHaveBeenCalledWith('session-1', 'prop-1', 'dismiss'));
+  });
+
+  it('surfaces a confirm failure instead of hiding it', async () => {
+    mockApi.maker.teammates.list.mockResolvedValue({ teammates: [joined], proposals: [proposal] });
+    mockApi.maker.teammates.decideProposal.mockRejectedValue(new Error('Teammates need Full access'));
+    render(<Harness />);
+    await waitFor(() => expect(screen.queryByTestId('manifest-loading')).toBeNull());
+    fireEvent.click(await screen.findByTestId('manifest-proposal-confirm'));
+    await waitFor(() => expect(screen.getByTestId('manifest-result').textContent).toContain('Full access'));
+  });
+
+  it('no proposals means no proposal section', async () => {
+    mockApi.maker.teammates.list.mockResolvedValue({ teammates: [joined], proposals: [] });
+    render(<Harness />);
+    await waitFor(() => expect(screen.queryByTestId('manifest-loading')).toBeNull());
+    expect(screen.queryByTestId('manifest-teammate-proposals')).toBeNull();
   });
 });

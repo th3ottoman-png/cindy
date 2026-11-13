@@ -5624,6 +5624,14 @@ interface ElectronAPI {
       ) => Promise<import('../main/maker-ipc/sessionTeammates').SessionTeammatesView>;
       /** Remove one joined teammate; the last one ends the team (ADR 0011). */
       remove: (sessionId: string, rosterId: string) => Promise<{ ok: true }>;
+      /** ROADMAP 12.3b: opt a teammate in/out of "may bring in others" (propose-only). */
+      setMayPropose: (sessionId: string, rosterId: string, enabled: boolean) => Promise<{ ok: true }>;
+      /** ROADMAP 12.3b: confirm joins the proposed target as a second worker; dismiss drops it. */
+      decideProposal: (
+        sessionId: string,
+        proposalId: string,
+        decision: 'confirm' | 'dismiss',
+      ) => Promise<{ ok: true }>;
       onChanged: (cb: (payload: { sessionId: string }) => void) => () => void;
     };
     extPlugins: {

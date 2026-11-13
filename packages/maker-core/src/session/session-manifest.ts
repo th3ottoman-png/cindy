@@ -113,7 +113,7 @@ export interface SessionManifestInput {
   pinnedNotes?: string[];
   vaultDir?: string;
   /** ROADMAP 12.3 (ADR 0011): teammates joined via @agent: mentions; session state, not files. */
-  teammates?: Array<{ rosterId: string; name?: string; workerSessionId: string; file?: string }>;
+  teammates?: Array<{ rosterId: string; name?: string; workerSessionId: string; file?: string; mayPropose?: boolean }>;
   /** ROADMAP 11.8: ADR titles matched against the first prompt and injected into that turn. */
   relevantAdrs?: Array<{ title: string; path: string; source: 'vault' | 'repo'; status?: string }>;
   /** Workspace the repo ADRs were read from, for their file paths. */
@@ -240,7 +240,11 @@ export function buildSessionManifest(input: SessionManifestInput): SessionManife
         locator: `leads.${session.id} -> ${teammate.workerSessionId}`,
         reason: `Joined via an @agent: mention; stays until removed from this strip (${SESSION_TEAMMATES_FILE})`,
         trust: 'session-state',
-        declaredInterface: 'Orca worker (Hermes), depth 1',
+        // ROADMAP 12.3b: the propose opt-in affects what the worker may do, so it is visible
+        // here too (AGENTS.md §6.4). Same capability identity either way.
+        declaredInterface: teammate.mayPropose
+          ? 'Orca worker (Hermes), depth 1; may propose teammates (owner confirms)'
+          : 'Orca worker (Hermes), depth 1',
       }),
     );
   }

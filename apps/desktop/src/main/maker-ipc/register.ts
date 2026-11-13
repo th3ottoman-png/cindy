@@ -609,6 +609,7 @@ import {
   getRemoteCcTurnSettledHandler,
   getRemoteCcStaleQuery,
 } from '../maker-host/remote-session-start-ensure.js';
+import { setTeammateProposalBridge } from '../maker-host/teammate-proposal-bridge.js';
 import { getCodexProxyAuthInjectionState } from '../maker-host/codex-proxy-host.js';
 import {
   readCollaborationSettings,
@@ -917,8 +918,10 @@ import { registerExpertsHandlers } from './expertsHandlers.js';
 import { registerImportedAgentsHandlers, readImportedAgentById } from './importedAgents.js';
 import { createSessionTeammatesStore } from './sessionTeammates.js';
 import { createTeammateMentionService } from './teammateMentionService.js';
+import { createTeammateProposalService, type TeammateProposalDeps } from './teammateProposalService.js';
 import { toExpertHandoffMessages } from './expertHandoffSource.js';
 import { buildExpertHandoff } from '@cindy/maker-core/expert-handoff';
+import { teammateBindingId } from '@cindy/maker-core/teammate-mention';
 import { parseImportedAgentId } from '@cindy/maker-core/imported-agents';
 import { loadExpert } from '@cindy/maker-core/experts';
 import {
@@ -16201,7 +16204,14 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     // ROADMAP 12.3 (ADR 0011): roster ids (expert:/imported:) resolve too; projectDir scopes
     // imported project agents for both the check and the binding.
     resolveHermesWorkerExpert: (slug, opts) => getDesktopExpertSessionStore().checkWorkerRosterEntry(slug, opts),
-    bindWorkerExpert: (sessionId, slug, projectDir) => getDesktopExpertSessionStore().bindSession(sessionId, slug, { projectDir }),
+    // The binding store keeps bare expert slugs (or full imported ids); the roster id space
+    // prefixes experts with expert:. Normalize so an @agent:expert:<slug> teammate binds and
+    // resolves its first-turn preamble like a picked expert (found live in the 12.3b proof).
+    bindWorkerExpert: (sessionId, slug, projectDir) => getDesktopExpertSessionStore().bindSession(
+      sessionId,
+      teammateBindingId(slug),
+      { projectDir },
+    ),
     withLeadSendLock: withSendToSessionLock,
     getActiveTeamByLead,
     listWorkersByLead,
@@ -19261,9 +19271,10 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   const sessionTeammatesStore = createSessionTeammatesStore({
     file: path.join(os.homedir(), '.cindy-harness', 'session-teammates.json'),
   });
-  const teammateMentionService = createTeammateMentionService({
+  // Shared join kernel for both teammate flows: the 12.3a @agent: mention and the 12.3b
+  // proposal confirm. Same roster check, same ceiling, same worker creation and dispatch.
+  const teammateCoreDeps: TeammateProposalDeps = {
     store: sessionTeammatesStore,
-    isTeammateSendAllowed: () => !isDeviceLinkInvoke(),
     onTeammatesChanged: (leadSessionId) => broadcastToAllWindows(MAKER_PUSH.TEAMMATES_CHANGED, { sessionId: leadSessionId }),
     getLeadSnapshot: async (sessionId) => {
       const row = await getSessionRowSnapshot(sessionId);
@@ -19297,10 +19308,6 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       if (!result.ok) return { ok: false, message: result.message };
       return { ok: true, teamId: result.teamId };
     },
-    listWorkers: async (leadSessionId) => {
-      const workers = await listWorkersByLead(leadSessionId);
-      return workers.map((w) => ({ id: w.id, sessionId: w.sessionId, label: w.label, status: w.status }));
-    },
     createWorker: async (params) => {
       const result = await orcaWorkerCreationService.createWorkerInTeam({
         leadSessionId: params.leadSessionId,
@@ -19316,9 +19323,43 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       return { ok: true, workerId: result.workerId, workerSessionId: result.workerSessionId };
     },
     dispatchToWorker: async (params) => {
-      const result = await orcaTeamService.sendToWorker(params);
-      if (!result.ok) return { ok: false, message: result.message };
-      return { ok: true };
+      // ROADMAP 12.3b (found live): a queued teammate dispatch is accepted asynchronously.
+      // If acceptance lands after this wrapper returns, the lead's own send has already begun
+      // recycling the lead runtime, and the Orca delivery guard cancels the join prompt with
+      // "Task permissions are changing" — silently losing the teammate's first task. Waiting
+      // here for the worker to actually accept keeps the lead's send from starting until
+      // acceptance settles, so the lead stays stable and the guard passes. A bounded retry
+      // covers the rare case where acceptance is still rolled back.
+      const waitForAcceptance = async (): Promise<'accepted' | 'rolled-back' | 'gone'> => {
+        const startedAt = Date.now();
+        const graceMs = 1500;
+        const deadline = Date.now() + 6000;
+        for (;;) {
+          const workers = await listWorkersByLead(params.callerLeadSessionId);
+          const worker = workers.find((w) => w.sessionId === params.targetSessionId);
+          if (!worker) return 'gone';
+          // running/done/error all mean the worker picked the task up; only a lingering idle
+          // means the acceptance was rolled back before the turn started.
+          if (worker.status !== 'idle') return 'accepted';
+          if (Date.now() - startedAt > graceMs || Date.now() > deadline) return 'rolled-back';
+          await new Promise((resolve) => setTimeout(resolve, 120));
+        }
+      };
+      let lastFailure = 'teammate dispatch failed';
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const result = await orcaTeamService.sendToWorker(params);
+        if (!result.ok) return { ok: false, message: result.message };
+        const settled = await waitForAcceptance();
+        if (settled === 'accepted') return { ok: true };
+        if (settled === 'gone') return { ok: false, message: 'The teammate worker disappeared before it could accept the task.' };
+        lastFailure = 'The teammate could not accept the task because this session\'s permissions were changing. Nothing was dispatched; send the mention again.';
+        log.warn('teammate dispatch acceptance rolled back; retrying', {
+          leadSessionId: params.callerLeadSessionId,
+          targetSessionId: params.targetSessionId,
+          attempt,
+        });
+      }
+      return { ok: false, message: lastFailure };
     },
     buildJoinPrompt: async (leadSessionId, question) => {
       const row = await getSessionRowSnapshot(leadSessionId);
@@ -19336,6 +19377,21 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       return 'error' in handoff ? null : handoff.prompt;
     },
     log,
+  };
+  const teammateMentionService = createTeammateMentionService({
+    ...teammateCoreDeps,
+    isTeammateSendAllowed: () => !isDeviceLinkInvoke(),
+    listWorkers: async (leadSessionId) => {
+      const workers = await listWorkersByLead(leadSessionId);
+      return workers.map((w) => ({ id: w.id, sessionId: w.sessionId, label: w.label, status: w.status }));
+    },
+  });
+  // ROADMAP 12.3b: propose-only "may bring in others". The bridge tool records proposals
+  // through the holder; the owner confirms from the strip (TEAMMATES_PROPOSAL_DECIDE).
+  const teammateProposalService = createTeammateProposalService(teammateCoreDeps);
+  setTeammateProposalBridge({
+    canPropose: (params) => teammateProposalService.canPropose(params),
+    propose: (params) => teammateProposalService.recordProposal(params),
   });
 
   registerMakerSessionSendHandler(
@@ -19381,7 +19437,28 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         ...r,
         status: workers.find((w) => w.id === r.workerId)?.status ?? 'gone',
       })),
+      proposals: sessionTeammatesStore.listProposals(sessionId),
     };
+  });
+  // ROADMAP 12.3b: the owner's opt-in is per teammate and propose-only; the bridge tool
+  // re-checks it on every call, so flipping it takes effect without restarting the worker.
+  ipcMain.handle(MAKER_INVOKE.TEAMMATES_SET_MAY_PROPOSE, async (event, sessionId: unknown, rosterId: unknown, enabled: unknown) => {
+    assertTrustedAppRendererEvent(event as never);
+    if (typeof sessionId !== 'string' || !sessionId) throwIpcError('INVALID_PARAMS', 'sessionId required');
+    if (typeof rosterId !== 'string' || !rosterId) throwIpcError('INVALID_PARAMS', 'rosterId required');
+    if (typeof enabled !== 'boolean') throwIpcError('INVALID_PARAMS', 'enabled must be a boolean');
+    if (!sessionTeammatesStore.setMayPropose(sessionId, rosterId, enabled)) {
+      throwIpcError('NOT_FOUND', 'That teammate is not joined in this session');
+    }
+    broadcastToAllWindows(MAKER_PUSH.TEAMMATES_CHANGED, { sessionId });
+    return { ok: true };
+  });
+  ipcMain.handle(MAKER_INVOKE.TEAMMATES_PROPOSAL_DECIDE, async (event, sessionId: unknown, proposalId: unknown, decision: unknown) => {
+    assertTrustedAppRendererEvent(event as never);
+    if (typeof sessionId !== 'string' || !sessionId) throwIpcError('INVALID_PARAMS', 'sessionId required');
+    if (typeof proposalId !== 'string' || !proposalId) throwIpcError('INVALID_PARAMS', 'proposalId required');
+    if (decision !== 'confirm' && decision !== 'dismiss') throwIpcError('INVALID_PARAMS', 'decision must be confirm or dismiss');
+    return teammateProposalService.decideProposal(sessionId, proposalId, decision);
   });
   ipcMain.handle(MAKER_INVOKE.TEAMMATES_REMOVE, async (event, sessionId: unknown, rosterId: unknown) => {
     assertTrustedAppRendererEvent(event as never);

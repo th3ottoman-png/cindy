@@ -12,6 +12,8 @@ import {
   type SessionManifest,
 } from '@cindy/maker-core/session-manifest';
 
+import type { SessionTeammatesView } from '../../../main/maker-ipc/sessionTeammates';
+
 import { applySessionManifestToDraft } from './sessionManifestApply';
 import { collectSessionManifest } from './sessionManifestFacts';
 import { takePendingManifestPins } from './sessionManifestPins';
@@ -168,6 +170,53 @@ export function SessionManifestStrip({
     }
   }, [sessionId]);
 
+  // ROADMAP 12.3b: the live teammate view carries the propose opt-in and pending proposals.
+  // The manifest YAML shows the opt-in too; this view is what the controls read and write.
+  const [teammatesView, setTeammatesView] = useState<SessionTeammatesView>({ teammates: [], proposals: [] });
+  useEffect(() => {
+    let alive = true;
+    const api = window.electronAPI?.maker?.teammates;
+    if (!api) return undefined;
+    void api.list(sessionId)
+      .then((view) => {
+        if (alive) setTeammatesView({ teammates: view.teammates, proposals: view.proposals ?? [] });
+      })
+      .catch(() => {
+        if (alive) setTeammatesView({ teammates: [], proposals: [] });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [sessionId, reloadToken]);
+
+  const [togglingMayPropose, setTogglingMayPropose] = useState<string | null>(null);
+  const handleToggleMayPropose = useCallback(async (rosterId: string, enabled: boolean) => {
+    setTogglingMayPropose(rosterId);
+    setResult('');
+    try {
+      await window.electronAPI?.maker?.teammates?.setMayPropose(sessionId, rosterId, enabled);
+      setReloadToken((token) => token + 1);
+    } catch (err) {
+      setResult(err instanceof Error ? err.message : 'Failed to update the teammate.');
+    } finally {
+      setTogglingMayPropose(null);
+    }
+  }, [sessionId]);
+
+  const [decidingProposal, setDecidingProposal] = useState<string | null>(null);
+  const handleDecideProposal = useCallback(async (proposalId: string, decision: 'confirm' | 'dismiss') => {
+    setDecidingProposal(proposalId);
+    setResult('');
+    try {
+      await window.electronAPI?.maker?.teammates?.decideProposal(sessionId, proposalId, decision);
+      setReloadToken((token) => token + 1);
+    } catch (err) {
+      setResult(err instanceof Error ? err.message : 'Failed to decide the proposal.');
+    } finally {
+      setDecidingProposal(null);
+    }
+  }, [sessionId]);
+
   const handleReproduce = useCallback(() => {
     const parsed = parseCurrent();
     if (!parsed) return;
@@ -240,6 +289,59 @@ export function SessionManifestStrip({
         </button>
       </div>
 
+      {/* ROADMAP 12.3b: pending proposals are always visible — the owner must not miss a
+          teammate asking to bring in help. Confirm joins the target as a second worker. */}
+      {teammatesView.proposals.length > 0 && (
+        <div
+          data-testid="manifest-teammate-proposals"
+          className="border-t border-[var(--border-subtle,#2a2a30)] bg-[var(--background-primary,#141418)] px-3 py-2"
+        >
+          <div className="mb-1 font-medium text-[var(--text-primary,#fff)]">
+            Teammate proposals — nothing joins until you confirm
+          </div>
+          <div className="space-y-1">
+            {teammatesView.proposals.map((proposal) => (
+              <div
+                key={proposal.id}
+                data-testid="manifest-teammate-proposal"
+                data-proposal-id={proposal.id}
+                className="rounded px-2 py-1.5 text-[var(--text-secondary,#bbb)]"
+              >
+                <div className="text-[11px]">
+                  <span className="font-medium text-[var(--text-primary,#fff)]">{proposal.proposedByName}</span>
+                  {' proposes '}
+                  <span className="font-medium text-[var(--text-primary,#fff)]">{proposal.name}</span>
+                  <code className="pl-2 text-[10px] text-[var(--text-placeholder)]">{proposal.rosterId}</code>
+                </div>
+                <div className="mt-0.5 text-[11px]">{proposal.reason}</div>
+                <div className="mt-1 flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="manifest-proposal-confirm"
+                    data-proposal-id={proposal.id}
+                    disabled={decidingProposal === proposal.id}
+                    onClick={() => void handleDecideProposal(proposal.id, 'confirm')}
+                    className="rounded border border-[var(--border-strong,#555)] px-2 py-0.5 text-[11px] text-[var(--text-primary,#fff)] hover:bg-[var(--surface-active,#2c2d36)] disabled:opacity-50"
+                  >
+                    {decidingProposal === proposal.id ? 'Working…' : 'Confirm'}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="manifest-proposal-dismiss"
+                    data-proposal-id={proposal.id}
+                    disabled={decidingProposal === proposal.id}
+                    onClick={() => void handleDecideProposal(proposal.id, 'dismiss')}
+                    className="rounded border border-[var(--border-subtle,#333)] px-2 py-0.5 text-[11px] text-[var(--text-secondary,#aaa)] hover:text-[var(--text-primary,#fff)] disabled:opacity-50"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {selectedKind && (
         <div
           data-testid="manifest-provenance"
@@ -286,18 +388,42 @@ export function SessionManifestStrip({
                 <div className="mt-0.5 text-[11px]">
                   {row.reason} · {row.trust} · {row.declaredInterface}
                 </div>
-                {row.kind === 'teammate' && (
-                  <button
-                    type="button"
-                    data-testid="manifest-remove-teammate"
-                    data-roster-id={row.id.slice('teammate:'.length)}
-                    disabled={removingTeammate === row.id.slice('teammate:'.length)}
-                    onClick={() => void handleRemoveTeammate(row.id.slice('teammate:'.length))}
-                    className="mt-1 rounded border border-[var(--border-subtle,#333)] px-2 py-0.5 text-[11px] text-[var(--text-secondary,#aaa)] hover:text-[var(--text-primary,#fff)] disabled:opacity-50"
-                  >
-                    {removingTeammate === row.id.slice('teammate:'.length) ? 'Removing…' : 'Remove teammate'}
-                  </button>
-                )}
+                {row.kind === 'teammate' && (() => {
+                  const rosterId = row.id.slice('teammate:'.length);
+                  const mayPropose = teammatesView.teammates.find((t) => t.rosterId === rosterId)?.mayPropose === true;
+                  return (
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        data-testid="manifest-remove-teammate"
+                        data-roster-id={rosterId}
+                        disabled={removingTeammate === rosterId}
+                        onClick={() => void handleRemoveTeammate(rosterId)}
+                        className="rounded border border-[var(--border-subtle,#333)] px-2 py-0.5 text-[11px] text-[var(--text-secondary,#aaa)] hover:text-[var(--text-primary,#fff)] disabled:opacity-50"
+                      >
+                        {removingTeammate === rosterId ? 'Removing…' : 'Remove teammate'}
+                      </button>
+                      {/* ROADMAP 12.3b: opt-in, propose-only. The owner still confirms every join. */}
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={mayPropose}
+                        data-testid="manifest-teammate-may-propose"
+                        data-roster-id={rosterId}
+                        disabled={togglingMayPropose === rosterId}
+                        onClick={() => void handleToggleMayPropose(rosterId, !mayPropose)}
+                        title="Let this teammate propose other agents. Nothing joins until you confirm."
+                        className={`rounded border px-2 py-0.5 text-[11px] disabled:opacity-50 ${
+                          mayPropose
+                            ? 'border-[var(--border-strong,#555)] text-[var(--text-primary,#fff)]'
+                            : 'border-[var(--border-subtle,#333)] text-[var(--text-secondary,#aaa)] hover:text-[var(--text-primary,#fff)]'
+                        }`}
+                      >
+                        {mayPropose ? '✓ ' : ''}May bring in others
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>

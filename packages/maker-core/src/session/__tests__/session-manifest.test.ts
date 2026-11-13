@@ -432,4 +432,15 @@ describe('teammates (ROADMAP 12.3, ADR 0011)', () => {
       expect(applied.some((value) => value.includes('historian'))).toBe(false);
     }
   });
+
+  it('notes the propose opt-in on the row without changing its identity (12.3b)', () => {
+    const plain = buildSessionManifest({ ...input(), teammates: [teammate] });
+    const plainRow = plain.capabilities.find((capability) => capability.kind === 'teammate');
+    expect(plainRow?.declaredInterface).toBe('Orca worker (Hermes), depth 1');
+    const opted = buildSessionManifest({ ...input(), teammates: [{ ...teammate, mayPropose: true }] });
+    const optedRow = opted.capabilities.find((capability) => capability.kind === 'teammate');
+    expect(optedRow?.declaredInterface).toContain('may propose');
+    expect(optedRow?.declaredInterface).toContain('owner confirms');
+    expect(optedRow?.id).toBe(plainRow?.id);
+  });
 });

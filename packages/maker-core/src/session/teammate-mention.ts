@@ -42,6 +42,18 @@ export interface TeammateMentionToken {
   end: number;
 }
 
+/**
+ * Normalize a roster id to the form the expert binding store keeps (ROADMAP 12.3b): a bare
+ * expert slug, or a full imported id. The roster id space prefixes experts with `expert:`,
+ * but the binding store and the first-turn preamble resolver expect the bare slug. Unknown
+ * ids pass through unchanged so the binding store can refuse them (fail closed).
+ */
+export function teammateBindingId(rosterId: string): string {
+  const ref = parseTeammateRosterId(rosterId);
+  if (ref?.kind === 'expert') return ref.slug;
+  return rosterId;
+}
+
 /** Trailing punctuation belongs to the sentence, not to the roster id (same rule as 8.4). */
 function trimTokenPunctuation(value: string): string {
   return value.replace(/[.,;:!?)\]}]+$/, '');
@@ -135,6 +147,50 @@ export function stripTeammateMentions(text: string): string {
   }
   output += text.slice(cursor);
   return tidyMentionWhitespace(output);
+}
+
+/**
+ * A live `@agent:` query in the composer (ROADMAP 12.3b). Same boundary rules as the 8.4
+ * trigger: only the trailing word counts, `@` must sit at a word boundary, and a space ends
+ * the token. Ownership hands over at the colon — bare `@` and `@agent` stay with the
+ * composer's file/agent panel; `@agent:` and beyond belong to the teammate picker.
+ */
+export interface TeammateMentionTrigger {
+  /** Index of the `@` in the text. */
+  start: number;
+  /** End of the trigger. Always the end of the text. */
+  end: number;
+  /** Everything typed after `@`; always starts with `agent:`. */
+  query: string;
+  /** Query with the `agent:` prefix removed. */
+  term: string;
+}
+
+/** Same limits as the 8.4 trigger: longer text is ordinary prose, not a live query. */
+const MAX_TRIGGER_QUERY = 64;
+const TRIGGER_BOUNDARY_BEFORE = new Set(['', ' ', '\t', '(', '[', '{', '"', "'", '>', '-']);
+
+export function findTeammateMentionTrigger(text: string): TeammateMentionTrigger | null {
+  if (!text) return null;
+  const lineStart = text.lastIndexOf('\n') + 1;
+  const line = text.slice(lineStart);
+  const at = line.lastIndexOf('@');
+  if (at < 0) return null;
+
+  const query = line.slice(at + 1);
+  if (!query.startsWith('agent:')) return null;
+  if (query.length > MAX_TRIGGER_QUERY) return null;
+  if (/\s/.test(query)) return null;
+
+  const before = at === 0 ? '' : line[at - 1];
+  if (!TRIGGER_BOUNDARY_BEFORE.has(before)) return null;
+
+  return {
+    start: lineStart + at,
+    end: text.length,
+    query,
+    term: query.slice('agent:'.length),
+  };
 }
 
 /**

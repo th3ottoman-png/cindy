@@ -168,6 +168,23 @@ export interface OrcaBridgeMcpDeps {
     limit: number;
     cursor: OrcaLeadHistoryCursor | null;
   }) => Promise<OrcaLeadHistoryPage>;
+  /**
+   * ROADMAP 12.3b (ADR 0011 §4): propose-only "may bring in others" for @agent: teammates.
+   * Absent = the propose_teammate tool is not registered (the four-tool contract stands).
+   * Present = the tool is listed, and every call fails closed unless the calling worker is
+   * a joined teammate the owner opted in. The owner confirms from the manifest strip; the
+   * confirmed entry joins the SAME lead as a second worker (depth 1, never worker-spawned).
+   */
+  teammateProposals?: {
+    canPropose(params: { leadSessionId: string; workerSessionId: string }): Promise<boolean>;
+    propose(params: {
+      leadSessionId: string;
+      workerSessionId: string;
+      workerId: string;
+      rosterId: string;
+      reason: string;
+    }): Promise<{ ok: true; proposalId: string } | { ok: false; message: string }>;
+  };
   dispatchInterAgentMessage?: (params: {
     targetSessionId: string;
     rawContent: string;
@@ -257,6 +274,15 @@ export const SEND_TO_LEAD_TOOL_DESCRIPTION = [
   'After a question, stop and wait for send_to_worker.',
   'Combine all results; do not send progress, partial findings, or same-turn corrections.',
   'If the Lead is blocked waiting on this report, delivery=steer delivers it into the Lead\'s current turn; otherwise keep the default.',
+].join(' ');
+
+/** ROADMAP 12.3b: propose-only; the owner confirms before anything joins. */
+export const PROPOSE_TEAMMATE_TOOL_DESCRIPTION = [
+  'Teammates only: propose another roster agent to help with this task.',
+  'The owner must confirm the proposal before that agent joins; nothing joins when you call this.',
+  'Pass your worker_id, the target roster_id (expert:<slug> or imported:<source>:<file>, as listed on the Agents page), and a short reason the owner can read.',
+  'After proposing, continue your own work and report via send_to_lead; do not wait for the decision.',
+  'The confirmed agent joins the Lead as a separate teammate, not under you; coordinate through the Lead.',
 ].join(' ');
 
 export function authorizeSendToLeadCaller(ctx: McpProviderContext):
@@ -1002,6 +1028,60 @@ export function createOrcaWorkerBridgeMcpProvider(deps: OrcaBridgeMcpDeps) {
           });
         },
       );
+
+      // ROADMAP 12.3b (ADR 0011 §4): listed only when the host injects the proposal gate;
+      // every call still fails closed on provenance, worker link and the owner's opt-in.
+      if (deps.teammateProposals) {
+        const proposals = deps.teammateProposals;
+        register(
+          'propose_teammate',
+          PROPOSE_TEAMMATE_TOOL_DESCRIPTION,
+          {
+            worker_id: z.string().min(1).describe('Required. Your assigned worker_id. Find it in the Bridge note at the end of the most recent lead message, or in the system prompt Identity line.'),
+            roster_id: z.string().min(1).describe('The roster id of the agent to propose: expert:<slug> or imported:<source>:<file>, as listed on the Agents page.'),
+            reason: z.string().min(1).max(2000).describe('Why this teammate is needed and what it should do. The owner reads this before confirming.'),
+          },
+          async ({ worker_id, roster_id, reason }) => {
+            const authorization = authorizeSendToLeadCaller(resolveRuntimeMcpContext(ctx));
+            if (!authorization.ok) return text(authorization.error, true);
+            const resolved = await resolveWorkerLink(deps, ctx, worker_id);
+            if (!resolved.ok) return text(resolved.error, true);
+            const { link } = resolved;
+            const allowed = await proposals.canPropose({
+              leadSessionId: link.leadSessionId,
+              workerSessionId: link.workerSessionId,
+            });
+            if (!allowed) {
+              return text({
+                error: 'proposing teammates is not enabled for you',
+                code: 'TEAMMATE_PROPOSE_NOT_ENABLED',
+                detail: 'The owner can enable "May bring in others" on your teammate card in the session manifest strip.',
+              }, true);
+            }
+            const result = await proposals.propose({
+              leadSessionId: link.leadSessionId,
+              workerSessionId: link.workerSessionId,
+              workerId: link.workerId,
+              rosterId: roster_id,
+              reason,
+            });
+            if (!result.ok) return text({ error: result.message }, true);
+            log.info('teammate proposal recorded via bridge', {
+              workerId: link.workerId,
+              leadSessionId: link.leadSessionId,
+              rosterId: roster_id,
+              proposalId: result.proposalId,
+            });
+            return text({
+              ok: true,
+              proposal_id: result.proposalId,
+              worker_id: link.workerId,
+              lead_session_id: link.leadSessionId,
+              note: 'The owner must confirm before this teammate joins. Continue your own work and report via send_to_lead; do not wait for the decision.',
+            });
+          },
+        );
+      }
 
   }
 

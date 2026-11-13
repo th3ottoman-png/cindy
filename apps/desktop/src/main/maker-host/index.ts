@@ -371,6 +371,7 @@ import {
   setRemoteCcTurnSettledHandler,
   setRemoteCcStaleQuery,
 } from './remote-session-start-ensure.js';
+import { getTeammateProposalBridge } from './teammate-proposal-bridge.js';
 import {
   refreshRemoteCodexMcpAfterBridgeRecreate,
   invalidateRemoteCcQueriesForMcpGenerationChange,
@@ -1351,6 +1352,16 @@ export function getMaker(): Maker {
         };
       },
       dispatchInterAgentMessage,
+      // ROADMAP 12.3b: propose-only teammate proposals. The gate lives in register.ts
+      // (holder, same direction rule as ensureRemoteSessionStart); unset = fail closed.
+      teammateProposals: {
+        canPropose: async (params) => (await getTeammateProposalBridge()?.canPropose(params)) ?? false,
+        propose: async (params) =>
+          (await getTeammateProposalBridge()?.propose(params)) ?? {
+            ok: false,
+            message: 'teammate proposals are not available on this host',
+          },
+      },
     } satisfies OrcaBridgeMcpDeps;
     const orcaWorkerBridgeProvider = createOrcaWorkerBridgeMcpProvider(orcaBridgeDeps);
     remoteWorkerBridge = createOrcaRemoteWorkerBridge({

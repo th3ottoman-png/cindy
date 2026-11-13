@@ -24,16 +24,42 @@ export interface SessionTeammateRecord {
   /** Definition file (expert.md or the imported .md), for manifest provenance. */
   file?: string;
   joinedAt: string;
+  /**
+   * ROADMAP 12.3b (ADR 0011 §4): opt-in "may bring in others". Absent/false = the worker's
+   * propose_teammate tool refuses (fail closed). True = it may propose; the owner confirms.
+   */
+  mayPropose?: boolean;
+}
+
+/**
+ * ROADMAP 12.3b: a teammate's proposal to bring in another roster entry. Propose-only —
+ * nothing joins until the owner confirms from the manifest strip. One pending proposal
+ * per target roster id; a newer proposal replaces the older.
+ */
+export interface SessionTeammateProposal {
+  id: string;
+  /** The proposed target's canonical roster id. */
+  rosterId: string;
+  name: string;
+  /** Why the teammate wants help; the owner reads this before confirming. */
+  reason: string;
+  proposedByRosterId: string;
+  proposedByName: string;
+  proposedByWorkerSessionId: string;
+  createdAt: string;
 }
 
 interface TeammatesFile {
   version: 1;
   leads: Record<string, SessionTeammateRecord[]>;
+  proposals?: Record<string, SessionTeammateProposal[]>;
 }
 
 /** IPC view: joined teammates with the worker's live status ('gone' when no longer in the team). */
 export interface SessionTeammatesView {
   teammates: Array<SessionTeammateRecord & { status: string }>;
+  /** ROADMAP 12.3b: pending proposals awaiting the owner's confirm/dismiss. */
+  proposals: SessionTeammateProposal[];
 }
 
 export interface SessionTeammatesStoreOptions {
@@ -49,6 +75,12 @@ export interface SessionTeammatesStore {
   join(leadSessionId: string, record: SessionTeammateRecord): void;
   remove(leadSessionId: string, rosterId: string): boolean;
   removeByWorkerSession(leadSessionId: string, workerSessionId: string): SessionTeammateRecord | null;
+  /** ROADMAP 12.3b: opt-in "may bring in others"; false when the teammate is not joined. */
+  setMayPropose(leadSessionId: string, rosterId: string, enabled: boolean): boolean;
+  listProposals(leadSessionId: string): SessionTeammateProposal[];
+  /** One pending proposal per target roster id: a newer proposal replaces the older. */
+  addProposal(leadSessionId: string, proposal: SessionTeammateProposal): void;
+  removeProposal(leadSessionId: string, proposalId: string): boolean;
 }
 
 function isRecord(value: unknown): value is SessionTeammateRecord {
@@ -62,7 +94,24 @@ function isRecord(value: unknown): value is SessionTeammateRecord {
     typeof r.workerSessionId === 'string' &&
     typeof r.teamId === 'string' &&
     typeof r.joinedAt === 'string' &&
-    (r.file === undefined || typeof r.file === 'string')
+    (r.file === undefined || typeof r.file === 'string') &&
+    (r.mayPropose === undefined || typeof r.mayPropose === 'boolean')
+  );
+}
+
+function isProposal(value: unknown): value is SessionTeammateProposal {
+  if (!value || typeof value !== 'object') return false;
+  const p = value as Record<string, unknown>;
+  return (
+    typeof p.id === 'string' && p.id.length > 0 &&
+    typeof p.rosterId === 'string' &&
+    parseTeammateRosterId(p.rosterId) !== null &&
+    typeof p.name === 'string' &&
+    typeof p.reason === 'string' &&
+    typeof p.proposedByRosterId === 'string' &&
+    typeof p.proposedByName === 'string' &&
+    typeof p.proposedByWorkerSessionId === 'string' &&
+    typeof p.createdAt === 'string'
   );
 }
 
@@ -79,12 +128,33 @@ export function createSessionTeammatesStore(opts: SessionTeammatesStoreOptions):
           const valid = records.filter(isRecord);
           if (valid.length > 0) leads[leadSessionId] = valid;
         }
-        return { version: 1, leads };
+        const proposals: Record<string, SessionTeammateProposal[]> = {};
+        if (parsed.proposals && typeof parsed.proposals === 'object') {
+          for (const [leadSessionId, records] of Object.entries(parsed.proposals)) {
+            if (!Array.isArray(records)) continue;
+            const valid = records.filter(isProposal);
+            if (valid.length > 0) proposals[leadSessionId] = valid;
+          }
+        }
+        return { version: 1, leads, proposals };
       }
     } catch {
       // Missing or unreadable file: no teammates.
     }
-    return { version: 1, leads: {} };
+    return { version: 1, leads: {}, proposals: {} };
+  }
+
+  /** Drop pending proposals that no longer make sense after a roster change. */
+  function pruneProposals(
+    data: TeammatesFile,
+    leadSessionId: string,
+    keep: (proposal: SessionTeammateProposal) => boolean,
+  ): void {
+    const existing = data.proposals?.[leadSessionId];
+    if (!existing) return;
+    const next = existing.filter(keep);
+    if (next.length > 0) data.proposals![leadSessionId] = next;
+    else delete data.proposals![leadSessionId];
   }
 
   function writeFile(data: TeammatesFile): void {
@@ -109,15 +179,20 @@ export function createSessionTeammatesStore(opts: SessionTeammatesStoreOptions):
       const data = readFile();
       const existing = data.leads[leadSessionId] ?? [];
       data.leads[leadSessionId] = [...existing.filter((r) => r.rosterId !== record.rosterId), record];
+      // The target is joined now; a pending proposal for it is moot.
+      pruneProposals(data, leadSessionId, (p) => p.rosterId !== record.rosterId);
       writeFile(data);
     },
     remove(leadSessionId, rosterId) {
       const data = readFile();
       const existing = data.leads[leadSessionId] ?? [];
+      const found = existing.find((r) => r.rosterId === rosterId) ?? null;
+      if (!found) return false;
       const next = existing.filter((r) => r.rosterId !== rosterId);
-      if (next.length === existing.length) return false;
       if (next.length > 0) data.leads[leadSessionId] = next;
       else delete data.leads[leadSessionId];
+      // A removed teammate can no longer stand behind its proposals.
+      pruneProposals(data, leadSessionId, (p) => p.proposedByWorkerSessionId !== found.workerSessionId);
       writeFile(data);
       return true;
     },
@@ -129,8 +204,43 @@ export function createSessionTeammatesStore(opts: SessionTeammatesStoreOptions):
       const next = existing.filter((r) => r.workerSessionId !== workerSessionId);
       if (next.length > 0) data.leads[leadSessionId] = next;
       else delete data.leads[leadSessionId];
+      pruneProposals(data, leadSessionId, (p) => p.proposedByWorkerSessionId !== workerSessionId);
       writeFile(data);
       return found;
+    },
+    setMayPropose(leadSessionId, rosterId, enabled) {
+      const data = readFile();
+      const existing = data.leads[leadSessionId] ?? [];
+      const found = existing.find((r) => r.rosterId === rosterId) ?? null;
+      if (!found) return false;
+      data.leads[leadSessionId] = existing.map((r) =>
+        r.rosterId === rosterId ? { ...r, mayPropose: enabled } : r,
+      );
+      writeFile(data);
+      return true;
+    },
+    listProposals(leadSessionId) {
+      return readFile().proposals?.[leadSessionId] ?? [];
+    },
+    addProposal(leadSessionId, proposal) {
+      if (!parseTeammateRosterId(proposal.rosterId)) {
+        throw new Error('invalid proposal roster id "' + proposal.rosterId + '"');
+      }
+      const data = readFile();
+      data.proposals ??= {};
+      const existing = data.proposals[leadSessionId] ?? [];
+      data.proposals[leadSessionId] = [...existing.filter((p) => p.rosterId !== proposal.rosterId), proposal];
+      writeFile(data);
+    },
+    removeProposal(leadSessionId, proposalId) {
+      const data = readFile();
+      const existing = data.proposals?.[leadSessionId] ?? [];
+      const next = existing.filter((p) => p.id !== proposalId);
+      if (next.length === existing.length) return false;
+      if (next.length > 0) data.proposals![leadSessionId] = next;
+      else delete data.proposals![leadSessionId];
+      writeFile(data);
+      return true;
     },
   };
 }

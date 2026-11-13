@@ -351,8 +351,10 @@ import {
   getDraftPresence as getComposerDraftPresence,
   plainTextToTiptapDoc,
   restoreRemoteOptimisticDraft,
+  subscribeDraftContent,
   type BuiltInSkillDraftIntent,
 } from '@/lib/composerDraftStore';
+import { TeammatePickerSlot } from '@/components/teammates/TeammatePickerSlot';
 import { setLastWorkingDir } from '@/state/lastWorkingDir';
 import { consumeComposerMentionDrop } from '@/lib/composerDrop';
 import { hasSplitGroupSessionType } from './splitGroupDnd';
@@ -6112,6 +6114,33 @@ function CCAgentSessionContent({
                   inert={voiceModeOpen && voiceModeAvailable}
                   aria-hidden={voiceModeOpen && voiceModeAvailable ? true : undefined}
                 >
+                {/* ROADMAP 12.3b: @agent: teammate picker for the running session. The token
+                    is plain draft text; the teammate joins at send time (12.3a).
+                    The key re-subscribes the slot when the data owner resolves: draft keys
+                    are owner-namespaced, and a cold-start mount subscribes before AuthContext
+                    sets the owner (found live in the 12.3b proof). */}
+                {sessionId && (
+                  <TeammatePickerSlot
+                    key={dataOwnerId ?? 'signed-out'}
+                    getDocument={() => getComposerDraft(sessionId)?.text}
+                    subscribe={(onChange) => subscribeDraftContent(sessionId, onChange)}
+                    saveDocument={(text) => {
+                      const existing = getComposerDraft(sessionId);
+                      saveComposerDraft(
+                        sessionId,
+                        {
+                          ...existing,
+                          text,
+                          attachments: existing?.attachments ?? [],
+                          quotes: existing?.quotes ?? [],
+                          browserComments: existing?.browserComments ?? [],
+                        },
+                        { preserveRemoteOptimisticRecovery: true },
+                      );
+                    }}
+                    projectDir={session?.workingDir ?? null}
+                  />
+                )}
                 <ChatInput
                   topSlot={cindyMakeRecoveryId && session ? (
                     <CindyMakeEditingActions

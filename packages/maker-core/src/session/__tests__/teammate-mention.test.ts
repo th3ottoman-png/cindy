@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   findInvalidTeammateMentions,
+  findTeammateMentionTrigger,
   parseTeammateMentions,
   parseTeammateRosterId,
   renderTeammateDispatchNote,
   stripTeammateMentions,
+  teammateBindingId,
 } from '../teammate-mention';
 
 describe('parseTeammateRosterId', () => {
@@ -169,5 +171,91 @@ describe('renderTeammateDispatchNote', () => {
 
   it('is empty for no teammates', () => {
     expect(renderTeammateDispatchNote([])).toBe('');
+  });
+});
+
+describe('findTeammateMentionTrigger (ROADMAP 12.3b picker ownership)', () => {
+  it('fires on a bare @agent: at the start of the text', () => {
+    expect(findTeammateMentionTrigger('@agent:')).toEqual({
+      start: 0,
+      end: 7,
+      query: 'agent:',
+      term: '',
+    });
+  });
+
+  it('fires after whitespace and carries the typed term', () => {
+    const text = 'bring in @agent:hist';
+    expect(findTeammateMentionTrigger(text)).toEqual({
+      start: 9,
+      end: text.length,
+      query: 'agent:hist',
+      term: 'hist',
+    });
+  });
+
+  it('fires on the last line of a multi-line draft', () => {
+    const text = 'first line\n@agent:expert:';
+    expect(findTeammateMentionTrigger(text)).toMatchObject({
+      start: 11,
+      query: 'agent:expert:',
+      term: 'expert:',
+    });
+  });
+
+  it('accepts the same boundary characters as the 8.4 trigger', () => {
+    for (const before of ['(', '[', '{', '"', "'", '>', '-', ' ', '\t']) {
+      const text = before + '@agent:';
+      expect(findTeammateMentionTrigger(text)).toMatchObject({ start: before.length });
+    }
+  });
+
+  it('does not fire inside a word (name@host is prose)', () => {
+    expect(findTeammateMentionTrigger('write name@agent:expert:x')).toBeNull();
+  });
+
+  it('does not fire once a space ends the token', () => {
+    expect(findTeammateMentionTrigger('@agent:expert:historian do it')).toBeNull();
+    expect(findTeammateMentionTrigger('@agent: ')).toBeNull();
+  });
+
+  it('leaves bare @ and other kinds to the file/attachment panels', () => {
+    expect(findTeammateMentionTrigger('@')).toBeNull();
+    expect(findTeammateMentionTrigger('@hist')).toBeNull();
+    expect(findTeammateMentionTrigger('@skill:sea')).toBeNull();
+    expect(findTeammateMentionTrigger('@expert:hist')).toBeNull();
+    expect(findTeammateMentionTrigger('@agent')).toBeNull();
+  });
+
+  it('does not fire on an earlier token when the caret moved on', () => {
+    expect(findTeammateMentionTrigger('@agent:expert:historian and then @other')).toBeNull();
+  });
+
+  it('returns null for empty text', () => {
+    expect(findTeammateMentionTrigger('')).toBeNull();
+  });
+
+  it('treats an overlong query as prose, like the 8.4 trigger', () => {
+    expect(findTeammateMentionTrigger('@agent:' + 'x'.repeat(60))).toBeNull();
+  });
+});
+
+describe('teammateBindingId (ROADMAP 12.3b: binding-store normalization)', () => {
+  it('strips the expert: prefix to the bare slug the binding store keeps', () => {
+    expect(teammateBindingId('expert:geographer')).toBe('geographer');
+    expect(teammateBindingId('expert:code_reviewer.v2')).toBe('code_reviewer.v2');
+  });
+
+  it('keeps an imported id whole (the binding store accepts it as-is)', () => {
+    expect(teammateBindingId('imported:claude-user:academic-historian.md'))
+      .toBe('imported:claude-user:academic-historian.md');
+  });
+
+  it('passes a bare slug through unchanged', () => {
+    expect(teammateBindingId('geographer')).toBe('geographer');
+  });
+
+  it('returns an unknown id unchanged so the binding store can refuse it', () => {
+    expect(teammateBindingId('not-a-roster-id')).toBe('not-a-roster-id');
   });
 });

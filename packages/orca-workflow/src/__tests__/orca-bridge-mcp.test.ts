@@ -15,6 +15,7 @@ import {
   authorizeSendToLeadCaller,
   createOrcaWorkerBridgeMcpProvider,
   formatAgentMessage,
+  PROPOSE_TEAMMATE_TOOL_DESCRIPTION,
   SEND_TO_LEAD_TOOL_DESCRIPTION,
   type OrcaBridgeMcpDeps,
   type OrcaWorkerLink,
@@ -1710,5 +1711,138 @@ describe('formatAgentMessage', () => {
       '[From Orca Lead]\nTask\n\n---\n(Bridge note: your worker_id for tool calls is worker-1.)',
     );
     expect(formatAgentMessage('lead', 'Task')).toBe('[From Orca Lead]\nTask');
+  });
+});
+
+
+describe('propose_teammate (ROADMAP 12.3b, ADR 0011 §4)', () => {
+  const workerLink: OrcaWorkerLink = {
+    workerId: 'worker-1',
+    workflowId: 'team-1',
+    workerSessionId: 'worker-session-1',
+    leadSessionId: 'lead-1',
+    leadSession: {
+      sessionId: 'lead-1',
+      agentKind: 'hermes',
+      workingDir: '/repo',
+      model: 'hermes-default',
+    },
+  };
+
+  function setup(opts: {
+    canPropose?: boolean;
+    proposeResult?: { ok: true; proposalId: string } | { ok: false; message: string };
+    withDep?: boolean;
+  } = {}) {
+    const { maker } = makeProvider();
+    const canPropose = vi.fn(async () => opts.canPropose ?? true);
+    const propose = vi.fn(async () => opts.proposeResult ?? { ok: true as const, proposalId: 'prop-1' });
+    const provider = createOrcaWorkerBridgeMcpProvider({
+      getMaker: () => maker as unknown as Maker,
+      logger: makeLogger(),
+      persistUserMessage: async () => undefined,
+      wireSession: () => undefined,
+      orcaTeamStore: {
+        getWorkerLink: vi.fn(async () => workerLink),
+        async updateWorkerStatus() {},
+      },
+      ...(opts.withDep === false ? {} : { teammateProposals: { canPropose, propose } }),
+    });
+    const runtimeContext: McpProviderContext = {
+      agentKind: 'hermes',
+      workingDir: '/repo',
+      sessionId: 'worker-session-1',
+      mcpCallerKind: 'root',
+      mcpCallerAttested: true,
+      vendorOptions: {
+        orcaRole: 'worker',
+        orcaWorkerId: 'worker-1',
+        orcaWorkerSessionId: 'worker-session-1',
+      },
+    };
+    // The shared bridge exposes the server under the Codex/Pi global ctx; the worker's
+    // own kind (hermes) rides the runtime context resolved at call time.
+    const server = getServer(provider, {
+      agentKind: 'codex',
+      workingDir: '/repo',
+      getSessionContext: () => runtimeContext,
+    });
+    return { server, canPropose, propose, runtimeContext };
+  }
+
+  it('stays absent without the host dep: the four-tool contract is unchanged', () => {
+    const { server } = setup({ withDep: false });
+    expect(Object.keys(server._registeredTools)).toEqual([
+      'send_to_lead', 'read_lead_history', 'read_lead', 'lead_status',
+    ]);
+  });
+
+  it('registers as the fifth tool when the host injects the proposal gate', () => {
+    const { server } = setup();
+    expect(Object.keys(server._registeredTools)).toEqual([
+      'send_to_lead', 'read_lead_history', 'read_lead', 'lead_status', 'propose_teammate',
+    ]);
+    expect(PROPOSE_TEAMMATE_TOOL_DESCRIPTION).toContain('owner');
+    expect(PROPOSE_TEAMMATE_TOOL_DESCRIPTION).toContain('confirm');
+  });
+
+  it('refuses descendant and unattested callers before the gate', async () => {
+    for (const [mcpCallerKind, mcpCallerAttested] of [['descendant', true], ['root', false]] as const) {
+      const { server, canPropose, propose, runtimeContext } = setup();
+      runtimeContext.mcpCallerKind = mcpCallerKind;
+      runtimeContext.mcpCallerAttested = mcpCallerAttested;
+      const result = await server._registeredTools.propose_teammate.handler({
+        worker_id: 'worker-1', roster_id: 'expert:geographer', reason: 'Need maps.',
+      });
+      expect((result as { isError?: boolean }).isError).toBe(true);
+      expect(canPropose).not.toHaveBeenCalled();
+      expect(propose).not.toHaveBeenCalled();
+    }
+  });
+
+  it('refuses when the owner has not opted the teammate in (fail closed)', async () => {
+    const { server, canPropose, propose } = setup({ canPropose: false });
+    const result = await server._registeredTools.propose_teammate.handler({
+      worker_id: 'worker-1', roster_id: 'expert:geographer', reason: 'Need maps.',
+    });
+    const body = expectToolError(result);
+    expect(body.code).toBe('TEAMMATE_PROPOSE_NOT_ENABLED');
+    expect(canPropose).toHaveBeenCalledWith({ leadSessionId: 'lead-1', workerSessionId: 'worker-session-1' });
+    expect(propose).not.toHaveBeenCalled();
+  });
+
+  it('refuses a forged worker id before the gate', async () => {
+    const { server, canPropose, propose } = setup();
+    const result = await server._registeredTools.propose_teammate.handler({
+      worker_id: 'forged', roster_id: 'expert:geographer', reason: 'Need maps.',
+    });
+    expect((result as { isError?: boolean }).isError).toBe(true);
+    expect(canPropose).not.toHaveBeenCalled();
+    expect(propose).not.toHaveBeenCalled();
+  });
+
+  it('records the proposal with the attested link identity and tells the worker to continue', async () => {
+    const { server, propose } = setup();
+    const result = await server._registeredTools.propose_teammate.handler({
+      worker_id: 'worker-1', roster_id: 'expert:geographer', reason: 'Need maps for the trade routes.',
+    });
+    expect(propose).toHaveBeenCalledWith({
+      leadSessionId: 'lead-1',
+      workerSessionId: 'worker-session-1',
+      workerId: 'worker-1',
+      rosterId: 'expert:geographer',
+      reason: 'Need maps for the trade routes.',
+    });
+    const body = parseToolJson(result);
+    expect(body).toMatchObject({ ok: true, proposal_id: 'prop-1' });
+    expect(String(body.note)).toContain('send_to_lead');
+  });
+
+  it('renders a service refusal as a tool error', async () => {
+    const { server } = setup({ proposeResult: { ok: false, message: 'Unknown teammate "expert:x".' } });
+    const body = expectToolError(await server._registeredTools.propose_teammate.handler({
+      worker_id: 'worker-1', roster_id: 'expert:x', reason: 'why',
+    }));
+    expect(body.error).toContain('Unknown teammate');
   });
 });

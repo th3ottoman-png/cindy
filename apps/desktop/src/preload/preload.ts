@@ -6389,6 +6389,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
         rosterId: string,
       ): Promise<{ ok: true }> =>
         ipcRenderer.invoke('maker:teammates:remove', sessionId, rosterId),
+      setMayPropose: (
+        sessionId: string,
+        rosterId: string,
+        enabled: boolean,
+      ): Promise<{ ok: true }> =>
+        ipcRenderer.invoke('maker:teammates:set-may-propose', sessionId, rosterId, enabled),
+      decideProposal: (
+        sessionId: string,
+        proposalId: string,
+        decision: 'confirm' | 'dismiss',
+      ): Promise<{ ok: true }> =>
+        ipcRenderer.invoke('maker:teammates:proposal-decide', sessionId, proposalId, decision),
       onChanged: fanOutMakerTeammatesChanged,
     },
     extPlugins: {

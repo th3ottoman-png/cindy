@@ -84,3 +84,52 @@ What exists (read 2026-11-13):
 - 12.3b owes the composer picker panel and the propose/confirm flow; until then the token is typed
   by hand and teammates cannot bring in others at all (default off, fail closed).
 - Workers are local-only (ADR 0008): no remote lead, no execution device, no worktree.
+
+
+## 12.3b implementation note (2026-11-13)
+
+Decision 4 ("may bring in others", propose-only) and the composer picker landed as follows.
+This elaborates the accepted decision; it does not change it.
+
+- **Picker ownership.** `findTeammateMentionTrigger` (pure, `@cindy/maker-core/teammate-mention`)
+  fires only on a trailing `@agent:` query, with the same boundary rules as the 8.4 trigger.
+  Bare `@` and `@agent` stay with the composer's file/agent panel; ownership hands over at the
+  colon, so the two panels never open together. `TeammatePickerSlot` / `TeammatePickerPanel`
+  (modeled on the 8.4 slot/panel) list the Agents-page roster rows with program/source badges;
+  broken or non-Hermes rows are listed disabled with the reason, never hidden. Picking a row
+  writes the visible `@agent:<roster-id> ` token; the join still happens only at send time
+  (12.3a). Mounted in both the new-task draft and the running-session composer.
+- **Propose tool surface.** The worker bridge's tool list is static per MCP transport —
+  identity is attested at call time (the `send_to_lead` pattern) — so `propose_teammate` is
+  registered as a fifth `orca_worker_bridge` tool only when the host injects the
+  `teammateProposals` dep; hosts and tests without the dep keep the exact four-tool contract.
+  Every call fails closed: attested root caller → attested worker link → joined teammate with
+  `mayPropose: true` → fail-closed roster check. The opt-in lives per teammate in
+  `session-teammates.json` and is re-checked on every call, so flipping it takes effect without
+  restarting the worker. Non-teammate workers see the tool but every call refuses.
+- **Confirm.** Proposals persist per lead in the same registry file (one pending per target;
+  a newer proposal replaces the older). The strip always shows pending proposals with
+  Confirm/Dismiss — no hidden state. Confirm re-runs the lead guards and the Full-access
+  ceiling, then the LEAD creates the second worker through the same creation kernel as a
+  mention (depth 1 — a worker never spawns a worker), joins it with the 3.6 excerpt plus the
+  proposal reason, and notifies the proposer of the outcome. Dismiss removes the proposal and
+  notifies the proposer. Joining a target or removing a teammate prunes stale proposals.
+- **Visibility.** The manifest teammate row notes `may propose teammates (owner confirms)`
+  when opted in (same capability identity either way); the strip carries the toggle itself.
+
+
+### 12.3b live-proof bugs found and fixed (same commit)
+
+1. **First-join dispatch lost to an acceptance race.** A queued teammate dispatch is accepted
+   asynchronously; when acceptance landed after the send wrapper returned, the lead's own send had
+   already begun recycling the lead runtime, and the Orca delivery guard cancelled the join prompt
+   with "Task permissions are changing" — silently losing the teammate's first task. The teammate
+   dispatch now waits for the worker to actually accept before returning (which also keeps the
+   lead's send from starting until acceptance settles), with a bounded retry if acceptance is still
+   rolled back.
+2. **`expert:<slug>` binding refused.** The binding store and the first-turn preamble resolver keep
+   bare expert slugs (or full imported ids), but the roster id space prefixes experts with
+   `expert:`. 12.3a only exercised imported ids, so this was latent. `teammateBindingId`
+   (pure, `@cindy/maker-core/teammate-mention`) normalizes the roster id to the binding form before
+   `bindSession`, so an `@agent:expert:<slug>` teammate binds and resolves its preamble like a
+   picked expert.
