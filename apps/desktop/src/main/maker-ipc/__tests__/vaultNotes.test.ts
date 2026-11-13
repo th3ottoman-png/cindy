@@ -198,15 +198,20 @@ describe('VaultNotesHost (ROADMAP 5.1)', () => {
 
       // Add a note in vault
       fs.writeFileSync(path.join(vaultDir, 'c.md'), 'Note C\n');
+      // This is a real recursive FSEvents watch, not a mock: under the 8-shard gate it
+      // once took 3006 ms (2026-11-13) and a write in the startup window could be
+      // dropped entirely. `watchVault` now re-checks a fingerprint 300 ms after arming
+      // (ROADMAP §Debt), so the slow path still notifies; the budget stays generous to
+      // keep a loaded machine from turning "slow" into "failed".
       await vi.waitFor(() => {
         expect(notifyChanged).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      }, { timeout: 10_000, interval: 25 });
 
       expect(host.getConfig().noteCount).toBe(3);
     } finally {
       host.close();
     }
-  });
+  }, 30_000);
 
   it('registers and handles IPC channels', async () => {
     const harness = new IpcHarness();

@@ -310,6 +310,36 @@ export interface VaultWatcher {
   close(): void;
 }
 
+export interface WatchVaultOptions {
+  /**
+   * Seam for tests: replace `fs.watch`. Never set in production — the recursive
+   * watcher is the feature.
+   */
+  watch?: typeof fs.watch;
+  /** Delay before the post-arm fingerprint check (default `ARM_CATCHUP_MS`). */
+  armCatchupMs?: number;
+}
+
+/**
+ * Recursive `fs.watch` on macOS is FSEvents-backed and can drop a change raised
+ * in the startup window: measured 2026-11-13, a write issued immediately after
+ * arming sometimes produced no callback at all (a 20 s budget did not help), so
+ * the note list stayed stale until the next change. 300 ms is well past the
+ * observed delivery latency (25–40 ms) and short enough that a human sees the
+ * refresh immediately.
+ */
+const ARM_CATCHUP_MS = 300;
+
+/**
+ * Cheap change detector for the post-arm check: path, mtime and count of every
+ * note the watcher would report on, in `listNotes` order.
+ */
+function vaultFingerprint(root: string): string {
+  const notes = listNotes(root);
+  if ('ok' in notes) return '';
+  return notes.map((note) => `${note.path}\u0000${note.mtimeMs}`).join('\n');
+}
+
 /**
  * Watch a local vault directory for file changes (addition, removal, modification of .md notes).
  * Debounces callbacks and ignores hidden directories (e.g. .obsidian, .git) and node_modules.
@@ -319,10 +349,14 @@ export function watchVault(
   vaultDir: string,
   onChange: () => void,
   debounceMs = 150,
+  options: WatchVaultOptions = {},
 ): VaultWatcher {
+  const watchFn = options.watch ?? fs.watch;
   let closed = false;
   let timer: NodeJS.Timeout | undefined;
+  let armTimer: NodeJS.Timeout | undefined;
   let watcher: fs.FSWatcher | undefined;
+  let sawEvent = false;
 
   const fire = (): void => {
     if (timer) clearTimeout(timer);
@@ -334,7 +368,7 @@ export function watchVault(
   try {
     const root = vaultRoot(vaultDir);
     if (root && fs.existsSync(root) && fs.statSync(root).isDirectory()) {
-      watcher = fs.watch(root, { recursive: true }, (_eventType, filename) => {
+      watcher = watchFn(root, { recursive: true }, (_eventType, filename) => {
         if (filename) {
           const norm = filename.replace(/\\/g, '/');
           const parts = norm.split('/');
@@ -342,9 +376,18 @@ export function watchVault(
             return;
           }
         }
+        sawEvent = true;
         fire();
       });
       watcher.on('error', () => undefined);
+      // Anything the startup window swallowed is caught here: compare the same
+      // notes the watcher would have reported, and notify once if they moved.
+      const armedFingerprint = vaultFingerprint(root);
+      armTimer = setTimeout(() => {
+        if (closed || sawEvent) return;
+        if (vaultFingerprint(root) !== armedFingerprint) fire();
+      }, options.armCatchupMs ?? ARM_CATCHUP_MS);
+      armTimer.unref?.();
     }
   } catch {
     // Watching is a convenience; fail open
@@ -354,6 +397,7 @@ export function watchVault(
     close(): void {
       closed = true;
       if (timer) clearTimeout(timer);
+      if (armTimer) clearTimeout(armTimer);
       try {
         watcher?.close();
       } catch {

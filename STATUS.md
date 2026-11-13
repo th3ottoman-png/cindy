@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-13 (t) - Vault watcher: lost startup-window events fixed, `unit-tested` (load-reproduced)
+
+- **Row**: the 8.2 §Debt note ("give the watcher test an explicit timeout when that file is next touched"), chosen by the owner over the `SIGSEGV` row because it bit the gate again today.
+- **Measured before touching it, and the premise was wrong.** Under synthetic load (16 busy loops, `pnpm --dir apps/desktop exec vitest run --maxWorkers=8 src/main/maker-ipc/__tests__/vaultNotes.test.ts`): the shipped 3000 ms budget failed **2 of 8** runs — and with the budget raised to **20 000 ms** it still failed **1 of 10** (~5 s flat, exactly the cap). So the recursive FSEvents watcher sometimes reports **nothing at all** for a write issued right after arming; a timeout bump alone would have converted a real defect into a slow red herring. A standalone latency probe (`watchVault` + immediate write, same load) measured 25–40 ms whenever it did fire, i.e. delivery is fast when it is not dropped.
+- **Fix** (`packages/maker-core/src/notes/vault-notes.ts`): `watchVault(vaultDir, onChange, debounceMs, options?)` gained a `WatchVaultOptions` seam (`watch` — tests only — and `armCatchupMs`). After arming, a `vaultFingerprint` (a `listNotes` pass over path + mtime, i.e. exactly the notes the watcher reports on and skips hidden/`node_modules` the same way) is snapshotted; `ARM_CATCHUP_MS` (300 ms) later it is compared and `onChange` fires once if it moved. The check is skipped when a real fs event already arrived (`sawEvent`) or the watcher was closed, so a healthy watcher still produces exactly one notification and an idle arm produces none.
+- **Red first, deterministically**: a fake silent `fs.watch` (via the new seam) plus a write inside the window asserts a notification within 3 s — before the catch-up it failed at 3007 ms; with it, 3 ms. A second test asserts an idle arm stays silent (it also documents why the *old* test could never tell the two apart).
+- **Desktop test**: kept as the real-filesystem canary, now with `vi.waitFor({ timeout: 10_000, interval: 25 })`, an explicit `30_000` per-test budget and a comment naming the measured failure and the catch-up. After the fix the same loop is **0 failures in 8** (desktop) and **0 in 10** (maker-core watcher tests).
+- **Gates (Node 22.23.4, final tree)**: `pnpm typecheck` 0; `pnpm test:runner` 0 (**611 tests: 609 pass, 2 skipped**); `pnpm check:test-hygiene` 0 (361 files; the new cases live in existing files, and the idle-arm test uses fake timers so the `realWaits` rule stays clean); `XDT_UNIT_TEST_SHARD=i/8 pnpm test:unit:related` — shards 2–8 green on the first pass; **shard 1 died with the known V8-worker `SIGSEGV`** (19.4 s, no assertion) and passed on standalone rerun (`PASS apps/desktop unit` 46.9 s). The vault watcher test itself was green in every shard it ran in.
+- **Not claimed**: the 300 ms window is empirical (macOS FSEvents); on a filesystem where the blind window is longer, the lost event is still caught because the comparison is state-based, only later. Linux is untested (untested platform, as everywhere else in this repo). The `SIGSEGV` in the same Debt area is untouched.
+
+---
+
 ## 2026-11-13 (s) - Hermes failure diagnostics: `live-proven`
 
 - **Row**: the §Debt finding recorded while closing the safe-mode fix (2026-11-13 (p)) — a launch that dies before its first model call surfaced only `Hermes exited with code 1`; the cause sat in the Hermes home's `managed-worker.log`.
