@@ -87,9 +87,11 @@ export async function createHermesWorkerInTeam(
   }
 
   // Expert first, fail closed: nothing is reserved or started for an expert that cannot run.
+  // ROADMAP 12.3: the lead's project dir scopes imported project agents (check and binding).
+  const projectDir = params.workingDir ?? lead.workingDir ?? null;
   let expertModel: string | undefined;
   if (params.expert !== undefined) {
-    const expert = deps.resolveHermesWorkerExpert(params.expert);
+    const expert = deps.resolveHermesWorkerExpert(params.expert, { projectDir });
     if (!expert.ok) return invalid(expert.message);
     expertModel = expert.model;
   }
@@ -181,7 +183,7 @@ export async function createHermesWorkerInTeam(
       // (cindy_experts for an Expert Creator or memory expert, ROADMAP 3.9b), and the first turn
       // (the initial task) then starts as the expert. A failed bootstrap leaves an inert binding
       // for a session id that never existed.
-      if (params.expert !== undefined) deps.bindWorkerExpert(workerSessionId, params.expert);
+      if (params.expert !== undefined) deps.bindWorkerExpert(workerSessionId, params.expert, projectDir);
       sessionId = (await deps.bootstrapSession(workerOpts)).session.id;
     } catch (err) {
       return shared.toInternalFailure(err);

@@ -112,6 +112,8 @@ export interface SessionManifestInput {
   };
   pinnedNotes?: string[];
   vaultDir?: string;
+  /** ROADMAP 12.3 (ADR 0011): teammates joined via @agent: mentions; session state, not files. */
+  teammates?: Array<{ rosterId: string; name?: string; workerSessionId: string; file?: string }>;
   /** ROADMAP 11.8: ADR titles matched against the first prompt and injected into that turn. */
   relevantAdrs?: Array<{ title: string; path: string; source: 'vault' | 'repo'; status?: string }>;
   /** Workspace the repo ADRs were read from, for their file paths. */
@@ -149,6 +151,7 @@ const PROVIDERS_FILE = '~/.cindy-harness/providers.yaml';
 const ROUTING_FILE = '~/.cindy-harness/routing.yaml';
 const PINNED_NOTES_FILE = '~/.cindy-harness/pinned-vault-notes.json';
 const SESSION_ADRS_FILE = '~/.cindy-harness/session-adrs.json';
+const SESSION_TEAMMATES_FILE = '~/.cindy-harness/session-teammates.json';
 const SESSION_DB = 'Cindy SQLite DB (sessions table)';
 
 const isNonEmpty = (value: unknown): value is string =>
@@ -220,6 +223,24 @@ export function buildSessionManifest(input: SessionManifestInput): SessionManife
         reason: `Bound to this session by ${EXPERT_BINDINGS_FILE}`,
         trust: 'local-file',
         declaredInterface: 'expert.md frontmatter',
+      }),
+    );
+  }
+
+  // ROADMAP 12.3 (ADR 0011): joined teammates are visible session state. They are not part of
+  // the launch recipe (a fresh session starts without them); the strip offers Remove instead.
+  for (const teammate of input.teammates ?? []) {
+    rows.push(
+      capability({
+        kind: 'teammate',
+        id: `teammate:${teammate.rosterId}`,
+        label: str(teammate.name, teammate.rosterId),
+        value: teammate.rosterId,
+        file: teammate.file ?? SESSION_TEAMMATES_FILE,
+        locator: `leads.${session.id} -> ${teammate.workerSessionId}`,
+        reason: `Joined via an @agent: mention; stays until removed from this strip (${SESSION_TEAMMATES_FILE})`,
+        trust: 'session-state',
+        declaredInterface: 'Orca worker (Hermes), depth 1',
       }),
     );
   }

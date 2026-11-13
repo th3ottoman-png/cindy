@@ -799,6 +799,7 @@ const fanOutMakerAgentsChanged = createIpcFanOut('maker:agents:changed');
 const fanOutMakerExpertsChanged = createIpcFanOut('maker:experts:changed');
 const fanOutMakerExpertsSessionEvent = createIpcFanOut('maker:experts:session-event');
 const fanOutMakerImportedAgentsChanged = createIpcFanOut('maker:imported-agents:changed');
+const fanOutMakerTeammatesChanged = createIpcFanOut('maker:teammates:changed');
 const fanOutMakerExpertsDraftEvent = createIpcFanOut('maker:experts:draft-event');
 const fanOutMakerExtPluginsChanged = createIpcFanOut('maker:ext-plugins:changed');
 const fanOutMakerMcpCatalogChanged = createIpcFanOut('maker:mcp-catalog:changed');
@@ -6377,6 +6378,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ): Promise<import('../main/maker-ipc/importedAgents').ImportedAgentCopyResult> =>
         ipcRenderer.invoke('maker:imported-agents:copy-to-expert', id, projectDir ?? null),
       onChanged: fanOutMakerImportedAgentsChanged,
+    },
+    teammates: {
+      list: (
+        sessionId: string,
+      ): Promise<import('../main/maker-ipc/sessionTeammates').SessionTeammatesView> =>
+        ipcRenderer.invoke('maker:teammates:list', sessionId),
+      remove: (
+        sessionId: string,
+        rosterId: string,
+      ): Promise<{ ok: true }> =>
+        ipcRenderer.invoke('maker:teammates:remove', sessionId, rosterId),
+      onChanged: fanOutMakerTeammatesChanged,
     },
     extPlugins: {
       list: (): Promise<import('../main/maker-ipc/extensionPlugins').ExtensionPluginListView> =>

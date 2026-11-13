@@ -102,10 +102,15 @@ export function SessionManifestStrip({
     const offAdrs = maker.vault?.onSessionAdrsChanged?.((payload) => {
       if (payload?.sessionId === sessionId) setReloadToken((token) => token + 1);
     });
+    // ROADMAP 12.3: a teammate joined via @agent: or was removed.
+    const offTeammates = maker.teammates?.onChanged?.((payload) => {
+      if (payload?.sessionId === sessionId) setReloadToken((token) => token + 1);
+    });
     return () => {
       offExperts?.();
       offPins?.();
       offAdrs?.();
+      offTeammates?.();
     };
   }, [sessionId]);
 
@@ -146,6 +151,22 @@ export function SessionManifestStrip({
         : `Different capability set. Added: ${comparison.added.join(', ') || 'none'}. Removed: ${comparison.removed.join(', ') || 'none'}.`,
     );
   }, [manifest, parseCurrent, sessionId]);
+
+  // ROADMAP 12.3 (ADR 0011): removing the last teammate ends the team host-side, so the
+  // session returns to a plain chat; the strip just refreshes after the IPC resolves.
+  const [removingTeammate, setRemovingTeammate] = useState<string | null>(null);
+  const handleRemoveTeammate = useCallback(async (rosterId: string) => {
+    setRemovingTeammate(rosterId);
+    setResult('');
+    try {
+      await window.electronAPI?.maker?.teammates?.remove(sessionId, rosterId);
+      setReloadToken((token) => token + 1);
+    } catch (err) {
+      setResult(err instanceof Error ? err.message : 'Failed to remove teammate.');
+    } finally {
+      setRemovingTeammate(null);
+    }
+  }, [sessionId]);
 
   const handleReproduce = useCallback(() => {
     const parsed = parseCurrent();
@@ -265,9 +286,31 @@ export function SessionManifestStrip({
                 <div className="mt-0.5 text-[11px]">
                   {row.reason} · {row.trust} · {row.declaredInterface}
                 </div>
+                {row.kind === 'teammate' && (
+                  <button
+                    type="button"
+                    data-testid="manifest-remove-teammate"
+                    data-roster-id={row.id.slice('teammate:'.length)}
+                    disabled={removingTeammate === row.id.slice('teammate:'.length)}
+                    onClick={() => void handleRemoveTeammate(row.id.slice('teammate:'.length))}
+                    className="mt-1 rounded border border-[var(--border-subtle,#333)] px-2 py-0.5 text-[11px] text-[var(--text-secondary,#aaa)] hover:text-[var(--text-primary,#fff)] disabled:opacity-50"
+                  >
+                    {removingTeammate === row.id.slice('teammate:'.length) ? 'Removing…' : 'Remove teammate'}
+                  </button>
+                )}
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ROADMAP 12.3: teammate removal errors must be visible without opening the YAML panel. */}
+      {result && !loadOpen && (
+        <div
+          data-testid="manifest-result"
+          className="border-t border-[var(--border-subtle,#2a2a30)] px-3 py-1.5 text-[11px] text-[var(--text-secondary,#aaa)]"
+        >
+          {result}
         </div>
       )}
 

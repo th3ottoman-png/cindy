@@ -757,3 +757,79 @@ describe('ExpertSessionStore max_concurrent (ROADMAP 12.2)', () => {
   });
 });
 
+describe('checkWorkerRosterEntry (ROADMAP 12.3, ADR 0011)', () => {
+  const ID = 'imported:claude-user:reviewer.md';
+
+  function imported(tools = 'Read, Grep'): ImportedAgent {
+    return parseImportedAgent(
+      `---\nname: Imported Reviewer\ndescription: Reviews.\ntools: ${tools}\nmodel: opus\n---\nYou are imported.`,
+      { source: 'claude-user', absolutePath: '/foreign/claude-user/reviewer.md', relPath: 'reviewer.md' },
+    );
+  }
+
+  it('bare slugs and expert: ids behave exactly like checkWorkerExpert', () => {
+    writeExpert('code-reviewer', 'name: Code Reviewer\nagent: hermes\nmodel: deepseek-route');
+    writeExpert('codex-one', 'name: Codex One\nagent: codex');
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile });
+    expect(store.checkWorkerRosterEntry('code-reviewer')).toEqual({ ok: true, model: 'deepseek-route' });
+    expect(store.checkWorkerRosterEntry('expert:code-reviewer')).toEqual({ ok: true, model: 'deepseek-route' });
+    expect(store.checkWorkerRosterEntry('expert:codex-one')).toMatchObject({ ok: false, message: expect.stringContaining('hermes') });
+    expect(store.checkWorkerRosterEntry('expert:missing')).toMatchObject({ ok: false });
+    expect(store.checkWorkerRosterEntry('expert:../x')).toMatchObject({ ok: false });
+  });
+
+  it('a Hermes-runnable imported agent passes with no model (a foreign model is never mapped)', () => {
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile, resolveImported: () => imported() });
+    expect(store.checkWorkerRosterEntry(ID)).toEqual({ ok: true });
+  });
+
+  it('an imported agent with unmapped tools is refused, naming the blocking tools', () => {
+    const store = new ExpertSessionStore({ rootDir: root, bindingsFile, resolveImported: () => imported('Read, WebSearch') });
+    const res = store.checkWorkerRosterEntry(ID);
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.message).toContain('WebSearch');
+      expect(res.message).toContain('hermes');
+    }
+  });
+
+  it('a missing or broken imported agent is refused', () => {
+    const missing = new ExpertSessionStore({ rootDir: root, bindingsFile, resolveImported: () => null });
+    expect(missing.checkWorkerRosterEntry(ID)).toMatchObject({ ok: false, message: expect.stringContaining('no longer available') });
+    const broken = new ExpertSessionStore({
+      rootDir: root,
+      bindingsFile,
+      resolveImported: () => parseImportedAgent('---\nname: [unclosed\n---\nbody', { source: 'claude-user', absolutePath: '/x/b.md', relPath: 'b.md' }),
+    });
+    expect(broken.checkWorkerRosterEntry(ID)).toMatchObject({ ok: false });
+  });
+
+  it('passes the lead project dir through to the imported resolver', () => {
+    const seen: Array<string | null | undefined> = [];
+    const store = new ExpertSessionStore({
+      rootDir: root,
+      bindingsFile,
+      resolveImported: (_id, projectDir) => {
+        seen.push(projectDir);
+        return imported();
+      },
+    });
+    store.checkWorkerRosterEntry(ID, { projectDir: '/tmp/project' });
+    expect(seen).toEqual(['/tmp/project']);
+  });
+
+  it('the expert concurrency cap applies to teammate joins too', () => {
+    writeExpert('capped', 'name: Capped\nagent: hermes\nmax_concurrent: 1');
+    const store = new ExpertSessionStore({
+      rootDir: root,
+      bindingsFile,
+      activeSessions: () => [{ id: 'running-1', title: 'Busy' }],
+    });
+    store.bindSession('running-1', 'capped');
+    const res = store.checkWorkerRosterEntry('expert:capped');
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.message).toContain('allows 1 conversation');
+  });
+});
+
+

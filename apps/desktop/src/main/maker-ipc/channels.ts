@@ -47,6 +47,10 @@ export const MAKER_INVOKE = {
   IMPORTED_AGENTS_READ: 'maker:imported-agents:read',
   /** ROADMAP 12.1: copy one imported agent into ~/.cindy-harness/experts via the 3.8 draft path. */
   IMPORTED_AGENTS_COPY_TO_EXPERT: 'maker:imported-agents:copy-to-expert',
+  /** ROADMAP 12.3: joined @agent: teammates of one session, with live worker status. */
+  TEAMMATES_LIST: 'maker:teammates:list',
+  /** ROADMAP 12.3: remove one joined teammate (archives its worker; last one ends the team). */
+  TEAMMATES_REMOVE: 'maker:teammates:remove',
   /** ROADMAP 4.2b: list local extension plugins (~/.cindy-harness/plugins) with their load state. */
   EXT_PLUGINS_LIST: 'maker:ext-plugins:list',
   /** ROADMAP 4.2b: enable/disable one plugin; persists in plugins.json and applies at once. */
@@ -1141,6 +1145,8 @@ export const MAKER_PUSH = {
   EXPERTS_DRAFT_EVENT: 'maker:experts:draft-event',
   /** ROADMAP 12.1: a foreign agent directory changed; payload is the fresh discovery result. */
   IMPORTED_AGENTS_CHANGED: 'maker:imported-agents:changed',
+  /** ROADMAP 12.3: a teammate joined or was removed; payload { sessionId }. */
+  TEAMMATES_CHANGED: 'maker:teammates:changed',
   /** ROADMAP 4.2b: a plugin toggle was applied; payload is the fresh plugin list. */
   EXT_PLUGINS_CHANGED: 'maker:ext-plugins:changed',
   /** ROADMAP 4.3b: a catalog toggle or health probe finished; no payload — the renderer refetches. */

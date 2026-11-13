@@ -39,6 +39,11 @@ const mockApi = {
       getSessionAdrs: vi.fn(),
       onSessionAdrsChanged: vi.fn(),
     },
+    teammates: {
+      list: vi.fn(),
+      remove: vi.fn(),
+      onChanged: vi.fn(),
+    },
   },
 };
 
@@ -106,6 +111,9 @@ function defaultData() {
   mockApi.maker.vault.onPinnedChanged.mockReturnValue(() => undefined);
   mockApi.maker.vault.getSessionAdrs.mockResolvedValue({ adrs: [] });
   mockApi.maker.vault.onSessionAdrsChanged.mockReturnValue(() => undefined);
+  mockApi.maker.teammates.list.mockResolvedValue({ teammates: [] });
+  mockApi.maker.teammates.remove.mockResolvedValue({ ok: true });
+  mockApi.maker.teammates.onChanged.mockReturnValue(() => undefined);
 }
 
 function LocationProbe() {
@@ -345,5 +353,50 @@ describe('SessionManifestStrip', () => {
       'memory/Project - Cindy.md',
     ));
     expect(peekPendingManifestPins()).toBeNull();
+  });
+});
+
+describe('SessionManifestStrip teammates (ROADMAP 12.3, ADR 0011)', () => {
+  const joined = {
+    rosterId: 'expert:historian',
+    name: 'Historian',
+    workerId: 'worker-1',
+    workerSessionId: 'worker-session-1',
+    teamId: 'team-1',
+    file: '/experts/historian/expert.md',
+    joinedAt: '2026-11-13T00:00:00.000Z',
+    status: 'idle',
+  };
+
+  it('lists a joined teammate and Remove calls the host, then refreshes', async () => {
+    mockApi.maker.teammates.list.mockResolvedValue({ teammates: [joined] });
+    render(<Harness />);
+    await waitFor(() => expect(screen.queryByTestId('manifest-loading')).toBeNull());
+    const chip = chips().find((c) => c.getAttribute('data-kind') === 'teammate');
+    expect(chip).toBeTruthy();
+    expect(chip?.getAttribute('data-count')).toBe('1');
+    fireEvent.click(chip!);
+    const row = await screen.findByTestId('manifest-capability');
+    expect(row.getAttribute('data-id')).toBe('teammate:expert:historian');
+    const callsBefore = mockApi.maker.teammates.list.mock.calls.length;
+    fireEvent.click(screen.getByTestId('manifest-remove-teammate'));
+    await waitFor(() => expect(mockApi.maker.teammates.remove).toHaveBeenCalledWith('session-1', 'expert:historian'));
+    await waitFor(() => expect(mockApi.maker.teammates.list.mock.calls.length).toBeGreaterThan(callsBefore));
+  });
+
+  it('shows no teammate chip when nobody is joined', async () => {
+    render(<Harness />);
+    await waitFor(() => expect(screen.queryByTestId('manifest-loading')).toBeNull());
+    expect(chips().some((c) => c.getAttribute('data-kind') === 'teammate')).toBe(false);
+  });
+
+  it('surfaces a removal failure instead of hiding it', async () => {
+    mockApi.maker.teammates.list.mockResolvedValue({ teammates: [joined] });
+    mockApi.maker.teammates.remove.mockRejectedValue(new Error('worker is busy'));
+    render(<Harness />);
+    await waitFor(() => expect(screen.queryByTestId('manifest-loading')).toBeNull());
+    fireEvent.click(chips().find((c) => c.getAttribute('data-kind') === 'teammate')!);
+    fireEvent.click(await screen.findByTestId('manifest-remove-teammate'));
+    await waitFor(() => expect(screen.getByTestId('manifest-result').textContent).toContain('worker is busy'));
   });
 });

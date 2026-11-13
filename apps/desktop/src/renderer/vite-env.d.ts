@@ -5617,6 +5617,15 @@ interface ElectronAPI {
         cb: (view: import('../main/maker-ipc/importedAgents').ImportedAgentsDiscovery) => void,
       ) => () => void;
     };
+    teammates: {
+      /** ROADMAP 12.3: joined @agent: teammates of one session, with live worker status. */
+      list: (
+        sessionId: string,
+      ) => Promise<import('../main/maker-ipc/sessionTeammates').SessionTeammatesView>;
+      /** Remove one joined teammate; the last one ends the team (ADR 0011). */
+      remove: (sessionId: string, rosterId: string) => Promise<{ ok: true }>;
+      onChanged: (cb: (payload: { sessionId: string }) => void) => () => void;
+    };
     extPlugins: {
       /** ROADMAP 4.2b: local extension plugins (~/.cindy-harness/plugins) with their load state. */
       list: () => Promise<import('../main/maker-ipc/extensionPlugins').ExtensionPluginListView>;

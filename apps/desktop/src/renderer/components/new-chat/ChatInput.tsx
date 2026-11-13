@@ -1079,7 +1079,7 @@ type TriggerState = TriggerSlash | TriggerAt | { kind: 'none' };
  */
 const GHOST_SIGIL_CHARS = ['$', '＄', '¥', '￥'] as const;
 
-function detectTrigger(editor: Editor): TriggerState {
+export function detectTrigger(editor: Editor): TriggerState {
   const { state } = editor;
   const { selection } = state;
   if (!selection.empty) return { kind: 'none' };
@@ -1170,7 +1170,9 @@ function detectTrigger(editor: Editor): TriggerState {
       // ROADMAP 8.4: a capability query (`@skill:`, `@expert:`, ...) belongs to
       // the turn-attachment panel, not the file/agent panel. Returning none
       // hands ownership over at the colon, so the two never open together.
-      if (isAttachmentKindQuery(after)) return { kind: 'none' };
+      // ROADMAP 12.3: @agent: teammate tokens are host-resolved at send time; no panel
+      // owns them, so the file/agent panel must not open either.
+      if (isAttachmentKindQuery(after) || after.startsWith('agent:')) return { kind: 'none' };
       return {
         kind: 'at',
         query: after,

@@ -384,3 +384,52 @@ describe('chat-only sessions (ROADMAP 10.3)', () => {
     expect(parsed.ok).toBe(false);
   });
 });
+
+describe('teammates (ROADMAP 12.3, ADR 0011)', () => {
+  const teammate = {
+    rosterId: 'imported:claude-user:historian.md',
+    name: 'Historian',
+    workerSessionId: 'worker-session-1',
+    file: '/Users/owner/.claude/agents/historian.md',
+  };
+
+  it('lists joined teammates as session-state capabilities with their definition file', () => {
+    const manifest = buildSessionManifest({ ...input(), teammates: [teammate] });
+    const row = manifest.capabilities.find((capability) => capability.kind === 'teammate');
+    expect(row).toMatchObject({
+      id: 'teammate:imported:claude-user:historian.md',
+      label: 'Historian',
+      value: 'imported:claude-user:historian.md',
+      file: '/Users/owner/.claude/agents/historian.md',
+      trust: 'session-state',
+    });
+    expect(row?.locator).toContain('worker-session-1');
+    expect(row?.reason).toContain('@agent:');
+  });
+
+  it('no teammates means no teammate rows (the strip stays quiet)', () => {
+    const manifest = buildSessionManifest(input());
+    expect(manifest.capabilities.some((capability) => capability.kind === 'teammate')).toBe(false);
+  });
+
+  it('survives the YAML round-trip', () => {
+    const withTeammate = buildSessionManifest({ ...input(), teammates: [teammate] });
+    const parsed = parseSessionManifest(serializeSessionManifest(withTeammate));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.manifest.capabilities.find((capability) => capability.kind === 'teammate'))
+      .toMatchObject({ id: 'teammate:imported:claude-user:historian.md', trust: 'session-state' });
+  });
+
+  it('the launch recipe never applies teammates to a fresh draft (they are session state)', () => {
+    const withTeammate = buildSessionManifest({ ...input(), teammates: [teammate] });
+    // reproduce is a clone for Compare, so it keeps the row; the recipe is what a draft applies.
+    const fresh = reproduceSessionManifest(withTeammate, 'fresh-1');
+    expect(fresh.capabilities.some((capability) => capability.kind === 'teammate')).toBe(true);
+    const recipe = toSessionLaunchRecipe(withTeammate);
+    expect(recipe.expertSlug).toBe('code-reviewer');
+    for (const applied of [recipe.pinnedNotes, recipe.skills, recipe.tools, recipe.connectors]) {
+      expect(applied.some((value) => value.includes('historian'))).toBe(false);
+    }
+  });
+});

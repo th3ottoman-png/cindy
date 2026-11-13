@@ -415,10 +415,12 @@ export interface OrcaWorkerCreationDeps {
   }): Promise<void>;
   /** 创建失败时回收：通知运行设备结束协同并归档本机代理行。 */
   discardRemoteWorker?(input: { proxySessionId: string; deviceId: string; remoteSessionId: string }): Promise<void>;
-  /** ROADMAP 3.9a: can a Hermes worker start as this expert (loadable, agent hermes), and on which route. Absent = no Hermes workers. */
-  resolveHermesWorkerExpert?(slug: string): { ok: true; model?: string } | { ok: false; message: string };
-  /** ROADMAP 3.9a: bind the new worker session to its expert before its first turn. */
-  bindWorkerExpert?(sessionId: string, slug: string): void;
+  /** ROADMAP 3.9a: can a Hermes worker start as this expert (loadable, agent hermes), and on which route. Absent = no Hermes workers.
+   * ROADMAP 12.3: the id may also be a roster id (`expert:<slug>` / `imported:...`); projectDir scopes imported project agents. */
+  resolveHermesWorkerExpert?(slug: string, opts?: { projectDir?: string | null }): { ok: true; model?: string } | { ok: false; message: string };
+  /** ROADMAP 3.9a: bind the new worker session to its expert before its first turn.
+   * ROADMAP 12.3: projectDir is persisted for imported project-scoped agents. */
+  bindWorkerExpert?(sessionId: string, slug: string, projectDir?: string | null): void;
 }
 
 /** Orca worker 创建服务，只负责创建既有 team 下的新 worker，不负责 team lifecycle。 */

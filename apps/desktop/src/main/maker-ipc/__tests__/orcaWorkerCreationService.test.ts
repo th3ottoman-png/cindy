@@ -3938,13 +3938,13 @@ describe('Hermes worker started as an expert (ROADMAP 3.9a, ADR 0008)', () => {
 
     expect(result).toMatchObject({ ok: true, workerSessionId: WORKER_SESSION_ID,
       resolved: { agent: 'hermes', model: 'hermes-default', providerId: null } });
-    expect(resolveHermesWorkerExpert).toHaveBeenCalledWith('code-reviewer');
+    expect(resolveHermesWorkerExpert).toHaveBeenCalledWith('code-reviewer', { projectDir: 'C:\\repo' });
     expect(deps.getProviderRoutingContext).not.toHaveBeenCalled();
     expect(deps.bootstrapSession).toHaveBeenCalledWith(expect.objectContaining({
       agentKind: 'hermes', model: 'hermes-default', orcaRole: 'worker',
       vendorOptions: expect.objectContaining({ orcaRole: 'worker', orcaLeadSessionId: 'lead-1' }),
     }));
-    expect(bindWorkerExpert).toHaveBeenCalledWith(WORKER_SESSION_ID, 'code-reviewer');
+    expect(bindWorkerExpert).toHaveBeenCalledWith(WORKER_SESSION_ID, 'code-reviewer', 'C:\\repo');
     expect(calls.indexOf(`bindWorkerExpert:${WORKER_SESSION_ID}:code-reviewer`))
       .toBeLessThan(calls.indexOf('addOrUpdateWorker:worker-1'));
     // 3.9b: bootstrap starts the Hermes agent, whose tool bridge reads the binding
@@ -3972,6 +3972,18 @@ describe('Hermes worker started as an expert (ROADMAP 3.9a, ADR 0008)', () => {
     expect(result.ok).toBe(true);
     expect(noExpert.resolveHermesWorkerExpert).not.toHaveBeenCalled();
     expect(noExpert.bindWorkerExpert).not.toHaveBeenCalled();
+  });
+
+  it('passes an imported roster id through with the lead project dir (ROADMAP 12.3, ADR 0011)', async () => {
+    const importedId = 'imported:claude-project:reviewer.md';
+    const resolveImported = vi.fn((id: string) => (
+      id === importedId ? { ok: true as const } : { ok: false as const, message: 'unexpected id ' + id }
+    ));
+    const { deps, bindWorkerExpert } = hermesDeps({ resolveHermesWorkerExpert: resolveImported });
+    const result = await createOrcaWorkerCreationService(deps).createWorkerInTeam({ ...base, expert: importedId });
+    expect(result).toMatchObject({ ok: true, resolved: { agent: 'hermes', model: 'hermes-default' } });
+    expect(resolveImported).toHaveBeenCalledWith(importedId, { projectDir: 'C:\\repo' });
+    expect(bindWorkerExpert).toHaveBeenCalledWith(WORKER_SESSION_ID, importedId, 'C:\\repo');
   });
 
   it('refuses an Auto Hermes worker before the expert is checked or bound (3.9 Debt)', async () => {

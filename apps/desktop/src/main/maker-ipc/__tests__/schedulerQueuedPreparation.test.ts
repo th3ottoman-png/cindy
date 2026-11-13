@@ -19,7 +19,9 @@ describe('queued scheduler pre-send preparation', () => {
     const lockBody = source.slice(source.indexOf('const sendToAgentAccepted: typeof'),
       source.indexOf('contextOverflowRolloverHolder =', source.indexOf('const sendToAgentAccepted: typeof')));
     expect(lockBody.indexOf('runSchedulerQueuedPreparation(')).toBeGreaterThan(lockBody.indexOf('withSendToSessionLock('));
-    expect(lockBody.indexOf('runSchedulerQueuedPreparation(')).toBeLessThan(lockBody.lastIndexOf('sendToAgentAcceptedUnlocked(...args));'));
+    // ROADMAP 12.3: the dispatch now passes the teammate-rewritten message explicitly; the
+    // invariant is unchanged — scheduler preparation finishes before the final unlocked send.
+    expect(lockBody.indexOf('runSchedulerQueuedPreparation(')).toBeLessThan(lockBody.lastIndexOf('sendToAgentAcceptedUnlocked(sessionId, finalMessage, args[2], args[3])'));
   });
 
   it('rejects the queued send on preparation failure and reports it once', async () => {

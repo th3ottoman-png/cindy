@@ -914,7 +914,13 @@ import {
 } from './sessionReferenceResolver.js';
 import { registerAndroidAutomationHandlers } from './androidHandlers.js';
 import { registerExpertsHandlers } from './expertsHandlers.js';
-import { registerImportedAgentsHandlers } from './importedAgents.js';
+import { registerImportedAgentsHandlers, readImportedAgentById } from './importedAgents.js';
+import { createSessionTeammatesStore } from './sessionTeammates.js';
+import { createTeammateMentionService } from './teammateMentionService.js';
+import { toExpertHandoffMessages } from './expertHandoffSource.js';
+import { buildExpertHandoff } from '@cindy/maker-core/expert-handoff';
+import { parseImportedAgentId } from '@cindy/maker-core/imported-agents';
+import { loadExpert } from '@cindy/maker-core/experts';
 import {
   createDesktopExtensionPluginsHost,
   registerExtensionPluginsHandlers,
@@ -16192,8 +16198,10 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
 
   const orcaWorkerCreationService = createOrcaWorkerCreationService({
     // ROADMAP 3.9a (ADR 0008): Hermes Orca workers started as a file-backed expert.
-    resolveHermesWorkerExpert: (slug) => getDesktopExpertSessionStore().checkWorkerExpert(slug),
-    bindWorkerExpert: (sessionId, slug) => getDesktopExpertSessionStore().bindSession(sessionId, slug),
+    // ROADMAP 12.3 (ADR 0011): roster ids (expert:/imported:) resolve too; projectDir scopes
+    // imported project agents for both the check and the binding.
+    resolveHermesWorkerExpert: (slug, opts) => getDesktopExpertSessionStore().checkWorkerRosterEntry(slug, opts),
+    bindWorkerExpert: (sessionId, slug, projectDir) => getDesktopExpertSessionStore().bindSession(sessionId, slug, { projectDir }),
     withLeadSendLock: withSendToSessionLock,
     getActiveTeamByLead,
     listWorkersByLead,
@@ -18667,8 +18675,15 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         ?.persistUserMessage?.clientId;
       await runSchedulerQueuedPreparation(queuedClientId, schedulerQueuedPromptPreparations,
         () => { if (queuedClientId) schedulerQueuedPromptDiscardWatchers.delete(queuedClientId); });
-      return botInput?.remoteHostId ? sendToAgentAcceptedUnlocked(...args)
-        : withCindyMakeProjectUse(app.getPath('userData'), botInput?.workingDir, () => sendToAgentAcceptedUnlocked(...args));
+      // ROADMAP 12.3 (ADR 0011): @agent: mentions join/dispatch teammates at the actual send
+      // boundary — the coordinator drain and legacy maker:send both pass through here. The
+      // stored row keeps the owner's token text (visible); the lead model receives the
+      // stripped text plus a dispatch note. Fail closed: a bad mention or a failed dispatch
+      // refuses the whole send.
+      const teammateMessage = await teammateMentionService.applyTeammateMentions(sessionId, args[1], args[3]);
+      const finalMessage = teammateMessage ?? args[1];
+      return botInput?.remoteHostId ? sendToAgentAcceptedUnlocked(sessionId, finalMessage, args[2], args[3])
+        : withCindyMakeProjectUse(app.getPath('userData'), botInput?.workingDir, () => sendToAgentAcceptedUnlocked(sessionId, finalMessage, args[2], args[3]));
     });
   };
   prepareBotSessionForImSendHolder = async (sessionId) => {
@@ -19241,6 +19256,88 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     installDesktopInteractionListener(session);
     return requestHostInteraction(session, request, signal);
   });
+  // ─── @agent: teammates (ROADMAP 12.3, ADR 0011) ────────────────────────────
+  // One Orca worker per roster entry, joined at the SEND boundary before the lead's turn.
+  const sessionTeammatesStore = createSessionTeammatesStore({
+    file: path.join(os.homedir(), '.cindy-harness', 'session-teammates.json'),
+  });
+  const teammateMentionService = createTeammateMentionService({
+    store: sessionTeammatesStore,
+    isTeammateSendAllowed: () => !isDeviceLinkInvoke(),
+    onTeammatesChanged: (leadSessionId) => broadcastToAllWindows(MAKER_PUSH.TEAMMATES_CHANGED, { sessionId: leadSessionId }),
+    getLeadSnapshot: async (sessionId) => {
+      const row = await getSessionRowSnapshot(sessionId);
+      if (!row) return null;
+      return {
+        agentKind: row.agentKind ?? 'unknown',
+        workingDir: row.workingDir ?? null,
+        permissionMode: row.permissionMode ?? null,
+        orcaRole: row.orcaRole ?? null,
+        remoteHostId: row.remoteHostId ?? null,
+        source: row.source ?? null,
+      };
+    },
+    resolveRosterEntry: (rosterId, projectDir) => {
+      const check = getDesktopExpertSessionStore().checkWorkerRosterEntry(rosterId, { projectDir });
+      if (!check.ok) return check;
+      if (parseImportedAgentId(rosterId) !== null) {
+        const agent = readImportedAgentById(rosterId, { homeDir: os.homedir(), projectDir });
+        if (!agent) return { ok: false, message: 'Imported agent "' + rosterId + '" is no longer available.' };
+        return { ok: true, name: agent.name, file: agent.absolutePath };
+      }
+      const slug = rosterId.startsWith('expert:') ? rosterId.slice('expert:'.length) : rosterId;
+      const dir = path.join(os.homedir(), '.cindy-harness', 'experts', slug);
+      const entry = loadExpert(dir);
+      if (!entry.expert) return { ok: false, message: 'Expert "' + slug + '" cannot be loaded: ' + (entry.error ?? 'unknown error') + '.' };
+      return { ok: true, name: entry.expert.name, file: path.join(dir, 'expert.md'), ...(check.model ? { model: check.model } : {}) };
+    },
+    getActiveTeam: (leadSessionId) => getActiveTeamByLead(leadSessionId),
+    startTeam: async (leadSessionId, workerPermissionMode) => {
+      const result = await startOrcaTeamForCaller(leadSessionId, workerPermissionMode);
+      if (!result.ok) return { ok: false, message: result.message };
+      return { ok: true, teamId: result.teamId };
+    },
+    listWorkers: async (leadSessionId) => {
+      const workers = await listWorkersByLead(leadSessionId);
+      return workers.map((w) => ({ id: w.id, sessionId: w.sessionId, label: w.label, status: w.status }));
+    },
+    createWorker: async (params) => {
+      const result = await orcaWorkerCreationService.createWorkerInTeam({
+        leadSessionId: params.leadSessionId,
+        teamId: params.teamId,
+        agent: 'hermes',
+        role: 'teammate',
+        label: params.label,
+        expert: params.rosterId,
+        workerPermissionMode: params.workerPermissionMode,
+        ...(params.workingDir ? { workingDir: params.workingDir } : {}),
+      });
+      if (!result.ok) return { ok: false, message: result.message };
+      return { ok: true, workerId: result.workerId, workerSessionId: result.workerSessionId };
+    },
+    dispatchToWorker: async (params) => {
+      const result = await orcaTeamService.sendToWorker(params);
+      if (!result.ok) return { ok: false, message: result.message };
+      return { ok: true };
+    },
+    buildJoinPrompt: async (leadSessionId, question) => {
+      const row = await getSessionRowSnapshot(leadSessionId);
+      if (!row) return null;
+      const handoff = buildExpertHandoff(
+        { slug: 'teammate-join', name: 'Teammate' },
+        {
+          title: row.title ?? '',
+          agent: row.agentKind ?? 'unknown',
+          ...(row.model ? { model: row.model } : {}),
+          messages: toExpertHandoffMessages(await listMessagesForAgentHandoff(leadSessionId, 400)),
+        },
+        { question },
+      );
+      return 'error' in handoff ? null : handoff.prompt;
+    },
+    log,
+  });
+
   registerMakerSessionSendHandler(
     {
       handle(channel, handler) {
@@ -19272,6 +19369,38 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         assertRemoteInputControlBoundary(sessionId, isDeviceLinkInvoke(), opts),
     },
   );
+
+  // ROADMAP 12.3 (ADR 0011): joined teammates are visible state — list and remove from the strip.
+  ipcMain.handle(MAKER_INVOKE.TEAMMATES_LIST, async (event, sessionId: unknown) => {
+    assertTrustedAppRendererEvent(event as never);
+    if (typeof sessionId !== 'string' || !sessionId) throwIpcError('INVALID_PARAMS', 'sessionId required');
+    const records = sessionTeammatesStore.list(sessionId);
+    const workers = await listWorkersByLead(sessionId);
+    return {
+      teammates: records.map((r) => ({
+        ...r,
+        status: workers.find((w) => w.id === r.workerId)?.status ?? 'gone',
+      })),
+    };
+  });
+  ipcMain.handle(MAKER_INVOKE.TEAMMATES_REMOVE, async (event, sessionId: unknown, rosterId: unknown) => {
+    assertTrustedAppRendererEvent(event as never);
+    if (typeof sessionId !== 'string' || !sessionId) throwIpcError('INVALID_PARAMS', 'sessionId required');
+    if (typeof rosterId !== 'string' || !rosterId) throwIpcError('INVALID_PARAMS', 'rosterId required');
+    const record = sessionTeammatesStore.find(sessionId, rosterId);
+    if (!record) throwIpcError('NOT_FOUND', 'That teammate is not joined in this session');
+    const archived = await orcaTeamService.archiveWorker({ callerLeadSessionId: sessionId, workerId: record.workerId });
+    if (!archived.ok) throwIpcError('PRECONDITION_FAILED', archived.message);
+    sessionTeammatesStore.remove(sessionId, rosterId);
+    // Last worker gone → end the team so the session returns to a plain chat: no Orca
+    // instructions or tools on later turns (ADR 0011 §9, unchanged-normal-turns proof).
+    const remaining = await listWorkersByLead(sessionId);
+    if (sessionTeammatesStore.list(sessionId).length === 0 && remaining.length === 0) {
+      await disableOrcaInternal(sessionId);
+    }
+    broadcastToAllWindows(MAKER_PUSH.TEAMMATES_CHANGED, { sessionId });
+    return { ok: true };
+  });
 
   ipcMain.handle(
     MAKER_INVOKE.STEER,

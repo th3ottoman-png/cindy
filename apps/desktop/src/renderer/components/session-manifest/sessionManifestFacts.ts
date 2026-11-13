@@ -10,6 +10,7 @@ import {
 import type { SessionAdrsEntry } from '@cindy/maker-core/vault-adr';
 
 import type { ExpertSessionBindingView } from '../../../main/maker-ipc/expertSessions';
+import type { SessionTeammatesView } from '../../../main/maker-ipc/sessionTeammates';
 import type { McpCatalogView } from '../../../main/maker-ipc/mcpCatalog';
 import type { SkillsView } from '../../../main/maker-ipc/skills';
 import type { VaultConfigView } from '../../../main/maker-ipc/vaultNotes';
@@ -63,6 +64,7 @@ export async function collectSessionManifest(
     pinnedNotes,
     vaultConfig,
     sessionAdrs,
+    teammatesView,
   ] = await Promise.all([
     maybe<ExpertSessionBindingView | null>(() => maker.experts.getSessionBinding(session.id), null),
     maybe<ExpertEntry[]>(() => maker.experts.list(), []),
@@ -74,6 +76,8 @@ export async function collectSessionManifest(
     maybe<VaultConfigView>(() => maker.vault.getConfig(), emptyVault),
     // ROADMAP 11.8: past ADRs matched against the first prompt. Absent host → no rows.
     maybe<SessionAdrsEntry>(() => maker.vault.getSessionAdrs(session.id), { adrs: [] }),
+    // ROADMAP 12.3: joined @agent: teammates. Absent host → no rows.
+    maybe<SessionTeammatesView>(() => maker.teammates.list(session.id), { teammates: [] }),
   ]);
 
   const entry = binding ? expertEntries.find((item) => item.slug === binding.slug) : undefined;
@@ -130,6 +134,12 @@ export async function collectSessionManifest(
     vaultDir: vaultConfig.vaultDir,
     relevantAdrs: sessionAdrs.adrs,
     adrWorkspaceDir: sessionAdrs.workspaceDir,
+    teammates: teammatesView.teammates.map((teammate) => ({
+      rosterId: teammate.rosterId,
+      name: teammate.name,
+      workerSessionId: teammate.workerSessionId,
+      ...(teammate.file ? { file: teammate.file } : {}),
+    })),
   };
 
   return buildSessionManifest(input);

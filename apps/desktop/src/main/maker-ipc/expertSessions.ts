@@ -20,7 +20,7 @@ import * as path from 'node:path';
 import { readExpertMemory, type MemoryTarget } from '@cindy/maker-core/expert-memory';
 import { isToolAllowed, isMcpServerAllowed } from '@cindy/maker-core/expert-tools';
 import { checkExpertConcurrency, loadExpert, type Expert, type ExpertAgent, type RunningExpertSession } from '@cindy/maker-core/experts';
-import { isImportedAgentId, type ImportedAgent, type ImportedAgentSource } from '@cindy/maker-core/imported-agents';
+import { isImportedAgentId, parseImportedAgentId, type ImportedAgent, type ImportedAgentSource } from '@cindy/maker-core/imported-agents';
 
 import { readImportedAgentById } from './importedAgents.js';
 
@@ -191,6 +191,37 @@ export class ExpertSessionStore {
     const cap = checkExpertConcurrency(entry.expert.name, entry.expert.maxConcurrent, this.runningExpertSessions(slug));
     if (!cap.ok) return { ok: false, message: cap.message };
     return entry.expert.model ? { ok: true, model: entry.expert.model } : { ok: true };
+  }
+
+  /**
+   * ROADMAP 12.3 (ADR 0011): the roster-aware worker check for `@agent:` teammates. Bare
+   * slugs and `expert:<slug>` behave exactly like `checkWorkerExpert`; imported ids must be
+   * runnable on Hermes (fail-closed `runsOn`), and a foreign `model:` is never mapped — the
+   * worker uses the home route. Teammates run as Hermes workers only in this row.
+   */
+  checkWorkerRosterEntry(
+    id: string,
+    opts: { projectDir?: string | null } = {},
+  ): { ok: true; model?: string } | { ok: false; message: string } {
+    if (parseImportedAgentId(id) !== null) {
+      const agent = this.opts.resolveImported?.(id, opts.projectDir ?? null) ?? null;
+      if (!agent) {
+        return { ok: false, message: `Imported agent "${id}" is no longer available. Pick another agent from the Agents page.` };
+      }
+      if (agent.error) {
+        return { ok: false, message: `Imported agent "${agent.name}" cannot be applied: ${agent.error}` };
+      }
+      if (!agent.runsOn.includes('hermes')) {
+        const blocked = agent.blockedTools?.length ? ` Tools that block it: ${agent.blockedTools.join(', ')}.` : '';
+        return {
+          ok: false,
+          message: `Imported agent "${agent.name}" cannot run on "hermes".${blocked} Teammates run as Hermes workers; pick an agent that supports Hermes, or copy it to your experts and adjust it.`,
+        };
+      }
+      return { ok: true };
+    }
+    const slug = id.startsWith('expert:') ? id.slice('expert:'.length) : id;
+    return this.checkWorkerExpert(slug);
   }
 
   /**
