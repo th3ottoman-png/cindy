@@ -10,6 +10,17 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-13 (u) - Phase 12 "Agent roster" planned: ROADMAP rows + blueprint, no code (`unverified` — planning only)
+
+- **Owner request**: compare the Qwen Code desktop app's Agents / Squads / Runtimes page, New-agent form and 74-agent library (screenshots) with Cindy, then put all five proposed features on the roadmap with a blueprint other agents can follow.
+- **Gap analysis (read-only)**: already present under other names — experts (3.1–3.3, `expert-loader.ts`), expert creator = "Generate with model" (3.8), starter experts = role templates (3.5), `agent:`/`model:`/`description:` = program / model / "when to bring it in", Orca lead/workers (3.7–3.9), one-message `@expert:` (8.4), Capabilities hub (8.1). The Claude Code adapter **already scans** `.claude/agents` (`agents/shared/customization-scanner.ts`, `AgentCustomization` kind `agent`), but only feeds `@` candidates and SkillHub, not experts. Missing: importing foreign agents, one Agents page, persistent @-teammates, saved squads, a Runtimes view, a per-agent concurrency cap.
+- **Added**: `ROADMAP.md` Phase 12 (rows 12.1, 12.2, 12.3, 12.4a, 12.4b, 12.5, all 🔲). 12.4 is split into a no-code probe (are upstream bot groups local in this fork? → ADR 0012) and the build, because the backend choice depends on it. New `docs/phase-12-blueprint.md` (existing seams with file paths, interfaces, IPC names, file formats, fail-closed rules, tests and live proofs per row, build order, out-of-scope list).
+- **Surprising / next-agent notes**: `~/.claude/agents` has 278 entries and `~/.qwen/agents` 68 `.md` files, same frontmatter (`name`, `description`, `tools`, `model`). Upstream bot groups have main-process handlers (`maker:bot-group:*` in `maker-ipc/channels.ts` / `register.ts`), but nobody has checked whether they work with no network; 12.4a exists for that. Remote runtimes stay out (Dropped: cloud).
+- **Verification**: none needed beyond reading — docs only, no code touched, so no gates run.
+- **Open**: every Phase 12 row. Start with 12.1.
+
+---
+
 ## 2026-11-13 (t) - Vault watcher: lost startup-window events fixed, `unit-tested` (load-reproduced)
 
 - **Row**: the 8.2 §Debt note ("give the watcher test an explicit timeout when that file is next touched"), chosen by the owner over the `SIGSEGV` row because it bit the gate again today.
