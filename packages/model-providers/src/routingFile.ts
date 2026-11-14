@@ -15,7 +15,7 @@
  * broken local route can never turn into a silent call to a paid provider (ROADMAP 2.4).
  */
 
-export const TASK_CLASSES = ['title', 'predict', 'summary', 'chat.default'] as const;
+export const TASK_CLASSES = ['title', 'predict', 'summary', 'chat.default', 'vision'] as const;
 
 export interface RouteTarget {
   /** providers.yaml id. */

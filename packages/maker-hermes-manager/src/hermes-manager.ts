@@ -105,6 +105,8 @@ import {
   normalizeVerdict,
   type AutoReviewVerdict,
 } from './auto-review-gate.js';
+import { resolveVisionRoute } from '@cindy/maker-core/vision-route';
+import { injectVisionRoute } from './vision-route.js';
 
 export interface HermesManagerOptions {
   socketPath: string;
@@ -541,15 +543,28 @@ export class HermesManager {
               ...(expertSkillsDir ? [expertSkillsDir] : []),
             ]
           : undefined;
+        // ROADMAP 13.1 (ADR 0013 Design A): when `vision` is routed to a vision-capable provider,
+        // write auxiliary.vision into this home so Hermes' vision_analyze can see attached images
+        // even when the chat model is text-only. Not routed -> no block, behaviour unchanged.
+        const visionResolution = resolveVisionRoute();
+        const visionRoute =
+          visionResolution.kind === 'routed' && sessionRecord?.chatOnly !== true
+            ? visionResolution.route
+            : undefined;
+        const wantsTransform = Boolean((hookWanted && hookCommand) || visionRoute);
         const options: SessionHomeOptions = {
           ...base,
           ...(expertSkillsDir ? { expertSkillsDir } : {}),
           ...(skillRoots ? { skillRoots } : {}),
           chatOnly: sessionRecord?.chatOnly === true,
-          ...(hookWanted && hookCommand
+          ...(wantsTransform
             ? {
-                transformConfig: (text, ctx) =>
-                  injectAutoReviewHook(base.transformConfig ? base.transformConfig(text, ctx) : text, hookCommand),
+                transformConfig: (text, ctx) => {
+                  let out = base.transformConfig ? base.transformConfig(text, ctx) : text;
+                  if (hookWanted && hookCommand) out = injectAutoReviewHook(out, hookCommand);
+                  if (visionRoute) out = injectVisionRoute(out, visionRoute);
+                  return out;
+                },
               }
             : {}),
         };

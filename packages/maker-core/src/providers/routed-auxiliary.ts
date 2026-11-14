@@ -31,7 +31,7 @@ import { probeEndpoint } from './discovery.js';
 import { loadProvidersFile, type ProviderFileEntry } from './providers-file.js';
 import { loadRoutingFile, resolveTaskRoute } from './routing-file.js';
 
-export type RoutedTaskClass = 'title' | 'predict' | 'summary';
+export type RoutedTaskClass = 'title' | 'predict' | 'summary' | 'vision';
 
 export interface RoutedTaskTextRequest {
   taskClass: RoutedTaskClass | (string & {});

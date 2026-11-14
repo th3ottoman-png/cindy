@@ -10,6 +10,17 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-14 (af) - 13.1 vision bridge core (Design A): `live-proven` — auxiliary.vision written from the routed vision endpoint; polish split to 13.1b
+
+- **Rows**: 13.1 (core) done `live-proven`; 13.1b (polish) open. Implements ADR 0013 Design A. `capabilities.vision` already existed in the provider schema — no schema change needed.
+- **Changed**: `model-providers/src/routingFile.ts` `TASK_CLASSES += 'vision'`; `maker-core/src/providers/routed-auxiliary.ts` `RoutedTaskClass += 'vision'`; NEW `maker-core/src/providers/vision-route.ts` (`resolveVisionRoute`, fail-closed, requires `capabilities.vision: true`) + `./vision-route` export; NEW `maker-hermes-manager/src/vision-route.ts` (`injectVisionRoute` keep-formatting writer, registers the provider in `custom_providers` when absent, key travels as `key_env` NAME only); `hermes-manager.ts homeForSession` transformConfig now also applies it (skipped for chat-only sessions).
+- **Verified**: 16 new unit tests (6 resolver + 10 writer) pass; `pnpm typecheck`, `pnpm test:runner` (fail 0), `pnpm check:test-hygiene` (PASS), and all 8 `test:unit:related` shards green under Node 22. LIVE: the real `resolveVisionRoute`+`injectVisionRoute` built a session home from live routing.yaml; deepseek-flash (text-only chat) called `vision_analyze` repeatedly (success:true, accurate analysis quoting the squads-tab UI); `logs/agent.log` `resolve_provider_client: named custom provider 'lmstudio-local'` proves the auxiliary route was used, not the chat provider. Evidence: `docs/evidence/13.1-vision-bridge-live-proof.md`.
+- **User state**: backed up `routing.yaml` + `providers.yaml` to `.bak-20261114-13.1`; set `lmstudio-local` `vision: true` + `rules.vision: gemma-local` and LEFT them in place so the bridge is active for the owner. Real `~/.hermes-cindy/config.yaml` untouched.
+- **Open (13.1b)**: not-routed one-line notice; manifest strip `vision -> <route>`; chat-model-has-vision bypass. The block is written whenever routed (harmless when the chat model can already see). Vision route proven was LOCAL Gemma (owner: use any for any); an API route differs only in `key_env` (unit-tested).
+- **Next**: 13.1b polish, then 13.2a storage probe.
+
+---
+
 ## 2026-11-14 (ae) - 13.1a vision bridge probe: `live-proven` — ADR 0013, Design A (native Hermes auxiliary.vision)
 
 - **Row**: 13.1a, first Phase 13 row. A probe, not a feature: the deliverable is ADR `0013-vision-bridge.md` grounded in observed evidence, per `docs/phase-13-blueprint.md` §3. No Cindy source changed.
