@@ -10,6 +10,22 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-14 (ad) - 12.5 Runtimes tab (read-only): `live-proven` — Phase 12 complete
+
+- **Row**: 12.5, the last Phase 12 row (independent after 12.2's page shell). The tab shows the installed CLI versions; a runtime whose binary is removed shows `missing`. Read-only: no network, nothing installed or updated (AGENTS.md §3). With 12.5 done, **Phase 12 (agent roster) is complete**.
+- **Shipped**:
+  - Pure `@cindy/maker-core/runtime-status` (`packages/maker-core/src/runtimes/runtime-status.ts`, subpath registered): `RuntimeStatus` model, `parseRuntimeVersion` (the real `--version` shapes — bare `0.84.4`, `2.1.258 (Claude Code)`, `codex-cli 0.145.0`, `hermes 0.23.0`; strict, first line only), `runtimeVersionMatchesPin` (major.minor.patch equality, pre-release ignored), `buildRuntimeStatus` (no path → missing; probe error/unparseable → error; path+version → ok; matchesPin null without a pin).
+  - Host `maker-ipc/runtimes.ts`: `collectRuntimeStatuses` over injected resolve/probe/pin seams (tests spawn no binary); `createDesktopRuntimesDeps` resolves each binary as its adapter does — Hermes via `resolveOnPath('hermes')` + `readInstalledHermesVersion` + `HERMES_CLI_PINNED_VERSION` (reusing `hermes-version.ts`), cc/codex/pi via the fs-verified `getCachedBinaryStatus` — then a 5 s `--version` probe. IPC `maker:runtimes:list` + preload `maker.runtimes` + renderer type.
+  - Renderer `RuntimesTab.tsx`: one card per runtime (path, version, pin match for Hermes, health, agents-using-it count from the roster, Recheck). Third tab on the Agents page (Agents / Squads / Runtimes).
+- **Tests**: maker-core runtime-status 19 (parse shapes, pin match, ok/missing/error fold); desktop runtimes 6 (collectRuntimeStatuses ok/missing/error/pin, resolveOnPath executable/non-executable/absent, IPC trust + untrusted refusal); RuntimesTab 2 (cards + agent counts, Recheck refetch).
+- **Live proof (`docs/evidence/12.5-runtimes-live-proof.md`, sandbox CindyGlobal-dev2-dev, CDP 9222)**: all four installed — Hermes 0.23.0 (path ~/.local/bin/hermes, **pin 0.22.7 · mismatch**, 338 agents), Claude Code 2.1.296 (345 agents), Codex 0.159.2 (1 agent), Pi 1.0.2 (0 agents). Temporarily renamed the unused Pi binary (0 agents) → Recheck shows **missing** / "not installed"; restored → Recheck shows **ok** / 1.0.2 (binary byte-identical, size 76837346).
+- **Resolver refinement found by the proof**: the first attempt used `getReadyBinaryPath ?? getCachedBinaryStatus`; the prepare() cache holds a stale path after removal, so the card showed `error` (ENOENT) not `missing`. Switched `resolvePath` to the fs-verified `getCachedBinaryStatus` only, so a removed binary resolves to no path → `missing`.
+- **Gates (Node 22.23.4, final tree)**: `pnpm typecheck` 0; `pnpm test:runner` 0 (613 pass, 2 skipped, 0 fail); `pnpm check:test-hygiene` 0 (361 files); `XDT_UNIT_TEST_SHARD=i/8 pnpm test:unit:related` i=1..8 — shard 4 double-crashed on the parked V8-teardown SIGSEGV (original + auto-retry), rerun standalone PASS `[retried after a worker SIGSEGV]` (`/tmp/12.5-shard-4-rerun.log`); all 8 green. Design-inventory ledger regenerated (RuntimesTab shares the desktop.agents group; 55 surfaces).
+- **Cleanup / state**: Pi binary restored; app stopped (`--kill-only --region=global`); port 9222 free. No user state changed beyond the temporary, restored Pi rename.
+- **Open**: Phase 12 complete. Next in phase order: Phase 13 (model-aware daily-driver add-ons) — 13.1a vision bridge probe (ADR 0013) is the top open row. Follow-ups carried from 12.4b: custom per-squad `max_turns` live cap; cc-only roster entries as teammates.
+
+---
+
 ## 2026-11-14 (ac) - 12.4b squads (saved teams): `live-proven` — Squads tab + launch via the 12.3 registry
 
 - **Row**: 12.4b, next in phase order after the 12.4a probe decided the backend (ADR 0012: Orca teams, not bot groups). A 3-member squad launched in the sandbox dev app, joined through the unchanged 12.3 teammate registry, and finished a small real task with every session visible. No paid turns: every proof turn ran on local Gemma (`hermes-default`).

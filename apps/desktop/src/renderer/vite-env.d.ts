@@ -5653,6 +5653,10 @@ interface ElectronAPI {
         cb: (view: import('../main/maker-ipc/squads').SquadsDiscovery) => void,
       ) => () => void;
     };
+    runtimes: {
+      /** ROADMAP 12.5: read-only status of the agent CLIs (path, version, pin match). */
+      list: () => Promise<{ runtimes: import('@cindy/maker-core/runtime-status').RuntimeStatus[] }>;
+    };
     extPlugins: {
       /** ROADMAP 4.2b: local extension plugins (~/.cindy-harness/plugins) with their load state. */
       list: () => Promise<import('../main/maker-ipc/extensionPlugins').ExtensionPluginListView>;

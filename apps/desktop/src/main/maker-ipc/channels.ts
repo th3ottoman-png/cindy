@@ -63,6 +63,8 @@ export const MAKER_INVOKE = {
   SQUADS_SAVE: 'maker:squads:save',
   /** ROADMAP 12.4b: fail-closed launch plan (roster + Hermes check); starts nothing. */
   SQUADS_RESOLVE_LAUNCH: 'maker:squads:resolve-launch',
+  /** ROADMAP 12.5: read-only status of the agent CLIs (path, version, pin match). */
+  RUNTIMES_LIST: 'maker:runtimes:list',
   /** ROADMAP 4.2b: list local extension plugins (~/.cindy-harness/plugins) with their load state. */
   EXT_PLUGINS_LIST: 'maker:ext-plugins:list',
   /** ROADMAP 4.2b: enable/disable one plugin; persists in plugins.json and applies at once. */

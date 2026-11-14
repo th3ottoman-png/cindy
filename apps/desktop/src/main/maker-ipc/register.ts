@@ -917,6 +917,7 @@ import { registerAndroidAutomationHandlers } from './androidHandlers.js';
 import { registerExpertsHandlers } from './expertsHandlers.js';
 import { registerImportedAgentsHandlers, readImportedAgentById, discoverImportedAgents } from './importedAgents.js';
 import { registerSquadsHandlers } from './squads.js';
+import { registerRuntimesHandlers } from './runtimes.js';
 import { createSessionTeammatesStore } from './sessionTeammates.js';
 import { createTeammateMentionService } from './teammateMentionService.js';
 import { createTeammateProposalService, type TeammateProposalDeps } from './teammateProposalService.js';
@@ -25956,6 +25957,11 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
       return ids;
     },
     resolveRosterEntry: (rosterId, projectDir) => teammateCoreDeps.resolveRosterEntry(rosterId, projectDir),
+  });
+
+  // ── Runtimes (ROADMAP 12.5): read-only CLI status; resolves each binary as its adapter does ──
+  registerRuntimesHandlers(createElectronIpcHandlerRegistry(), {
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
 
   // ── Local extension plugins (ROADMAP 4.2b): load ~/.cindy-harness/plugins at startup ──

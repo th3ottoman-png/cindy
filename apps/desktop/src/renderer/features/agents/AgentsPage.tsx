@@ -14,6 +14,7 @@ import { getDraft, subscribeDraft } from '@/state/newMakerDraft';
 
 import { AgentDetailDrawer } from './AgentDetailDrawer';
 import { NewAgentForm } from './NewAgentForm';
+import { RuntimesTab } from './RuntimesTab';
 import { SquadsTab } from './SquadsTab';
 import { ROSTER_FILTERS, buildRosterRows, filterRosterRows, type RosterFilter, type RosterRow } from './agentsRosterModel';
 
@@ -29,8 +30,8 @@ export function AgentsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  // ROADMAP 12.4b: the Squads tab is built; Runtimes (12.5) stays hidden until its row lands.
-  const [tab, setTab] = useState<'agents' | 'squads'>('agents');
+  // ROADMAP 12.4b/12.5: Agents, Squads and Runtimes tabs.
+  const [tab, setTab] = useState<'agents' | 'squads' | 'runtimes'>('agents');
 
   useEffect(() => subscribeDraft(() => setWorkingDir(getDraft().workingDir)), []);
 
@@ -90,6 +91,16 @@ export function AgentsPage() {
             >
               Squads
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'runtimes'}
+              onClick={() => setTab('runtimes')}
+              className={`${CHIP_CLASS} ${tab === 'runtimes' ? 'border-[var(--border-strong,#888)] bg-[var(--bg-subtle,rgba(127,127,127,0.12))] text-[var(--text-primary)]' : 'border-[var(--border-default)] text-[var(--text-secondary)]'}`}
+              data-testid="agents-tab-runtimes"
+            >
+              Runtimes
+            </button>
           </div>
           {tab === 'agents' && <span className="text-xs text-[var(--text-tertiary)]">{rows.length} agents</span>}
         </div>
@@ -107,6 +118,8 @@ export function AgentsPage() {
 
       {tab === 'squads' ? (
         <SquadsTab rows={rows} workingDir={workingDir} />
+      ) : tab === 'runtimes' ? (
+        <RuntimesTab rows={rows} />
       ) : (
         <>
       <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">

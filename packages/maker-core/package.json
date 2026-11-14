@@ -55,6 +55,7 @@
     "./turn-attachment": "./src/session/turn-attachment.ts",
     "./teammate-mention": "./src/session/teammate-mention.ts",
     "./squads": "./src/squads/squad.ts",
+    "./runtime-status": "./src/runtimes/runtime-status.ts",
     "./pinned-skill-invocation": "./src/session/pinned-skill-invocation.ts",
     "./council-review": "./src/review/council-review.ts",
     "./next-turn-suggestion": "./src/session/next-turn-suggestion.ts",

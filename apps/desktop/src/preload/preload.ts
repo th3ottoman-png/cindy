@@ -6423,6 +6423,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('maker:squads:resolve-launch', slug, projectDir ?? null, task ?? ''),
       onChanged: fanOutMakerSquadsChanged,
     },
+    runtimes: {
+      list: (): Promise<{ runtimes: import('@cindy/maker-core/runtime-status').RuntimeStatus[] }> =>
+        ipcRenderer.invoke('maker:runtimes:list'),
+    },
     extPlugins: {
       list: (): Promise<import('../main/maker-ipc/extensionPlugins').ExtensionPluginListView> =>
         ipcRenderer.invoke('maker:ext-plugins:list'),
