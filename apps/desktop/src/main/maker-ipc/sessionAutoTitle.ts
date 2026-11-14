@@ -150,6 +150,25 @@ export function registerSessionAutoTitleHooks(hooks?: {
   }
 }
 
+/**
+ * ROADMAP 13.9: notify when the auto-title path has written a title, so the re-title host
+ * can record a durable baseline (ownership + the user-turn count a re-title counts from).
+ * Additive and best effort: the auto-title flow never depends on a listener.
+ */
+let _onAutoTitleWritten: ((sessionId: string) => void) | null = null;
+
+export function setOnAutoSessionTitleWritten(fn: ((sessionId: string) => void) | null): void {
+  _onAutoTitleWritten = fn;
+}
+
+function noteAutoTitleWritten(sessionId: string): void {
+  try {
+    _onAutoTitleWritten?.(sessionId);
+  } catch {
+    // A re-title baseline is auxiliary; it must never break auto-title.
+  }
+}
+
 /** 测试专用:清空归属表与串行队列。 */
 export function __resetSessionAutoTitleStateForTest(): void {
   synthesizedPlaceholders.clear();
@@ -221,6 +240,13 @@ async function runUnsynchronized(
       sessionId: request.sessionId,
       err: err instanceof Error ? err.message : String(err),
     });
+  }
+
+  // ROADMAP 13.9: a user-text title just landed, so the re-title baseline exists from here.
+  // Notified at the write, not at the end: the model can yield nothing and return early,
+  // and the placeholder is still a title this feature is allowed to follow.
+  if (placeholderPersisted && request.isUserText !== false) {
+    noteAutoTitleWritten(request.sessionId);
   }
 
   if (request.isUserText === false) {
@@ -327,6 +353,7 @@ async function runUnsynchronized(
   // 同上:智能标题没写进去但占位活着 → 会话仍有一个来自用户原话的标题,不必再起。
   // 两段都没写进去才是真失败,applied/done 皆为 false,下一条带文字的消息重试。
   const applied = smartPersisted || placeholderLive;
+  if (applied) noteAutoTitleWritten(request.sessionId);
   return { applied, done: applied };
 }
 

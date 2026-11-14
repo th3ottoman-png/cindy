@@ -6786,6 +6786,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
       dismiss: (sessionId: string): Promise<null> =>
         ipcRenderer.invoke('maker:recap:dismiss', sessionId),
     },
+    /** ROADMAP 13.9: titles that follow the conversation. Only an auto title ever changes. */
+    retitle: {
+      getConfig: (): Promise<import('../main/maker-ipc/retitle').RetitleConfigView> =>
+        ipcRenderer.invoke('maker:retitle:get-config'),
+      setConfig: (patch: { enabled?: boolean }): Promise<import('../main/maker-ipc/retitle').RetitleConfigView> =>
+        ipcRenderer.invoke('maker:retitle:set-config', patch),
+      maybe: (request: { sessionId: string; running: boolean }): Promise<import('../main/maker-ipc/retitle').RetitleResult> =>
+        ipcRenderer.invoke('maker:retitle:maybe', request),
+      getState: (sessionId: string): Promise<import('../main/maker-ipc/retitle').RetitleSessionState | null> =>
+        ipcRenderer.invoke('maker:retitle:get-state', sessionId),
+      undo: (sessionId: string): Promise<import('../main/maker-ipc/retitle').RetitleResult> =>
+        ipcRenderer.invoke('maker:retitle:undo', sessionId),
+    },
     scheduledSessions: {
       getConfig: (): Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView> =>
         ipcRenderer.invoke('maker:scheduled-sessions:get-config'),

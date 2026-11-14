@@ -172,6 +172,8 @@ import { SessionContextGuardBanner } from './SessionContextGuardBanner';
 import { LongRunningTurnTimeline } from './LongRunningTurnTimeline';
 import { SessionManifestStrip } from '@/components/session-manifest/SessionManifestStrip';
 import { RecapStrip } from '@/components/chat/RecapStrip';
+import { RetitleTrigger } from '@/components/chat/RetitleTrigger';
+import { RetitleUndo } from '@/components/chat/RetitleUndo';
 import { ChatOnlyToggle } from '@/components/chat/ChatOnlyToggle';
 import { PlanFirstToggle } from '@/components/chat/PlanFirstToggle';
 import { TurnAuditToggle } from '@/components/chat/TurnAuditToggle';
@@ -6154,6 +6156,12 @@ function CCAgentSessionContent({
                     running={agentStatus.isRunning || isStreaming}
                   />
                 ) : null}
+                {/* ROADMAP 13.9: ask main whether the title should follow the conversation.
+                    Renders nothing; inert until `title` is routed. */}
+                {sessionId ? (
+                  <RetitleTrigger sessionId={sessionId} running={agentStatus.isRunning || isStreaming} />
+                ) : null}
+                {sessionId ? <RetitleUndo sessionId={sessionId} refreshKey={messages.length} /> : null}
                 <ChatInput
                   topSlot={cindyMakeRecoveryId && session ? (
                     <CindyMakeEditingActions

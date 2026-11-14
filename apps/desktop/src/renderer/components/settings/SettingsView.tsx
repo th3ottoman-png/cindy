@@ -47,6 +47,7 @@ import { MemorySection } from './MemorySection';
 import { CompactionSection } from './CompactionSection';
 import { StorageSection } from './StorageSection';
 import { RecapSection } from './RecapSection';
+import { RetitleSection } from './RetitleSection';
 import { SecurityGuardSection } from './SecurityGuardSection';
 import { ResponseStyleSection } from './ResponseStyleSection';
 import { TerminalShellSection } from './TerminalShellSection';
@@ -623,6 +624,10 @@ export function SettingsView() {
                 {/* ROADMAP 13.3 —— 回到会话时的一句话回顾(不进 transcript;未路由即失效) */}
                 <section id="settings-recap" className="pb-[18px]" aria-label="Recap">
                   <RecapSection />
+                </section>
+                {/* ROADMAP 13.9 —— titles follow the conversation (owner renames permanent; off until routed) */}
+                <section id="settings-retitle" className="pb-[18px]" aria-label="Conversation titles">
+                  <RetitleSection />
                 </section>
                 {/* ROADMAP 10.2 —— 响应风格 / 思考展示:只改渲染,不动落库的 transcript */}
                 <section id="settings-search-target-personalization-response-style" className="pb-[18px]" aria-label={t('settings.sections.responseStyle')}>

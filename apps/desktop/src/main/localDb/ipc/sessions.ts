@@ -1299,12 +1299,30 @@ export function setOnUserSessionTitleWritten(fn: ((sessionId: string) => void) |
   _onUserTitleWritten = fn;
 }
 
+/**
+ * Additional owner-rename listeners (ROADMAP 13.9). Additive: the primary auto-title
+ * callback above is unchanged, and one listener failing never stops the others.
+ */
+const _extraOnUserTitleWritten = new Set<(sessionId: string) => void>();
+
+export function addOnUserSessionTitleWritten(fn: (sessionId: string) => void): () => void {
+  _extraOnUserTitleWritten.add(fn);
+  return () => _extraOnUserTitleWritten.delete(fn);
+}
+
 /** 用户改名出口统一调这个(自动起名自己的写入**不**调)。 */
 function noteUserTitleWritten(sessionId: string): void {
   try {
     _onUserTitleWritten?.(sessionId);
   } catch {
     // 自动起名是附属功能,通知失败不该影响改名主流程。
+  }
+  for (const fn of _extraOnUserTitleWritten) {
+    try {
+      fn(sessionId);
+    } catch {
+      // Same contract: an auxiliary listener must never break the rename itself.
+    }
   }
 }
 

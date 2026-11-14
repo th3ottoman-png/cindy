@@ -522,9 +522,11 @@ import {
   getSessionRowSnapshot,
   getSessionFsSnapshot,
   getSessionRowSnapshotStrict,
+  addOnUserSessionTitleWritten,
   commitProvisionalSession,
   discardProvisionalSessionRow,
   persistSessionFields,
+  persistSessionTitleIfStillDraft,
   recycleSessionWorktreeForStatusChange,
   restoreArchivedSessionForSend,
   scheduleWorktreeRecycleForStatusChange,
@@ -968,6 +970,7 @@ import { getDesktopPlanFirstHost, registerPlanFirstHandlers, type PlanFirstHost 
 import { getDesktopTurnAuditHost, registerTurnAuditHandlers } from './turnAudit.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
 import { RecapHost, registerRecapHandlers } from './recap.js';
+import { RetitleHost, registerRetitleHandlers } from './retitle.js';
 import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
 import { registerProjectCreateHandlers } from './projectCreate.js';
 import {
@@ -1540,6 +1543,7 @@ import {
   isSessionAutoTitleEligible,
   registerSessionAutoTitleHooks,
   scheduleSessionAutoTitle,
+  setOnAutoSessionTitleWritten,
 } from './sessionAutoTitle.js';
 import { SILENT_STOP_RESUME_PROMPT, SilentStopAutoResumeGuard } from './silentStopAutoResume.js';
 import {
@@ -26272,6 +26276,47 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     host: recapHost,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
+  // ── Titles that follow the conversation (ROADMAP 13.9) ─────────────────
+  // Inert until `title` is routed; only an auto title ever changes, an owner rename is
+  // permanent, and the last three titles are kept for one-click undo. The route and model
+  // are named in the log and in Settings so background spend is visible (§6.4).
+  const retitleHost = new RetitleHost({
+    readSessionTitle: async (sessionId) => {
+      const db = tryGetDbClient();
+      if (!db) return null;
+      const rows = await db.query<{ title: string | null }>(
+        "SELECT title FROM sessions WHERE id = ? AND status <> 'deleted' LIMIT 1",
+        [sessionId],
+      );
+      const title = rows[0]?.title;
+      return typeof title === 'string' ? title : null;
+    },
+    countUserTurns: async (sessionId) => {
+      const db = tryGetDbClient();
+      if (!db) return 0;
+      const rows = await db.query<{ n: number }>(
+        "SELECT count(*) AS n FROM messages WHERE session_id = ? AND role = 'user'",
+        [sessionId],
+      );
+      return Number(rows[0]?.n ?? 0);
+    },
+    listMessages: (sessionId) => listMessagesForAgentHandoff(sessionId, 400),
+    persistTitle: (sessionId, title, expectedTitle) =>
+      persistSessionTitleIfStillDraft(sessionId, title, expectedTitle),
+    // Same env as provider discovery: a key stored in the Hermes home .env is not in
+    // Cindy main's process.env.
+    env: harnessDiscoveryEnv,
+    log,
+  });
+  registerRetitleHandlers(createElectronIpcHandlerRegistry(), {
+    host: retitleHost,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+  // Durable ownership: the auto-title path establishes the baseline, an owner rename ends it.
+  setOnAutoSessionTitleWritten((sessionId) => {
+    void retitleHost.noteAutoTitleFromDb(sessionId);
+  });
+  addOnUserSessionTitleWritten((sessionId) => retitleHost.noteOwnerRename(sessionId));
 
   // ── Scheduled sessions (ROADMAP 5.4b) ───────────────────────────
   const scheduledSessionsHost = getDesktopScheduledSessionsHost({

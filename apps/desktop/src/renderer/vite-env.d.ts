@@ -5957,6 +5957,14 @@ interface ElectronAPI {
       onFocus: (request: { sessionId: string; leftAt: number | null; turnCount: number; running: boolean }) => Promise<import('../main/maker-ipc/recap').RecapStrip | null>;
       dismiss: (sessionId: string) => Promise<null>;
     };
+    /** ROADMAP 13.9: titles that follow the conversation. Only an auto title ever changes. */
+    retitle: {
+      getConfig: () => Promise<import('../main/maker-ipc/retitle').RetitleConfigView>;
+      setConfig: (patch: { enabled?: boolean }) => Promise<import('../main/maker-ipc/retitle').RetitleConfigView>;
+      maybe: (request: { sessionId: string; running: boolean }) => Promise<import('../main/maker-ipc/retitle').RetitleResult>;
+      getState: (sessionId: string) => Promise<import('../main/maker-ipc/retitle').RetitleSessionState | null>;
+      undo: (sessionId: string) => Promise<import('../main/maker-ipc/retitle').RetitleResult>;
+    };
     scheduledSessions: {
       /** ROADMAP 5.4b: get scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
       getConfig: () => Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView>;

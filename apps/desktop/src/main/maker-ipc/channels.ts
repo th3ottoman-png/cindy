@@ -169,6 +169,16 @@ export const MAKER_INVOKE = {
   RECAP_ON_FOCUS: 'maker:recap:on-focus',
   /** ROADMAP 13.3: the owner dismissed the strip. */
   RECAP_DISMISS: 'maker:recap:dismiss',
+  /** ROADMAP 13.9: re-title settings (~/.cindy-harness/retitle.json) and whether `title` is routed. */
+  RETITLE_GET_CONFIG: 'maker:retitle:get-config',
+  /** ROADMAP 13.9: set re-title `{ enabled? }`. */
+  RETITLE_SET_CONFIG: 'maker:retitle:set-config',
+  /** ROADMAP 13.9: a turn ended; returns the decision. Only an auto title ever changes. */
+  RETITLE_MAYBE: 'maker:retitle:maybe',
+  /** ROADMAP 13.9: the undo ring for a session (previous titles, newest first). */
+  RETITLE_GET_STATE: 'maker:retitle:get-state',
+  /** ROADMAP 13.9: one-click undo — restore the most recent previous title. */
+  RETITLE_UNDO: 'maker:retitle:undo',
   /** ROADMAP 5.4b: get local scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
   SCHEDULED_SESSIONS_GET_CONFIG: 'maker:scheduled-sessions:get-config',
   /** ROADMAP 5.4b: set local scheduled sessions directory path. */
