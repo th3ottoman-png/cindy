@@ -5965,6 +5965,15 @@ interface ElectronAPI {
       getState: (sessionId: string) => Promise<import('../main/maker-ipc/retitle').RetitleSessionState | null>;
       undo: (sessionId: string) => Promise<import('../main/maker-ipc/retitle').RetitleResult>;
     };
+    /** ROADMAP 13.4: tool-batch labels. Off unless `tool-label` is routed; cached per session. */
+    toolLabel: {
+      getConfig: () => Promise<import('../main/maker-ipc/toolLabels').ToolLabelConfigView>;
+      getLabels: (sessionId: string) => Promise<import('../main/maker-ipc/toolLabels').ToolLabelMap>;
+      labelGroups: (request: {
+        sessionId: string;
+        groups: Array<{ key: string; calls: Array<{ name: string; input: unknown }> }>;
+      }) => Promise<import('../main/maker-ipc/toolLabels').ToolLabelMap>;
+    };
     scheduledSessions: {
       /** ROADMAP 5.4b: get scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
       getConfig: () => Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView>;

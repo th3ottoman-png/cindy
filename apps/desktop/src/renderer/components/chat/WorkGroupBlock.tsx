@@ -61,6 +61,7 @@ import {
   type ProjectedToolActivity,
   type ProjectedWorkActivity,
 } from '@/lib/agent-actions/workActivityProjection';
+import { formatToolBatchHeader, type ToolBatchLabel } from './toolBatchLabels';
 
 /** work_group 子项的窄类型 — 与 MessageStream 的 RenderItem 解耦,由调用方映射。 */
 export type WorkGroupChild =
@@ -123,6 +124,8 @@ export interface WorkGroupBlockProps {
   childItems: WorkGroupChild[];
   /** The header hugs its text (teammate chats) instead of pinning the chevron to the far edge. */
   fitHeader?: boolean;
+  /** ROADMAP 13.4: a routed label for this finished group; replaces the generic header text. */
+  toolLabel?: ToolBatchLabel;
 }
 
 function ToolActivityRow({ activity }: { activity: ProjectedToolActivity }) {
@@ -362,6 +365,7 @@ export function WorkGroupBlock({
   startedAtMs,
   childItems,
   fitHeader = false,
+  toolLabel,
 }: WorkGroupBlockProps) {
   const { t } = useTranslation();
   const { expanded: rememberedExpanded, setExpanded } = useExpandedBlockMemory(blockId);
@@ -488,9 +492,18 @@ export function WorkGroupBlock({
           .filter((part): part is string => part !== null)
           .join(' · ')
       : '';
-  const summaryText = explorationSummary
+  const genericSummaryText = explorationSummary
     ? `${baseSummaryText} · ${explorationSummary}`
     : baseSummaryText;
+  // ROADMAP 13.4: a finished group with a routed label shows it, count kept as the suffix; the
+  // tooltip keeps the generic text and names the route/model so background spend is visible.
+  const showToolLabel = !compact && !isStreaming && toolLabel !== undefined;
+  const summaryText = showToolLabel
+    ? formatToolBatchHeader(toolLabel.label, toolLabel.toolCount)
+    : genericSummaryText;
+  const summaryTitle = showToolLabel
+    ? `${genericSummaryText} — labelled by ${toolLabel.routeName} / ${toolLabel.model}`
+    : undefined;
 
   return (
     <div className="flex w-full min-w-0 justify-start">
@@ -517,7 +530,11 @@ export function WorkGroupBlock({
               <Layers size={14} className="text-[var(--msg-tool-card-chevron)]" />
             )}
           </span>
-          <span className="text-14 text-[var(--msg-tool-card-chevron)] truncate min-w-0 translate-y-[1px]">
+          <span
+            className="text-14 text-[var(--msg-tool-card-chevron)] truncate min-w-0 translate-y-[1px]"
+            title={summaryTitle}
+            data-tool-batch-label={showToolLabel ? 'true' : undefined}
+          >
             {summaryText}
           </span>
           {!fitHeader && <div className="flex-1" />}

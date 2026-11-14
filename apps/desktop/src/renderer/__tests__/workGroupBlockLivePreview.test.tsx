@@ -838,3 +838,55 @@ describe('WorkGroupBlock — Host-projected running lines', () => {
     expect(remote.setVisible).toHaveBeenLastCalledWith(false, true);
   });
 });
+
+describe('WorkGroupBlock — tool-batch label header (ROADMAP 13.4)', () => {
+  const label = {
+    label: 'Updated auth tests',
+    toolCount: 7,
+    routeName: 'cheap-api',
+    model: 'flash',
+    provider: 'tokenhub',
+    createdAt: 1,
+  };
+  const childItems = [tools('seg', [mkTool('a'), mkTool('b')])];
+
+  it('keeps the generic header when there is no label', () => {
+    const { container } = render(
+      createElement(WorkGroupBlock, {
+        blockId: 'work:nolabel',
+        durationMs: 3000,
+        childItems,
+      }),
+    );
+    expect(container.querySelector('[data-tool-batch-label]')).toBeNull();
+    expect(container.textContent).toContain('chat.workGroup.worked');
+  });
+
+  it('shows the label with the count suffix and names the route/model in the tooltip', () => {
+    const { container } = render(
+      createElement(WorkGroupBlock, {
+        blockId: 'work:labelled',
+        durationMs: 3000,
+        childItems,
+        toolLabel: label,
+      }),
+    );
+    const header = container.querySelector('[data-tool-batch-label="true"]');
+    expect(header?.textContent).toBe('Updated auth tests · 7 tools');
+    expect(header?.getAttribute('title')).toContain('cheap-api / flash');
+    expect(header?.getAttribute('title')).toContain('chat.workGroup.worked');
+  });
+
+  it('ignores a label while the group is still streaming', () => {
+    const { container } = render(
+      createElement(WorkGroupBlock, {
+        blockId: 'work:live',
+        isStreaming: true,
+        childItems,
+        toolLabel: label,
+      }),
+    );
+    expect(container.querySelector('[data-tool-batch-label]')).toBeNull();
+    expect(container.textContent).toContain('chat.workGroup.working');
+  });
+});

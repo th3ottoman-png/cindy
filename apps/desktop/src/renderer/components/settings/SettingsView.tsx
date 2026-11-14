@@ -48,6 +48,7 @@ import { CompactionSection } from './CompactionSection';
 import { StorageSection } from './StorageSection';
 import { RecapSection } from './RecapSection';
 import { RetitleSection } from './RetitleSection';
+import { ToolLabelSection } from './ToolLabelSection';
 import { SecurityGuardSection } from './SecurityGuardSection';
 import { ResponseStyleSection } from './ResponseStyleSection';
 import { TerminalShellSection } from './TerminalShellSection';
@@ -628,6 +629,10 @@ export function SettingsView() {
                 {/* ROADMAP 13.9 —— titles follow the conversation (owner renames permanent; off until routed) */}
                 <section id="settings-retitle" className="pb-[18px]" aria-label="Conversation titles">
                   <RetitleSection />
+                </section>
+                {/* ROADMAP 13.4 —— tool-batch labels (status only; on exactly when `tool-label` is routed) */}
+                <section id="settings-tool-label" className="pb-[18px]" aria-label="Tool-batch labels">
+                  <ToolLabelSection />
                 </section>
                 {/* ROADMAP 10.2 —— 响应风格 / 思考展示:只改渲染,不动落库的 transcript */}
                 <section id="settings-search-target-personalization-response-style" className="pb-[18px]" aria-label={t('settings.sections.responseStyle')}>

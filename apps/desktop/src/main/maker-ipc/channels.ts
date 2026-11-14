@@ -179,6 +179,12 @@ export const MAKER_INVOKE = {
   RETITLE_GET_STATE: 'maker:retitle:get-state',
   /** ROADMAP 13.9: one-click undo — restore the most recent previous title. */
   RETITLE_UNDO: 'maker:retitle:undo',
+  /** ROADMAP 13.4: whether `tool-label` is routed, and to which route/model. */
+  TOOL_LABEL_GET_CONFIG: 'maker:tool-label:get-config',
+  /** ROADMAP 13.4: cached labels for a session (never a model call; empty when not routed). */
+  TOOL_LABEL_GET_LABELS: 'maker:tool-label:get-labels',
+  /** ROADMAP 13.4: label a just-finished turn's groups that have no cached label yet. */
+  TOOL_LABEL_LABEL_GROUPS: 'maker:tool-label:label-groups',
   /** ROADMAP 5.4b: get local scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
   SCHEDULED_SESSIONS_GET_CONFIG: 'maker:scheduled-sessions:get-config',
   /** ROADMAP 5.4b: set local scheduled sessions directory path. */

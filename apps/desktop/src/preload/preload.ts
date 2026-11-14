@@ -6799,6 +6799,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       undo: (sessionId: string): Promise<import('../main/maker-ipc/retitle').RetitleResult> =>
         ipcRenderer.invoke('maker:retitle:undo', sessionId),
     },
+    /** ROADMAP 13.4: tool-batch labels. Off unless `tool-label` is routed; cached per session. */
+    toolLabel: {
+      getConfig: (): Promise<import('../main/maker-ipc/toolLabels').ToolLabelConfigView> =>
+        ipcRenderer.invoke('maker:tool-label:get-config'),
+      getLabels: (sessionId: string): Promise<import('../main/maker-ipc/toolLabels').ToolLabelMap> =>
+        ipcRenderer.invoke('maker:tool-label:get-labels', sessionId),
+      labelGroups: (request: {
+        sessionId: string;
+        groups: Array<{ key: string; calls: Array<{ name: string; input: unknown }> }>;
+      }): Promise<import('../main/maker-ipc/toolLabels').ToolLabelMap> =>
+        ipcRenderer.invoke('maker:tool-label:label-groups', request),
+    },
     scheduledSessions: {
       getConfig: (): Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView> =>
         ipcRenderer.invoke('maker:scheduled-sessions:get-config'),

@@ -349,6 +349,7 @@ import { TurnChangesCard } from './TurnChangesCard';
 import { useBotGeneratedFileDeliveries } from '@/features/bots/useBotGeneratedFileDeliveries';
 import { GeneratedFilesCard, generatedFilesCheckKey } from './GeneratedFilesCard';
 import { WorkGroupBlock, type WorkGroupChild } from './WorkGroupBlock';
+import { toolLabelKeyForWorkGroup, useToolBatchLabel, useToolBatchLabelsAfterTurn } from './toolBatchLabels';
 import {
   extractAnchorCardId,
   extractGhostCardId,
@@ -2958,6 +2959,8 @@ export const WorkGroupRenderItemView = memo(function WorkGroupRenderItemView({
     };
   };
   const childItems = item.children.map(toWorkGroupChild);
+  // ROADMAP 13.4: top-level groups only; nested action groups keep the generic header.
+  const toolLabel = useToolBatchLabel(context.sessionId, item.isStreaming ? null : toolLabelKeyForWorkGroup(item));
   const block = (
     <WorkGroupBlock
       // 单层前缀约定 `work:<clientId>` — item.key 形如 `work-<cid>`,
@@ -2970,6 +2973,7 @@ export const WorkGroupRenderItemView = memo(function WorkGroupRenderItemView({
       compact={compact}
       deferred={item.deferred}
       fitHeader={Boolean(replyColumnSpacer)}
+      toolLabel={toolLabel}
     />
   );
   return (
@@ -3396,6 +3400,8 @@ export function MessageStream({
     workGroupProjection,
   ]);
   const renderMetadataItems = renderMetadataProjection(allRenderItems);
+  // ROADMAP 13.4: cached labels on open (no model call); finished groups reported once per turn end.
+  useToolBatchLabelsAfterTurn(sessionId, isSessionStreaming, allRenderItems);
   const entranceSignature = allRenderItems.flatMap(item => item.type === 'message'
     && (item.message.role === 'user' || item.message.role === 'assistant') && !item.message.systemCardType
     && (item.message.content.trim().length > 0 || item.message.images?.length || item.message.files?.length)

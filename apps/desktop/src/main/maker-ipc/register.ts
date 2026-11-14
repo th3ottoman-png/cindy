@@ -970,6 +970,7 @@ import { getDesktopPlanFirstHost, registerPlanFirstHandlers, type PlanFirstHost 
 import { getDesktopTurnAuditHost, registerTurnAuditHandlers } from './turnAudit.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
 import { RecapHost, registerRecapHandlers } from './recap.js';
+import { ToolLabelHost, registerToolLabelHandlers } from './toolLabels.js';
 import { RetitleHost, registerRetitleHandlers } from './retitle.js';
 import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
 import { registerProjectCreateHandlers } from './projectCreate.js';
@@ -26317,6 +26318,13 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     void retitleHost.noteAutoTitleFromDb(sessionId);
   });
   addOnUserSessionTitleWritten((sessionId) => retitleHost.noteOwnerRename(sessionId));
+  // ── Tool-batch labels (ROADMAP 13.4) ───────────────────────────────────
+  // Inert until `tool-label` is routed. One routed call per finished top-level work group,
+  // cached per session in ~/.cindy-harness/tool-labels/ so reopening history never re-bills.
+  registerToolLabelHandlers(createElectronIpcHandlerRegistry(), {
+    host: new ToolLabelHost({ env: harnessDiscoveryEnv, log }),
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
 
   // ── Scheduled sessions (ROADMAP 5.4b) ───────────────────────────
   const scheduledSessionsHost = getDesktopScheduledSessionsHost({
