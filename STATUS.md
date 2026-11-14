@@ -10,6 +10,24 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-14 (ae) - 13.1a vision bridge probe: `live-proven` — ADR 0013, Design A (native Hermes auxiliary.vision)
+
+- **Row**: 13.1a, first Phase 13 row. A probe, not a feature: the deliverable is ADR `0013-vision-bridge.md` grounded in observed evidence, per `docs/phase-13-blueprint.md` §3. No Cindy source changed.
+- **Owner input**: authorised the probe and clarified the model mix — DeepSeek is the **API** chat model (the Hermes default), Gemma is a **local** vision-capable model; "both vision capable, use any for any". The probe used chat=`deepseek-flash` (API, one owner-authorised paid turn) and vision=`google/gemma-4-26b-a4b-qat` via `lmstudio-local` (local, free).
+- **Method**: a probe home (`/tmp/proofs/13.1a/probe-home`) symlinked `installs` (venv), `.env`, `auth.json`, `SOUL.md` from `~/.hermes-cindy` (a fresh empty home fails "no dependency environment committed") and carried a generated `config.yaml` with `model.default: deepseek-flash` + an `auxiliary.vision` block (lmstudio-local/Gemma). The real `~/.hermes-cindy/config.yaml` was read for reference only, never modified. Ran `hermes chat --query-file … --oneshot --format stream-json --yolo` on Hermes 0.23.0 with the image referenced by path (the Cindy adapter flow).
+- **Findings** (full excerpts: `docs/evidence/13.1a-vision-bridge-probe.md`):
+  1. `--image` is **unsupported by the gateway CLI** (`Unsupported gateway CLI options: --image … use hermes --tui or the Desktop app`) — confirms why the adapter sends path-reference text (`agent.ts:186-190`).
+  2. **`vision_analyze` ran and succeeded**: the DeepSeek chat model called it with the image path; the NDJSON `tool_result` is `{success:true, analysis:…}` accurately describing the Squads-tab screenshot. `agent.log`: `tools.vision_tools: Analyzing image … Image converted to base64 (1040.3 KB) … Image analysis completed (3983 characters) … tool vision_analyze completed (36.96s)` (a second call 1740 chars / 54.64s).
+  3. **`auxiliary.vision` is read and used**: `agent.auxiliary_client` resolved the named custom provider `lmstudio-local` for the vision request, while `title_generation` auto-detected the main `deepseek` provider — vision did not fall back to the chat provider.
+  4. **Key handling**: `lmstudio-local` has no `key_env` → `no-key-required` placeholder (correct for local); an API vision route uses its `key_env` (env only, never written to file).
+- **Decision (ADR 0013)**: **Design A — native Hermes auxiliary vision.** 13.1 writes `auxiliary.vision` into the session home from the resolved `vision` route at `prepareSessionHome` (keep-formatting writer, env-only key); no Cindy pre-describe (`requestRoutedVisionText`) path. Works on any route; chat-model-has-vision bypasses; manifest shows `vision → <route>`.
+- **Honest notes**: the full turn exceeded the 200 s capture window (local Gemma vision ~37–55 s/call + API chat turns), but the `vision_analyze` success is captured (two completed calls). The mechanism must be re-checked if the Hermes pin moves from 0.23.0 (pin 0.22.7).
+- **Cleanup / state**: probe gateway stopped (pid 45144 killed, pgrep clean); probe home kept under `/tmp/proofs/13.1a/` (gitignored); real `~/.hermes-cindy` unmodified; dev app not running (direct CLI). No source diff.
+- **Gates (Node 22.23.4)**: docs-only change (no source diff), full set run anyway — `pnpm typecheck` 0; `pnpm test:runner` 0 (613 pass, 2 skipped, 0 fail); `pnpm check:test-hygiene` 0 (361 files); unit shards 1–8 green — shard 4's desktop leg double-crashed on the parked V8-teardown SIGSEGV in the loop and in a first standalone rerun (tests themselves 613/0), passed on a second standalone rerun `[retried after a worker SIGSEGV]` (`/tmp/13.1a-shard-4-rerun2.log`).
+- **Open**: 13.1 (vision bridge implementation per ADR 0013 Design A) is next; then 13.2a storage probe.
+
+---
+
 ## 2026-11-14 (ad) - 12.5 Runtimes tab (read-only): `live-proven` — Phase 12 complete
 
 - **Row**: 12.5, the last Phase 12 row (independent after 12.2's page shell). The tab shows the installed CLI versions; a runtime whose binary is removed shows `missing`. Read-only: no network, nothing installed or updated (AGENTS.md §3). With 12.5 done, **Phase 12 (agent roster) is complete**.
