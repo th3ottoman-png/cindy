@@ -169,7 +169,7 @@ export function DecisionCards({ sessionId, decisions }: DecisionCardsProps) {
   }
 
   return (
-    <div data-testid="decision-cards" className="flex w-full max-w-[914px] flex-col gap-2">
+    <div data-testid="decision-cards" className="flex w-full max-w-[var(--cindy-message-width,914px)] flex-col gap-2">
       {decisions.map((d) => {
         if (d.criteria) {
           return <MatrixDecision key={d.id} decision={{ ...d, criteria: d.criteria }} state={state} picks={picks} onPick={setPicks} />;

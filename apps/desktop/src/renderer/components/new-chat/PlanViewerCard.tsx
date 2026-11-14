@@ -143,7 +143,7 @@ export function PlanViewerCard({
     return (
       <div
         className={cn(
-          'w-full max-w-[914px] rounded-[12px] border',
+          'w-full max-w-[var(--cindy-message-width,914px)] rounded-[12px] border',
           'border-[var(--plan-card-border)] bg-[var(--plan-card-bg)]',
           // Right padding tuned so the "+" icon's right edge lines up with
           // the ↵ / pencil icons in PlanActionCard below. Action card uses
@@ -212,7 +212,7 @@ export function PlanViewerCard({
   return (
     <div
       className={cn(
-        'flex w-full max-w-[914px] flex-col overflow-hidden rounded-[12px] border',
+        'flex w-full max-w-[var(--cindy-message-width,914px)] flex-col overflow-hidden rounded-[12px] border',
         'border-[var(--plan-card-border)] bg-[var(--plan-card-bg)]',
         cardHeightClass,
       )}

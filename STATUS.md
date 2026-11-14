@@ -10,6 +10,19 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-14 (al) - 13.7 chat width preference: `live-proven` — regular/wide/full at 1600 px, compact rail unchanged
+
+- **Row**: 13.7 done `live-proven` (blueprint §9). A rendering preference; no transcript, session or file is touched.
+- **Changed**: `chatWidth: 'regular'|'wide'|'full'` (default regular) in the same `cindy.responsePreferences.v1` store, unknown values fall back to regular; NEW `chatMaxWidth()` → 914 / 1200 / `Infinity` (the proportional-width hook clamps Infinity to the measured container, which is how "no cap" is expressed). The literal 914 is gone from both `useProportionalWidth` call sites (`CCAgentSessionView.tsx`, `NewMakerDraftRoute.tsx`), so the column and composer stay in step. **Card sweep:** 11 hard `max-w-[914px]` caps across 10 components (InputHandoffCard, RemoteDesktopConfirmationNotice, IssueConfirmCard, RenameSessionsConfirmCard, GhostGrantConfirmCard, DecisionCards, PlanActionCard, PermissionPrompt, PlanViewerCard ×2, InteractionPromptSlot) now use `max-w-[var(--cindy-message-width,914px)]` — the variable the hook already publishes on the column — so cards follow the column instead of staying narrower in wide/full; outside the column the 914 fallback leaves dialogs unchanged. English-only "Chat width" select in Response style.
+- **Verified**: 5 new tests (default, unknown-value rejection, the three widths, the cap mapping, storage round-trip to a mounted consumer) + 4 existing toEqual shapes updated; responsePreferences 17/17, desktop typecheck green. LIVE through the real select at a 1600 px window: **regular 914/934, wide 1200/1220, full 1240/1260** (full = container fill after the rails and the hook's 50 px padding), **no horizontal scroll in any mode**. Compact rail proven identical under full and regular at 760 px: container 500 → messageWidth 460 / inputWidth 480, compact:true, no h-scroll; at 1440 full gives 1080 and regular 914. Evidence: docs/evidence/13.7-chat-width-live-proof.md.
+- **Measurement honesty**: the first narrow reading was stale (3 s settle after a viewport override plus a localStorage+reload path). Re-measured through the real select with an 8 s settle, the container genuinely shrinks and compact flips. A real OS window resize was not possible (osascript lacks assistive access), so the narrow case uses CDP viewport emulation, which drives the same ResizeObserver path.
+- **Gate note**: the first Tier 2 run was red **only** on the stale design-inventory GENERATED block after the card sweep — the owner flagged this in advance. Ran pnpm design:inventory (55 surfaces), check:design-inventory green, then re-ran Tier 2. This is the first commit under the owner's new tiered gates (AGENTS.md §2, entry (ak)).
+- **User state**: chatWidth restored to **regular** (default layout). No model turn, no API spend, no new outbound call. Dev app stopped after the proof.
+- **Gates** (Node v22.23.4, dev app stopped, Tier 2): `pnpm typecheck` **RC=0**, `pnpm test:runner` **RC=0**, `pnpm check:test-hygiene` **RC=0**, `XDT_UNIT_TEST_SHARD=i/8 pnpm test:unit:related` **RC=0 for all 8 shards**. Shard 4 hit the parked worker SIGSEGV after its tests passed and the runner retried that leg once → PASS. `pnpm design:inventory` regenerated (55 surfaces) and `check:design-inventory` green — the first Tier 2 attempt was red only on that stale GENERATED block.
+- **Next**: 13.2c Prune (needs owner confirmation for the destructive live proof), 13.3 recap (needs an API-route turn), then 13.4/13.5.
+
+---
+
 ## 2026-11-14 (ak) - AGENTS.md §2 gates tiered (owner decision): docs-only, mid-task, full
 
 - **What changed:** at the owner's request, `AGENTS.md` §2 no longer requires all four gates

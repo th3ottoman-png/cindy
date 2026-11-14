@@ -133,7 +133,7 @@ export function PlanActionCard({ requestId, onRespond, onCancel }: PlanActionCar
     <div
       ref={cardRef}
       className={cn(
-        'flex w-full max-w-[914px] flex-col overflow-hidden rounded-[12px] border',
+        'flex w-full max-w-[var(--cindy-message-width,914px)] flex-col overflow-hidden rounded-[12px] border',
         'border-[var(--plan-card-border)] bg-[var(--plan-card-bg)]',
       )}
     >

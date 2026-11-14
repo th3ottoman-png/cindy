@@ -41,7 +41,7 @@ export function InteractionPromptSlot({ className }: InteractionPromptSlotProps)
         // 内层把卡片居中并限制最大宽度 — 卡片本身 max-w-[914px] w-full,
         // 这里再套一层 max-w 是为了 host 区比 914 还宽时 (大屏) 不要把卡片
         // 撑成 100%。 px-4 给卡片和容器边留呼吸。
-        'mx-auto w-full max-w-[914px] px-4',
+        'mx-auto w-full max-w-[var(--cindy-message-width,914px)] px-4',
         className,
       )}
     />

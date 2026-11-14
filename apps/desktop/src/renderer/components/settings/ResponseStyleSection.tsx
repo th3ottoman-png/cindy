@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import {
   useResponsePreferences,
   writeResponsePreferences,
+  type ChatWidth,
   type ResponseStyle,
   type ThinkingDisplay,
 } from '@/lib/responsePreferences';
@@ -17,6 +18,13 @@ import { SETTINGS_ROW_CLASS, SETTINGS_ROW_HINT_CLASS, SETTINGS_ROW_LABEL_CLASS }
 
 const STYLES: ResponseStyle[] = ['concise', 'detailed'];
 const DISPLAYS: ThinkingDisplay[] = ['collapsed', 'expanded', 'hidden'];
+const WIDTHS: ChatWidth[] = ['regular', 'wide', 'full'];
+/** ROADMAP 13.7 — English only by decision; no new translation keys. */
+const WIDTH_LABELS: Record<ChatWidth, string> = {
+  regular: 'Regular (914 px)',
+  wide: 'Wide (1200 px)',
+  full: 'Full width',
+};
 
 export function ResponseStyleSection() {
   const { t } = useTranslation();
@@ -78,6 +86,24 @@ export function ResponseStyleSection() {
           <span className={SETTINGS_ROW_HINT_CLASS}>
             Shows each message&apos;s clock time instead of only on hover. Uses the message&apos;s own
             timestamp.
+          </span>
+        </label>
+
+        {/* ROADMAP 13.7 — English only by decision; no new translation keys. */}
+        <label className="flex min-w-[220px] flex-col gap-1.5">
+          <span className="text-12 text-[var(--text-secondary)]">Chat width</span>
+          <select
+            className="h-8 rounded-md border border-[var(--border-default)] bg-[var(--surface-raised)] px-2 text-13 text-[var(--text-primary)]"
+            value={preferences.chatWidth}
+            onChange={(event) => writeResponsePreferences({ chatWidth: event.target.value as ChatWidth })}
+            aria-label="Chat width"
+          >
+            {WIDTHS.map((value) => (
+              <option key={value} value={value}>{WIDTH_LABELS[value]}</option>
+            ))}
+          </select>
+          <span className={SETTINGS_ROW_HINT_CLASS}>
+            Width of the message column and composer. The compact narrow-rail layout is unchanged.
           </span>
         </label>
       </div>

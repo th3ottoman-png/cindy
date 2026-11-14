@@ -4,8 +4,11 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  CHAT_WIDTH_REGULAR_PX,
+  CHAT_WIDTH_WIDE_PX,
   DEFAULT_RESPONSE_PREFERENCES,
   RESPONSE_PREFERENCES_KEY,
+  chatMaxWidth,
   parseResponsePreferences,
   readResponsePreferences,
   resetResponsePreferencesForTests,
@@ -49,11 +52,13 @@ describe('parseResponsePreferences', () => {
       responseStyle: 'detailed',
       thinkingDisplay: 'collapsed',
       showTimestamps: false,
+      chatWidth: 'regular',
     });
     expect(parseResponsePreferences('{"thinkingDisplay":"hidden"}')).toEqual({
       responseStyle: 'concise',
       thinkingDisplay: 'hidden',
       showTimestamps: false,
+      chatWidth: 'regular',
     });
   });
 });
@@ -65,16 +70,17 @@ describe('persistence', () => {
       responseStyle: 'detailed',
       thinkingDisplay: 'expanded',
       showTimestamps: false,
+      chatWidth: 'regular',
     });
     // A restart loses the module cache but keeps localStorage.
     resetResponsePreferencesForTests();
-    expect(readResponsePreferences()).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'expanded', showTimestamps: false });
+    expect(readResponsePreferences()).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'expanded', showTimestamps: false, chatWidth: 'regular' });
   });
 
   it('merges a partial change instead of resetting the other value', () => {
     writeResponsePreferences({ thinkingDisplay: 'hidden' });
     writeResponsePreferences({ responseStyle: 'detailed' });
-    expect(readResponsePreferences()).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'hidden', showTimestamps: false });
+    expect(readResponsePreferences()).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'hidden', showTimestamps: false, chatWidth: 'regular' });
   });
 });
 
@@ -128,7 +134,7 @@ describe('showTimestamps (ROADMAP 13.6)', () => {
   });
 
   it('only an explicit true turns it on', () => {
-    expect(parseResponsePreferences({ showTimestamps: true }).showTimestamps).toBe(true);
+    expect(parseResponsePreferences({ showTimestamps: true, chatWidth: 'regular' }).showTimestamps).toBe(true);
     for (const value of ['true', 1, 'yes', null]) {
       expect(parseResponsePreferences({ showTimestamps: value }).showTimestamps).toBe(false);
     }
@@ -136,11 +142,11 @@ describe('showTimestamps (ROADMAP 13.6)', () => {
 
   it('round-trips through storage without disturbing the other preferences', () => {
     writeResponsePreferences({ responseStyle: 'detailed' });
-    writeResponsePreferences({ showTimestamps: true });
+    writeResponsePreferences({ showTimestamps: true, chatWidth: 'regular' });
     const stored = JSON.parse(window.localStorage.getItem(RESPONSE_PREFERENCES_KEY) ?? '{}');
-    expect(stored).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'collapsed', showTimestamps: true });
+    expect(stored).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'collapsed', showTimestamps: true, chatWidth: 'regular' });
     resetResponsePreferencesForTests();
-    expect(readResponsePreferences()).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'collapsed', showTimestamps: true });
+    expect(readResponsePreferences()).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'collapsed', showTimestamps: true, chatWidth: 'regular' });
   });
 
   it('reaches an already-mounted consumer without a remount', () => {
@@ -149,7 +155,49 @@ describe('showTimestamps (ROADMAP 13.6)', () => {
     }
     render(<StampProbe />);
     expect(screen.getByTestId('stamps').textContent).toBe('false');
-    act(() => { writeResponsePreferences({ showTimestamps: true }); });
+    act(() => { writeResponsePreferences({ showTimestamps: true, chatWidth: 'regular' }); });
     expect(screen.getByTestId('stamps').textContent).toBe('true');
+  });
+});
+
+describe('chatWidth (ROADMAP 13.7)', () => {
+  it('defaults to regular, including for a stored value without the field', () => {
+    expect(DEFAULT_RESPONSE_PREFERENCES.chatWidth).toBe('regular');
+    expect(parseResponsePreferences({ responseStyle: 'detailed' }).chatWidth).toBe('regular');
+    expect(parseResponsePreferences(null).chatWidth).toBe('regular');
+  });
+
+  it('rejects an unknown width instead of inventing a fourth state', () => {
+    for (const value of ['wider', '914', '', null, 1200]) {
+      expect(parseResponsePreferences({ chatWidth: value }).chatWidth).toBe('regular');
+    }
+  });
+
+  it('accepts the three supported widths', () => {
+    for (const value of ['regular', 'wide', 'full'] as const) {
+      expect(parseResponsePreferences({ chatWidth: value }).chatWidth).toBe(value);
+    }
+  });
+
+  it('maps each width to the cap the proportional-width hook expects', () => {
+    expect(chatMaxWidth('regular')).toBe(CHAT_WIDTH_REGULAR_PX);
+    expect(chatMaxWidth('regular')).toBe(914);
+    expect(chatMaxWidth('wide')).toBe(CHAT_WIDTH_WIDE_PX);
+    expect(chatMaxWidth('wide')).toBe(1200);
+    // full = no cap; the hook clamps Infinity to the measured container.
+    expect(chatMaxWidth('full')).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it('round-trips through storage and reaches a mounted consumer', () => {
+    function WidthProbe() {
+      return <span data-testid="width">{useResponsePreferences().chatWidth}</span>;
+    }
+    render(<WidthProbe />);
+    expect(screen.getByTestId('width').textContent).toBe('regular');
+    act(() => { writeResponsePreferences({ chatWidth: 'wide' }); });
+    expect(screen.getByTestId('width').textContent).toBe('wide');
+    expect(JSON.parse(window.localStorage.getItem(RESPONSE_PREFERENCES_KEY) ?? '{}').chatWidth).toBe('wide');
+    resetResponsePreferencesForTests();
+    expect(readResponsePreferences().chatWidth).toBe('wide');
   });
 });

@@ -210,7 +210,7 @@ export function InputHandoffCard({ sessionId, snapshot, remote }: InputHandoffCa
       aria-label={snapshot.purpose}
       data-testid="input-handoff-strip"
       className={cn(
-        'w-full max-w-[914px] rounded-[12px] border px-3 py-2.5',
+        'w-full max-w-[var(--cindy-message-width,914px)] rounded-[12px] border px-3 py-2.5',
         'border-[var(--border-default)] bg-[var(--surface-elevated)] text-[var(--text-primary)]',
       )}
     >

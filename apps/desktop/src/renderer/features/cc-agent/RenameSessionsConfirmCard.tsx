@@ -49,7 +49,7 @@ export function RenameSessionsConfirmCard({
   return (
     <div
       className={cn(
-        'w-full max-w-[914px] rounded-[12px] border p-4',
+        'w-full max-w-[var(--cindy-message-width,914px)] rounded-[12px] border p-4',
         'border-[var(--chat-input-border)] bg-[var(--chat-input-bg)]',
       )}
     >

@@ -63,6 +63,7 @@ import {
 } from '@cindy/model-providers';
 import type { SubagentRunsListResponse } from '@cindy/maker-shared/subagent-workspace';
 import { useProportionalWidth } from '@/hooks/useProportionalWidth';
+import { chatMaxWidth, useResponsePreferences } from '@/lib/responsePreferences';
 import { useSubagentRunStatusIndex } from '@/hooks/useSubagentRunStatusIndex';
 import {
   Activity,
@@ -1007,6 +1008,8 @@ function CCAgentSessionContent({
   // 现在的方案由 hook 内 ResizeObserver 直接更新继承 CSS 宽度变量；React 只在
   // compact 阈值跨越时切换一次。这里继续只传 isCompactRail,不要再叠
   // rightSidebarCollapsed 进来。
+  // ROADMAP 13.7: the owner's chat column cap (regular 914 / wide 1200 / full).
+  const { chatWidth } = useResponsePreferences();
   const {
     containerRef,
     messageWidth,
@@ -1015,7 +1018,7 @@ function CCAgentSessionContent({
     inputHalfWidth,
     isCompact,
     getMessageWidth,
-  } = useProportionalWidth(914, { compact: isCompactRail });
+  } = useProportionalWidth(chatMaxWidth(chatWidth), { compact: isCompactRail });
   const controlledBannerMaxWidth = `min(${inputHalfWidth}, ${CONTROLLED_BANNER_MAX_WIDTH}px)`;
   const { sessions: allSessions, refreshSessions, patchLocal: patchLocalSession } = useCCSessions();
   // /ctr 接管态: attached=true 时把 ChatInput 替换为 TakeoverMask, 防止 desktop

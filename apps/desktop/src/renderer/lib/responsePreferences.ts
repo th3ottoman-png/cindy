@@ -17,12 +17,16 @@ import { useSyncExternalStore } from 'react';
 
 export type ResponseStyle = 'concise' | 'detailed';
 export type ThinkingDisplay = 'collapsed' | 'expanded' | 'hidden';
+/** ROADMAP 13.7: the chat column cap. `regular` is the historical 914 px. */
+export type ChatWidth = 'regular' | 'wide' | 'full';
 
 export interface ResponsePreferences {
   responseStyle: ResponseStyle;
   thinkingDisplay: ThinkingDisplay;
   /** ROADMAP 13.6: keep each message's clock time visible instead of hover-only. */
   showTimestamps: boolean;
+  /** ROADMAP 13.7: chat column width. */
+  chatWidth: ChatWidth;
 }
 
 export const RESPONSE_PREFERENCES_KEY = 'cindy.responsePreferences.v1';
@@ -31,10 +35,16 @@ export const DEFAULT_RESPONSE_PREFERENCES: ResponsePreferences = {
   responseStyle: 'concise',
   thinkingDisplay: 'collapsed',
   showTimestamps: false,
+  chatWidth: 'regular',
 };
 
 const STYLES: readonly ResponseStyle[] = ['concise', 'detailed'];
 const DISPLAYS: readonly ThinkingDisplay[] = ['collapsed', 'expanded', 'hidden'];
+const WIDTHS: readonly ChatWidth[] = ['regular', 'wide', 'full'];
+
+/** Historical cap, kept as the default so nothing changes until the owner picks a wider column. */
+export const CHAT_WIDTH_REGULAR_PX = 914;
+export const CHAT_WIDTH_WIDE_PX = 1200;
 
 /** Never throws and never invents a third state: an unknown value falls back to the default. */
 export function parseResponsePreferences(raw: unknown): ResponsePreferences {
@@ -53,8 +63,21 @@ export function parseResponsePreferences(raw: unknown): ResponsePreferences {
   const thinkingDisplay = DISPLAYS.includes(value.thinkingDisplay as ThinkingDisplay)
     ? (value.thinkingDisplay as ThinkingDisplay)
     : DEFAULT_RESPONSE_PREFERENCES.thinkingDisplay;
+  const chatWidth = WIDTHS.includes(value.chatWidth as ChatWidth)
+    ? (value.chatWidth as ChatWidth)
+    : DEFAULT_RESPONSE_PREFERENCES.chatWidth;
   // Only an explicit true turns it on, so a stored v1 value without the field stays off.
-  return { responseStyle, thinkingDisplay, showTimestamps: value.showTimestamps === true };
+  return { responseStyle, thinkingDisplay, showTimestamps: value.showTimestamps === true, chatWidth };
+}
+
+/**
+ * The cap to hand `useProportionalWidth`. `full` returns Infinity, which that hook treats as
+ * "no cap" (it clamps to the measured container), so the column fills the available width.
+ */
+export function chatMaxWidth(width: ChatWidth): number {
+  if (width === 'wide') return CHAT_WIDTH_WIDE_PX;
+  if (width === 'full') return Number.POSITIVE_INFINITY;
+  return CHAT_WIDTH_REGULAR_PX;
 }
 
 /** What a tool row should do under a style. `concise` keeps the row closed, as it ships today. */
