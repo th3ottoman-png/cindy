@@ -16,9 +16,21 @@ import {
   DEFAULT_RETENTION_DAYS,
   normalizeRetentionDays,
   planHousekeeping,
+  type ConversationStatus,
   type HousekeepingCandidate,
   type HousekeepingDecision,
+  type HousekeepingKind,
 } from '@cindy/maker-core/housekeeping';
+import { stopSessionGateway, type StopGatewayResult } from '@cindy/maker-hermes-manager';
+
+/**
+ * Cindy conversation facts, keyed by `sessions.sdk_session_id`. The host joins them to the
+ * daemon registry's `hermesSessionId`, because a home is named by the DAEMON session id
+ * (ADR 0014). `protected` means open, running, scheduled or pinned.
+ */
+export interface ConversationFacts {
+  bySdkSessionId: Readonly<Record<string, { status: ConversationStatus; protected: boolean }>>;
+}
 
 /**
  * The walk is synchronous on the main process, so the cap bounds UI blocking. Measured 1.1 s for
@@ -30,6 +42,8 @@ export const HOUSEKEEPING_SCAN_BUDGET_MS = 4000;
 const HOME_NAME = /^(.+)-[0-9a-f]{10}$/;
 const BACKUP_NAME = /^(.+)\.bak[-.]/;
 const DEV_TERMINAL_LOG = /^dev-terminal.*\.log$/;
+/** ADR 0014 Tier 3: the agent's transcript is never removed, whatever else goes. */
+const TRANSCRIPT_BASENAMES = new Set(['state.db', 'state.db-wal', 'state.db-shm']);
 
 export interface HousekeepingSettings {
   retentionDays: number;
@@ -58,6 +72,8 @@ export interface StorageView {
   devTerminalLogs: StorageBucket;
   /** What the planner would remove right now. A preview, not an action. */
   preview: HousekeepingDecision[];
+  /** Every keep with its reason. Empty unless `includeKeeps` was set. */
+  keeps: HousekeepingDecision[];
   reclaimableItems: number;
   /** A size estimate, not measured free space (ADR 0014: uv may APFS-clone). */
   estimatedFreedBytes: number;
@@ -196,16 +212,26 @@ function homeIdleMs(home: string): number {
   return newest;
 }
 
-function readRegistry(file: string): { sessionId: string; running: boolean }[] {
+interface RegistryRecord {
+  sessionId: string;
+  hermesSessionId?: string;
+  running: boolean;
+}
+
+function readRegistry(file: string): RegistryRecord[] {
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown;
     const list = Array.isArray(raw) ? raw : Object.values((raw ?? {}) as Record<string, unknown>);
-    const out: { sessionId: string; running: boolean }[] = [];
+    const out: RegistryRecord[] = [];
     for (const entry of list) {
       if (!entry || typeof entry !== 'object') continue;
       const r = entry as Record<string, unknown>;
       if (typeof r.sessionId !== 'string' || !r.sessionId) continue;
-      out.push({ sessionId: r.sessionId, running: r.running === true });
+      out.push({
+        sessionId: r.sessionId,
+        running: r.running === true,
+        ...(typeof r.hermesSessionId === 'string' && r.hermesSessionId ? { hermesSessionId: r.hermesSessionId } : {}),
+      });
     }
     return out;
   } catch {
@@ -232,8 +258,12 @@ function lstatOrNull(target: string): fs.Stats | null {
 export interface ScanDeps {
   roots: HousekeepingRoots;
   settingsFile: string;
-  /** Cindy session ids that are open or running right now, mapped to their daemon ids by the caller. */
+  /** Daemon session ids that are open or running right now, supplied by the caller. */
   protectedSessionIds?: () => readonly string[];
+  /** Cindy conversation status + protection, joined through the registry (13.2c). */
+  facts?: ConversationFacts;
+  /** Populate `keeps` too. Only the prune path needs them; a Settings scan stays small. */
+  includeKeeps?: boolean;
   now?: () => number;
   budgetMs?: number;
 }
@@ -247,10 +277,26 @@ export function scanStorage(deps: ScanDeps): StorageView {
   const settings = readHousekeepingSettings(deps.settingsFile);
   const { hermesHome, harnessDir, appLogDir } = deps.roots;
   const homesRoot = path.join(hermesHome, 'session-homes');
-  const registry = readRegistry(path.join(hermesHome, 'hermes-mgr', 'sessions.json'));
+  const registryFile = path.join(hermesHome, 'hermes-mgr', 'sessions.json');
+  const registry = readRegistry(registryFile);
+  // A registry written after a home's last activity proves the missing record is authoritative,
+  // so the reaper's 24 h unflushed-record guard is not needed for that home (ADR 0014 addendum).
+  const registryWrittenMs = lstatOrNull(registryFile)?.mtimeMs ?? 0;
   const owners = new Set(registry.map((r) => r.sessionId));
   const protectedIds = new Set(registry.filter((r) => r.running).map((r) => r.sessionId));
   for (const id of deps.protectedSessionIds?.() ?? []) protectedIds.add(id);
+  // The home is named by the daemon id; Cindy's row is reached through hermesSessionId.
+  const statusByDaemonId = new Map<string, ConversationStatus>();
+  for (const record of registry) {
+    const fact = record.hermesSessionId ? deps.facts?.bySdkSessionId[record.hermesSessionId] : undefined;
+    if (!fact) continue;
+    if (fact.protected) protectedIds.add(record.sessionId);
+    statusByDaemonId.set(record.sessionId, fact.status);
+  }
+  const statusOf = (owner: string | undefined): { conversationStatus?: ConversationStatus } => {
+    const status = owner ? statusByDaemonId.get(owner) : undefined;
+    return status ? { conversationStatus: status } : {};
+  };
 
   const candidates: HousekeepingCandidate[] = [];
   let homeCount = 0;
@@ -285,20 +331,26 @@ export function scanStorage(deps: ScanDeps): StorageView {
       candidates.push({
         path: home, root: homesRoot, kind: 'session-home', sizeBytes: sized.bytes,
         idleSinceMs: idle, isSymlink: false, isDirectory: true, isRegularFile: false,
+        registryFlushedAfterIdle: registryWrittenMs > idle,
       });
     }
     // Re-creatable bulk inside the home. The home's idle time governs, not the file's own age.
-    const catalog = path.join(home, 'models_dev_cache.json');
-    const cst = lstatOrNull(catalog);
-    if (cst && cst.isFile() && !cst.isSymbolicLink()) {
-      catalogCount += 1;
-      catalogBytes += cst.size;
-      // An orphan home is planned as a whole; listing its interior too would double-count it.
-      if (!isOrphan) {
+    // An orphan home is planned as a whole; listing its interior too would double-count it.
+    if (!isOrphan) {
+      // The etag must go with the catalog: a surviving validator could make Hermes accept a
+      // 304 for a file that is no longer there.
+      for (const entry of ['models_dev_cache.json', 'models_dev_cache.etag']) {
+        const target = path.join(home, entry);
+        const cst = lstatOrNull(target);
+        if (!cst || !cst.isFile() || cst.isSymbolicLink()) continue;
+        if (entry === 'models_dev_cache.json') {
+          catalogCount += 1;
+          catalogBytes += cst.size;
+        }
         candidates.push({
-          path: catalog, root: homesRoot, kind: 'home-model-catalog', sizeBytes: cst.size,
+          path: target, root: homesRoot, kind: 'home-model-catalog', sizeBytes: cst.size,
           idleSinceMs: idle, isSymlink: false, isDirectory: false, isRegularFile: true,
-          ...(owner ? { ownerSessionId: owner } : {}),
+          ...(owner ? { ownerSessionId: owner } : {}), ...statusOf(owner),
         });
       }
     }
@@ -311,7 +363,18 @@ export function scanStorage(deps: ScanDeps): StorageView {
       candidates.push({
         path: target, root: homesRoot, kind, sizeBytes: walked.bytes,
         idleSinceMs: idle, isSymlink: false, isDirectory: true, isRegularFile: false,
-        ...(owner ? { ownerSessionId: owner } : {}),
+        ...(owner ? { ownerSessionId: owner } : {}), ...statusOf(owner),
+      });
+    }
+    for (const entry of readdirOrEmpty(path.join(home, 'cache'))) {
+      if (!entry.endsWith('.json')) continue;
+      const target = path.join(home, 'cache', entry);
+      const cst = lstatOrNull(target);
+      if (!cst || !cst.isFile() || cst.isSymbolicLink()) continue;
+      candidates.push({
+        path: target, root: homesRoot, kind: 'home-cache-catalog', sizeBytes: cst.size,
+        idleSinceMs: idle, isSymlink: false, isDirectory: false, isRegularFile: true,
+        ...(owner ? { ownerSessionId: owner } : {}), ...statusOf(owner),
       });
     }
   }
@@ -326,6 +389,17 @@ export function scanStorage(deps: ScanDeps): StorageView {
     candidates.push({
       path: uvRoot, root: hermesHome, kind: 'base-uv-cache', sizeBytes: uvWalk.bytes,
       idleSinceMs: uvWalk.newestMs, isSymlink: false, isDirectory: true, isRegularFile: false,
+    });
+  }
+  // Remote-fetched or recomputed catalogs beside the uv cache (ADR 0014 Tier 1).
+  for (const entry of readdirOrEmpty(cacheRoot)) {
+    if (!entry.endsWith('.json')) continue;
+    const target = path.join(cacheRoot, entry);
+    const cst = lstatOrNull(target);
+    if (!cst || !cst.isFile() || cst.isSymbolicLink()) continue;
+    candidates.push({
+      path: target, root: hermesHome, kind: 'base-cache-catalog', sizeBytes: cst.size,
+      idleSinceMs: cst.mtimeMs, isSymlink: false, isDirectory: false, isRegularFile: true,
     });
   }
 
@@ -384,6 +458,7 @@ export function scanStorage(deps: ScanDeps): StorageView {
     appLogs,
     devTerminalLogs: { count: devLogCount, totalBytes: devLogBytes },
     preview: plan.decisions.filter((d) => d.action === 'delete'),
+    keeps: deps.includeKeeps ? plan.decisions.filter((d) => d.action === 'keep') : [],
     reclaimableItems: plan.deleteCount,
     estimatedFreedBytes: plan.estimatedFreedBytes,
     scannedAt: now,
@@ -391,26 +466,238 @@ export function scanStorage(deps: ScanDeps): StorageView {
   };
 }
 
-// ── IPC ────────────────────────────────────────────────────────────────────────────────────────
+// ── Prune (ROADMAP 13.2c) ──────────────────────────────────────────────────────────────────────
 
-export interface HousekeepingHandlerDeps {
+export interface PruneDeps {
   roots: HousekeepingRoots;
   settingsFile: string;
-  assertTrusted: (event: unknown) => void;
-  channels: { SCAN: string; SET_RETENTION: string };
   protectedSessionIds?: () => readonly string[];
+  facts?: ConversationFacts;
+  now?: () => number;
+  /** Test seam. Defaults to the reaper's own guarded stop, which verifies the pid is Hermes. */
+  stopGateway?: (home: string) => Promise<StopGatewayResult>;
+  /** Test seam. Defaults to a recursive removal that never follows a symlink. */
+  remove?: (target: string) => void;
+}
+
+export interface PruneRequest {
+  /** The exact paths the owner saw in the preview and confirmed. Nothing else is touched. */
+  confirmedPaths: readonly string[];
+}
+
+export interface PruneResult {
+  deleted: HousekeepingDecision[];
+  /** Every keep, every unconfirmed item and every refusal, each with its reason. */
+  skipped: HousekeepingDecision[];
+  errors: { path: string; message: string }[];
+  /** Sum of the removed candidates' sizes: a du estimate, not measured free space (ADR 0014). */
+  freedBytes: number;
+  /** Real free-space delta on the Hermes volume. APFS clones can make this smaller. */
+  measuredFreedBytes: number | null;
+  prunedAt: number;
+}
+
+/** Tier 3 refusals keep their own wording; anything else that dropped out is simply stale. */
+const HARD_REFUSALS: ReadonlySet<string> = new Set([
+  'symlink-never-followed',
+  'not-a-regular-file-or-directory',
+  'transcript-never-pruned',
+  'outside-root',
+  'unexpected-home-name',
+]);
+
+function defaultRemove(target: string): void {
+  fs.rmSync(target, { recursive: true, force: false, maxRetries: 3, retryDelay: 50 });
+}
+
+function availableBytes(dir: string): number | null {
+  try {
+    const stat = fs.statfsSync(dir);
+    return Number(stat.bavail) * Number(stat.bsize);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Classifies a confirmed path the fresh plan no longer wants to remove, so the result can say
+ * WHY it was skipped instead of silently dropping it. The planner stays the authority.
+ */
+function unplannedCandidate(target: string, roots: HousekeepingRoots, st: fs.Stats): HousekeepingCandidate | null {
+  const homesRoot = path.join(roots.hermesHome, 'session-homes');
+  const parent = path.dirname(target);
+  const name = path.basename(target);
+  const base = {
+    path: target,
+    sizeBytes: st.isDirectory() ? 0 : st.size,
+    idleSinceMs: st.mtimeMs,
+    isSymlink: st.isSymbolicLink(),
+    isDirectory: st.isDirectory(),
+    isRegularFile: st.isFile(),
+  };
+  if (parent === homesRoot) return { ...base, root: homesRoot, kind: 'session-home' };
+  if (target.startsWith(homesRoot + path.sep)) return { ...base, root: homesRoot, kind: 'home-logs' };
+  if (parent === roots.harnessDir) {
+    const backupBase = BACKUP_NAME.exec(name)?.[1];
+    return { ...base, root: roots.harnessDir, kind: 'harness-backup', ...(backupBase ? { backupBase } : {}) };
+  }
+  if (parent === roots.appLogDir) return { ...base, root: roots.appLogDir, kind: 'dev-terminal-log' };
+  if (parent === path.join(roots.hermesHome, 'cache')) return { ...base, root: roots.hermesHome, kind: 'base-cache-catalog' };
+  return null;
+}
+
+function skipReasonFor(target: string, deps: PruneDeps, now: number, retentionDays: number): HousekeepingDecision {
+  const st = lstatOrNull(target);
+  const fallback: HousekeepingDecision = {
+    path: target, kind: 'session-home', action: 'keep', reason: 'no-longer-eligible', sizeBytes: 0,
+  };
+  if (!st) return { ...fallback, reason: 'already-gone' };
+  const candidate = unplannedCandidate(target, deps.roots, st);
+  if (!candidate) return { ...fallback, reason: 'outside-root', sizeBytes: st.size };
+  const decision = planHousekeeping([candidate], now, retentionDays).decisions[0]!;
+  if (decision.action === 'delete' || !HARD_REFUSALS.has(decision.reason)) {
+    return { ...decision, action: 'keep', reason: 'no-longer-eligible' };
+  }
+  return decision;
+}
+
+async function executePrune(view: StorageView, deps: PruneDeps, confirmedPaths: readonly string[]): Promise<PruneResult> {
+  const now = (deps.now ?? Date.now)();
+  const confirmed = new Set(confirmedPaths);
+  const stopGateway = deps.stopGateway ?? ((home: string) => stopSessionGateway(home));
+  const remove = deps.remove ?? defaultRemove;
+  const deleted: HousekeepingDecision[] = [];
+  const skipped: HousekeepingDecision[] = [...view.keeps];
+  const errors: { path: string; message: string }[] = [];
+  let freedBytes = 0;
+  const before = availableBytes(deps.roots.hermesHome);
+
+  for (const decision of view.preview) {
+    if (!confirmed.has(decision.path)) {
+      skipped.push({ ...decision, action: 'keep', reason: 'not-confirmed' });
+      continue;
+    }
+    // Re-check at execution time: the preview the owner confirmed may be minutes old.
+    const st = lstatOrNull(decision.path);
+    if (!st) {
+      skipped.push({ ...decision, action: 'keep', reason: 'already-gone' });
+      continue;
+    }
+    if (st.isSymbolicLink()) {
+      skipped.push({ ...decision, action: 'keep', reason: 'symlink-never-followed' });
+      continue;
+    }
+    if (TRANSCRIPT_BASENAMES.has(path.basename(decision.path))) {
+      skipped.push({ ...decision, action: 'keep', reason: 'transcript-never-pruned' });
+      continue;
+    }
+    if (decision.kind === 'session-home') {
+      if (!HOME_NAME.test(path.basename(decision.path))) {
+        skipped.push({ ...decision, action: 'keep', reason: 'unexpected-home-name' });
+        continue;
+      }
+      const stop = await stopGateway(decision.path);
+      if (!stop.stopped && stop.reason !== 'no-pid-file' && stop.reason !== 'not-running') {
+        skipped.push({ ...decision, action: 'keep', reason: 'gateway-still-running' });
+        continue;
+      }
+    }
+    try {
+      remove(decision.path);
+      deleted.push(decision);
+      freedBytes += decision.sizeBytes;
+    } catch (error) {
+      errors.push({ path: decision.path, message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  const planned = new Set(view.preview.map((d) => d.path));
+  for (const target of confirmed) {
+    if (planned.has(target)) continue;
+    skipped.push(skipReasonFor(target, deps, now, view.settings.retentionDays));
+  }
+
+  const after = availableBytes(deps.roots.hermesHome);
+  return {
+    deleted,
+    skipped,
+    errors,
+    freedBytes,
+    measuredFreedBytes: before !== null && after !== null ? after - before : null,
+    prunedAt: now,
+  };
+}
+
+/**
+ * Prunes what the owner confirmed. The plan is rebuilt from disk first, so a stale preview can
+ * never authorise a removal the current state does not allow.
+ */
+export async function pruneStorage(deps: PruneDeps, request: PruneRequest): Promise<PruneResult> {
+  const view = scanStorage({ ...deps, includeKeeps: true });
+  return executePrune(view, deps, request.confirmedPaths);
+}
+
+/**
+ * Optional startup run, off by default. No window is open yet, so "open in the UI" cannot be
+ * known: every registered session is protected (fail closed on safety, AGENTS.md §6.3). Orphan
+ * homes, base caches and old backups still go. Returns null when the owner has not enabled it.
+ */
+export async function runStartupHousekeeping(deps: PruneDeps): Promise<PruneResult | null> {
+  if (!readHousekeepingSettings(deps.settingsFile).pruneAtStartup) return null;
+  const registry = readRegistry(path.join(deps.roots.hermesHome, 'hermes-mgr', 'sessions.json'));
+  const registered = registry.map((r) => r.sessionId);
+  const view = scanStorage({
+    ...deps,
+    includeKeeps: true,
+    protectedSessionIds: () => [...registered, ...(deps.protectedSessionIds?.() ?? [])],
+  });
+  return executePrune(view, deps, view.preview.map((d) => d.path));
+}
+
+// ── IPC ────────────────────────────────────────────────────────────────────────────────────────
+
+export interface HousekeepingHandlerDeps extends PruneDeps {
+  assertTrusted: (event: unknown) => void;
+  channels: { SCAN: string; SET_RETENTION: string; PRUNE: string; SET_PRUNE_AT_STARTUP: string };
+  /** Async DB read, supplied by the caller; the scan itself stays synchronous. */
+  conversationFacts?: () => Promise<ConversationFacts>;
 }
 
 interface HandlerRegistry {
   handle(channel: string, listener: (event: unknown, ...args: unknown[]) => unknown): void;
 }
 
+function parseConfirmedPaths(request: unknown): string[] {
+  const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
+  const paths = r.confirmedPaths;
+  if (!Array.isArray(paths) || paths.some((p) => typeof p !== 'string')) {
+    throw new Error('confirmedPaths must be an array of strings');
+  }
+  return paths as string[];
+}
+
 export function registerHousekeepingHandlers(registry: HandlerRegistry, deps: HousekeepingHandlerDeps): void {
-  const scan = (): StorageView => scanStorage({
-    roots: deps.roots,
-    settingsFile: deps.settingsFile,
-    ...(deps.protectedSessionIds ? { protectedSessionIds: deps.protectedSessionIds } : {}),
-  });
+  const facts = async (): Promise<ConversationFacts | undefined> => {
+    if (!deps.conversationFacts) return undefined;
+    try {
+      return await deps.conversationFacts();
+    } catch {
+      // Without the join we cannot tell a soft-deleted home from a live one. Fail closed:
+      // an empty fact set leaves every registered home's status unknown, so no whole home
+      // of a registered session is ever removed.
+      return { bySdkSessionId: {} };
+    }
+  };
+
+  const scan = async (): Promise<StorageView> => {
+    const resolved = await facts();
+    return scanStorage({
+      roots: deps.roots,
+      settingsFile: deps.settingsFile,
+      ...(deps.protectedSessionIds ? { protectedSessionIds: deps.protectedSessionIds } : {}),
+      ...(resolved ? { facts: resolved } : {}),
+    });
+  };
 
   registry.handle(deps.channels.SCAN, async (event) => {
     deps.assertTrusted(event);
@@ -426,6 +713,21 @@ export function registerHousekeepingHandlers(registry: HandlerRegistry, deps: Ho
     const current = readHousekeepingSettings(deps.settingsFile);
     writeHousekeepingSettings(deps.settingsFile, { ...current, retentionDays: r.retentionDays });
     // Re-scan so the preview reflects the retention the owner just chose.
+    return scan();
+  });
+
+  registry.handle(deps.channels.PRUNE, async (event, request) => {
+    deps.assertTrusted(event);
+    const confirmedPaths = parseConfirmedPaths(request);
+    const resolved = await facts();
+    return pruneStorage({ ...deps, ...(resolved ? { facts: resolved } : {}) }, { confirmedPaths });
+  });
+
+  registry.handle(deps.channels.SET_PRUNE_AT_STARTUP, async (event, request) => {
+    deps.assertTrusted(event);
+    const r = (request && typeof request === 'object' ? request : {}) as Record<string, unknown>;
+    const current = readHousekeepingSettings(deps.settingsFile);
+    writeHousekeepingSettings(deps.settingsFile, { ...current, pruneAtStartup: r.enabled === true });
     return scan();
   });
 }

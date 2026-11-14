@@ -954,7 +954,16 @@ import { SessionExportHost, registerSessionExportHandlers } from './sessionExpor
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
 import { SecurityGuardHost, registerSecurityGuardHandlers } from './securityGuard.js';
 import { getDesktopChatOnlyHost, registerChatOnlyHandlers, type ChatOnlyHost } from './chatOnly.js';
-import { defaultHousekeepingFile, defaultHousekeepingRoots, registerHousekeepingHandlers } from './housekeeping.js';
+import {
+  defaultHousekeepingFile,
+  defaultHousekeepingRoots,
+  registerHousekeepingHandlers,
+  runStartupHousekeeping,
+} from './housekeeping.js';
+import { readConversationFacts } from './housekeepingFacts.js';
+
+/** Grace period before the optional startup prune: the DB client and daemon registry must be up. */
+const HOUSEKEEPING_STARTUP_DELAY_MS = 30_000;
 import { getDesktopPlanFirstHost, registerPlanFirstHandlers, type PlanFirstHost } from './planFirst.js';
 import { getDesktopTurnAuditHost, registerTurnAuditHandlers } from './turnAudit.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
@@ -26152,16 +26161,37 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     // flag travels with every turn instead (see QUERY_SEND.chatOnly).
   });
 
-  // ── Storage housekeeping (ROADMAP 13.2b, ADR 0014) ───────────────────────
-  // Read-only: sizes + retention + a prune PREVIEW. Nothing deletes here (Prune is 13.2c).
-  // The host protects homes whose daemon record is running; 13.2c must also pass the open /
-  // scheduled / pinned daemon ids through protectedSessionIds before it removes anything.
-  registerHousekeepingHandlers(createElectronIpcHandlerRegistry(), {
+  // ── Storage housekeeping (ROADMAP 13.2b/13.2c, ADR 0014) ─────────────────
+  // Sizes + retention + preview, and the owner-confirmed Prune. Protection comes from the
+  // daemon registry (running) and the Cindy DB (pinned / scheduled / turn in flight); only
+  // orphan homes — no registry record at all — are ever removed whole.
+  const housekeepingDeps = {
     roots: defaultHousekeepingRoots(getLogDir()),
     settingsFile: defaultHousekeepingFile(),
+    conversationFacts: readConversationFacts,
+  };
+  registerHousekeepingHandlers(createElectronIpcHandlerRegistry(), {
+    ...housekeepingDeps,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
-    channels: { SCAN: MAKER_INVOKE.STORAGE_SCAN, SET_RETENTION: MAKER_INVOKE.STORAGE_SET_RETENTION },
+    channels: {
+      SCAN: MAKER_INVOKE.STORAGE_SCAN,
+      SET_RETENTION: MAKER_INVOKE.STORAGE_SET_RETENTION,
+      PRUNE: MAKER_INVOKE.STORAGE_PRUNE,
+      SET_PRUNE_AT_STARTUP: MAKER_INVOKE.STORAGE_SET_PRUNE_AT_STARTUP,
+    },
   });
+  // Optional startup prune, off by default. Deferred so the DB client and the daemon registry
+  // are both up before anything is classified; a cold read would see no facts and no owners.
+  setTimeout(() => {
+    void runStartupHousekeeping(housekeepingDeps).then((result) => {
+      if (!result) return;
+      createLogger('housekeeping').info(
+        `startup prune: ${result.deleted.length} removed, ${result.freedBytes} bytes (estimate), ${result.errors.length} errors`,
+      );
+    }).catch((error: unknown) => {
+      createLogger('housekeeping').warn('startup prune failed', error);
+    });
+  }, HOUSEKEEPING_STARTUP_DELAY_MS);
 
   // ── Plan First sessions (ROADMAP 11.7) ───────────────────────────────────
   // Same shape as chat-only above: the desktop owns the lock file (a synchronous read is needed

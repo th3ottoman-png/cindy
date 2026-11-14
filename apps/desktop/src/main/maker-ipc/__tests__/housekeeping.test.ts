@@ -272,7 +272,7 @@ describe('registerHousekeepingHandlers', () => {
         roots,
         settingsFile,
         assertTrusted: (event) => { trusted.push(event); },
-        channels: { SCAN: 'scan', SET_RETENTION: 'set' },
+        channels: { SCAN: 'scan', SET_RETENTION: 'set', PRUNE: 'prune', SET_PRUNE_AT_STARTUP: 'startup' },
       },
     );
     return { handlers, trusted };

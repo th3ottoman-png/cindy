@@ -5896,10 +5896,14 @@ interface ElectronAPI {
       set: (params: { sessionId: string; chatOnly: boolean; model?: string }) =>
         Promise<import('../main/maker-ipc/chatOnly').ChatOnlyView>;
     };
-    /** ROADMAP 13.2b: storage sizes + housekeeping retention (read-only; Prune is 13.2c). */
+    /** ROADMAP 13.2b/13.2c: storage sizes, retention, and the owner-confirmed Prune. */
     storage: {
       scan: () => Promise<import('../main/maker-ipc/housekeeping').StorageView>;
       setRetention: (params: { retentionDays: number }) =>
+        Promise<import('../main/maker-ipc/housekeeping').StorageView>;
+      prune: (params: { confirmedPaths: string[] }) =>
+        Promise<import('../main/maker-ipc/housekeeping').PruneResult>;
+      setPruneAtStartup: (params: { enabled: boolean }) =>
         Promise<import('../main/maker-ipc/housekeeping').StorageView>;
     };
     /** ROADMAP 11.7: Plan First sessions (file writes locked until the owner decides). */

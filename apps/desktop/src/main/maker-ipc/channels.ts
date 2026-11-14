@@ -139,6 +139,8 @@ export const MAKER_INVOKE = {
   /** ROADMAP 13.2b: storage sizes + housekeeping retention (~/.cindy-harness/housekeeping.json). */
   STORAGE_SCAN: 'maker:storage:scan',
   STORAGE_SET_RETENTION: 'maker:storage:set-retention',
+  STORAGE_PRUNE: 'maker:storage:prune',
+  STORAGE_SET_PRUNE_AT_STARTUP: 'maker:storage:set-prune-at-startup',
   /** ROADMAP 11.7: Plan First state (~/.cindy-harness/plan-first-sessions.json). */
   PLAN_FIRST_GET: 'maker:plan-first:get',
   PLAN_FIRST_SET: 'maker:plan-first:set',

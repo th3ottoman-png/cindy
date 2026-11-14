@@ -1,14 +1,16 @@
 /**
- * Settings -> Personalization -> Storage (ROADMAP 13.2b, ADR 0014).
+ * Settings -> Personalization -> Storage (ROADMAP 13.2b/13.2c, ADR 0014).
  *
- * Read-only. Shows what the storage roots actually weigh, the retention setting, and a preview of
- * what housekeeping would reclaim. Nothing here deletes: the Prune action is 13.2c. The host scan
- * is local and deadline-bounded; this component never touches the filesystem itself.
+ * Shows what the storage roots weigh, the retention setting, and a preview of what a prune
+ * would reclaim. Prune removes only the previewed paths the owner confirms; the host re-plans
+ * from disk first, so a stale preview can never authorise a removal. The host scan is local
+ * and deadline-bounded; this component never touches the filesystem itself.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import type { StorageView } from '../../../main/maker-ipc/housekeeping';
+import type { PruneResult, StorageView } from '../../../main/maker-ipc/housekeeping';
+import { useConfirmDialog } from '@/components/ui/confirm-dialog-provider';
 import { formatBytes } from '@/features/cc-agent/workdir-browse/lib/fileMeta';
 import { createLogger } from '@/lib/logger';
 import { toast } from '@/lib/toast';
@@ -16,6 +18,7 @@ import { toast } from '@/lib/toast';
 const log = createLogger('StorageSection');
 
 const MIN_RETENTION_DAYS = 7;
+const LIST_CAP = 200;
 
 function formatAge(ms: number | undefined, now: number): string {
   if (!ms) return '—';
@@ -37,11 +40,36 @@ function Row({ label, value, hint }: { label: string; value: string; hint?: stri
   );
 }
 
+function DecisionList({ items }: { items: { path: string; reason: string; sizeBytes: number }[] }) {
+  return (
+    <div className="flex max-h-[280px] flex-col overflow-y-auto">
+      {items.slice(0, LIST_CAP).map((d) => (
+        <div key={d.path} className="flex items-baseline justify-between gap-3 px-4 py-2">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate text-12 text-[var(--text-primary)]" title={d.path}>{d.path}</span>
+            <span className="text-11 leading-none text-[var(--text-tertiary)]">{d.reason}</span>
+          </div>
+          <span className="shrink-0 text-12 tabular-nums text-[var(--text-secondary)]">{formatBytes(d.sizeBytes)}</span>
+        </div>
+      ))}
+      {items.length > LIST_CAP ? (
+        <p className="px-4 pb-3 text-11 text-[var(--text-tertiary)]">
+          Showing the first {LIST_CAP} of {items.length} items.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function StorageSection() {
+  const { confirm } = useConfirmDialog();
   const [view, setView] = useState<StorageView | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pruning, setPruning] = useState(false);
   const [retention, setRetention] = useState('30');
   const [showPreview, setShowPreview] = useState(false);
+  const [result, setResult] = useState<PruneResult | null>(null);
+  const [showSkipped, setShowSkipped] = useState(false);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -81,10 +109,64 @@ export function StorageSection() {
     }
   }, [retention]);
 
+  const toggleStartup = useCallback(async (enabled: boolean) => {
+    setBusy(true);
+    try {
+      const next = await window.electronAPI.maker.storage.setPruneAtStartup({ enabled });
+      setView(next);
+      toast.success(enabled ? 'Prune will run at startup.' : 'Startup prune turned off.');
+    } catch (err) {
+      log.warn('storageSetPruneAtStartup failed', err);
+      toast.error('Could not save the startup setting.');
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const runPrune = useCallback(async () => {
+    if (!view || view.preview.length === 0) return;
+    const confirmed = await confirm({
+      title: 'Prune storage?',
+      description:
+        `${view.reclaimableItems} items · about ${formatBytes(view.estimatedFreedBytes)} will be permanently removed. ` +
+        'Conversation transcripts, running, scheduled and pinned sessions, symlinks and the newest backup of each file are kept. ' +
+        'This cannot be undone.',
+      confirmText: 'Prune',
+      cancelText: 'Cancel',
+    });
+    if (!confirmed) return;
+    setPruning(true);
+    try {
+      const next = await window.electronAPI.maker.storage.prune({
+        confirmedPaths: view.preview.map((d) => d.path),
+      });
+      setResult(next);
+      setShowSkipped(false);
+      if (next.errors.length > 0) {
+        toast.error(`Pruned ${next.deleted.length} items; ${next.errors.length} could not be removed.`);
+      } else {
+        toast.success(`Pruned ${next.deleted.length} items · ${formatBytes(next.freedBytes)}.`);
+      }
+      await load();
+    } catch (err) {
+      log.warn('storagePrune failed', err);
+      toast.error('Prune failed. Nothing was removed.');
+    } finally {
+      setPruning(false);
+    }
+  }, [view, confirm, load]);
+
+  const skipGroups = useMemo(() => {
+    if (!result) return [];
+    const counts = new Map<string, number>();
+    for (const d of result.skipped) counts.set(d.reason, (counts.get(d.reason) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [result]);
+
   if (!view) {
     return (
       <div className="flex flex-col gap-1">
-        <h2 className="text-16 font-medium leading-[1.2] text-[var(--settings-section-title)]">Storage</h2>
+        <h2 className="text-16 font-medium leading-[1.2] text-[var(--settings-section-title)]">Storage housekeeping</h2>
         <p className="text-13 leading-[1.5] text-[var(--settings-section-desc)]">
           {busy ? 'Measuring…' : 'Storage sizes are unavailable.'}
         </p>
@@ -96,9 +178,10 @@ export function StorageSection() {
   return (
     <div className="flex flex-col gap-[14px]">
       <div className="flex flex-col gap-1">
-        <h2 className="text-16 font-medium leading-[1.2] text-[var(--settings-section-title)]">Storage</h2>
+        <h2 className="text-16 font-medium leading-[1.2] text-[var(--settings-section-title)]">Storage housekeeping</h2>
         <p className="text-13 leading-[1.5] text-[var(--settings-section-desc)]">
-          What Cindy and Hermes keep on this machine. Measured locally, nothing is sent anywhere.
+          Session homes, Hermes caches and harness backups. Measured locally, nothing is sent
+          anywhere. The Storage tab covers the conversation database instead.
         </p>
       </div>
 
@@ -108,7 +191,7 @@ export function StorageSection() {
           <button
             type="button"
             onClick={() => { void load(); }}
-            disabled={busy}
+            disabled={busy || pruning}
             className="shrink-0 rounded-full border border-[var(--border-default)] bg-[var(--surface-elevated)] px-3 py-1.5 text-12 font-medium text-[var(--text-primary)] disabled:opacity-50"
           >
             {busy ? 'Measuring…' : 'Remeasure'}
@@ -123,7 +206,7 @@ export function StorageSection() {
         <Row
           label="Orphan homes"
           value={`${view.orphanHomes.count} · ${formatBytes(view.orphanHomes.totalBytes)}`}
-          hint="No session owns these; the startup reaper removes them after 24 h idle."
+          hint="No session owns these, so they are unreachable. Pruned after 24 h idle, or sooner once the registry has been rewritten."
         />
         <Row
           label="Model catalog copies"
@@ -144,8 +227,9 @@ export function StorageSection() {
         <div className="flex flex-col gap-1">
           <p className="text-14 font-medium text-[var(--text-primary)]">Retention</p>
           <p className="text-12 leading-[1.4] text-[var(--text-secondary)]">
-            Homes and caches idle longer than this become eligible for housekeeping. A conversation's
-            transcript is never removed, and open, running, scheduled or pinned sessions are always kept.
+            Caches, logs and backups idle longer than this become eligible for housekeeping. A
+            conversation's transcript is never removed, and running, scheduled or pinned sessions
+            are always kept. Unreachable orphan homes follow the startup reaper's 24 h instead.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -162,12 +246,29 @@ export function StorageSection() {
           <button
             type="button"
             onClick={() => { void saveRetention(); }}
-            disabled={busy}
+            disabled={busy || pruning}
             className="ml-auto shrink-0 rounded-full border border-[var(--border-default)] bg-[var(--surface-elevated)] px-3 py-1.5 text-12 font-medium text-[var(--text-primary)] disabled:opacity-50"
           >
             Save
           </button>
         </div>
+        <label className="flex items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={view.settings.pruneAtStartup}
+            disabled={busy || pruning}
+            onChange={(e) => { void toggleStartup(e.target.checked); }}
+            aria-label="Prune at startup"
+            className="mt-0.5"
+          />
+          <span className="flex flex-col gap-0.5">
+            <span className="text-13 text-[var(--text-primary)]">Prune at startup</span>
+            <span className="text-11 leading-[1.4] text-[var(--text-tertiary)]">
+              Off by default. Runs without a preview, so every registered session is kept; only
+              orphan homes, caches and old backups go.
+            </span>
+          </span>
+        </label>
       </div>
 
       <div className="flex flex-col rounded-xl border border-[var(--settings-theme-card-border)] bg-[var(--settings-theme-card-bg)]">
@@ -176,40 +277,74 @@ export function StorageSection() {
             <p className="text-14 font-medium text-[var(--text-primary)]">Reclaimable now</p>
             <p className="text-12 leading-[1.4] text-[var(--text-secondary)]">
               {view.reclaimableItems} items · about {formatBytes(view.estimatedFreedBytes)} (a size estimate,
-              not measured free space). Preview only — pruning is not enabled yet.
+              not measured free space). Prune asks before it removes anything.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => { setShowPreview((v) => !v); }}
-            disabled={view.preview.length === 0}
-            className="shrink-0 rounded-full border border-[var(--border-default)] bg-[var(--surface-elevated)] px-3 py-1.5 text-12 font-medium text-[var(--text-primary)] disabled:opacity-50"
-          >
-            {showPreview ? 'Hide list' : 'Show list'}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => { setShowPreview((v) => !v); }}
+              disabled={view.preview.length === 0}
+              className="rounded-full border border-[var(--border-default)] bg-[var(--surface-elevated)] px-3 py-1.5 text-12 font-medium text-[var(--text-primary)] disabled:opacity-50"
+            >
+              {showPreview ? 'Hide list' : 'Show list'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { void runPrune(); }}
+              disabled={view.preview.length === 0 || busy || pruning}
+              aria-label="Prune storage"
+              className="rounded-full border border-[var(--border-default)] bg-[var(--surface-elevated)] px-3 py-1.5 text-12 font-medium text-[var(--text-primary)] disabled:opacity-50"
+            >
+              {pruning ? 'Pruning…' : 'Prune'}
+            </button>
+          </div>
         </div>
         {showPreview && view.preview.length > 0 ? (
           <>
             <div className="mx-4 h-px bg-[var(--settings-theme-card-border)]" />
-            <div className="flex max-h-[280px] flex-col overflow-y-auto">
-              {view.preview.slice(0, 200).map((d) => (
-                <div key={d.path} className="flex items-baseline justify-between gap-3 px-4 py-2">
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="truncate text-12 text-[var(--text-primary)]" title={d.path}>{d.path}</span>
-                    <span className="text-11 leading-none text-[var(--text-tertiary)]">{d.reason}</span>
-                  </div>
-                  <span className="shrink-0 text-12 tabular-nums text-[var(--text-secondary)]">{formatBytes(d.sizeBytes)}</span>
-                </div>
-              ))}
-            </div>
-            {view.preview.length > 200 ? (
-              <p className="px-4 pb-3 text-11 text-[var(--text-tertiary)]">
-                Showing the first 200 of {view.preview.length} items.
-              </p>
-            ) : null}
+            <DecisionList items={view.preview} />
           </>
         ) : null}
       </div>
+
+      {result ? (
+        <div className="flex flex-col rounded-xl border border-[var(--settings-theme-card-border)] bg-[var(--settings-theme-card-bg)]">
+          <div className="flex flex-col gap-1 px-4 py-4">
+            <p className="text-14 font-medium text-[var(--text-primary)]">Last prune</p>
+            <p className="text-12 leading-[1.4] text-[var(--text-secondary)]">
+              Removed {result.deleted.length} items · {formatBytes(result.freedBytes)} by size
+              {result.measuredFreedBytes !== null
+                ? ` · ${formatBytes(Math.max(0, result.measuredFreedBytes))} actually returned to the volume`
+                : ' · free-space delta unavailable'}
+              . {result.skipped.length} skipped.
+            </p>
+            {result.errors.length > 0 ? (
+              <p className="text-12 leading-[1.4] text-[var(--text-warning,#a60)]">
+                {result.errors.length} could not be removed: {result.errors.slice(0, 3).map((e) => `${e.path} (${e.message})`).join('; ')}
+              </p>
+            ) : null}
+          </div>
+          {skipGroups.length > 0 ? (
+            <>
+              <div className="mx-4 h-px bg-[var(--settings-theme-card-border)]" />
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <p className="text-12 leading-[1.5] text-[var(--text-secondary)]">
+                  {skipGroups.map(([reason, count]) => `${reason} ${count}`).join(' · ')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setShowSkipped((v) => !v); }}
+                  className="shrink-0 rounded-full border border-[var(--border-default)] bg-[var(--surface-elevated)] px-3 py-1.5 text-12 font-medium text-[var(--text-primary)]"
+                >
+                  {showSkipped ? 'Hide skips' : 'Show skips'}
+                </button>
+              </div>
+              {showSkipped ? <DecisionList items={result.skipped} /> : null}
+            </>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

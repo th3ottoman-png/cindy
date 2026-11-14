@@ -14,6 +14,13 @@ export const MIN_RETENTION_DAYS = 7;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * A home no registry record owns is unreachable, so retention (which exists to protect
+ * conversations that still exist) does not apply to it. The reaper's own 24 h window does
+ * (ADR 0014 Tier 1, DEFAULT_ORPHAN_HOME_MIN_AGE_MS in maker-hermes-manager).
+ */
+export const ORPHAN_HOME_MIN_IDLE_MS = DAY_MS;
+
 /** Same shape guard as `reapOrphanHomes`: a real home directory named `<id>-<10 hex>`. */
 const SESSION_HOME_NAME = /^.+-[0-9a-f]{10}$/;
 
@@ -71,6 +78,13 @@ export interface HousekeepingCandidate {
   backupBase?: string;
   /** For artifact dirs: generated content inside. Non-empty means never prune (ADR 0014). */
   containsFiles?: boolean;
+  /**
+   * For orphan homes: the daemon registry file was itself written AFTER this home's last
+   * activity. The reaper's 24 h window exists only to guard a record that is not flushed yet;
+   * a registry written since proves the absence of a record is authoritative (ADR 0014
+   * addendum, 13.2c).
+   */
+  registryFlushedAfterIdle?: boolean;
 }
 
 export interface HousekeepingDecision {
@@ -161,15 +175,21 @@ function decide(
   if (candidate.kind === 'session-home' && !SESSION_HOME_NAME.test(baseName(candidate.path))) {
     return keep('unexpected-home-name');
   }
+  // An orphan home is unreachable: no registry record can ever resume it, so the reaper's
+  // 24 h window governs rather than retention (which protects conversations that still exist).
+  if (candidate.kind === 'session-home' && !candidate.ownerSessionId) {
+    const aged = now - candidate.idleSinceMs >= ORPHAN_HOME_MIN_IDLE_MS;
+    if (!aged && candidate.registryFlushedAfterIdle !== true) return keep('orphan-home-too-recent');
+    return del('orphan-home');
+  }
   if (now - candidate.idleSinceMs < retentionDays * DAY_MS) return keep('newer-than-retention');
 
   if (HOME_KINDS.has(candidate.kind)) {
     const owner = candidate.ownerSessionId;
     if (owner && protectedIds.has(owner)) return keep('protected-session');
     if (candidate.kind === 'session-home') {
-      // No registry record: unreachable, exactly the reaper's own contract.
-      if (!owner) return del('orphan-home');
       // Soft delete keeps the messages, so the conversation can come back (ADR 0014 Tier 2).
+      // Only the bulk inside such a home goes; the home and its state.db stay.
       if (candidate.conversationStatus === 'deleted') return keep('soft-deleted-transcript-kept');
       return keep('conversation-still-exists');
     }
@@ -177,6 +197,7 @@ function decide(
       return keep('artifact-dir-not-empty');
     }
     // Re-creatable bulk inside an idle, unprotected home.
+    if (candidate.conversationStatus === 'deleted') return del('soft-deleted-home-bulk');
     return del('recreatable-home-bulk');
   }
 

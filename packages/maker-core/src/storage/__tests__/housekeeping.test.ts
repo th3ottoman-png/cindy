@@ -85,7 +85,9 @@ describe('planHousekeeping — Tier 3 refusals', () => {
 
 describe('planHousekeeping — retention', () => {
   it('keeps anything newer than the retention window', () => {
-    expect(reasonOf(candidate({ idleSinceMs: NOW - 29 * DAY }))).toBe('newer-than-retention');
+    // Retention governs re-creatable bulk; whole orphan homes follow the reaper's 24 h instead.
+    const c = candidate({ path: BASE + '/cache/uv', root: BASE, kind: 'base-uv-cache', idleSinceMs: NOW - 29 * DAY });
+    expect(reasonOf(c)).toBe('newer-than-retention');
   });
   it('deletes an orphan home once it is older than the window', () => {
     const plan = planHousekeeping([candidate({ idleSinceMs: NOW - 31 * DAY })], NOW, 30);
@@ -222,3 +224,78 @@ describe('planHousekeeping — plan totals', () => {
     expect(c).toEqual(snapshot);
   });
 });
+
+describe('planHousekeeping — 13.2c orphan homes follow the reaper, not retention', () => {
+  it('deletes an orphan home idle past 24 h even when retention is 30 days', () => {
+    const plan = planHousekeeping([candidate({ idleSinceMs: NOW - 25 * 60 * 60 * 1000 })], NOW, 30);
+    expect(plan.decisions[0]).toMatchObject({ action: 'delete', reason: 'orphan-home' });
+  });
+  it('keeps an orphan home that is less than 24 h idle', () => {
+    const plan = planHousekeeping([candidate({ idleSinceMs: NOW - 2 * 60 * 60 * 1000 })], NOW, 7);
+    expect(plan.decisions[0]).toMatchObject({ action: 'keep', reason: 'orphan-home-too-recent' });
+  });
+  it('still refuses an orphan home whose name does not match the reaper pattern', () => {
+    expect(reasonOf(candidate({ path: HOMES + '/not-a-home', idleSinceMs: NOW - 90 * DAY }))).toBe('unexpected-home-name');
+  });
+  it('still refuses an orphan home that is a symlink', () => {
+    expect(reasonOf(candidate({ idleSinceMs: NOW - 90 * DAY, isSymlink: true, isDirectory: false }))).toBe('symlink-never-followed');
+  });
+  it('does not let the 24 h rule reach a home that a conversation still owns', () => {
+    const c = candidate({ ownerSessionId: 's1', conversationStatus: 'active', idleSinceMs: NOW - 25 * 60 * 60 * 1000 });
+    expect(reasonOf(c)).toBe('newer-than-retention');
+  });
+});
+
+describe('planHousekeeping — 13.2c Tier 2 keeps the transcript of a soft-deleted conversation', () => {
+  it('keeps the whole home but reclaims the re-creatable bulk inside it', () => {
+    const home = candidate({ ownerSessionId: 's1', conversationStatus: 'deleted' });
+    const catalog = candidate({
+      path: home.path + '/models_dev_cache.json',
+      kind: 'home-model-catalog',
+      ownerSessionId: 's1',
+      conversationStatus: 'deleted',
+      isDirectory: false,
+      isRegularFile: true,
+    });
+    const plan = planHousekeeping([home, catalog], NOW, 30);
+    expect(plan.decisions[0]).toMatchObject({ action: 'keep', reason: 'soft-deleted-transcript-kept' });
+    expect(plan.decisions[1]).toMatchObject({ action: 'delete', reason: 'soft-deleted-home-bulk' });
+  });
+  it('never lists the transcript of a soft-deleted home as a candidate it may remove', () => {
+    const c = candidate({
+      path: HOMES + '/x-0123456789/state.db',
+      kind: 'home-logs',
+      ownerSessionId: 's1',
+      conversationStatus: 'deleted',
+      isDirectory: false,
+      isRegularFile: true,
+    });
+    expect(reasonOf(c)).toBe('transcript-never-pruned');
+  });
+  it('protects a soft-deleted home that is still open or running', () => {
+    const c = candidate({ ownerSessionId: 's1', conversationStatus: 'deleted' });
+    expect(reasonOf(c, ['s1'])).toBe('protected-session');
+  });
+});
+describe('planHousekeeping — 13.2c a flushed registry makes the 24 h guard moot', () => {
+  it('deletes a recent orphan home when the registry was written after its last activity', () => {
+    const c = candidate({ idleSinceMs: NOW - 2 * 60 * 60 * 1000, registryFlushedAfterIdle: true });
+    expect(planHousekeeping([c], NOW, 30).decisions[0]).toMatchObject({ action: 'delete', reason: 'orphan-home' });
+  });
+  it('keeps a recent orphan home when the registry is older than its last activity', () => {
+    const c = candidate({ idleSinceMs: NOW - 2 * 60 * 60 * 1000, registryFlushedAfterIdle: false });
+    expect(reasonOf(c)).toBe('orphan-home-too-recent');
+  });
+  it('keeps a recent orphan home when the fact is unknown', () => {
+    expect(reasonOf(candidate({ idleSinceMs: NOW - 2 * 60 * 60 * 1000 }))).toBe('orphan-home-too-recent');
+  });
+  it('does not let the fact reach a home a conversation still owns', () => {
+    const c = candidate({ ownerSessionId: 's1', conversationStatus: 'active', idleSinceMs: NOW - 2 * DAY, registryFlushedAfterIdle: true });
+    expect(reasonOf(c)).toBe('newer-than-retention');
+  });
+  it('still refuses a symlink orphan however fresh the registry is', () => {
+    const c = candidate({ idleSinceMs: NOW - 60_000, registryFlushedAfterIdle: true, isSymlink: true, isDirectory: false });
+    expect(reasonOf(c)).toBe('symlink-never-followed');
+  });
+});
+

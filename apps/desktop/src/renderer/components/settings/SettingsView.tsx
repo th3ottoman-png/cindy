@@ -614,8 +614,9 @@ export function SettingsView() {
                 <section id="settings-search-target-personalization-compaction" className="pb-[18px]" aria-label={t('settings.sections.compaction')}>
                   <CompactionSection key={`compaction:${mode}:${dataOwnerId ?? 'none'}`} />
                 </section>
-                {/* ROADMAP 13.2b —— 存储占用与保留期(只读;Prune 是 13.2c) */}
-                <section id="settings-storage" className="pb-[18px]" aria-label="Storage">
+                {/* ROADMAP 13.2b/13.2c —— session-home 占用、保留期与 Prune(ADR 0014)。
+                    与上游「Storage」标签页(会话数据库)不同,故标题为 Storage housekeeping。 */}
+                <section id="settings-storage" className="pb-[18px]" aria-label="Storage housekeeping">
                   <StorageSection key={`storage:${mode}:${dataOwnerId ?? 'none'}`} />
                 </section>
                 {/* ROADMAP 10.2 —— 响应风格 / 思考展示:只改渲染,不动落库的 transcript */}

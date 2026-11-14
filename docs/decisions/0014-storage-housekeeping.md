@@ -124,3 +124,52 @@ and keep the DB. Never silently drop it.
   the daemon session id, or migrate `state.db` into the new home) is **not** part of 13.2a/13.2b.
 - Hermes pin: findings are on the installed **0.23.0** (pin 0.22.7). Re-check the home layout and the
   resume wording if the pin moves.
+
+---
+
+## Addendum (2026-11-14, ROADMAP 13.2c) — when a recent orphan home may go
+
+Tier 1 above says whole orphan homes are "already reaped at 24 h". Implemented literally, that
+left the three real orphans (3.0 GB) unreachable for hours: measured 18.7 h, 20.2 h and 20.2 h
+idle, so `retentionDays` could never reach them and the 24 h window had not elapsed.
+
+`reapOrphanHomes`' own comment states what the 24 h window is for: *"Guards a record that is not
+flushed yet."* It is a latency guard, not a reachability rule. So 13.2c adds one fact that makes
+the guard unnecessary in the common case:
+
+> An orphan home is removable when it is idle ≥ 24 h **or** the daemon registry file
+> (`hermes-mgr/sessions.json`) was itself written **after** the home's last activity.
+
+**Why this is safe.** The registry is one daemon process writing its whole in-memory map through
+an atomic temp+rename (ROADMAP 0.5). A record can therefore be absent only because the session
+was never created or was removed — not because a write is pending — once the file has been
+written since the home last did anything. A home still in use cannot satisfy the condition: its
+own activity would be newer than the registry write. The candidate field is
+`registryFlushedAfterIdle`, computed by the host from `lstat(sessions.json).mtimeMs > homeIdleMs`.
+
+**What did not change.** Every other guard still applies to such a home, in the same order:
+symlink refusal, non-regular-file refusal, transcript refusal, root containment, the
+`/^.+-[0-9a-f]{10}$/` name pattern, and `stopSessionGateway` before removal (a home whose gateway
+cannot be stopped is kept, exactly as the reaper keeps it). The fact is ignored for any home a
+registry record still owns, so it can never shorten retention for a live conversation. An
+unknown fact (`undefined`) keeps the 24 h behaviour — fail closed.
+
+**Also decided here.** `models_dev_cache.etag` is pruned together with `models_dev_cache.json`.
+Deleting the catalog while keeping its validator could let Hermes accept a `304 Not Modified`
+for a file that is no longer on disk.
+
+**Protection sources wired by 13.2c.** Daemon registry `running`; Cindy DB `pinned_at`, an active
+`schedules.target_session_id`, and a turn in flight or interrupted
+(`active_turn_started_at > last_turn_ended_at`). "Open in a window" needs no separate channel:
+only orphan homes — no registry record at all — are ever removed whole, and a session open in
+the UI always has a record. Interior bulk is re-creatable, so removing it cannot lose anything.
+The startup run cannot know what is open, so it protects **every** registered session.
+
+**Tier 2 as built.** A soft-deleted conversation's whole home is kept
+(`soft-deleted-transcript-kept`); the re-creatable bulk inside it is removed
+(`soft-deleted-home-bulk`) and `state.db` is never a candidate. This is the ADR's second option
+("prune Tier-1 bulk inside it and keep the DB"), so no prune archive is needed.
+
+**Not built.** Empty tool artifact dirs are not scanned: they are empty in every home today, so
+they reclaim nothing, and a non-empty one must never go. The planner still carries the
+`home-artifact-dir` kind and its `artifact-dir-not-empty` refusal for when that changes.
