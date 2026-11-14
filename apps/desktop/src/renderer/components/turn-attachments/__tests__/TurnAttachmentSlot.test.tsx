@@ -137,6 +137,17 @@ describe('TurnAttachmentSlot', () => {
     expect(panel()).toBeNull();
   });
 
+  it('ROADMAP 12.3: leaves @agent: teammate tokens unattached for the send boundary', async () => {
+    render(<Harness initial="bring in @agent:expert:geographer now" />);
+    await waitFor(() => expect(screen.getByTestId('draft-text')).not.toBeNull());
+    // Not a turn attachment: no chip, nothing published for the 8.4 preamble.
+    expect(chips()).toHaveLength(0);
+    const key = screen.getByTestId('draft-key').textContent ?? '';
+    expect(getTurnAttachments(key)).toEqual([]);
+    // The token stays in the draft so the host send boundary can join the teammate.
+    expect(draftText()).toContain('@agent:expert:geographer');
+  });
+
   it('lists nothing while the query has no match, and says so', async () => {
     render(<Harness initial="review @skill:zzzznothing" />);
     await waitFor(() => expect(panel()).not.toBeNull());

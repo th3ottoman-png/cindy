@@ -127,8 +127,10 @@ export function TurnAttachmentSlot({
     [trigger, loadedCandidates, limit],
   );
 
+  // ROADMAP 12.3: `@agent:` is a teammate mention resolved at the send boundary, not a turn
+  // attachment. Keep it out of the 8.4 chips/preamble so the token survives to the host resolver.
   const attached = useMemo(
-    () => resolveTurnAttachments(tokens, loadedCandidates),
+    () => resolveTurnAttachments(tokens.filter((token) => token.kind !== 'agent'), loadedCandidates),
     [tokens, loadedCandidates],
   );
 

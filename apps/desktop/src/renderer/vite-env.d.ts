@@ -5634,6 +5634,25 @@ interface ElectronAPI {
       ) => Promise<{ ok: true }>;
       onChanged: (cb: (payload: { sessionId: string }) => void) => () => void;
     };
+    squads: {
+      /** ROADMAP 12.4b: saved squads under ~/.cindy-harness/squads (valid and invalid). */
+      list: () => Promise<import('../main/maker-ipc/squads').SquadsDiscovery>;
+      /** One squad's raw squad.yaml for the editor. */
+      read: (
+        slug: string,
+      ) => Promise<{ ok: true; slug: string; file: string; yaml: string } | { ok: false; reason: string; message: string }>;
+      /** Create / edit / delete a squad (atomic write; create never overwrites). */
+      save: (request: unknown) => Promise<import('../main/maker-ipc/squads').SquadSaveResult>;
+      /** Fail-closed launch plan (roster + Hermes check); starts nothing. */
+      resolveLaunch: (
+        slug: string,
+        projectDir?: string | null,
+        task?: string,
+      ) => Promise<import('../main/maker-ipc/squads').SquadLaunchResult>;
+      onChanged: (
+        cb: (view: import('../main/maker-ipc/squads').SquadsDiscovery) => void,
+      ) => () => void;
+    };
     extPlugins: {
       /** ROADMAP 4.2b: local extension plugins (~/.cindy-harness/plugins) with their load state. */
       list: () => Promise<import('../main/maker-ipc/extensionPlugins').ExtensionPluginListView>;

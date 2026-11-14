@@ -800,6 +800,7 @@ const fanOutMakerExpertsChanged = createIpcFanOut('maker:experts:changed');
 const fanOutMakerExpertsSessionEvent = createIpcFanOut('maker:experts:session-event');
 const fanOutMakerImportedAgentsChanged = createIpcFanOut('maker:imported-agents:changed');
 const fanOutMakerTeammatesChanged = createIpcFanOut('maker:teammates:changed');
+const fanOutMakerSquadsChanged = createIpcFanOut('maker:squads:changed');
 const fanOutMakerExpertsDraftEvent = createIpcFanOut('maker:experts:draft-event');
 const fanOutMakerExtPluginsChanged = createIpcFanOut('maker:ext-plugins:changed');
 const fanOutMakerMcpCatalogChanged = createIpcFanOut('maker:mcp-catalog:changed');
@@ -6402,6 +6403,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ): Promise<{ ok: true }> =>
         ipcRenderer.invoke('maker:teammates:proposal-decide', sessionId, proposalId, decision),
       onChanged: fanOutMakerTeammatesChanged,
+    },
+    squads: {
+      list: (): Promise<import('../main/maker-ipc/squads').SquadsDiscovery> =>
+        ipcRenderer.invoke('maker:squads:list'),
+      read: (
+        slug: string,
+      ): Promise<{ ok: true; slug: string; file: string; yaml: string } | { ok: false; reason: string; message: string }> =>
+        ipcRenderer.invoke('maker:squads:read', slug),
+      save: (
+        request: unknown,
+      ): Promise<import('../main/maker-ipc/squads').SquadSaveResult> =>
+        ipcRenderer.invoke('maker:squads:save', request),
+      resolveLaunch: (
+        slug: string,
+        projectDir?: string | null,
+        task?: string,
+      ): Promise<import('../main/maker-ipc/squads').SquadLaunchResult> =>
+        ipcRenderer.invoke('maker:squads:resolve-launch', slug, projectDir ?? null, task ?? ''),
+      onChanged: fanOutMakerSquadsChanged,
     },
     extPlugins: {
       list: (): Promise<import('../main/maker-ipc/extensionPlugins').ExtensionPluginListView> =>

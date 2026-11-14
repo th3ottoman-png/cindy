@@ -3651,8 +3651,10 @@ export function NewMakerDraftRoute() {
       // below still matches it.
       // ROADMAP 11.1: leave `@skill:` tokens in place so the Tier 2B resolver below can
       // inject their full SKILL.md bodies. Every other 8.4 kind is still stripped as before.
+      // ROADMAP 12.3: also leave `@agent:` tokens — the host send boundary joins them as
+      // teammates (a squad launch prefills them into this draft).
       message = applyTurnAttachments(message, getTurnAttachments(NEW_MAKER_DRAFT_KEY), {
-        preserveKinds: ['skill'],
+        preserveKinds: ['skill', 'agent'],
       });
 
       // workingDir 为空就是 standalone dialogue;main 端按 workspaceKind='dialogue'

@@ -14,6 +14,7 @@ import { getDraft, subscribeDraft } from '@/state/newMakerDraft';
 
 import { AgentDetailDrawer } from './AgentDetailDrawer';
 import { NewAgentForm } from './NewAgentForm';
+import { SquadsTab } from './SquadsTab';
 import { ROSTER_FILTERS, buildRosterRows, filterRosterRows, type RosterFilter, type RosterRow } from './agentsRosterModel';
 
 const CHIP_CLASS = 'rounded-full border px-2.5 py-0.5 text-xs';
@@ -28,6 +29,8 @@ export function AgentsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // ROADMAP 12.4b: the Squads tab is built; Runtimes (12.5) stays hidden until its row lands.
+  const [tab, setTab] = useState<'agents' | 'squads'>('agents');
 
   useEffect(() => subscribeDraft(() => setWorkingDir(getDraft().workingDir)), []);
 
@@ -66,19 +69,46 @@ export function AgentsPage() {
       <div className="flex items-center justify-between gap-3 border-b border-[var(--border-default)] px-4 py-3">
         <div className="flex items-center gap-3">
           <h1 className="text-sm font-medium text-[var(--text-primary)]">Agents</h1>
-          {/* Squads (12.4) and Runtimes (12.5) tabs appear here when their rows are built. */}
-          <span className="text-xs text-[var(--text-tertiary)]">{rows.length} agents</span>
+          <div className="flex items-center gap-1" role="tablist" aria-label="Agents page tabs">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'agents'}
+              onClick={() => setTab('agents')}
+              className={`${CHIP_CLASS} ${tab === 'agents' ? 'border-[var(--border-strong,#888)] bg-[var(--bg-subtle,rgba(127,127,127,0.12))] text-[var(--text-primary)]' : 'border-[var(--border-default)] text-[var(--text-secondary)]'}`}
+              data-testid="agents-tab-agents"
+            >
+              Agents
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'squads'}
+              onClick={() => setTab('squads')}
+              className={`${CHIP_CLASS} ${tab === 'squads' ? 'border-[var(--border-strong,#888)] bg-[var(--bg-subtle,rgba(127,127,127,0.12))] text-[var(--text-primary)]' : 'border-[var(--border-default)] text-[var(--text-secondary)]'}`}
+              data-testid="agents-tab-squads"
+            >
+              Squads
+            </button>
+          </div>
+          {tab === 'agents' && <span className="text-xs text-[var(--text-tertiary)]">{rows.length} agents</span>}
         </div>
-        <button
-          type="button"
-          onClick={() => { setFormOpen((open) => !open); setNotice(null); }}
-          className="rounded-md bg-[var(--bg-accent,#3b82f6)] px-3 py-1.5 text-sm text-white"
-          data-testid="agents-new-agent"
-        >
-          New agent
-        </button>
+        {tab === 'agents' && (
+          <button
+            type="button"
+            onClick={() => { setFormOpen((open) => !open); setNotice(null); }}
+            className="rounded-md bg-[var(--bg-accent,#3b82f6)] px-3 py-1.5 text-sm text-white"
+            data-testid="agents-new-agent"
+          >
+            New agent
+          </button>
+        )}
       </div>
 
+      {tab === 'squads' ? (
+        <SquadsTab rows={rows} workingDir={workingDir} />
+      ) : (
+        <>
       <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
         <input
           value={query}
@@ -124,6 +154,8 @@ export function AgentsPage() {
         </div>
         {selected && <AgentDetailDrawer row={selected} onClose={() => setSelectedId(null)} />}
       </div>
+        </>
+      )}
     </div>
   );
 }

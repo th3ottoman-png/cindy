@@ -55,6 +55,14 @@ export const MAKER_INVOKE = {
   TEAMMATES_SET_MAY_PROPOSE: 'maker:teammates:set-may-propose',
   /** ROADMAP 12.3b: owner confirms (joins the target as a second worker) or dismisses a proposal. */
   TEAMMATES_PROPOSAL_DECIDE: 'maker:teammates:proposal-decide',
+  /** ROADMAP 12.4b: list saved squads under ~/.cindy-harness/squads (valid and invalid). */
+  SQUADS_LIST: 'maker:squads:list',
+  /** ROADMAP 12.4b: one squad's raw squad.yaml for the editor. */
+  SQUADS_READ: 'maker:squads:read',
+  /** ROADMAP 12.4b: create / edit / delete a squad (atomic write, never overwrites on create). */
+  SQUADS_SAVE: 'maker:squads:save',
+  /** ROADMAP 12.4b: fail-closed launch plan (roster + Hermes check); starts nothing. */
+  SQUADS_RESOLVE_LAUNCH: 'maker:squads:resolve-launch',
   /** ROADMAP 4.2b: list local extension plugins (~/.cindy-harness/plugins) with their load state. */
   EXT_PLUGINS_LIST: 'maker:ext-plugins:list',
   /** ROADMAP 4.2b: enable/disable one plugin; persists in plugins.json and applies at once. */
@@ -1151,6 +1159,8 @@ export const MAKER_PUSH = {
   IMPORTED_AGENTS_CHANGED: 'maker:imported-agents:changed',
   /** ROADMAP 12.3: a teammate joined or was removed; payload { sessionId }. */
   TEAMMATES_CHANGED: 'maker:teammates:changed',
+  /** ROADMAP 12.4b: the squads directory changed; payload is the fresh discovery result. */
+  SQUADS_CHANGED: 'maker:squads:changed',
   /** ROADMAP 4.2b: a plugin toggle was applied; payload is the fresh plugin list. */
   EXT_PLUGINS_CHANGED: 'maker:ext-plugins:changed',
   /** ROADMAP 4.3b: a catalog toggle or health probe finished; no payload — the renderer refetches. */

@@ -915,7 +915,8 @@ import {
 } from './sessionReferenceResolver.js';
 import { registerAndroidAutomationHandlers } from './androidHandlers.js';
 import { registerExpertsHandlers } from './expertsHandlers.js';
-import { registerImportedAgentsHandlers, readImportedAgentById } from './importedAgents.js';
+import { registerImportedAgentsHandlers, readImportedAgentById, discoverImportedAgents } from './importedAgents.js';
+import { registerSquadsHandlers } from './squads.js';
 import { createSessionTeammatesStore } from './sessionTeammates.js';
 import { createTeammateMentionService } from './teammateMentionService.js';
 import { createTeammateProposalService, type TeammateProposalDeps } from './teammateProposalService.js';
@@ -923,7 +924,7 @@ import { toExpertHandoffMessages } from './expertHandoffSource.js';
 import { buildExpertHandoff } from '@cindy/maker-core/expert-handoff';
 import { teammateBindingId } from '@cindy/maker-core/teammate-mention';
 import { parseImportedAgentId } from '@cindy/maker-core/imported-agents';
-import { loadExpert } from '@cindy/maker-core/experts';
+import { loadExpert, loadExperts } from '@cindy/maker-core/experts';
 import {
   createDesktopExtensionPluginsHost,
   registerExtensionPluginsHandlers,
@@ -25935,6 +25936,26 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     expertsRoot: path.join(os.homedir(), '.cindy-harness', 'experts'),
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
     broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
+  });
+
+  // ── Squads (ROADMAP 12.4b, ADR 0012): saved teams that launch Orca teammates via 12.3 ──
+  // The launch plan reuses the 12.3 fail-closed roster check; it starts nothing (the renderer
+  // prefills a new lead-session draft and the owner sends it, joining members at the send boundary).
+  registerSquadsHandlers(createElectronIpcHandlerRegistry(), {
+    squadsRoot: path.join(os.homedir(), '.cindy-harness', 'squads'),
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    broadcast: (channel, payload) => broadcastToAllWindows(channel, payload),
+    listRosterIds: (projectDir) => {
+      const ids: string[] = [];
+      for (const entry of loadExperts(path.join(os.homedir(), '.cindy-harness', 'experts'))) {
+        if (entry.expert) ids.push('expert:' + entry.slug);
+      }
+      for (const agent of discoverImportedAgents({ homeDir: os.homedir(), projectDir }).agents) {
+        ids.push(agent.id);
+      }
+      return ids;
+    },
+    resolveRosterEntry: (rosterId, projectDir) => teammateCoreDeps.resolveRosterEntry(rosterId, projectDir),
   });
 
   // ── Local extension plugins (ROADMAP 4.2b): load ~/.cindy-harness/plugins at startup ──

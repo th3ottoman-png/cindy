@@ -8,6 +8,8 @@
  * and reset to a clean local chat, so it never inherits another task's folders or remote target.
  */
 
+import type { SquadLaunchPlan } from '@cindy/maker-core/squads';
+
 import { NEW_MAKER_DRAFT_KEY } from '@/features/cc-agent/newMakerDraftKeys';
 import { plainTextToTiptapDoc, saveDraft } from '@/lib/composerDraftStore';
 import {
@@ -53,4 +55,23 @@ export function prefillGoAheadDraft(
   if (source.permissionMode && HERMES_PERMISSION_MODES.has(source.permissionMode)) {
     patchVendorPrefsPreservingModelChoice('hermes', { permissionMode: source.permissionMode });
   }
+}
+
+/**
+ * "Launch squad" (ROADMAP 12.4b, ADR 0012): prefill a new Hermes lead task with the squad's
+ * kickoff message (every member as a visible `@agent:` token plus the owner's task). The caller
+ * makes the lead the pending pick and navigates to /cc-agent/new; nothing is sent. When the owner
+ * sends, the session binds the lead and the unchanged 12.3 send boundary joins each member as an
+ * Orca worker. Full access is required to host Hermes workers (ADR 0011 §5), so the draft is set
+ * to it explicitly — the owner sees it in the composer before sending.
+ */
+export function prefillSquadLaunchDraft(plan: SquadLaunchPlan, workingDir: string | null): void {
+  saveDraft(NEW_MAKER_DRAFT_KEY, {
+    text: plainTextToTiptapDoc(plan.kickoffMessage),
+    attachments: [],
+  });
+  resetDraftWorkspaceTargets();
+  if (workingDir) patchDraft({ workingDir });
+  switchVendor('hermes');
+  patchVendorPrefsPreservingModelChoice('hermes', { permissionMode: 'bypassPermissions' });
 }
