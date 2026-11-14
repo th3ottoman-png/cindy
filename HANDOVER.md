@@ -210,7 +210,7 @@ pnpm upstream:scan                   # fetch upstream/main, list cherry-pick can
 Settings → Hermes Harness also has "Back up now" / "Restore…" (same code,
 `apps/desktop/src/main/backup/localBackup.ts`). `upstream:scan` is due quarterly (reminder in `STATUS.md`).
 
-Gates (all must pass before commit — see `AGENTS.md` §2):
+Gates (tiered by what the commit touches — see `AGENTS.md` §2; this is the full Tier 2 set):
 
 ```bash
 pnpm typecheck                 # recursive workspace typecheck; authoritative
@@ -223,9 +223,11 @@ pnpm check:brand-terminology   # advisory
 
 Notes:
 
-- **All four gates apply to every commit, including docs-only ones.** `AGENTS.md` §2 has no
-  docs-only exception. A full run takes about 26 minutes. Older handover notes claiming three
-  gates suffice for docs-only commits are wrong.
+- **Gates are tiered (owner decision, 2026-11-14).** Docs-only commits run only
+  `pnpm test:runner`. Mid-task code commits run typecheck, test:runner, test-hygiene and the
+  tests for the touched files. The full set below (about 26 minutes) runs once per task, before
+  the row is closed, and on commits that touch wide files. Notes that say every commit needs all
+  four gates are out of date.
 - **Run gates in a canonical environment.** The WorkBuddy agent shell injects
   `NODE_OPTIONS=--require=…/node-language-shim.cjs`, which distorts FS-heavy tests and breaks
   `/bin/ps`. Write a `.command` file and launch it with the computer-use `open_app` helper so it

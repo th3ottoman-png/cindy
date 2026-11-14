@@ -10,6 +10,21 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-14 (ak) - AGENTS.md §2 gates tiered (owner decision): docs-only, mid-task, full
+
+- **What changed:** at the owner's request, `AGENTS.md` §2 no longer requires all four gates
+  before every commit. Tier 0 (docs-only) runs `pnpm test:runner`. Tier 1 (mid-task code)
+  runs typecheck, test:runner, test-hygiene and the touched files' tests directly. Tier 2 (all
+  four, including the 8 desktop shards, about 26-27 min) runs once per task, before the row is
+  closed, and on commits that touch wide files (root `package.json`, lockfile, `tsconfig*`,
+  vitest config, `scripts/`, shared protocol types). §7 checklist and `HANDOVER.md` gate notes
+  updated to match.
+- **Why:** the full set on every commit, docs-only included, made each roadmap task cost
+  ~27 min per commit. The owner asked for the rule to be relaxed (AGENTS.md is edited at the
+  owner's direct instruction, not as an agent proposal).
+- **Verified:** docs-only; Tier 0 `pnpm test:runner` (81 s): 611 pass, 1 fail = design-inventory out of sync with another session's uncommitted renderer edits (13.7 files, not in this commit). `design-inventory --check` on a clean HEAD worktree passes (55 surfaces).
+- **Open:** none.
+
 ## 2026-11-14 (aj) - 13.6 always-visible message timestamps: `live-proven` — clock across days, survives reload, off restores hover-only
 
 - **Row**: 13.6 done `live-proven` (blueprint §8). A rendering preference only; no transcript, session or file is touched.

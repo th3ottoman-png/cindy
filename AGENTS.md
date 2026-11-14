@@ -50,7 +50,30 @@ rather see an honest red cell than a misleading green one.
 
 ## 2. Gates — green means green
 
-Before every commit, with Node 22 first in PATH:
+Gates are tiered by what the commit touches (owner decision, 2026-11-14). Node 22 first in
+PATH for every tier.
+
+**Tier 0 — docs-only commit** (only `*.md` files and `docs/**`; no code, config, scripts,
+tests, or `package.json`):
+
+```bash
+pnpm test:runner               # docs-link / dev-docs contracts; about 80 s
+```
+
+**Tier 1 — code commit in the middle of a task:**
+
+```bash
+pnpm typecheck
+pnpm test:runner
+pnpm check:test-hygiene
+# plus only the tests for the files you touched, run directly, e.g.
+pnpm --dir apps/desktop exec vitest run <test files>
+pnpm --dir packages/<pkg> exec vitest related --run <changed source files>
+```
+
+No 8-shard desktop run at this tier.
+
+**Tier 2 — full gate.** All four, including the 8 desktop shards:
 
 ```bash
 pnpm typecheck
@@ -59,11 +82,18 @@ pnpm test:unit:related
 pnpm check:test-hygiene
 ```
 
+Run Tier 2 **once per task**, before the commit that sets the `ROADMAP.md` row to
+`unit-tested` or `live-proven`, and also on any commit that touches wide files: the root
+`package.json`, the lockfile, `tsconfig*`, `vitest` config, `scripts/`, or a protocol/shared
+type used across packages. It may run in the background while you do the live proof.
+
 Rules:
 
 - **No "pre-existing failure" excuse.** If a gate is red, either fix it, `skip` it with a
   one-line reason comment and an entry in `ROADMAP.md` §Debt, or quarantine it in a separate
-  script. The default gate set must be green at every commit.
+  script. Each commit must be green at its own tier, and the full Tier 2 set must be green at
+  the commit that closes a task. If Tier 2 finds a failure that an earlier commit in the same
+  task caused, fix it before closing the row.
 - Do not add a gate the owner has to maintain for a benefit the owner does not get.
 - `check:i18n` and `check:brand-terminology` are **advisory** unless `docs/decisions/` says
   otherwise. The UI is English-only by decision; do not add translations for new strings.
@@ -159,7 +189,7 @@ These apply to everything in `ROADMAP.md` Phase 3 onward (experts, plugins, rout
 
 ## 7. Finishing a session — checklist
 
-- [ ] Gates green under Node 22 (§2).
+- [ ] Gates green under Node 22 at the right tier (§2); Tier 2 green before the row is closed.
 - [ ] No references to `~/.hermes` in the diff.
 - [ ] No new outbound network calls, credentials on disk, or deleted upstream files.
 - [ ] Task row in `ROADMAP.md` updated with honest status and label.
