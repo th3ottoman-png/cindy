@@ -63,6 +63,8 @@ export type NormalizedHermesEvent =
       error?: string;
       replayGap?: boolean;
     }
+  /** ROADMAP 13.1b: the daemon says an attached image will not be seen (no vision route). */
+  | { kind: 'vision-notice'; message: string }
   | { kind: 'unknown'; event: unknown };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -114,6 +116,14 @@ export function normalizeHermesEvent(event: unknown): NormalizedHermesEvent {
       ...(previousHermesSessionId ? { previousHermesSessionId } : {}),
       ...(evt.reason === 'permission-mode-changed' ? { reason: 'permission-mode-changed' as const } : {}),
     };
+  }
+
+  // ROADMAP 13.1b: an attached image the chat model cannot see and no vision route. The daemon
+  // emits this once per such turn; the adapter surfaces it as a durable one-liner.
+  if (evt.type === 'hermes-mgr' && evt.subtype === 'vision-notice') {
+    const message = asNonEmptyString(evt.message);
+    if (!message) return { kind: 'unknown', event };
+    return { kind: 'vision-notice', message };
   }
 
   if (evt.type === 'hermes-mgr' && evt.subtype === 'context-usage') {

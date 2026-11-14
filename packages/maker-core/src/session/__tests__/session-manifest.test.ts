@@ -95,6 +95,29 @@ describe('buildSessionManifest', () => {
     expect(manifest.session.providerId).toBe('lmstudio-local');
   });
 
+  it('shows the vision bridge route when vision is routed (ROADMAP 13.1b)', () => {
+    const manifest = buildSessionManifest(input({
+      routing: {
+        routes: { 'gemma-vision': { provider: 'lmstudio-local', model: 'google/gemma-4' } },
+        rules: { vision: 'gemma-vision' },
+      },
+    }));
+    const row = find(manifest, 'model-route:vision');
+    expect(row).toBeDefined();
+    expect(row?.value).toBe('lmstudio-local/google/gemma-4');
+    expect(row?.locator).toBe('rules.vision -> gemma-vision');
+    expect(row?.file).toBe('~/.cindy-harness/routing.yaml');
+  });
+
+  it('omits the vision route when vision is not routed', () => {
+    expect(find(buildSessionManifest(input()), 'model-route:vision')).toBeUndefined();
+  });
+
+  it('omits the vision route when the rule names an unknown route', () => {
+    const manifest = buildSessionManifest(input({ routing: { routes: {}, rules: { vision: 'nope' } } }));
+    expect(find(manifest, 'model-route:vision')).toBeUndefined();
+  });
+
   it('adds an adr group only when past decisions matched the first prompt (ROADMAP 11.8)', () => {
     const manifest = buildSessionManifest(
       input({

@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { resolveVisionRoute } from '../vision-route.js';
+import { providerDeclaresVision, resolveVisionRoute } from '../vision-route.js';
 
 const dirs: string[] = [];
 async function setup(providers: string, routing: string): Promise<string> {
@@ -84,5 +84,23 @@ describe('resolveVisionRoute', () => {
     const dir = await setup(VISION_PROVIDER, 'routes:\n  v: { provider: lmstudio-local, model: gemma }\nrules:\n  vision: nope\n');
     const result = resolveVisionRoute({ harnessDir: dir });
     expect(result.kind).toBe('blocked');
+  });
+});
+
+describe('providerDeclaresVision (13.1b bypass)', () => {
+  it('is true for a provider that declares vision', async () => {
+    const dir = await setup(VISION_PROVIDER, '');
+    expect(providerDeclaresVision('lmstudio-local', { harnessDir: dir })).toBe(true);
+  });
+
+  it('is false for a text-only provider', async () => {
+    const dir = await setup(TEXT_ONLY_PROVIDER, '');
+    expect(providerDeclaresVision('deepseek', { harnessDir: dir })).toBe(false);
+  });
+
+  it('is false for an unknown or absent provider (fail safe: bridge stays on)', async () => {
+    const dir = await setup(VISION_PROVIDER, '');
+    expect(providerDeclaresVision('not-in-file', { harnessDir: dir })).toBe(false);
+    expect(providerDeclaresVision(undefined, { harnessDir: dir })).toBe(false);
   });
 });

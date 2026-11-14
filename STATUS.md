@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-14 (ag) - 13.1b vision bridge polish: `live-proven` — notice + manifest strip + bypass; 13.1 complete
+
+- **Row**: 13.1b done `live-proven`; 13.1 (core + polish) now complete. Implements the three items split from 13.1 (ADR 0013 Design A).
+- **Changed**: `hermes-manager.ts` query/send emits `hermes-mgr/vision-notice` when an attached image + text-only chat model + vision not routed (send never blocked); `homeForSession` bypass skips `injectVisionRoute` when the chat model's provider declares vision. `maker-core/providers/vision-route.ts` adds `providerDeclaresVision` (fail-safe: unknown provider -> bridge stays on). `translator.ts` + `agent.ts` surface the notice as a durable `standaloneText` one-liner (resume-reset pattern). `session-manifest.ts` adds a `model-route:vision` capability when vision is routed (renderer already feeds routing facts).
+- **Verified**: 8 new unit tests (translator 1, agent 1, manifest 3, providerDeclaresVision 3) pass; typecheck green; test:runner / check:test-hygiene / all 8 unit shards green under Node 22. LIVE: drove the real HermesManager daemon (RpcClient over its socket) with an unrouted image turn -> captured `vision-notice` and the turn still ran (init/session-bound/result); manifest built from live routing shows `vision gemma-local`; bypass false for deepseek / true for lmstudio-local. Evidence: `docs/evidence/13.1b-vision-bridge-polish-live-proof.md`.
+- **User state**: routing.yaml backed up (`.bak-20261114-13.1b`) and restored after the unrouted proof; the vision route (gemma-local) is left active. Real `~/.hermes-cindy/config.yaml` untouched.
+- **Next**: 13.2a storage probe.
+
+---
+
 ## 2026-11-14 (af) - 13.1 vision bridge core (Design A): `live-proven` — auxiliary.vision written from the routed vision endpoint; polish split to 13.1b
 
 - **Rows**: 13.1 (core) done `live-proven`; 13.1b (polish) open. Implements ADR 0013 Design A. `capabilities.vision` already existed in the provider schema — no schema change needed.

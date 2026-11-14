@@ -82,3 +82,17 @@ export function resolveVisionRoute(deps: VisionRouteDeps = {}): VisionRouteResol
     },
   };
 }
+
+/**
+ * True when the chat model's own provider declares capabilities.vision (ROADMAP 13.1b bypass).
+ * A provider absent from providers.yaml (e.g. a Hermes built-in like deepseek) is treated as not
+ * declaring vision, so the bridge stays on — fail safe: never silently skip the bridge for an
+ * unknown model. The bridge is harmless when the chat model can already see, so this only optimises.
+ */
+export function providerDeclaresVision(providerId: string | undefined, deps: VisionRouteDeps = {}): boolean {
+  if (!providerId) return false;
+  const harnessDir = deps.harnessDir ?? path.join(os.homedir(), '.cindy-harness');
+  const providersFile = loadProvidersFile(path.join(harnessDir, 'providers.yaml'));
+  const entry = providersFile.providers.find((p) => p.id === providerId);
+  return entry?.capabilities.vision === true;
+}

@@ -105,7 +105,7 @@ import {
   normalizeVerdict,
   type AutoReviewVerdict,
 } from './auto-review-gate.js';
-import { resolveVisionRoute } from '@cindy/maker-core/vision-route';
+import { providerDeclaresVision, resolveVisionRoute } from '@cindy/maker-core/vision-route';
 import { injectVisionRoute } from './vision-route.js';
 
 export interface HermesManagerOptions {
@@ -547,8 +547,11 @@ export class HermesManager {
         // write auxiliary.vision into this home so Hermes' vision_analyze can see attached images
         // even when the chat model is text-only. Not routed -> no block, behaviour unchanged.
         const visionResolution = resolveVisionRoute();
+        // ROADMAP 13.1b: when the chat model's own provider declares vision it can see the image
+        // itself, so skip the bridge. Unknown provider -> bridge stays on (fail safe).
+        const chatModelSees = providerDeclaresVision(sessionRecord?.provider);
         const visionRoute =
-          visionResolution.kind === 'routed' && sessionRecord?.chatOnly !== true
+          visionResolution.kind === 'routed' && sessionRecord?.chatOnly !== true && !chatModelSees
             ? visionResolution.route
             : undefined;
         const wantsTransform = Boolean((hookWanted && hookCommand) || visionRoute);
@@ -777,6 +780,20 @@ export class HermesManager {
       // ROADMAP 11.7: a locked turn is for planning only. The instruction rides in-band
       // (Hermes chat has no system-prompt flag); the owner's text stays byte-identical below it.
       if (planFirstForTurn) turnText = applyPlanFirstInstruction(turnText);
+
+      // ROADMAP 13.1b: an attached image the chat model cannot see, with no vision route, will not
+      // be analyzed. Tell the owner once in-band; the send still goes out with the path text.
+      if (
+        turnText.includes('Attached image') &&
+        !providerDeclaresVision(rec.provider) &&
+        resolveVisionRoute().kind === 'not-routed'
+      ) {
+        this.emitEvent(rec.sessionId, {
+          type: 'hermes-mgr',
+          subtype: 'vision-notice',
+          message: "This model can't see images. Route vision in routing.yaml.",
+        });
+      }
 
       // The preamble rides only the session's first turn.
       let preamble = rec.preamble ?? this.defaultPreamble;

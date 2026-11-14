@@ -829,6 +829,15 @@ export class HermesAgent extends BaseAgent {
             standaloneText: true,
           });
           return;
+        case 'vision-notice':
+          // ROADMAP 13.1b: durable one-liner, like resume-reset; the send already went out.
+          queue.push({
+            type: 'text',
+            data: { text: normalized.message, isFinal: true },
+            source: 'hermes',
+            standaloneText: true,
+          });
+          return;
         case 'assistant-delta':
           queue.push({
             type: 'text',

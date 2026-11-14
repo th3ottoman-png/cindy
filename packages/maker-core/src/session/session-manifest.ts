@@ -452,6 +452,26 @@ export function buildSessionManifest(input: SessionManifestInput): SessionManife
     }
   }
 
+  // ROADMAP 13.1b (ADR 0013): the vision bridge route affects this session — attached images are
+  // analyzed on this endpoint when the chat model cannot see them. Shown whenever it is routed.
+  const visionRouteName = input.routing?.rules?.['vision'];
+  const visionTarget = visionRouteName ? input.routing?.routes?.[visionRouteName] : undefined;
+  if (visionRouteName && visionTarget) {
+    rows.push(
+      capability({
+        kind: 'model-route',
+        id: 'model-route:vision',
+        label: `vision ${visionRouteName}`,
+        value: `${visionTarget.provider}/${visionTarget.model}`,
+        file: ROUTING_FILE,
+        locator: `rules.vision -> ${visionRouteName}`,
+        reason: `Vision bridge route declared in ${ROUTING_FILE}; attached images are analyzed on this endpoint`,
+        trust: 'local-file',
+        declaredInterface: 'routing.yaml rule',
+      }),
+    );
+  }
+
   rows.push(
     capability({
       kind: 'permission',

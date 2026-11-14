@@ -27,6 +27,14 @@ describe('normalizeHermesEvent', () => {
     })).toEqual({ kind: 'resume-reset', previousHermesSessionId: 'local-yolo', reason: 'permission-mode-changed' });
   });
 
+  it('normalizes the daemon vision-notice event (13.1b)', () => {
+    expect(
+      normalizeHermesEvent({ type: 'hermes-mgr', subtype: 'vision-notice', message: 'no vision route' }),
+    ).toEqual({ kind: 'vision-notice', message: 'no vision route' });
+    expect(normalizeHermesEvent({ type: 'hermes-mgr', subtype: 'vision-notice' }))
+      .toEqual({ kind: 'unknown', event: { type: 'hermes-mgr', subtype: 'vision-notice' } });
+  });
+
   it('normalizes the daemon context-usage event (last API call prompt + model window)', () => {
     expect(
       normalizeHermesEvent({

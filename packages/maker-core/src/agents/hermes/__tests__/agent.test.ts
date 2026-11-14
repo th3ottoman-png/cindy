@@ -1270,6 +1270,33 @@ describe('HermesAgent', () => {
     }
   });
 
+  it('surfaces a durable vision notice when the daemon reports an unseen image (13.1b)', async () => {
+    const daemon = await startDaemon({ turn: 'manual' });
+    const handle = await start(buildAgent());
+    const pump = createEventPump(handle);
+    try {
+      await handle.send({ type: 'user', content: 'describe the image' });
+      daemon.emit({
+        type: 'hermes-mgr',
+        subtype: 'vision-notice',
+        message: "This model can't see images. Route vision in routing.yaml.",
+      });
+      daemon.emit({ type: 'system', subtype: 'init', session_id: 'local-v' });
+      daemon.emit({ type: 'text', text: 'I cannot see it.' });
+      daemon.emit({ type: 'result', session_id: 'local-v', exit_code: 0, text: 'I cannot see it.', tokens: { input: 1, output: 1 } });
+      daemon.closeSession('completed');
+      await pump.until((event) => event.type === 'done');
+
+      const notice = pump.seen.find((event) => event.standaloneText === true);
+      expect(notice).toMatchObject({ type: 'text', source: 'hermes', standaloneText: true, data: { isFinal: true } });
+      expect((notice?.data as { text?: string }).text).toMatch(/can't see images/);
+      // The notice never blocks the send: the model reply still arrives as its own event.
+      expect((pump.seen.find(isText('I cannot see it.'))?.data as { text?: string }).text).toBe('I cannot see it.');
+    } finally {
+      await handle.close();
+    }
+  });
+
   it('does not let a stale session/closed settle a newer turn', async () => {
     const daemon = await startDaemon({ turn: 'manual' });
     const handle = await start(buildAgent());
