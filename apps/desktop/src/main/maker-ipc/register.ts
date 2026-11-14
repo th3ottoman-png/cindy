@@ -583,7 +583,7 @@ import {
   type OrcaWorkerPermissionMode,
 } from '../../shared/orca-worker-permission-mode.js';
 import { t } from '../i18n.js';
-import { createLogger } from '../logger.js';
+import { createLogger, getLogDir } from '../logger.js';
 import { createColdPiRehydrationForWindowVerification, classifyColdPiRehydrationOutcome } from './coldPiRehydration.js';
 import { ColdPiRehydrationError, logColdPiRehydrationFailure, reportColdPiRehydrationFailure } from './coldPiRehydrationFailure.js';
 import {
@@ -954,6 +954,7 @@ import { SessionExportHost, registerSessionExportHandlers } from './sessionExpor
 import { ChatAutosaveHost, registerChatAutosaveHandlers } from './chatAutosave.js';
 import { SecurityGuardHost, registerSecurityGuardHandlers } from './securityGuard.js';
 import { getDesktopChatOnlyHost, registerChatOnlyHandlers, type ChatOnlyHost } from './chatOnly.js';
+import { defaultHousekeepingFile, defaultHousekeepingRoots, registerHousekeepingHandlers } from './housekeeping.js';
 import { getDesktopPlanFirstHost, registerPlanFirstHandlers, type PlanFirstHost } from './planFirst.js';
 import { getDesktopTurnAuditHost, registerTurnAuditHandlers } from './turnAudit.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
@@ -26149,6 +26150,17 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     channels: { GET: MAKER_INVOKE.CHAT_ONLY_GET, SET: MAKER_INVOKE.CHAT_ONLY_SET },
     // No daemon call here on purpose: the daemon keys sessions by the maker session id, so the
     // flag travels with every turn instead (see QUERY_SEND.chatOnly).
+  });
+
+  // ── Storage housekeeping (ROADMAP 13.2b, ADR 0014) ───────────────────────
+  // Read-only: sizes + retention + a prune PREVIEW. Nothing deletes here (Prune is 13.2c).
+  // The host protects homes whose daemon record is running; 13.2c must also pass the open /
+  // scheduled / pinned daemon ids through protectedSessionIds before it removes anything.
+  registerHousekeepingHandlers(createElectronIpcHandlerRegistry(), {
+    roots: defaultHousekeepingRoots(getLogDir()),
+    settingsFile: defaultHousekeepingFile(),
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+    channels: { SCAN: MAKER_INVOKE.STORAGE_SCAN, SET_RETENTION: MAKER_INVOKE.STORAGE_SET_RETENTION },
   });
 
   // ── Plan First sessions (ROADMAP 11.7) ───────────────────────────────────

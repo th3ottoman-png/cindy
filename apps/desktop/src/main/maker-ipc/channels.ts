@@ -136,6 +136,9 @@ export const MAKER_INVOKE = {
   /** ROADMAP 10.1: injection-guard settings (~/.cindy-harness/security.json). */
   CHAT_ONLY_GET: 'maker:chat-only:get',
   CHAT_ONLY_SET: 'maker:chat-only:set',
+  /** ROADMAP 13.2b: storage sizes + housekeeping retention (~/.cindy-harness/housekeeping.json). */
+  STORAGE_SCAN: 'maker:storage:scan',
+  STORAGE_SET_RETENTION: 'maker:storage:set-retention',
   /** ROADMAP 11.7: Plan First state (~/.cindy-harness/plan-first-sessions.json). */
   PLAN_FIRST_GET: 'maker:plan-first:get',
   PLAN_FIRST_SET: 'maker:plan-first:set',

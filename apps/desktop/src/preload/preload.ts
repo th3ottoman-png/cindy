@@ -6710,6 +6710,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }): Promise<import('../main/maker-ipc/chatOnly').ChatOnlyView> =>
         ipcRenderer.invoke('maker:chat-only:set', params),
     },
+    /** ROADMAP 13.2b: storage sizes + housekeeping retention (read-only; Prune is 13.2c). */
+    storage: {
+      scan: (): Promise<import('../main/maker-ipc/housekeeping').StorageView> =>
+        ipcRenderer.invoke('maker:storage:scan'),
+      setRetention: (params: { retentionDays: number }): Promise<import('../main/maker-ipc/housekeeping').StorageView> =>
+        ipcRenderer.invoke('maker:storage:set-retention', params),
+    },
     /** ROADMAP 11.7: Plan First sessions (file writes locked until the owner decides). */
     planFirst: {
       get: (params: { sessionId: string }): Promise<import('../main/maker-ipc/planFirst').PlanFirstView> =>

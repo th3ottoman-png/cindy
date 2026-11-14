@@ -45,6 +45,7 @@ import { StorageManagementCard } from './StorageManagementCard';
 import { UserPromptSection } from './UserPromptSection';
 import { MemorySection } from './MemorySection';
 import { CompactionSection } from './CompactionSection';
+import { StorageSection } from './StorageSection';
 import { SecurityGuardSection } from './SecurityGuardSection';
 import { ResponseStyleSection } from './ResponseStyleSection';
 import { TerminalShellSection } from './TerminalShellSection';
@@ -612,6 +613,10 @@ export function SettingsView() {
                 </section>
                 <section id="settings-search-target-personalization-compaction" className="pb-[18px]" aria-label={t('settings.sections.compaction')}>
                   <CompactionSection key={`compaction:${mode}:${dataOwnerId ?? 'none'}`} />
+                </section>
+                {/* ROADMAP 13.2b —— 存储占用与保留期(只读;Prune 是 13.2c) */}
+                <section id="settings-storage" className="pb-[18px]" aria-label="Storage">
+                  <StorageSection key={`storage:${mode}:${dataOwnerId ?? 'none'}`} />
                 </section>
                 {/* ROADMAP 10.2 —— 响应风格 / 思考展示:只改渲染,不动落库的 transcript */}
                 <section id="settings-search-target-personalization-response-style" className="pb-[18px]" aria-label={t('settings.sections.responseStyle')}>
