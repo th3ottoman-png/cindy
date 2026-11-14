@@ -28,6 +28,7 @@ vi.mock('@/components/ui/tooltip', async (importOriginal) => ({
 vi.mock('@/hooks/useRelativeTime', () => ({
   useRelativeTime: () => 'just now',
   formatAbsolute: () => '2026-07-22 10:00',
+  formatMessageClock: () => '10:00',
 }));
 
 vi.mock('@/lib/toast', () => ({
@@ -37,6 +38,7 @@ vi.mock('@/lib/toast', () => ({
 import { MessageActionBar } from '../MessageActionBar';
 import { MessageReadAloudContext, type MessageReadAloud } from '../MessageReadAloudContext';
 import { formatCompactTokens } from '@/lib/usageFormat';
+import { resetResponsePreferencesForTests, writeResponsePreferences } from '@/lib/responsePreferences';
 
 describe('companion message read-aloud', () => {
   const identity = { sessionId: 'companion-task', messageId: 'reply' };
@@ -234,7 +236,8 @@ describe('MessageActionBar', () => {
       />,
     );
 
-    const actionBar = container.firstElementChild;
+    // 13.6: the fade lives on the action group, which is a child of the bar's layout row.
+    const actionBar = container.querySelector('.transition-opacity');
     expect(actionBar?.classList.contains('opacity-100')).toBe(true);
     expect(actionBar?.classList.contains('pointer-events-none')).toBe(false);
     expect(screen.queryByRole('button', { name: 'chat.messageActionBar.fork' })).toBeNull();
@@ -506,5 +509,56 @@ describe('MessageActionBar', () => {
       );
       expect(screen.queryByText('chat.messageActionBar.turnTokens')).toBeNull();
     });
+  });
+});
+
+describe('always-visible timestamps (ROADMAP 13.6)', () => {
+  const CREATED = '2026-07-22T10:00:00.000Z';
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    resetResponsePreferencesForTests();
+  });
+
+  /** True when no ancestor fades the element out. */
+  const isUngated = (el: HTMLElement): boolean => {
+    for (let node: HTMLElement | null = el; node; node = node.parentElement) {
+      if (node.classList.contains('opacity-0')) return false;
+    }
+    return true;
+  };
+
+  it('keeps the relative time hover-only when the preference is off', () => {
+    const { container } = render(
+      <MessageActionBar copyText="body" align="left" hovered={false} createdAt={CREATED} />,
+    );
+    const time = container.querySelector('time');
+    expect(time?.textContent).toBe('just now');
+    expect(isUngated(time as HTMLElement)).toBe(false);
+    expect(screen.queryByText('10:00')).toBeNull();
+  });
+
+  it('shows the clock without hover when the preference is on, for both alignments', () => {
+    writeResponsePreferences({ showTimestamps: true });
+    for (const align of ['left', 'right'] as const) {
+      const { container, unmount } = render(
+        <MessageActionBar copyText="body" align={align} hovered={false} createdAt={CREATED} />,
+      );
+      const time = container.querySelector('time');
+      expect(time?.textContent).toBe('10:00');
+      expect(time?.getAttribute('datetime')).toBe(CREATED);
+      expect(isUngated(time as HTMLElement)).toBe(true);
+      // The hover-only relative text is replaced, not duplicated.
+      expect(screen.queryByText('just now')).toBeNull();
+      unmount();
+    }
+  });
+
+  it('renders no clock for a message without a usable timestamp', () => {
+    writeResponsePreferences({ showTimestamps: true });
+    const { container } = render(
+      <MessageActionBar copyText="body" align="left" hovered={false} createdAt="not-a-date" />,
+    );
+    expect(container.querySelector('time')).toBeNull();
   });
 });

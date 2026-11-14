@@ -61,6 +61,25 @@ export function ResponseStyleSection() {
           </select>
           <span className={SETTINGS_ROW_HINT_CLASS}>{t('settings.responseStyle.thinkingHint')}</span>
         </label>
+
+        {/* ROADMAP 13.6 — English only by decision; no new translation keys. */}
+        <label className="flex min-w-[220px] flex-col gap-1.5">
+          <span className="text-12 text-[var(--text-secondary)]">Message timestamps</span>
+          <span className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-[var(--text-primary)]"
+              checked={preferences.showTimestamps}
+              onChange={(event) => writeResponsePreferences({ showTimestamps: event.target.checked })}
+              aria-label="Always show message timestamps"
+            />
+            <span className="text-13 text-[var(--text-primary)]">Always show the time</span>
+          </span>
+          <span className={SETTINGS_ROW_HINT_CLASS}>
+            Shows each message&apos;s clock time instead of only on hover. Uses the message&apos;s own
+            timestamp.
+          </span>
+        </label>
       </div>
     </div>
   );

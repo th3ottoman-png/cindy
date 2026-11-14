@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-14 (aj) - 13.6 always-visible message timestamps: `live-proven` — clock across days, survives reload, off restores hover-only
+
+- **Row**: 13.6 done `live-proven` (blueprint §8). A rendering preference only; no transcript, session or file is touched.
+- **Changed**: `responsePreferences.ts` gains `showTimestamps` (default false, same `cindy.responsePreferences.v1` key; `parseResponsePreferences` accepts only an explicit `true`, so a stored v1 value without the field stays off). NEW pure `formatMessageClock(createdAtMs, nowMs)` in `useRelativeTime.ts` — `HH:MM` for today, `MMM D, HH:MM` otherwise, derived only from the message's persisted timestamp. `MessageActionBar`: the opacity fade moved from the whole bar to an inner **action group**, and the clock renders as an ungated sibling in the same slot (first for right-aligned/user, last for left-aligned/assistant); with the preference off the relative text stays inside the gated group exactly as before. `ResponseStyleSection.tsx` gains an English-only "Always show the time" checkbox (no new translation keys, per AGENTS.md).
+- **Verified**: **11 new tests** (4 clock formatter, 4 preference, 3 action bar) plus **4 existing assertions updated** — three `toEqual` shapes gained the new field and one action-bar assertion now selects `.transition-opacity` instead of `container.firstElementChild` because the fade moved one level down; their intent is unchanged. `MessageActionBar.test.tsx` **27/27**, `responsePreferences` + `useRelativeTime` **20/20**, desktop typecheck green. LIVE through the real Settings checkbox on session `5be0ad2a` (messages from 11-12 and 11-14): **off** → `2 days ago` / `1 hour ago`, every one `gated:true`; **on** → `Nov 12, 07:57` (older day) and `12:07` (today), every one `gated:false`; **full page reload** → identical, setting persisted; **off again** → identical to the off snapshot. The relative text is replaced, not duplicated, and the absolute tooltip is unchanged. Evidence: `docs/evidence/13.6-timestamps-live-proof.md`.
+- **Honest limitation**: the clock renders wherever `MessageActionBar` mounts — user messages and the turn's final assistant body (`showActionBar`). Intermediate assistant chunks never mount an action bar, so they get no timestamp; that is pre-existing behaviour this row does not change (6 message times in the proof session). The sidebar's session-list times are a different component and are untouched.
+- **User state**: the preference was toggled back **off**, leaving the default experience. No model turn, no API spend, no new outbound call (the diff adds no `fetch(`/`http`). Dev app stopped after the proof.
+- **Gates** (Node v22.23.4, dev app stopped): `pnpm typecheck` **RC=0**, `pnpm test:runner` **RC=0**, `pnpm check:test-hygiene` **RC=0**, `XDT_UNIT_TEST_SHARD=i/8 pnpm test:unit:related` **RC=0 for all 8 shards** with no SIGSEGV and no retries. `pnpm check:design-inventory` green (55 surfaces, unchanged — this row edits existing files only).
+- **Next**: 13.7 chat width (same store, tiny), then 13.2c Prune / 13.3 recap.
+
+---
+
 ## 2026-11-14 (ai) - 13.2b Storage section + housekeeping planner: `live-proven` (read-only) — Prune split to 13.2c
 
 - **Rows**: 13.2b done `live-proven` **as narrowed to read-only**; **13.2c (Prune) open**. The original 13.2b "Done when" (prune frees space, one pruned and one recent session both reopen and continue) is **not** met by this entry and now belongs to 13.2c. Implements ADR 0014's tiers as a pure planner plus a Settings surface that measures and previews but never deletes.

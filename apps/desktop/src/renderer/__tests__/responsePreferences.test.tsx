@@ -48,10 +48,12 @@ describe('parseResponsePreferences', () => {
     expect(parseResponsePreferences({ responseStyle: 'detailed', thinkingDisplay: 'nope' })).toEqual({
       responseStyle: 'detailed',
       thinkingDisplay: 'collapsed',
+      showTimestamps: false,
     });
     expect(parseResponsePreferences('{"thinkingDisplay":"hidden"}')).toEqual({
       responseStyle: 'concise',
       thinkingDisplay: 'hidden',
+      showTimestamps: false,
     });
   });
 });
@@ -62,16 +64,17 @@ describe('persistence', () => {
     expect(JSON.parse(window.localStorage.getItem(RESPONSE_PREFERENCES_KEY) ?? 'null')).toEqual({
       responseStyle: 'detailed',
       thinkingDisplay: 'expanded',
+      showTimestamps: false,
     });
     // A restart loses the module cache but keeps localStorage.
     resetResponsePreferencesForTests();
-    expect(readResponsePreferences()).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'expanded' });
+    expect(readResponsePreferences()).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'expanded', showTimestamps: false });
   });
 
   it('merges a partial change instead of resetting the other value', () => {
     writeResponsePreferences({ thinkingDisplay: 'hidden' });
     writeResponsePreferences({ responseStyle: 'detailed' });
-    expect(readResponsePreferences()).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'hidden' });
+    expect(readResponsePreferences()).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'hidden', showTimestamps: false });
   });
 });
 
@@ -114,5 +117,39 @@ describe('rendering rules', () => {
     writeResponsePreferences({ thinkingDisplay: 'hidden' });
     writeResponsePreferences({ thinkingDisplay: 'collapsed' });
     expect(resolveThinkingVisibility(readResponsePreferences().thinkingDisplay)).toBe('collapsed');
+  });
+});
+
+describe('showTimestamps (ROADMAP 13.6)', () => {
+  it('defaults to off, including for a stored v1 value without the field', () => {
+    expect(DEFAULT_RESPONSE_PREFERENCES.showTimestamps).toBe(false);
+    expect(parseResponsePreferences({ responseStyle: 'detailed', thinkingDisplay: 'expanded' }).showTimestamps).toBe(false);
+    expect(parseResponsePreferences(null).showTimestamps).toBe(false);
+  });
+
+  it('only an explicit true turns it on', () => {
+    expect(parseResponsePreferences({ showTimestamps: true }).showTimestamps).toBe(true);
+    for (const value of ['true', 1, 'yes', null]) {
+      expect(parseResponsePreferences({ showTimestamps: value }).showTimestamps).toBe(false);
+    }
+  });
+
+  it('round-trips through storage without disturbing the other preferences', () => {
+    writeResponsePreferences({ responseStyle: 'detailed' });
+    writeResponsePreferences({ showTimestamps: true });
+    const stored = JSON.parse(window.localStorage.getItem(RESPONSE_PREFERENCES_KEY) ?? '{}');
+    expect(stored).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'collapsed', showTimestamps: true });
+    resetResponsePreferencesForTests();
+    expect(readResponsePreferences()).toEqual({ responseStyle: 'detailed', thinkingDisplay: 'collapsed', showTimestamps: true });
+  });
+
+  it('reaches an already-mounted consumer without a remount', () => {
+    function StampProbe() {
+      return <span data-testid="stamps">{String(useResponsePreferences().showTimestamps)}</span>;
+    }
+    render(<StampProbe />);
+    expect(screen.getByTestId('stamps').textContent).toBe('false');
+    act(() => { writeResponsePreferences({ showTimestamps: true }); });
+    expect(screen.getByTestId('stamps').textContent).toBe('true');
   });
 });

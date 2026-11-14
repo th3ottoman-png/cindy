@@ -6,7 +6,7 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { formatRelative, useRelativeTime } from '../useRelativeTime';
+import { formatMessageClock, formatRelative, useRelativeTime } from '../useRelativeTime';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -97,5 +97,29 @@ describe('useRelativeTime', () => {
 
     rerender({ createdAt: 'not-a-date' });
     expect(result.current).toBe('');
+  });
+});
+
+describe('formatMessageClock (ROADMAP 13.6)', () => {
+  // A fixed local afternoon, so the assertions do not depend on when the suite runs.
+  const now = new Date(2026, 10, 14, 15, 30, 0).getTime();
+
+  it('shows HH:MM for a message from today', () => {
+    expect(formatMessageClock(new Date(2026, 10, 14, 9, 5, 0).getTime(), now)).toBe('09:05');
+    expect(formatMessageClock(new Date(2026, 10, 14, 0, 0, 0).getTime(), now)).toBe('00:00');
+    expect(formatMessageClock(new Date(2026, 10, 14, 23, 59, 0).getTime(), now)).toBe('23:59');
+  });
+
+  it('shows MMM D, HH:MM for an earlier day', () => {
+    expect(formatMessageClock(new Date(2026, 10, 13, 22, 45, 0).getTime(), now)).toBe('Nov 13, 22:45');
+    expect(formatMessageClock(new Date(2026, 0, 2, 8, 0, 0).getTime(), now)).toBe('Jan 2, 08:00');
+  });
+
+  it('treats the same calendar day in another year as older', () => {
+    expect(formatMessageClock(new Date(2025, 10, 14, 15, 30, 0).getTime(), now)).toBe('Nov 14, 15:30');
+  });
+
+  it('returns an empty string for an unusable timestamp', () => {
+    expect(formatMessageClock(Number.NaN, now)).toBe('');
   });
 });

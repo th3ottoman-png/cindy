@@ -62,7 +62,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/lib/toast';
-import { formatAbsolute, useRelativeTime } from '@/hooks/useRelativeTime';
+import { formatAbsolute, formatMessageClock, useRelativeTime } from '@/hooks/useRelativeTime';
+import { useResponsePreferences } from '@/lib/responsePreferences';
 import { SHARE_EXCLUDE_ATTR } from '@/lib/shareConversationImage';
 import { formatCompactTokens, formatTurnCostMoney } from '@/lib/usageFormat';
 import { buildTurnUsageTooltipLines } from '@/lib/turnUsageTooltip';
@@ -312,6 +313,13 @@ export function MessageActionBar({
 
   const relText = useRelativeTime(createdAt, { hovered });
   const absText = formatAbsolute(createdAt);
+  // ROADMAP 13.6: when the owner asks for always-visible times, the clock replaces the hover-only
+  // relative text and sits outside the fade so it survives an unhovered row.
+  const { showTimestamps } = useResponsePreferences();
+  const createdAtMs = createdAt ? new Date(createdAt).getTime() : Number.NaN;
+  const clockText = showTimestamps && Number.isFinite(createdAtMs)
+    ? formatMessageClock(createdAtMs, Date.now())
+    : '';
   const Icon = copied ? Check : Copy;
 
   const copyBtn = (
@@ -471,8 +479,8 @@ export function MessageActionBar({
     </Popover>
   );
 
-  const timeText = relText && (
-    <Tooltip.Root key="time">
+  const renderTime = (text: string, key: string) => (
+    <Tooltip.Root key={key}>
       <Tooltip.Trigger asChild>
         <time
           dateTime={createdAt}
@@ -489,7 +497,7 @@ export function MessageActionBar({
             'text-[var(--settings-section-desc)] cursor-default',
           )}
         >
-          {relText}
+          {text}
         </time>
       </Tooltip.Trigger>
       {absText && (
@@ -499,6 +507,9 @@ export function MessageActionBar({
       )}
     </Tooltip.Root>
   );
+
+  const timeText = !showTimestamps && relText && renderTime(relText, 'time');
+  const clockTime = clockText && renderTime(clockText, 'clock');
 
   // 用户轮累计优先；没有新字段的历史消息继续显示原始 SDK 分段成本。
   const effectiveTurnMoney =
@@ -836,13 +847,12 @@ export function MessageActionBar({
         ]
       : [timeText, copyBtn, shareBtn, forkBtn, quoteBtn, replyBtn, readAloudBtn, reactionBtn, editBtn, moreMenu];
 
-  return (
+  // The fade gates the action items only. An always-visible clock (13.6) is a sibling of that
+  // group, in the same slot the hover-only time occupies, so the row keeps its layout.
+  const actionGroup = (
     <div
-      // 操作栏是纯交互件:分享图片的光栅化会按这个标记整条剔除,不进产物。
-      {...{ [SHARE_EXCLUDE_ATTR]: '' }}
       className={cn(
         'flex flex-wrap items-center gap-0.5',
-        align === 'right' ? 'justify-end' : 'justify-start',
         // 250ms is long enough to perceive the fade without dragging.
         // Hover re-enters mid-fade interpolate from the current opacity
         // (browser CSS transition behavior — no replay from 0).
@@ -856,6 +866,21 @@ export function MessageActionBar({
       )}
     >
       {items}
+    </div>
+  );
+
+  return (
+    <div
+      // 操作栏是纯交互件:分享图片的光栅化会按这个标记整条剔除,不进产物。
+      {...{ [SHARE_EXCLUDE_ATTR]: '' }}
+      className={cn(
+        'flex flex-wrap items-center gap-0.5',
+        align === 'right' ? 'justify-end' : 'justify-start',
+      )}
+    >
+      {align === 'right' ? clockTime : null}
+      {actionGroup}
+      {align === 'right' ? null : clockTime}
     </div>
   );
 }

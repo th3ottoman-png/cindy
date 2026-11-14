@@ -21,6 +21,8 @@ export type ThinkingDisplay = 'collapsed' | 'expanded' | 'hidden';
 export interface ResponsePreferences {
   responseStyle: ResponseStyle;
   thinkingDisplay: ThinkingDisplay;
+  /** ROADMAP 13.6: keep each message's clock time visible instead of hover-only. */
+  showTimestamps: boolean;
 }
 
 export const RESPONSE_PREFERENCES_KEY = 'cindy.responsePreferences.v1';
@@ -28,6 +30,7 @@ export const RESPONSE_PREFERENCES_KEY = 'cindy.responsePreferences.v1';
 export const DEFAULT_RESPONSE_PREFERENCES: ResponsePreferences = {
   responseStyle: 'concise',
   thinkingDisplay: 'collapsed',
+  showTimestamps: false,
 };
 
 const STYLES: readonly ResponseStyle[] = ['concise', 'detailed'];
@@ -50,7 +53,8 @@ export function parseResponsePreferences(raw: unknown): ResponsePreferences {
   const thinkingDisplay = DISPLAYS.includes(value.thinkingDisplay as ThinkingDisplay)
     ? (value.thinkingDisplay as ThinkingDisplay)
     : DEFAULT_RESPONSE_PREFERENCES.thinkingDisplay;
-  return { responseStyle, thinkingDisplay };
+  // Only an explicit true turns it on, so a stored v1 value without the field stays off.
+  return { responseStyle, thinkingDisplay, showTimestamps: value.showTimestamps === true };
 }
 
 /** What a tool row should do under a style. `concise` keeps the row closed, as it ships today. */

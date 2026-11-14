@@ -67,6 +67,24 @@ export function formatRelative(createdAtMs: number, nowMs: number, t?: TFunc): s
     : `${d.getFullYear()}-${mm}-${dd} ${hh}:${mi}`;
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+/**
+ * Always-visible clock time (ROADMAP 13.6): `HH:MM` for a message from today, `MMM D, HH:MM`
+ * otherwise. Pure and derived only from the message's persisted timestamp — `nowMs` is used solely
+ * to decide whether the message is from today, never to stamp the message itself.
+ */
+export function formatMessageClock(createdAtMs: number, nowMs: number): string {
+  if (!Number.isFinite(createdAtMs)) return '';
+  const d = new Date(createdAtMs);
+  const now = new Date(nowMs);
+  const clock = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const sameDay = d.getFullYear() === now.getFullYear()
+    && d.getMonth() === now.getMonth()
+    && d.getDate() === now.getDate();
+  return sameDay ? clock : `${MONTHS[d.getMonth()]} ${d.getDate()}, ${clock}`;
+}
+
 /** Absolute timestamp shown as native browser tooltip on the <time> element. */
 export function formatAbsolute(createdAt: string | undefined): string {
   if (!createdAt) return '';
