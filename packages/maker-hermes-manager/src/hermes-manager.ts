@@ -648,10 +648,8 @@ export class HermesManager {
       // ROADMAP 10.3: chat-only needs an explicit model, but the model is resolved per turn (the
       // home route is read at send time), so it is checked there rather than here — failing at
       // start would reject a session whose route only exists in config.yaml.
-      const created = this.registry.create({
-        sessionId: p.sessionId,
+      const startFields = {
         cwd: p.cwd,
-        ...(p.resumeHermesSessionId ? { hermesSessionId: p.resumeHermesSessionId } : {}),
         ...(p.model ? { model: p.model } : {}),
         ...(p.provider ? { provider: p.provider } : {}),
         ...(p.baseUrl ? { baseUrl: p.baseUrl } : {}),
@@ -663,9 +661,30 @@ export class HermesManager {
         ...(p.chatOnly === true ? { chatOnly: true } : {}),
         ...(p.planFirstLocked === true ? { planFirstLocked: true } : {}),
         ...(p.expertSkillsDir ? { expertSkillsDir: p.expertSkillsDir } : {}),
+      };
+      const created = this.registry.create({
+        sessionId: p.sessionId,
+        ...startFields,
+        ...(p.resumeHermesSessionId ? { hermesSessionId: p.resumeHermesSessionId } : {}),
       });
       if (!created) {
-        throw rpcError('SESSION_ALREADY_EXISTS', `session ${p.sessionId} already exists`);
+        // ROADMAP 1.14: the daemon session id is stable per Cindy conversation, so an app
+        // restart re-sends start for a record that already exists. Adopt it — its home holds
+        // the conversation's context — instead of refusing. A live turn still owns it alone.
+        if (this.running.has(p.sessionId)) {
+          throw rpcError('SESSION_ALREADY_EXISTS', `session ${p.sessionId} already exists`);
+        }
+        const existing = this.registry.get(p.sessionId)!;
+        this.registry.update(p.sessionId, {
+          ...startFields,
+          // The daemon's own binding is at least as new as Cindy's persisted id, and an
+          // explicitly cleared one ('') must stay cleared rather than resurrect a dead id.
+          hermesSessionId: existing.hermesSessionId ?? p.resumeHermesSessionId,
+        });
+        this.logger?.info('adopted existing session on query/start', {
+          sessionId: p.sessionId,
+          hermesSessionId: this.registry.get(p.sessionId)?.hermesSessionId ?? '',
+        });
       }
       // Provider credentials ride query/start env and stay in memory only
       // (the registry file on disk must never contain secrets). A daemon

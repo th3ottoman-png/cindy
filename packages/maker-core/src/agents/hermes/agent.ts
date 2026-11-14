@@ -51,6 +51,7 @@ import {
 import { normalizeHermesEvent, type NormalizedHermesTokens } from './translator.js';
 import { createHermesTransport, type HermesTransport } from './transport.js';
 import { normalizeHermesToolForAutoReview } from './auto-review-policy.js';
+import { hermesDaemonSessionId } from './daemon-session-id.js';
 import {
   annotatePermissionRequestForAutoReview,
   appendAutoReviewUserIntent,
@@ -359,7 +360,9 @@ export class HermesAgent extends BaseAgent {
       );
     }
 
-    const sessionId = randomUUID();
+    // Stable per Cindy conversation (ROADMAP 1.14): this id names the session home, so a
+    // per-start UUID would hand every app restart an empty state.db and break --resume.
+    const sessionId = hermesDaemonSessionId(opts.sessionId);
     const requestedPermissionMode: PermissionMode = opts.permissionMode ?? 'default';
     // Only a non-empty native id is resumable; an empty string is the documented
     // "start fresh" recovery path (Maker persists handle.id as sdk_session_id).

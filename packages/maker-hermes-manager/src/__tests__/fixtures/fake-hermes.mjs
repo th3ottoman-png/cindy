@@ -5,7 +5,7 @@
  * stream-json session on stdout.
  *
  * Fixture flags (scan-only, values may appear anywhere):
- *   --behavior happy|slow|fail|missing-session|permission-scoped|compress   script (default happy)
+ *   --behavior happy|slow|fail|missing-session|permission-scoped|home-scoped|compress   script (default happy)
  *   --session-id <id>            session_id reported by system/init
  *   --record <path>              write the full argv as JSON here (assertions)
  *   --fail-when-resumed          exit 5 if --resume is present
@@ -65,6 +65,10 @@ if (process.argv.includes('plugins')) {
   }
   process.exit(0);
 }
+
+// `gateway ensure` is a lifecycle call, not a chat turn: it must never create a
+// session in the home's store (the prewarm would otherwise pollute home-scoped).
+if (process.argv.includes('gateway')) process.exit(0);
 
 if (process.argv.includes('--version')) {
   if (process.env.FAKE_VERSION_ERROR) {
@@ -183,6 +187,45 @@ if (behavior === 'happy') {
     session_id: id,
     exit_code: 0,
     text: id === resumeId ? 'resumed' : 'fresh',
+    tokens: { input: 3, output: 2, total: 5, cache_read: 0, cache_write: 0 },
+    duration_ms: 11,
+  });
+  process.exit(0);
+} else if (behavior === 'home-scoped') {
+  // Mirrors the real CLI's session store: a session lives inside HERMES_HOME, so
+  // `--resume <id>` resolves only in the home that created it. A different home
+  // fails the lookup exactly like `missing-session` (ROADMAP 1.14).
+  const home = process.env.HERMES_HOME ?? '.';
+  const store = path.join(home, 'fake-sessions.json');
+  const sessions = fs.existsSync(store) ? JSON.parse(fs.readFileSync(store, 'utf8')) : {};
+  const resumeId = flagValue('--resume');
+  if (resumeId && !sessions[resumeId]) {
+    const error = `No session found matching '${resumeId}'. Use 'hermes sessions list' to see available sessions, or pass -c <name> --create-if-missing to start a new session with that title.`;
+    emit({ type: 'system', subtype: 'init', model: 'fake-model', session_id: '' });
+    emit({
+      type: 'result',
+      session_id: '',
+      exit_code: 1,
+      text: '',
+      tokens: { input: 0, output: 0, total: 0, cache_read: 0, cache_write: 0 },
+      error,
+    });
+    process.stderr.write(`Error: ${error}\n\nsession_id:\n`);
+    process.exit(1);
+  }
+  let id = resumeId;
+  if (!id) {
+    id = `fake-h-${Object.keys(sessions).length + 1}`;
+    sessions[id] = true;
+    fs.writeFileSync(store, JSON.stringify(sessions));
+  }
+  emit({ type: 'system', subtype: 'init', model: 'fake-model', session_id: id });
+  emit({ type: 'text', text: resumeId ? 'resumed' : 'fresh' });
+  emit({
+    type: 'result',
+    session_id: id,
+    exit_code: 0,
+    text: resumeId ? 'resumed' : 'fresh',
     tokens: { input: 3, output: 2, total: 5, cache_read: 0, cache_write: 0 },
     duration_ms: 11,
   });

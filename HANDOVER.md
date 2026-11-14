@@ -157,12 +157,19 @@ never derived from persisted rows.
 - **Id spaces.** Cindy `sessions.id` ≠ daemon `sessionId`. The join is
   `sessions.sdk_session_id` = registry `hermesSessionId` (`local-<64 hex>`). The home directory is
   named from the **daemon** `sessionId`: `session-homes/<daemonId>-<sha256[0:10]>`.
-- **A new daemon session (and home) per app start.** `agent.ts startSession` uses `randomUUID()`.
-  Within one app run the same daemon session/home is reused and the agent recalls correctly. Across
-  an app restart the new home has an empty `state.db`, so `--resume` cannot resolve and step 6
-  fires: **the agent loses its context on every cross-restart continuation** (proved live 2026-11-14
-  with an untouched home; ROADMAP §Debt). The visible history is unaffected. No `state.db` migration
-  between homes exists.
+- **One stable daemon session (and home) per Cindy conversation** (1.14, `live-proven` 2026-11-14).
+  `agent.ts startSession` calls `hermesDaemonSessionId(opts.sessionId)`
+  (`packages/maker-core/src/agents/hermes/daemon-session-id.ts`), giving `cindy-<cindySessionId>`; the
+  home is therefore `session-homes/cindy-<cindySessionId>-<sha256[0:10]>` and is the **same directory on
+  every app start**, so `--resume` resolves and the agent keeps its context across restarts. With no
+  Cindy session id (a throwaway worker run) it still falls back to a random UUID. `query/start` is
+  **idempotent**: an existing record is adopted (start fields re-applied; `hermesSessionId`, `launch`
+  and `lastSeq` preserved; an explicitly cleared `''` binding stays cleared) rather than raising
+  `SESSION_ALREADY_EXISTS`; a live turn still owns the session exclusively. The `resume-reset`
+  fallback is unchanged. **Do not rename a session home**: Hermes binds a session to a profile identity
+  derived from the absolute home path (`profile_id` in `state.db`, `gateway_state.json`), so a renamed
+  home's session is refused with `profile_mismatch` and the turn errors. Pre-1.14 conversations reset
+  once at the upgrade and keep a legacy `<uuid>-<hash>` home (ROADMAP §Debt).
 - **Home preparation is lazy.** Reopening a session does not create or rebuild its home;
   `homeForSession` runs at `query/start` (gateway prewarm) and `query/send`.
 - **Where the bytes are.** A typical home is ~7 MB, of which **~5.7 MB is `models_dev_cache.json`**

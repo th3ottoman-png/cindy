@@ -443,6 +443,21 @@ describe('HermesAgent', () => {
     }
   });
 
+  it('keys the daemon session on the Cindy conversation so a restart reuses its home (ROADMAP 1.14)', async () => {
+    const daemon = await startDaemon({ startHermesSessionId: 'hermes-session-resume' });
+    const first = await start(buildAgent());
+    await first.close();
+    const second = await startResuming(buildAgent(), first.id);
+    try {
+      const firstId = daemon.startParams[0]?.sessionId;
+      expect(daemon.startParams[1]?.sessionId).toBe(firstId);
+      expect(String(firstId)).toContain('business-1');
+      expect(firstId).not.toBe('business-1');
+    } finally {
+      await second.close();
+    }
+  });
+
   it('maps the daemon INVALID_PROTOCOL_VERSION rejection to a stopped startup with mismatch cause', async () => {
     const daemon = await startDaemon({ hello: 'version-error' });
     const failure = await start(buildAgent()).catch((error: unknown) => error);
