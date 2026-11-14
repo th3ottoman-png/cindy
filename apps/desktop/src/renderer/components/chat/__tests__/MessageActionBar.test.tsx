@@ -35,7 +35,7 @@ vi.mock('@/lib/toast', () => ({
   toast: { success: vi.fn(), warning: vi.fn() },
 }));
 
-import { MessageActionBar } from '../MessageActionBar';
+import { MessageActionBar, MessageClock } from '../MessageActionBar';
 import { MessageReadAloudContext, type MessageReadAloud } from '../MessageReadAloudContext';
 import { formatCompactTokens } from '@/lib/usageFormat';
 import { resetResponsePreferencesForTests, writeResponsePreferences } from '@/lib/responsePreferences';
@@ -560,5 +560,44 @@ describe('always-visible timestamps (ROADMAP 13.6)', () => {
       <MessageActionBar copyText="body" align="left" hovered={false} createdAt="not-a-date" />,
     );
     expect(container.querySelector('time')).toBeNull();
+  });
+});
+describe('MessageClock — the standalone clock for messages with no action bar (13.6)', () => {
+  const CREATED = '2026-07-22T10:00:00.000Z';
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    resetResponsePreferencesForTests();
+  });
+
+  it('renders nothing when the preference is off', () => {
+    const { container } = render(<MessageClock createdAt={CREATED} />);
+    expect(container.querySelector('time')).toBeNull();
+  });
+
+  it('renders the clock with no hover and no fade when the preference is on', () => {
+    writeResponsePreferences({ showTimestamps: true });
+    const { container } = render(<MessageClock createdAt={CREATED} />);
+    const time = container.querySelector('time');
+    expect(time?.textContent).toBe('10:00');
+    expect(time?.getAttribute('datetime')).toBe(CREATED);
+    for (let n: HTMLElement | null = time; n; n = n.parentElement) {
+      expect(n.classList.contains('opacity-0')).toBe(false);
+    }
+  });
+
+  it('renders nothing without a usable timestamp', () => {
+    writeResponsePreferences({ showTimestamps: true });
+    for (const createdAt of [undefined, 'not-a-date']) {
+      const { container, unmount } = render(<MessageClock createdAt={createdAt} />);
+      expect(container.querySelector('time')).toBeNull();
+      unmount();
+    }
+  });
+
+  it('keeps the absolute tooltip and the right-alignment spacing', () => {
+    writeResponsePreferences({ showTimestamps: true });
+    const { container } = render(<MessageClock createdAt={CREATED} align="right" />);
+    expect(container.querySelector('time')?.className).toContain('mr-1.5');
   });
 });

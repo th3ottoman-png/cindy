@@ -10,6 +10,23 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-14 (an) - 13.6 extended to every message: `live-proven` — 10 clocks against 8 action bars
+
+- **Row**: 13.6 extension, asked for by the owner ("yes" to covering every message, not only where `MessageActionBar` mounts). The original 13.6 proof recorded the gap as a limitation; it is now closed.
+- **The gap**: `MessageStream.tsx` passes `showActionBar={Boolean(assistantIsTurnFinal) && !assistantForkBlocked}` — its own comment says *"turn 结束后只有收尾正文出现 —— 中间句彻底不挂 bar"*. Intermediate assistant messages therefore had no bar and no clock even with `showTimestamps` on.
+- **Changed**: extracted the shared time element into `TimeText` and added an exported **`MessageClock`** in `MessageActionBar.tsx`. It reads `useResponsePreferences()` itself, returns null when the preference is off or the timestamp is unusable, and never depends on hover or on the bar's fade. `MessageActionBar` now renders `<MessageClock>` instead of its own inline clock, so there is one clock implementation rather than two. `AssistantMessage.tsx` renders it below the bubble when there is no action bar, the message is not streaming and the preference is on — outside `Collapse` (closed for these messages) and outside the fade. No change to the bar's own behaviour, to the hover-only relative text, or to the transcript.
+- **Verified live** (dev sandbox `CindyGlobal-dev2-dev`, real Settings checkbox, session `5be0ad2a` which has four Nov-12 assistant messages plus later turns). Counted `<time>` elements whose text is a clock (`HH:MM` or `MMM D, HH:MM`) alongside the action-bar count:
+  - **on: 10 clocks / 8 bars** — `Nov 12, 07:57`, `Nov 12, 08:01`, `Nov 12, 08:03`, `Nov 12, 08:04`, `12:07` ×3, `17:24` ×3
+  - **off: 0 clocks / 8 bars**, hover-only relative text restored
+  - **on after `location.reload()`: 10 clocks**, identical list
+  The 2 clocks beyond the 8 bars are the proof: messages that mount no bar now carry one. Before the extension the same session showed 8. The Nov-12 group is the clearest case — previously only `07:57` (the turn's final body) was visible. Total `<time>` went 42 (on) → 40 (off), which accounts exactly for the 2 standalone clocks plus the 8 bars swapping back to relative text.
+- **Tests**: `MessageActionBar.test.tsx` **31** (4 new for `MessageClock`: off → nothing, on → clock with no fade and the right `datetime`, unusable timestamp → nothing, right-alignment spacing kept). The 27 existing assertions — including the three 13.6 bar tests — pass unchanged after the extraction, which is the regression guard that the bar's own clock did not move.
+- **Scope**: user messages and **all** assistant messages including intermediate chunks. Tool-call cards and work-group headers are not messages and carry no `createdAt` of their own; system cards unchanged.
+- **Gates** (Node v22.23.4, Tier 2): `pnpm typecheck`, `pnpm test:runner`, `pnpm check:test-hygiene`, `XDT_UNIT_TEST_SHARD=i/8 pnpm test:unit:related` — results recorded in the commit that closes this row. `pnpm design:inventory` regenerated (55 surfaces) after the component change.
+- **User state**: the preference was left **on** at the end of the reload check, then restored to **off** (the default) — see the commit note. No model turn, no API spend, no new outbound call, no file outside the renderer.
+- **Next**: 13.3 recap and 13.9 titles (owner answer 2 authorised the API-route turns).
+
+---
 ## 2026-11-14 (am) - 13.2c storage Prune: `live-proven` — 518 items, 3.61 GB by size / 2.60 GB returned, all 3 orphan homes gone
 
 - **Row**: 13.2c done `live-proven` (ADR 0014 + its 13.2c addendum). Owner authorisation: "ok to delete, run it, and delete the orphan homes too. clean unnecessary previews".

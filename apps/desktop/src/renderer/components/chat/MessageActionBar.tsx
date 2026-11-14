@@ -157,6 +157,58 @@ const actionIconClass = cn(
   'text-[var(--cmd-palette-item-meta)] group-hover:text-[var(--msg-assistant-text)]',
 );
 
+/** The shared time element: hover-relative inside the bar, always-visible clock outside it. */
+function TimeText({ createdAt, absText, align, children }: {
+  createdAt?: string;
+  absText: string;
+  align: 'left' | 'right';
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <time
+          dateTime={createdAt}
+          className={cn(
+            'inline-flex h-6 items-center text-12 font-normal whitespace-nowrap',
+            // Optical adjustment: nudge time text down 0.5px so its visual
+            // mid-line aligns with the lucide Copy icon glyph center.
+            'relative top-[0.5px]',
+            // 视觉分组:user 侧(right)时间在最左、后面跟 4 个操作图标
+            // ([copy][fork][edit][more],彼此 gap-0.5=2px 是一组)。时间与图标组
+            // 之间额外 +6px(共 8px),让"元信息 | 操作组"两段读起来是独立分组
+            // —— 与 assistant 侧 costText 的 ml-1.5 同一间距语言。
+            align === 'right' && 'mr-1.5',
+            'text-[var(--settings-section-desc)] cursor-default',
+          )}
+        >
+          {children}
+        </time>
+      </Tooltip.Trigger>
+      {absText && (
+        <Tooltip.Content>
+          <span className="whitespace-pre-line">{absText}</span>
+        </Tooltip.Content>
+      )}
+    </Tooltip.Root>
+  );
+}
+
+/**
+ * ROADMAP 13.6: the always-visible clock, usable on its own. Intermediate assistant messages
+ * mount no action bar (only the turn's final body does), so they render this instead. Returns
+ * null when the preference is off or the timestamp is unusable, and never depends on hover.
+ */
+export function MessageClock({ createdAt, align = 'left' }: { createdAt?: string; align?: 'left' | 'right' }) {
+  const { showTimestamps } = useResponsePreferences();
+  const ms = createdAt ? new Date(createdAt).getTime() : Number.NaN;
+  if (!showTimestamps || !Number.isFinite(ms)) return null;
+  return (
+    <TimeText createdAt={createdAt} absText={formatAbsolute(createdAt)} align={align}>
+      {formatMessageClock(ms, Date.now())}
+    </TimeText>
+  );
+}
 export function MessageActionBar({
   createdAt,
   copyText,
@@ -316,10 +368,6 @@ export function MessageActionBar({
   // ROADMAP 13.6: when the owner asks for always-visible times, the clock replaces the hover-only
   // relative text and sits outside the fade so it survives an unhovered row.
   const { showTimestamps } = useResponsePreferences();
-  const createdAtMs = createdAt ? new Date(createdAt).getTime() : Number.NaN;
-  const clockText = showTimestamps && Number.isFinite(createdAtMs)
-    ? formatMessageClock(createdAtMs, Date.now())
-    : '';
   const Icon = copied ? Check : Copy;
 
   const copyBtn = (
@@ -480,36 +528,11 @@ export function MessageActionBar({
   );
 
   const renderTime = (text: string, key: string) => (
-    <Tooltip.Root key={key}>
-      <Tooltip.Trigger asChild>
-        <time
-          dateTime={createdAt}
-          className={cn(
-            'inline-flex h-6 items-center text-12 font-normal whitespace-nowrap',
-            // Optical adjustment: nudge time text down 0.5px so its visual
-            // mid-line aligns with the lucide Copy icon glyph center.
-            'relative top-[0.5px]',
-            // 视觉分组:user 侧(right)时间在最左、后面跟 4 个操作图标
-            // ([copy][fork][edit][more],彼此 gap-0.5=2px 是一组)。时间与图标组
-            // 之间额外 +6px(共 8px),让"元信息 | 操作组"两段读起来是独立分组
-            // —— 与 assistant 侧 costText 的 ml-1.5 同一间距语言。
-            align === 'right' && 'mr-1.5',
-            'text-[var(--settings-section-desc)] cursor-default',
-          )}
-        >
-          {text}
-        </time>
-      </Tooltip.Trigger>
-      {absText && (
-        <Tooltip.Content>
-          <span className="whitespace-pre-line">{absText}</span>
-        </Tooltip.Content>
-      )}
-    </Tooltip.Root>
+    <TimeText key={key} createdAt={createdAt} absText={absText} align={align}>{text}</TimeText>
   );
 
   const timeText = !showTimestamps && relText && renderTime(relText, 'time');
-  const clockTime = clockText && renderTime(clockText, 'clock');
+  const clockTime = <MessageClock createdAt={createdAt} align={align} />;
 
   // 用户轮累计优先；没有新字段的历史消息继续显示原始 SDK 分段成本。
   const effectiveTurnMoney =

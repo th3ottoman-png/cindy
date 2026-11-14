@@ -71,7 +71,8 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { DecisionCards } from './DecisionCards';
 import { parseDecisionBlocks } from '@/lib/decisionCards';
 import { parseTurnAudit } from '@cindy/maker-core/turn-audit';
-import { BubbleHoverToolbar, MessageActionBar } from './MessageActionBar';
+import { BubbleHoverToolbar, MessageActionBar, MessageClock } from './MessageActionBar';
+import { useResponsePreferences } from '@/lib/responsePreferences';
 import { shareSelectionStore } from './shareSelectionStore';
 import { useForkAtMessage } from './useForkAtMessage';
 import { useDeleteMessage } from './useDeleteMessage';
@@ -272,6 +273,8 @@ export const AssistantMessage = memo(function AssistantMessage({
 }: AssistantMessageProps) {
   const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
+  // ROADMAP 13.6: the clock must also reach messages that mount no action bar.
+  const { showTimestamps } = useResponsePreferences();
   // 出口钩子自绘卡(will-assistant-message render):卡片以本消息 clientId 为键
   // 存在 ghostCardStore 里,存在即"该气泡被意识自绘替换"。原文仍在 content 里,
   // 提供"查看原文"切换(信任边界:意识盖不住 AI 实际说了什么)。
@@ -529,6 +532,12 @@ export const AssistantMessage = memo(function AssistantMessage({
           <div className="pt-1.5"><div className="min-h-6">{actionBar}</div></div>
         </Collapse>
       </div> : null}
+      {/* ROADMAP 13.6: intermediate assistant messages mount no action bar (only the turn's
+          final body does), so the always-visible clock renders on its own. Outside the fade and
+          outside Collapse, which is closed for these messages. */}
+      {!botBubble && !actionBar && !isStreaming && showTimestamps ? (
+        <div className="-mt-1.5 pt-1.5"><MessageClock createdAt={createdAt} align="left" /></div>
+      ) : null}
     </div>
   );
 });
