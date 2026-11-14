@@ -46,6 +46,7 @@ import { UserPromptSection } from './UserPromptSection';
 import { MemorySection } from './MemorySection';
 import { CompactionSection } from './CompactionSection';
 import { StorageSection } from './StorageSection';
+import { RecapSection } from './RecapSection';
 import { SecurityGuardSection } from './SecurityGuardSection';
 import { ResponseStyleSection } from './ResponseStyleSection';
 import { TerminalShellSection } from './TerminalShellSection';
@@ -618,6 +619,10 @@ export function SettingsView() {
                     与上游「Storage」标签页(会话数据库)不同,故标题为 Storage housekeeping。 */}
                 <section id="settings-storage" className="pb-[18px]" aria-label="Storage housekeeping">
                   <StorageSection key={`storage:${mode}:${dataOwnerId ?? 'none'}`} />
+                </section>
+                {/* ROADMAP 13.3 —— 回到会话时的一句话回顾(不进 transcript;未路由即失效) */}
+                <section id="settings-recap" className="pb-[18px]" aria-label="Recap">
+                  <RecapSection />
                 </section>
                 {/* ROADMAP 10.2 —— 响应风格 / 思考展示:只改渲染,不动落库的 transcript */}
                 <section id="settings-search-target-personalization-response-style" className="pb-[18px]" aria-label={t('settings.sections.responseStyle')}>

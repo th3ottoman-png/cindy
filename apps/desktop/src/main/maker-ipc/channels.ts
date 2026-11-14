@@ -161,6 +161,14 @@ export const MAKER_INVOKE = {
   CHAT_SUMMARY_SET_CONFIG: 'maker:chat-summary:set-config',
   /** ROADMAP 5.6: trigger immediate auto-summary for a session. */
   CHAT_SUMMARY_TRIGGER_NOW: 'maker:chat-summary:trigger-now',
+  /** ROADMAP 13.3: recap settings (~/.cindy-harness/recap.json) and whether `recap` is routed. */
+  RECAP_GET_CONFIG: 'maker:recap:get-config',
+  /** ROADMAP 13.3: set recap `{ enabled?, awayMinutes? }`. */
+  RECAP_SET_CONFIG: 'maker:recap:set-config',
+  /** ROADMAP 13.3: a session regained focus; returns a strip or null. Never writes the transcript. */
+  RECAP_ON_FOCUS: 'maker:recap:on-focus',
+  /** ROADMAP 13.3: the owner dismissed the strip. */
+  RECAP_DISMISS: 'maker:recap:dismiss',
   /** ROADMAP 5.4b: get local scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
   SCHEDULED_SESSIONS_GET_CONFIG: 'maker:scheduled-sessions:get-config',
   /** ROADMAP 5.4b: set local scheduled sessions directory path. */

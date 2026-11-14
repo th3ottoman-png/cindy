@@ -6775,6 +6775,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       onWritten: fanOutMakerChatSummaryWritten,
       onFailed: fanOutMakerChatSummaryFailed,
     },
+    /** ROADMAP 13.3: "where you left off" recap. Transient strip, never the transcript. */
+    recap: {
+      getConfig: (): Promise<import('../main/maker-ipc/recap').RecapConfigView> =>
+        ipcRenderer.invoke('maker:recap:get-config'),
+      setConfig: (patch: { enabled?: boolean; awayMinutes?: number }): Promise<import('../main/maker-ipc/recap').RecapConfigView> =>
+        ipcRenderer.invoke('maker:recap:set-config', patch),
+      onFocus: (request: { sessionId: string; leftAt: number | null; turnCount: number; running: boolean }): Promise<import('../main/maker-ipc/recap').RecapStrip | null> =>
+        ipcRenderer.invoke('maker:recap:on-focus', request),
+      dismiss: (sessionId: string): Promise<null> =>
+        ipcRenderer.invoke('maker:recap:dismiss', sessionId),
+    },
     scheduledSessions: {
       getConfig: (): Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView> =>
         ipcRenderer.invoke('maker:scheduled-sessions:get-config'),

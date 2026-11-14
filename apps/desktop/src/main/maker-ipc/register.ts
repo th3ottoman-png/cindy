@@ -967,6 +967,7 @@ const HOUSEKEEPING_STARTUP_DELAY_MS = 30_000;
 import { getDesktopPlanFirstHost, registerPlanFirstHandlers, type PlanFirstHost } from './planFirst.js';
 import { getDesktopTurnAuditHost, registerTurnAuditHandlers } from './turnAudit.js';
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
+import { RecapHost, registerRecapHandlers } from './recap.js';
 import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
 import { registerProjectCreateHandlers } from './projectCreate.js';
 import {
@@ -26255,6 +26256,20 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   });
   registerChatSummaryHandlers(createElectronIpcHandlerRegistry(), {
     host: chatSummaryHolder,
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+  // ── "Where you left off" recap (ROADMAP 13.3) ─────────────────────────
+  // A transient strip above the composer, never written to the transcript and never sent to
+  // the agent. Inert until `recap` is routed; the strip names the route and model (§6.4).
+  const recapHost = new RecapHost({
+    listMessages: (sessionId) => listMessagesForAgentHandoff(sessionId, null),
+    // Same env as provider discovery: a key the owner stored for Hermes (TOKENHUB_API_KEY)
+    // lives in the Hermes home .env, which Cindy's main never loads into process.env.
+    env: harnessDiscoveryEnv,
+    log,
+  });
+  registerRecapHandlers(createElectronIpcHandlerRegistry(), {
+    host: recapHost,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
 

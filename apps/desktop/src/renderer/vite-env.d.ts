@@ -5950,6 +5950,13 @@ interface ElectronAPI {
       /** Fires once per failure streak when a summary fails. */
       onFailed: (cb: (payload: { sessionId: string; message: string }) => void) => () => void;
     };
+    /** ROADMAP 13.3: "where you left off" recap. A transient strip, never the transcript. */
+    recap: {
+      getConfig: () => Promise<import('../main/maker-ipc/recap').RecapConfigView>;
+      setConfig: (patch: { enabled?: boolean; awayMinutes?: number }) => Promise<import('../main/maker-ipc/recap').RecapConfigView>;
+      onFocus: (request: { sessionId: string; leftAt: number | null; turnCount: number; running: boolean }) => Promise<import('../main/maker-ipc/recap').RecapStrip | null>;
+      dismiss: (sessionId: string) => Promise<null>;
+    };
     scheduledSessions: {
       /** ROADMAP 5.4b: get scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
       getConfig: () => Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView>;

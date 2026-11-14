@@ -171,6 +171,7 @@ import { SessionRouteBlockedBanner } from './SessionRouteBlockedBanner';
 import { SessionContextGuardBanner } from './SessionContextGuardBanner';
 import { LongRunningTurnTimeline } from './LongRunningTurnTimeline';
 import { SessionManifestStrip } from '@/components/session-manifest/SessionManifestStrip';
+import { RecapStrip } from '@/components/chat/RecapStrip';
 import { ChatOnlyToggle } from '@/components/chat/ChatOnlyToggle';
 import { PlanFirstToggle } from '@/components/chat/PlanFirstToggle';
 import { TurnAuditToggle } from '@/components/chat/TurnAuditToggle';
@@ -6144,6 +6145,15 @@ function CCAgentSessionContent({
                     projectDir={session?.workingDir ?? null}
                   />
                 )}
+                {/* ROADMAP 13.3: "where you left off" — a transient strip above the composer.
+                    Never enters the transcript; inert until `recap` is routed. */}
+                {sessionId ? (
+                  <RecapStrip
+                    sessionId={sessionId}
+                    turnCount={messages.reduce((n, m) => (m.role === 'user' ? n + 1 : n), 0)}
+                    running={agentStatus.isRunning || isStreaming}
+                  />
+                ) : null}
                 <ChatInput
                   topSlot={cindyMakeRecoveryId && session ? (
                     <CindyMakeEditingActions

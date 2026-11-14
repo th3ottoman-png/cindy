@@ -58,6 +58,7 @@
     "./squads": "./src/squads/squad.ts",
     "./runtime-status": "./src/runtimes/runtime-status.ts",
     "./housekeeping": "./src/storage/housekeeping.ts",
+    "./recap": "./src/recap/recap.ts",
     "./pinned-skill-invocation": "./src/session/pinned-skill-invocation.ts",
     "./council-review": "./src/review/council-review.ts",
     "./next-turn-suggestion": "./src/session/next-turn-suggestion.ts",
