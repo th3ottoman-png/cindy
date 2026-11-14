@@ -146,6 +146,33 @@ never derived from persisted rows.
 6. If Hermes rejects the resume id, the daemon holds events, emits a one-line notice, and retries
    the turn in a fresh session.
 
+### Session-home lifecycle and storage (13.2a probe, ADR 0014)
+
+- **Two transcript stores, do not confuse them.** The owner's visible history is Cindy's own SQLite
+  (`cindy-local-v1.db`, `sessions` + `messages`). The agent's context is the session home's
+  `state.db` (`sessions` + `messages`). `sessions/` in a home is *not* a transcript (gateway list /
+  request dumps); `kanban.db` and `projects.db` are Hermes indexes.
+- **Id spaces.** Cindy `sessions.id` ≠ daemon `sessionId`. The join is
+  `sessions.sdk_session_id` = registry `hermesSessionId` (`local-<64 hex>`). The home directory is
+  named from the **daemon** `sessionId`: `session-homes/<daemonId>-<sha256[0:10]>`.
+- **A new daemon session (and home) per app start.** `agent.ts startSession` uses `randomUUID()`.
+  Within one app run the same daemon session/home is reused and the agent recalls correctly. Across
+  an app restart the new home has an empty `state.db`, so `--resume` cannot resolve and step 6
+  fires: **the agent loses its context on every cross-restart continuation** (proved live 2026-11-14
+  with an untouched home; ROADMAP §Debt). The visible history is unaffected. No `state.db` migration
+  between homes exists.
+- **Home preparation is lazy.** Reopening a session does not create or rebuild its home;
+  `homeForSession` runs at `query/start` (gateway prewarm) and `query/send`.
+- **Where the bytes are.** A typical home is ~7 MB, of which **~5.7 MB is `models_dev_cache.json`**
+  (a re-downloadable catalog) and ~576 KB is `state.db`. Shared by symlink: `installs`, `plugins`,
+  `.env`, `auth.json`, `SOUL.md`, `skills`, `memories`. A home may instead hold a **real** venv
+  (~620 MB) and uv cache (~467 MB) when Hermes bootstrapped itself there. `cache/uv` is a standard
+  uv cache (re-downloadable); the tool artifact dirs (`images`, `screenshots`, …) are generated
+  content and must not be pruned when non-empty.
+- **Reaper contract.** `reapOrphanHomes` removes only homes no daemon-registry record owns, after
+  24 h idle, and never follows symlinks. It does not know about Cindy's soft-deleted conversations,
+  so those homes persist. Retention-driven pruning is 13.2b, governed by ADR 0014's three tiers.
+
 ### Safety model
 
 - Safe mode by default with an explicit default model; `--yolo` is opt-in per session.
