@@ -10,6 +10,31 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (az) - 14.1 Doctor core (pure): `unit-tested`
+
+- **Row**: 14.1 closed `unit-tested`. No downstream check packs or CLI entrypoint written (14.2 stays open, one task per session).
+- **Changed**:
+  - `packages/maker-core/package.json` — added `"./doctor": "./src/doctor/index.ts"` to `"exports"`.
+  - NEW `packages/maker-core/src/doctor/types.ts` — `DOCTOR_LAYERS` (`environment → runtimes → config → endpoints → processes → data`), `CHECK_TIMEOUT_MS` (`instant` 500 ms, `fast` 3000 ms, `slow` 30000 ms), `DoctorCheck`, `DoctorFix`, `FixPlan`, `FixOutcome`, `CheckResult`, `DoctorReport`, `DoctorContext`, `RunChecksOptions`.
+  - NEW `packages/maker-core/src/doctor/registry.ts` — `createRegistry(packs)` validating non-empty ids, known layers, and duplicate check/fix id rejection.
+  - NEW `packages/maker-core/src/doctor/runner.ts` — `runChecks(registry, ctx, options)` sorting deterministically by fixed layer + registration index, bounding concurrency (default 4), enforcing per-cost timeouts & abort signal, mapping thrown/rejected/timed-out checks to `fail` (`check crashed:` / `timed out`), skipping on `dependsOn` fail/skip or unmet `needs` (`app-closed` / `app-running`), detecting cyclic `dependsOn`, and returning totals without throwing.
+  - NEW `packages/maker-core/src/doctor/redact.ts` — `redactText` & `redactConfig` (`«redacted»`, `SECRET_CONFIG_KEY_PATTERN = /key|token|secret|password|auth|bearer|cookie/i`, Bearer tokens, `sk-...`, `ghp_...` / `github_pat_...`, JWTs, URL userinfo & query stripping before email matching, emails, `homeDir → ~`, `knownSecrets`, YAML/JSON text & nested objects/arrays). Fixed one bug caught red-first by `redactConfig`: nested scalar strings inside parsed objects are redacted via `redactText` rather than YAML-line regexes (which otherwise split `https://` as `key: //rest`), and YAML line key-matching now requires `: ` / `:	` whitespace after `:`.
+  - NEW `packages/maker-core/src/doctor/report-text.ts` & `index.ts` — deterministic `formatReportText` (no ANSI, fail-first per layer + `→ <action>`), `formatReportJson`, `formatReportMarkdown`, barrel re-exports.
+  - NEW `packages/maker-core/src/doctor/__tests__/doctor.test.ts` (13 tests) & `redact.test.ts` (11 tests).
+- **Mutation checks**:
+  - (a) Temporarily changed thrown/rejected severity in `runner.ts` from `'fail'` to `'ok'` → `doctor.test.ts` failed cleanly (`RC=1`, 1 failed / 12 passed on `maps thrown and rejected checks to fail with check crashed and never throws`); restored to `'fail'`.
+  - (b) Temporarily dropped `GITHUB_TOKEN_PATTERN` in `redact.ts` → `redact.test.ts` failed cleanly (`RC=1`, 1 failed / 10 passed on `redacts ghp_... GitHub tokens`); restored.
+- **Gates (Tier 2, Node `v22.23.4`, `unset XDT_ISOLATED NODE_OPTIONS`, staged code+tests)**:
+  - Targeted unit suite (`pnpm --dir packages/maker-core exec vitest run src/doctor/__tests__/doctor.test.ts src/doctor/__tests__/redact.test.ts`): **PASS** (2 files, 24/24 tests).
+  - `pnpm typecheck`: **RC=0** (37 workspace projects).
+  - `pnpm test:runner`: **RC=0** (615 tests / 613 pass / 0 fail / 2 skipped).
+  - `pnpm test:unit:related`: **RC=0** (`apps/desktop unit` 309.4 s clean on first try, `packages/maker-core unit` 49.8 s, all workspace legs PASS).
+  - `pnpm check:test-hygiene`: **RC=0** (`PASS (361 files within baseline)`).
+- **Hygiene**: grep of `packages/maker-core/src/doctor/` confirmed zero `~/.hermes` references and zero outbound `fetch`/`http` calls in non-test code; `HANDOVER.md` untouched (CLI entrypoint and `pnpm doctor` script come in 14.2).
+- **Next**: Phase 14 row **14.2** (CLI entrypoint + Tier-1 Node-ts smoke spike, `pnpm doctor`).
+
+---
+
 ## 2026-11-15 (ay) - 14.0 ADR 0015 doctor contract: `unit-tested` — owner accepted option 1
 
 - **Row**: 14.0 closed `unit-tested` (docs-only contract row, matching 0.10's docs-contract convention). Owner answered option **1** in chat on 2026-11-15, approving the scoped `AGENTS.md` §3 exception from `docs/phase-14-blueprint.md` §4 & §13. No doctor code written (one row per session).
