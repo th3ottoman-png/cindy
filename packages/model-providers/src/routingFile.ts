@@ -36,6 +36,8 @@ export interface RoutingIssue {
 
 export interface RoutingParseResult extends RoutingFile {
   issues: RoutingIssue[];
+  /** ROADMAP 13.8: present only when the file has a `workers:` block. */
+  workers?: WorkersConfig | null;
 }
 
 export type RouteResolution =
@@ -87,6 +89,12 @@ export function parseRoutingFile(doc: unknown, knownProviderIds: Iterable<string
       }
     }
   }
+  if (doc.workers !== undefined) {
+    const rawRoutes = isRecord(doc.routes) ? Object.keys(doc.routes) : [];
+    const workers = parseWorkersBlock(doc, rawRoutes);
+    result.workers = workers.config;
+    for (const issue of workers.issues) result.issues.push(issue);
+  }
   return result;
 }
 
@@ -94,6 +102,152 @@ export function parseRoutingFile(doc: unknown, knownProviderIds: Iterable<string
  * Resolve a task class (e.g. "title", "chat.default"). Exact rule first, then `<group>.default`
  * for a dotted class like "chat.code". No rule means an error, never a default model.
  */
+
+/* ------------------------------------------------------------------------- *
+ * ROADMAP 13.8 - approved models for helper agents (worker model allowlist).
+ *
+ * The owner writes a `workers:` block in ~/.cindy-harness/routing.yaml, inside
+ * BEGIN/END markers, exactly like the managed `cindy-council` block. Cindy is
+ * the only writer of that block; hand edits outside it survive byte for byte.
+ *
+ * Fail closed: a broken or unknown block disables model choice. A missing block
+ * is today's behaviour (any lead-chosen model allowed). No fallback model is
+ * ever invented here.
+ * ------------------------------------------------------------------------- */
+
+export const WORKERS_BLOCK_BEGIN = '# BEGIN cindy-workers (managed by Cindy; this block is rewritten)';
+export const WORKERS_BLOCK_END = '# END cindy-workers';
+
+export interface WorkersConfig {
+  /** false = a lead can never pass `model`, whatever the list says. */
+  allowModelChoice: boolean;
+  /** Route names from the file's `routes:` mapping. */
+  allowedRoutes: string[];
+}
+
+export interface WorkersParseResult {
+  /** null = no managed block at all (today's behaviour). */
+  config: WorkersConfig | null;
+  issues: RoutingIssue[];
+}
+
+/** A present-but-unusable block is ignored and choice is disabled. */
+export const WORKERS_FAIL_CLOSED: WorkersConfig = { allowModelChoice: false, allowedRoutes: [] };
+
+/** Parse a `workers:` mapping out of a parsed routing.yaml document. Never throws. */
+export function parseWorkersBlock(doc: unknown, knownRouteNames: Iterable<string>): WorkersParseResult {
+  if (!isRecord(doc) || doc.workers === undefined) return { config: null, issues: [] };
+  const raw = doc.workers;
+  if (!isRecord(raw)) {
+    return {
+      config: WORKERS_FAIL_CLOSED,
+      issues: [{ where: 'workers', message: 'must be a mapping with "allow_model_choice" and "allowed_routes"' }],
+    };
+  }
+  const issues: RoutingIssue[] = [];
+  let allowModelChoice = true;
+  if (raw.allow_model_choice !== undefined) {
+    if (typeof raw.allow_model_choice !== 'boolean') {
+      issues.push({ where: 'workers.allow_model_choice', message: 'must be true or false' });
+    } else {
+      allowModelChoice = raw.allow_model_choice;
+    }
+  }
+  const known = new Set(knownRouteNames);
+  const allowedRoutes: string[] = [];
+  if (!Array.isArray(raw.allowed_routes)) {
+    issues.push({ where: 'workers.allowed_routes', message: 'workers.allowed_routes must be a list of route names from "routes:"' });
+  } else {
+    for (const entry of raw.allowed_routes) {
+      if (typeof entry !== 'string' || !entry.trim() || !NAME_PATTERN.test(entry.trim())) {
+        issues.push({ where: 'workers.allowed_routes', message: 'entries must be route names (lowercase letters, digits, ".", "_" or "-")' });
+        continue;
+      }
+      const name = entry.trim();
+      if (!known.has(name)) {
+        issues.push({ where: `workers.allowed_routes.${name}`, message: `unknown route "${name}" (not in routes:)` });
+      } else if (!allowedRoutes.includes(name)) {
+        allowedRoutes.push(name);
+      }
+    }
+  }
+  if (issues.length > 0) return { config: WORKERS_FAIL_CLOSED, issues };
+  return { config: { allowModelChoice, allowedRoutes }, issues: [] };
+}
+
+/** Render the managed block. Text-level, so the owner's comments survive. */
+export function renderWorkersBlock(config: WorkersConfig): string {
+  return [
+    WORKERS_BLOCK_BEGIN,
+    'workers:',
+    `  allow_model_choice: ${config.allowModelChoice}`,
+    `  allowed_routes: [${config.allowedRoutes.join(', ')}]`,
+    WORKERS_BLOCK_END,
+  ].join('\n');
+}
+
+/**
+ * Replace the managed block in place, append it, or remove it (config null).
+ * Nothing outside the block is rewritten. The blank separator lines the writer
+ * owns are absorbed on replacement so repeated saves cannot pile them up.
+ */
+export function applyWorkersBlock(text: string, config: WorkersConfig | null): string {
+  const lines = text.split('\n');
+  const begin = lines.findIndex((line) => line.trim() === WORKERS_BLOCK_BEGIN);
+  const end = begin === -1 ? -1 : lines.findIndex((line, i) => i > begin && line.trim() === WORKERS_BLOCK_END);
+  if (begin === -1 || end <= begin) {
+    if (config === null) return text;
+    const base = text.replace(/\s+$/, '');
+    const block = renderWorkersBlock(config);
+    return base ? `${base}\n\n${block}\n` : `${block}\n`;
+  }
+  let from = begin;
+  let to = end;
+  if (from > 0 && lines[from - 1].trim() === '') from -= 1;
+  // Only absorb a blank line AFTER the block when real content follows it. The last
+  // element of a split on a file ending in '\n' is that newline, not a blank line.
+  if (to + 1 < lines.length - 1 && lines[to + 1].trim() === '') to += 1;
+  const before = lines.slice(0, from);
+  const after = lines.slice(to + 1);
+  if (config === null) return [...before, ...after].join('\n');
+  return [...before, '', ...renderWorkersBlock(config).split('\n'), '', ...after].join('\n');
+}
+
+export type WorkerModelSource = 'lead' | 'expert' | 'default';
+
+export interface WorkerModelDecision {
+  allowed: boolean;
+  /** Refusal text the lead model can act on; names every allowed route. */
+  message?: string;
+}
+
+/**
+ * Decide whether a helper agent may start on `model`. Only a lead-chosen model
+ * is checked: the expert's own route and `hermes-default` are owner-written and
+ * always allowed (AGENTS.md 6.3, blueprint 10).
+ */
+export function decideWorkerModel(input: {
+  model: string;
+  source: WorkerModelSource;
+  config: WorkersConfig | null;
+  expertModel?: string;
+  defaultModel?: string;
+}): WorkerModelDecision {
+  const { model, source, config, expertModel, defaultModel } = input;
+  if (config === null) return { allowed: true };
+  if (source !== 'lead') return { allowed: true };
+  if ((defaultModel && model === defaultModel) || (expertModel && model === expertModel)) return { allowed: true };
+  if (config.allowModelChoice && config.allowedRoutes.includes(model)) return { allowed: true };
+  const list = config.allowedRoutes.length ? config.allowedRoutes.join(', ') : '(none)';
+  const reason = config.allowModelChoice
+    ? `model "${model}" is not in the owner's worker allowlist`
+    : `model "${model}" was chosen by the lead, but the owner has disabled model choice for helper agents`;
+  return {
+    allowed: false,
+    message: `${reason}. Allowed routes: ${list}. Omit model to use the expert's route or the Hermes default. No Worker was started.`,
+  };
+}
+
 export function resolveTaskRoute(config: RoutingFile, taskClass: string): RouteResolution {
   const group = taskClass.includes('.') ? taskClass.slice(0, taskClass.indexOf('.')) : undefined;
   const key = [taskClass, group ? `${group}.default` : undefined].find((k) => k !== undefined && k in config.rules);

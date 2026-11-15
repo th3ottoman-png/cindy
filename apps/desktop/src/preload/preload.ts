@@ -6816,6 +6816,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       get: (sessionId: string): Promise<import('../main/maker-ipc/webBudget').WebBudgetView> =>
         ipcRenderer.invoke('maker:web-budget:get', sessionId),
     },
+    /** ROADMAP 13.8: the owner's managed worker model allowlist in routing.yaml. */
+    workers: {
+      getConfig: (): Promise<import('../main/maker-ipc/workerAllowlist').WorkerAllowlistConfigView> =>
+        ipcRenderer.invoke('maker:workers:get-config'),
+      setConfig: (patch: {
+        enabled: boolean;
+        allowModelChoice?: boolean;
+        allowedRoutes?: string[];
+      }): Promise<import('../main/maker-ipc/workerAllowlist').WorkerAllowlistConfigView> =>
+        ipcRenderer.invoke('maker:workers:set-config', patch),
+    },
     scheduledSessions: {
       getConfig: (): Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView> =>
         ipcRenderer.invoke('maker:scheduled-sessions:get-config'),

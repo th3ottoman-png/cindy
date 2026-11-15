@@ -16,6 +16,7 @@ import type {
   OrcaWorkerCreationPlanValidator,
 } from './orcaWorkerCreationService.js';
 import type { MakerSessionCreateOpts } from './sessionRequest.js';
+import { decideWorkerModel, type WorkerModelSource, type WorkersConfig } from '@cindy/model-providers/routing-file';
 import { resolveOrcaWorkerPermissionMode } from '../../shared/orca-worker-permission-mode.js';
 
 /** The Hermes home model sentinel (same id the Hermes adapter and model picker use). */
@@ -36,6 +37,8 @@ export interface HermesWorkerInput {
   ) => Promise<number | null | undefined>;
   assertCurrent?: () => Promise<void>;
   onCreated?: (assertCreatedCurrent: () => Promise<void>) => void;
+  /** ROADMAP 13.8: owner's managed allowlist. null = no block (today's behaviour). */
+  workerAllowlist?: WorkersConfig | null;
   shared: {
     leaseMs: number;
     title: (role: string, label: string) => string;
@@ -96,6 +99,20 @@ export async function createHermesWorkerInTeam(
     expertModel = expert.model;
   }
   const model = params.model ?? expertModel ?? HERMES_WORKER_DEFAULT_MODEL;
+  // ROADMAP 13.8: refuse a lead-chosen model outside the owner's allowlist before
+  // any slot is reserved. The expert's route and the Hermes default are owner-written
+  // and always allowed; no block means today's behaviour.
+  const modelSource: WorkerModelSource = params.model !== undefined
+    ? 'lead'
+    : expertModel !== undefined ? 'expert' : 'default';
+  const modelDecision = decideWorkerModel({
+    model,
+    source: modelSource,
+    config: input.workerAllowlist ?? null,
+    expertModel,
+    defaultModel: HERMES_WORKER_DEFAULT_MODEL,
+  });
+  if (!modelDecision.allowed) return invalid(modelDecision.message ?? 'Worker model is not allowed.');
 
   let workingDir = lead.workingDir ?? '';
   if (params.workingDir !== undefined) {

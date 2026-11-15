@@ -939,6 +939,7 @@ import { createDesktopSkillsHost } from './skillsDesktop.js';
 import { getDesktopExpertSessionStore, setExpertSessionActiveSessionsProvider } from './expertSessions.js';
 import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
+import { readWorkerAllowlistConfig, registerWorkerAllowlistHandlers } from './workerAllowlist.js';
 import { registerCouncilReviewIpc } from '../git-review/councilIpc.js';
 import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNotes.js';
 import { getRuleLearnerHost, registerRuleLearnerHandlers } from './ruleLearner.js';
@@ -16219,6 +16220,9 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   }
 
   const orcaWorkerCreationService = createOrcaWorkerCreationService({
+    // ROADMAP 13.8: re-read the owner's managed allowlist on every worker creation,
+    // so a Settings save takes effect without an app restart.
+    readWorkerAllowlist: () => readWorkerAllowlistConfig(),
     // ROADMAP 3.9a (ADR 0008): Hermes Orca workers started as a file-backed expert.
     // ROADMAP 12.3 (ADR 0011): roster ids (expert:/imported:) resolve too; projectDir scopes
     // imported project agents for both the check and the binding.
@@ -26029,6 +26033,11 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
     file: path.join(os.homedir(), '.cindy-harness', 'providers.yaml'),
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
     discoveryEnv: harnessDiscoveryEnv,
+  });
+
+  // ── Helper agent model allowlist (ROADMAP 13.8): managed `workers:` block only ──
+  registerWorkerAllowlistHandlers(createElectronIpcHandlerRegistry(), {
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
 
   // ── Council review (ROADMAP 11.4): one neutral diff brief, 1 to 3 selected models in parallel ──

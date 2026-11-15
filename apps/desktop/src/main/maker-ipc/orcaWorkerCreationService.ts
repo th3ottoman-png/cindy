@@ -1,6 +1,7 @@
 import type { WorkerWorktreeRequest, WorkerOwnedWorktree } from '../../shared/orca-worker-project';
 import type { AgentKind } from '@cindy/maker-core';
 import { isCodexGatewayWireModel, type AuthStrategy } from '@cindy/model-providers';
+import { decideWorkerModel, type WorkersConfig } from '@cindy/model-providers/routing-file';
 import { normalizeOrcaWorkerLabel, normalizeOrcaWorkerRole, orcaWorkerSessionTitle } from '@cindy/maker-shared/orca-team';
 import path from 'node:path';
 
@@ -305,6 +306,8 @@ export interface OrcaWorkerCreationDeps {
   withLeadSendLock?<T>(leadSessionId: string, operation: () => Promise<T>): Promise<T>;
   validateCreationPlan?: OrcaWorkerCreationPlanValidator;
   readCollaborationSettings(): { workerSoftLimit: number; workerHardLimit: number };
+  /** ROADMAP 13.8: owner's managed worker model allowlist, re-read per creation. null = no block. */
+  readWorkerAllowlist?: () => WorkersConfig | null;
   getLeadSessionRow(leadSessionId: string): Promise<OrcaLeadSessionSnapshot | null>;
   getWorkerDefaults(agent: AgentKind): OrcaWorkerDefaultsSnapshot;
   getWorkerPermissionMode(): OrcaWorkerPermissionMode;
@@ -1044,6 +1047,16 @@ export function createOrcaWorkerCreationService(deps: OrcaWorkerCreationDeps): O
     if (params.expert !== undefined && params.agent !== 'hermes') {
       return { ok: false, errorCode: 'INVALID_PARAMS', message: `expert "${params.expert}" needs agent "hermes"; Cindy experts run on Hermes only.` };
     }
+    // ROADMAP 13.8: the Cindy tool boundary. Non-Hermes kinds have no Cindy route,
+    // so only the lead-chosen `model` argument is checked here, before any slot is
+    // reserved or any session is created. Adapter internals are left untouched.
+    const workerAllowlist = deps.readWorkerAllowlist?.() ?? null;
+    if (params.agent !== 'hermes' && params.model !== undefined) {
+      const decision = decideWorkerModel({ model: params.model, source: 'lead', config: workerAllowlist });
+      if (!decision.allowed) {
+        return { ok: false, errorCode: 'INVALID_PARAMS', message: decision.message ?? 'Worker model is not allowed.' };
+      }
+    }
     const validatePlan = async (workingDir?: string, route?: Parameters<OrcaWorkerCreationPlanValidator>[2]) => {
       await assertCurrent?.();
       // Host validation runs the captured source check before its final synchronous
@@ -1076,6 +1089,7 @@ export function createOrcaWorkerCreationService(deps: OrcaWorkerCreationDeps): O
     if (params.agent === 'hermes') {
       return createHermesWorkerInTeam({
         deps, params, role: role.value, label: label.value, lead, settings, validatePlan, assertCurrent, onCreated,
+        workerAllowlist,
         shared: {
           leaseMs: ORCA_WORKER_CREATION_RESERVATION_LEASE_MS,
           title: orcaWorkerTitle,

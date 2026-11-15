@@ -5978,6 +5978,15 @@ interface ElectronAPI {
     webBudget: {
       get: (sessionId: string) => Promise<import('../main/maker-ipc/webBudget').WebBudgetView>;
     };
+    /** ROADMAP 13.8: the owner's managed worker model allowlist in routing.yaml. */
+    workers: {
+      getConfig: () => Promise<import('../main/maker-ipc/workerAllowlist').WorkerAllowlistConfigView>;
+      setConfig: (patch: {
+        enabled: boolean;
+        allowModelChoice?: boolean;
+        allowedRoutes?: string[];
+      }) => Promise<import('../main/maker-ipc/workerAllowlist').WorkerAllowlistConfigView>;
+    };
     scheduledSessions: {
       /** ROADMAP 5.4b: get scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
       getConfig: () => Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView>;

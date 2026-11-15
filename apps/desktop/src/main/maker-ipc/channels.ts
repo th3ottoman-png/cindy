@@ -187,6 +187,10 @@ export const MAKER_INVOKE = {
   TOOL_LABEL_LABEL_GROUPS: 'maker:tool-label:label-groups',
   /** ROADMAP 13.5: the daemon's web-search count for a session (`web N/M`). */
   WEB_BUDGET_GET: 'maker:web-budget:get',
+  /** ROADMAP 13.8: read the managed `workers:` allowlist in routing.yaml. */
+  WORKERS_GET_CONFIG: 'maker:workers:get-config',
+  /** ROADMAP 13.8: rewrite only the managed `workers:` allowlist block. */
+  WORKERS_SET_CONFIG: 'maker:workers:set-config',
   /** ROADMAP 5.4b: get local scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
   SCHEDULED_SESSIONS_GET_CONFIG: 'maker:scheduled-sessions:get-config',
   /** ROADMAP 5.4b: set local scheduled sessions directory path. */
