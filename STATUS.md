@@ -23,6 +23,7 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 - **Formatter churn**: every existing-file edit was applied by script (`apply_135_*.py`), so the ECC stop hook did not reformat upstream files; only new files were formatted.
 - **Gates** (Node v22.23.4, Tier 2 on the final code tree, 00:02–00:16): `pnpm typecheck` **RC=0**, `pnpm test:runner` **RC=0** (615 / 613 pass / 0 fail), `pnpm check:test-hygiene` **RC=0**, `pnpm test:unit:related` **RC=0** (61 legs PASS, 0 FAIL; `apps/desktop` 315.9 s, `maker-core` 49.5 s, `maker-hermes-manager` 11.6 s). Tier 1 before the live proof: same three RC=0, `node scripts/design-inventory.mjs --check` green (55 surfaces). Only docs changed after the Tier 2 run.
 - **Next**: 13.8 worker model allowlist, then 13.10a shell-limits probe. Possible follow-up: show hook-blocked tool calls in the transcript.
+- **Handover** (owner instruction: "once finished current task, create a handover file for another agent"): `docs/handover-2026-11-15.md` — state at `d67535a063`, what Session 12 shipped, next rows with file pointers, exact commands, and this session's traps (stop-hook formatter churn, GateGuard, case-insensitive paths, credentials-file hook path), plus a copy-paste prompt. It supersedes `docs/handover-2026-11-14.md` as the starting point.
 
 ---
 
