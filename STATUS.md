@@ -10,6 +10,27 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (bh) - 14.9 Incident bundle: `live-proven`
+
+- **Row**: 14.9 closed `live-proven`. Evidence at `docs/evidence/14.9-incident-bundle-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.9-incident-bundle-live-proof.md`). Next open row: `14.10` (docs-only "Proposed rule changes" proposal).
+- **Changed**:
+  - `packages/maker-core/src/doctor/redact.ts`, `__tests__/redact.test.ts` — fixed `BEARER_PATTERN` repeated-prefix bypass (`/\b(?:Bearer\s+)+[A-Za-z0-9._~+/=-]{6,}/gi` found when `"bearer Bearer <token>"` only masked `"bearer Bearer"`), added nested YAML secret-block indentation tracking, quoted YAML keys, and dotenv `KEY=VALUE` line redaction (`12/12` pass).
+  - `packages/maker-core/src/doctor/snapshots.ts` — exported `DiscoveredConfigFile`, `collectConfigSnapshotCandidates`, and `buildVersionsFromResults`.
+  - `packages/maker-core/src/doctor/incident-bundle.ts`, `index.ts`, `__tests__/incident-bundle-14.9.test.ts` — implemented `createIncidentBundle` writing `0600` local markdown files at `~/.cindy-harness/doctor/bundles/<stamp>.md` (refusing daily Hermes home, never uploading) with all 6 blueprint §9 sections: AI-agent header (`AGENTS.md`, `HANDOVER.md`, `~/.hermes-cindy`), full `--all` diagnostic report, redacted `versions.json`, §3 configs redacted (`JSON.parse` → `redactConfig` with text fallback; YAML/MD line-redacted) + `.env` key names only (values collected into `knownSecrets` alongside secret `ctx.env` keys), last 200 lines of newest `apps/desktop/logs/main-*.log` & `~/.hermes-cindy/logs/agent.log` (redacted), last 20 lines of `fix-log.jsonl` (redacted), plus a final full-document `redactText` pass (`2/2` pass; full doctor suite `10/10` files, `78/78` tests).
+  - `scripts/cindy-doctor.mjs`, `packages/maker-core/src/doctor/__tests__/cli.test.ts` — added `bundle [--json] [--include-api]` CLI command (`9/9` pass).
+  - `apps/desktop/src/shared/doctor.ts`, `main/maker-ipc/{channels,doctor}.ts`, `preload/preload.ts`, `renderer/vite-env.d.ts`, `renderer/state/doctorStatusStore.ts`, `renderer/components/settings/DoctorSection.tsx`, `main/maker-ipc/__tests__/doctor.test.ts`, `renderer/components/settings/__tests__/DoctorSection.test.tsx` — added `maker:doctor:bundle` IPC (`DesktopDoctorHost.createBundle`) and wired UI **Copy report** to write the local bundle file and copy the redacted markdown to clipboard (`doctor.test.ts` `3/3`, `DoctorSection.test.tsx` `4/4`).
+- **Live proof** (`$0` API spend; `~/.hermes-cindy/config.yaml` and `~/.cindy-harness/routing.yaml` untouched):
+  - CLI `pnpm -s run doctor bundle --json` wrote `~/.cindy-harness/doctor/bundles/2026-11-15T18-55-25.508Z.md` (`127,535` bytes; `54 ok · 3 warn · 3 fail · 1 skip`; `26` configs; `3` non-empty `.env` values harvested).
+  - Live Electron (`pnpm restart:desktop:remote --region=global`, CDP `127.0.0.1:9222`) **Copy report** real mouse click wrote `~/.cindy-harness/doctor/bundles/2026-11-15T18-54-41.055Z.md` and copied `127,012` bytes / `2,349` lines (`# Cindy Doctor Incident Bundle`) to macOS clipboard with toast `Copied incident bundle (~/.cindy-harness/doctor/bundles/2026-11-15T18-54-41.055Z.md)`.
+  - Audit on both bundles found **0 hits** for `sk-` tokens (`\bsk-[A-Za-z0-9_-]{4,}`), unredacted `Bearer ` tokens (1 prose `"Bearer token"` len 5), `ghp_`/`github_pat_`, JWTs, real home path, and every value behind `~/.hermes-cindy/.env` keys (`DEEPSEEK_API_KEY`, `OPENAI_BASE_URL`, `TOKENHUB_API_KEY`, `TENCENT_TOKENHUB_API_KEY`).
+- **Gates (Tier 2, Node `v22.23.4`)**:
+  - `pnpm typecheck`: **RC=0** (`37 of 38 workspace projects`, `2m 6.9s`).
+  - `pnpm check:test-hygiene`: **RC=0** (`PASS (361 files within baseline)`).
+  - `pnpm test:runner`: **RC=0** (`615` tests: `613` pass, `0` fail, `2` skipped).
+  - `pnpm test:unit:related`: **PASS** across all workspaces (`apps/desktop` `538.4s` `[retried after a worker SIGSEGV]`; 7 non-test workspaces skipped `notApplicable`).
+
+---
+
 ## 2026-11-15 (bg) - 14.8 Settings → Doctor section + start-up run: `live-proven`
 
 - **Row**: 14.8 closed `live-proven`. Evidence at `docs/evidence/14.8-settings-doctor-startup-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.8-settings-doctor-startup-live-proof.md`). Incident bundle (`14.9`) stays open.
