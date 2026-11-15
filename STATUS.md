@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (bj) - 14.10 Accepted rule: new features ship a doctor check (docs-only): `unit-tested`
+
+- **Row**: `ROADMAP.md` `14.10` closed `unit-tested` (owner accepted in chat and instructed `Go ahead.`). Phase 14 active implementation rows `14.0`–`14.10` are now complete (`14.11` remains `⛔ Parked`).
+- **Changed**:
+  - `AGENTS.md` §6 — added rule 6: `"From Phase 15 on, a ROADMAP.md row that adds a config file, a runtime dependency, a process, or a stored file also adds a doctor check (and, if safe, a fix) in the matching pack."`
+  - `ROADMAP.md` — marked `14.10` `✅ unit-tested`.
+- **Gates (Tier 0, docs-only, Node `v22.23.4`)**: `pnpm test:runner` **RC=0** (`615` tests: `613` pass, `0` fail, `2` skipped; `"Windows atomic rename check skipped on this platform."`).
+
+---
+
 ## 2026-11-15 (bi) - 14.10 Proposed rule: new features ship a doctor check (docs-only): `proposed`
 
 - **Row**: `ROADMAP.md` `14.10` (blueprint §11 14.10). Docs only — **awaiting owner acceptance or rejection** (`AGENTS.md` left untouched per `AGENTS.md` §5).

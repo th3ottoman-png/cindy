@@ -184,6 +184,9 @@ These apply to everything in `ROADMAP.md` Phase 3 onward (experts, plugins, rout
    skills — it must be visible in the session header and reproducible from files.
 5. **Keep the hot path boring.** The chat loop (`hermes-run.ts` → event translator → renderer) is
    the daily driver. Changes there need `live-proven` and a before/after transcript.
+6. **New runtime surfaces ship a doctor check (Phase 15+).** From Phase 15 on, a `ROADMAP.md`
+   row that adds a config file, a runtime dependency, a process, or a stored file also adds a
+   doctor check (and, if safe, a fix) in the matching pack.
 
 ---
 
