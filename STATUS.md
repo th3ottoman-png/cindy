@@ -10,6 +10,27 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (bd) - 14.5 Last-known-good snapshots + rollback: `live-proven`
+
+- **Row**: 14.5 closed `live-proven`. Evidence at `docs/evidence/14.5-lkg-snapshots-rollback-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.5-lkg-snapshots-rollback-live-proof.md`). Fix runner (`14.6`) stays open.
+- **Changed**:
+  - NEW `packages/maker-core/src/doctor/snapshots.ts` (exported via `packages/maker-core/src/doctor/index.ts`) — atomic LKG snapshots under `~/.cindy-harness/doctor/lkg/<UTC stamp>/` (`files/harness/...`, `files/hermes/config.yaml`, `versions.json`, SHA-256 `manifest.json`), strict exclusion of `.env*`/`auth.json`/`*.key`/`*token*`/`*credential*`/`*secret*`/`*.db*`/`session-homes/`/`cache/`/`installs/`/`logs/` + symlink refusal (`lstat`), retention pruning (`lkg_keep: 20`, `lkg_min_days: 14` via `doctor/doctor.yaml`), `diffAgainstLatestLkg`, `planLkgRollback`, and `rollbackLkgSnapshot` (SHA-256 preflight verify, app-closed guard for `hermes/config.yaml`, `<file>.pre-rollback-<stamp>` move-aside + atomic sibling-temp rename, automatic `config` layer re-check).
+  - `packages/maker-core/src/doctor/packs/config.ts` & `packages/maker-core/src/doctor/packs/processes.ts` — shared `FIXED_SMALL_JSON_FILES`, exported `detectAppRunningState`, added `config.lkg-diff` check (8 config checks total).
+  - `scripts/cindy-doctor.mjs` — added `snapshot [--reason <text>]`, `snapshots`, and `rollback <stamp> [--file <rel>] [--yes]` (interactive `Apply? [y/N]` prompt without `--yes`).
+  - NEW `packages/maker-core/src/doctor/__tests__/snapshots-14.5.test.ts` (4 comprehensive tests covering secret/dir exclusion, SHA-256 manifest/`versions.json`, 20+14d retention + non-stamp/symlink safety, atomic rollback + `.pre-rollback-<stamp>` + app-running refusal for `hermes/config.yaml` + tampered SHA-256 refusal + daily Hermes refusal + `config.lkg-diff`) plus new CLI subcommand test in `cli.test.ts` and updated check count in `packs-14.3.test.ts` (**56/56 doctor unit tests pass**).
+- **Live proof** (`0` API spend, `0` model turns, Terminal under Node `v22.23.4`, backup `~/.cindy-harness/routing.yaml.bak-2026-11-15-14.5`):
+  - `pnpm -s run doctor snapshot --reason "live-proof-14.5-rollback" --json` → `SNAP_RC=0`, stamp `2026-11-15T14-04-42.883Z`, 26 files captured, `NO_SECRETS_COPIED`, `versions.json` populated (`node 22.23.4`, `pnpm 10.33.2`, `hermes 0.23.1` vs pin `0.22.7`, `claude 2.1.296`, `codex 0.159.2`, `pi 1.0.2`).
+  - Broke `~/.cindy-harness/routing.yaml` → `pnpm -s run doctor --only config` exited `1` (`FAIL config.routing` line 26 + `WARN config.lkg-diff`).
+  - `pnpm -s run doctor rollback 2026-11-15T14-04-42.883Z --file harness/routing.yaml --yes` → `ROLLBACK_RC=0`, created `routing.yaml.pre-rollback-2026-11-15T14-04-45.755Z` (cleaned temporary file afterwards), `config` re-check `8 checks · 8 ok`, `cmp` against `routing.yaml.bak-2026-11-15-14.5` exited `0`, `~/.hermes-cindy/config.yaml` SHA-256 unchanged (`23986d7771...`).
+- **Gates (Tier 2, Node `v22.23.4`, `unset XDT_ISOLATED NODE_OPTIONS`, staged code/tests)**:
+  - `pnpm typecheck`: **RC=0** (37 workspace projects).
+  - `pnpm test:runner`: **RC=0** (615 tests / 613 pass / 0 fail / 2 skipped).
+  - `pnpm test:unit:related`: **RC=0** (`apps/desktop` `309.4s`, `apps/mobile` `55.7s`, `packages/maker-core` `50.6s`, `packages/maker-hermes-manager` `11.2s`, all legs `PASS`).
+  - `pnpm check:test-hygiene`: **RC=0** (`PASS (361 files within baseline)`).
+- **Next**: Phase 14 row **14.6** (Fix runner + first fixes).
+
+---
+
 ## 2026-11-15 (bc) - 14.4 Endpoints, processes & data packs (`endpoints`, `processes`, `data`): `live-proven`
 
 - **Row**: 14.4 closed `live-proven`. Evidence at `docs/evidence/14.4-endpoints-processes-data-packs-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.4-endpoints-processes-data-packs-live-proof.md`). LKG snapshots (`14.5`) stays open.

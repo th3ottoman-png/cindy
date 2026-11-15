@@ -71,7 +71,7 @@ afterEach(async () => {
 });
 
 describe('14.3 config doctor pack', () => {
-  it('registers all 7 config checks in layer order', () => {
+  it('registers all 8 config checks in layer order', () => {
     const registry = createRegistry(ALL_PACKS);
     const configIds = registry.checks.filter((c) => c.layer === 'config').map((c) => c.id);
     expect(configIds).toEqual([
@@ -82,6 +82,7 @@ describe('14.3 config doctor pack', () => {
       'config.web-budget',
       'config.small-json',
       'config.hermes',
+      'config.lkg-diff',
     ]);
   });
 
@@ -90,7 +91,7 @@ describe('14.3 config doctor pack', () => {
     await fs.rm(path.join(sandbox.harnessDir, 'experts'), { recursive: true, force: true });
 
     const report = await runConfigOnly(makeConfigContext(sandbox));
-    expect(report.results).toHaveLength(7);
+    expect(report.results).toHaveLength(8);
     expect(report.counts.fail).toBe(0);
     expect(report.counts.warn).toBe(0);
     expect(report.results.every((r) => r.severity === 'ok')).toBe(true);
@@ -196,7 +197,7 @@ describe('14.3 config doctor pack', () => {
     await fs.writeFile(path.join(sandbox.harnessDir, 'expert-sessions.json'), '{"sessions":{}}\n');
 
     const report = await runConfigOnly(makeConfigContext(sandbox));
-    expect(report.results).toHaveLength(7);
+    expect(report.results).toHaveLength(8);
     expect(report.counts.fail).toBe(0);
     expect(report.counts.warn).toBe(0);
     expect(report.results.every((r) => r.severity === 'ok')).toBe(true);

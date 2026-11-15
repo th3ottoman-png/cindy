@@ -235,7 +235,7 @@ function probeDaemonSocket(socketPath: string): Promise<DaemonProbeResult> {
   });
 }
 
-async function detectAppRunningState(ctx: DoctorContext): Promise<{
+export async function detectAppRunningState(ctx: DoctorContext): Promise<{
   running: boolean;
   pidCount: number;
   psAvailable: boolean;

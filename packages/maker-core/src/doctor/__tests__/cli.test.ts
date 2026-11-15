@@ -177,4 +177,53 @@ describe('scripts/cindy-doctor.mjs CLI (ROADMAP 14.2)', () => {
     });
     expect(flagRes.code).toBe(0);
   });
+
+  it('supports snapshot, snapshots, and rollback --file --yes subcommands cleanly', async () => {
+    const s = await setupCliSandbox({ includePi: true, hermesVersion: '0.23.0' });
+    await fs.writeFile(
+      path.join(s.harnessDir, 'providers.yaml'),
+      'providers:\n  - id: lmstudio\n    kind: lmstudio\n    baseUrl: http://127.0.0.1:1234\n',
+      'utf8',
+    );
+    const routingPath = path.join(s.harnessDir, 'routing.yaml');
+    const originalRouting = 'routes:\n  local-small:\n    provider: lmstudio\n    model: qwen\nrules:\n  title: local-small\n';
+    await fs.writeFile(routingPath, originalRouting, 'utf8');
+
+    const snapRes = await runDoctorCli(
+      [...s.baseArgs, 'snapshot', '--reason', 'cli-test', '--json'],
+      { PATH: s.binDir, HOME: s.home },
+    );
+    expect(snapRes.code).toBe(0);
+    const created = JSON.parse(snapRes.stdout);
+    expect(created.manifest.reason).toBe('cli-test');
+    expect(created.stamp).toBeTruthy();
+
+    const listRes = await runDoctorCli([...s.baseArgs, 'snapshots', '--json'], {
+      PATH: s.binDir,
+      HOME: s.home,
+    });
+    expect(listRes.code).toBe(0);
+    const list = JSON.parse(listRes.stdout);
+    expect(list).toHaveLength(1);
+    expect(list[0].stamp).toBe(created.stamp);
+
+    // Break routing.yaml and verify rollback requires --yes in non-TTY, then succeeds with --yes
+    await fs.writeFile(routingPath, 'default: [broken\n', 'utf8');
+    const noYesRes = await runDoctorCli(
+      [...s.baseArgs, 'rollback', created.stamp, '--file', 'harness/routing.yaml'],
+      { PATH: s.binDir, HOME: s.home },
+    );
+    expect(noYesRes.code).toBe(1);
+    expect(await fs.readFile(routingPath, 'utf8')).toBe('default: [broken\n');
+
+    const yesRes = await runDoctorCli(
+      [...s.baseArgs, 'rollback', created.stamp, '--file', 'harness/routing.yaml', '--yes', '--json'],
+      { PATH: s.binDir, HOME: s.home },
+    );
+    expect(yesRes.code).toBe(0);
+    const rolled = JSON.parse(yesRes.stdout);
+    expect(rolled.ok).toBe(true);
+    expect(await fs.readFile(routingPath, 'utf8')).toBe(originalRouting);
+    expect(rolled.movedAside.some((p: string) => path.basename(p).startsWith('routing.yaml.pre-rollback-'))).toBe(true);
+  });
 });

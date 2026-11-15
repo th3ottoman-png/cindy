@@ -26,6 +26,7 @@ import {
   type GuardrailCategory,
 } from '../../security/guardrails-yaml.js';
 import { isDailyHermesPath } from '../context.js';
+import { diffAgainstLatestLkg, FIXED_SMALL_JSON_FILES } from '../snapshots.js';
 import type { CheckRunOutput, DoctorCheck, DoctorContext, DoctorPack } from '../types.js';
 
 const LOCAL_PROVIDER_KINDS = new Set(['lmstudio', 'ollama']);
@@ -89,13 +90,6 @@ export const KNOWN_BUILTIN_MCP_IDS: readonly string[] = [
   'cindy_experts',
   'orca_worker_bridge',
 ];
-
-const FIXED_SMALL_JSON_FILES = [
-  'housekeeping.json',
-  'plugins.json',
-  'security.json',
-  'vault.json',
-] as const;
 
 type YamlParseResult =
   | { ok: true; data: Record<string, unknown> }
@@ -1069,6 +1063,59 @@ async function runConfigHermes(ctx: DoctorContext): Promise<CheckRunOutput> {
   };
 }
 
+async function runConfigLkgDiff(ctx: DoctorContext): Promise<CheckRunOutput> {
+  const diff = await diffAgainstLatestLkg(ctx);
+  if (!diff.hasSnapshot) {
+    return {
+      severity: 'ok',
+      summary: 'LKG snapshot not configured yet (optional — run pnpm run doctor snapshot)',
+      evidence: { hasSnapshot: false },
+    };
+  }
+  if (!diff.snapshotValid) {
+    return {
+      severity: 'warn',
+      summary: `Latest LKG snapshot ${diff.stamp} is invalid: ${diff.snapshotError ?? 'verification failed'}`,
+      action: 'Run `pnpm run doctor snapshot --reason "refresh"` to capture a clean LKG snapshot.',
+      evidence: { hasSnapshot: true, stamp: diff.stamp ?? null, snapshotValid: false },
+    };
+  }
+
+  const allDiffs = [
+    ...diff.changed.map((f) => `${f} (modified)`),
+    ...diff.added.map((f) => `${f} (added)`),
+    ...diff.removed.map((f) => `${f} (removed)`),
+  ];
+
+  if (allDiffs.length === 0) {
+    return {
+      severity: 'ok',
+      summary: `Config matches LKG snapshot ${diff.stamp} (${diff.totalSnapshotFiles} file(s))`,
+      evidence: {
+        hasSnapshot: true,
+        stamp: diff.stamp ?? null,
+        totalFiles: diff.totalSnapshotFiles,
+      },
+    };
+  }
+
+  const preview = allDiffs.slice(0, 4).join(', ');
+  const suffix = allDiffs.length > 4 ? ` (+${allDiffs.length - 4} more)` : '';
+  return {
+    severity: 'warn',
+    summary: `Config differs from LKG ${diff.stamp}: ${preview}${suffix}`,
+    detail: allDiffs.join('\n'),
+    action: `Review changes or run \`pnpm run doctor rollback ${diff.stamp} [--file <rel>]\`.`,
+    evidence: {
+      hasSnapshot: true,
+      stamp: diff.stamp ?? null,
+      changedCount: diff.changed.length,
+      addedCount: diff.added.length,
+      removedCount: diff.removed.length,
+    },
+  };
+}
+
 const checks: readonly DoctorCheck[] = [
   {
     id: 'config.providers',
@@ -1118,6 +1165,13 @@ const checks: readonly DoctorCheck[] = [
     title: 'Hermes config (~/.hermes-cindy/config.yaml)',
     cost: 'fast',
     run: runConfigHermes,
+  },
+  {
+    id: 'config.lkg-diff',
+    layer: 'config',
+    title: 'Config vs latest LKG snapshot',
+    cost: 'fast',
+    run: runConfigLkgDiff,
   },
 ];
 
