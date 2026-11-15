@@ -216,6 +216,7 @@ changes need a full restart; renderer-only changes hot-reload. See
 Local operations (Node 22):
 
 ```bash
+pnpm run doctor [--all|--only <ids>|--json]  # Cindy Doctor CLI (use `pnpm run doctor`: bare `pnpm doctor` runs pnpm's built-in store check)
 pnpm backup:create [--out <dir>]     # dated .tar.gz of Cindy DB + ~/.hermes-cindy (no caches, no .env/auth.json) + experts → ~/.cindy-harness/backups
 pnpm backup:restore <archive>        # quit Cindy first; replaced files are renamed *.pre-restore-<stamp>, never deleted
 pnpm upstream:scan                   # fetch upstream/main, list cherry-pick candidates since the frozen SHA; applies nothing

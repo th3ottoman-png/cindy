@@ -10,6 +10,40 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (ba) - 14.2 `pnpm run doctor` CLI + environment & runtimes packs: `live-proven`
+
+- **Row**: 14.2 closed `live-proven`. Evidence at `docs/evidence/14.2-doctor-cli-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.2-doctor-cli-live-proof.md`). Config pack (`14.3`) stays open.
+- **§2.3 Loader spike**:
+  - Tried Node 22 native type stripping on `packages/maker-core/src/doctor/index.ts` → fails (`ERR_MODULE_NOT_FOUND` on `.js` relative TS specifiers such as `./types.js`).
+  - Chose `tsx/esm/api` (`register()` inside `scripts/cindy-doctor.mjs`): zero new dependencies (`tsx` is already in root `node_modules`), loads `@cindy/maker-core/doctor`, `.js` relative TS imports, workspace packages, `hermes-version.ts`, and `better-sqlite3` directly from plain `node scripts/cindy-doctor.mjs` in **0.088 s** startup (**1.395 s** full CLI run vs `< 3 s` budget).
+- **Changed**:
+  - `package.json` — added `"doctor": "node scripts/cindy-doctor.mjs"`.
+  - NEW `scripts/cindy-doctor.mjs` — CLI entrypoint supporting `--all`, `--only <id|layer>[,...]`, `--json`, `-h/--help`, hidden test flags (`--home`, `--hermes-home`, `--harness-dir`, `--user-data`, `--repo-root`), exit codes `0` / `1` / `2`, and early `assertNotDailyHermes` guard.
+  - `packages/maker-core/src/doctor/types.ts` — extended `DoctorContext` with optional `env`, `hermesPinnedVersion`, `pnpmPinnedVersion`, `platform`, `arch`, `statfs`, `loadNativeSqlite`.
+  - NEW `packages/maker-core/src/doctor/context.ts` — `createNodeContext()`, `resolveDefaultPaths()`, `isDailyHermesPath()`, `assertNotDailyHermes()`, non-throwing `exec` adapter, native `better-sqlite3` `:memory:` load check, and repo pin readers (`package.json` `packageManager`, `hermes-version.ts`).
+  - NEW `packages/maker-core/src/doctor/packs/environment.ts` — `env.node`, `env.pnpm`, `env.native-sqlite`, `env.paths`, `env.disk`, `env.hermes-home` (reads `hermes-cindy` launcher text without running it).
+  - NEW `packages/maker-core/src/doctor/packs/runtimes.ts` — `runtime.hermes.present`, `runtime.hermes.pin`, `runtime.claude.present`, `runtime.codex.present`, `runtime.pi.present` (resolves via 12.5 dev-bin/userData-verified/PATH order and scans `<harnessDir>/experts` + `~/.{claude,qwen}/agents` so missing unused optional runtimes `skip` (`not used`) while used ones `fail`). Caught & removed cross-run module `WeakMap` caches during red-first testing so repeated runs on one context always inspect fresh state.
+  - NEW `packages/maker-core/src/doctor/packs/index.ts` (`ALL_PACKS`) and updated `packages/maker-core/src/doctor/index.ts` barrel exports.
+  - NEW `packages/maker-core/src/doctor/__tests__/packs-14.2.test.ts` (7 tests) & `cli.test.ts` (3 tests).
+  - `HANDOVER.md` §5 — documented `pnpm run doctor` under Local operations.
+- **Surprising findings**:
+  - **pnpm built-in clash**: running bare `pnpm doctor` invokes pnpm's built-in core doctor (`Versions: pnpm 12.4.2, Node.js 22.23.4`) rather than `package.json`'s `"doctor"` script; use **`pnpm run doctor`** (action text in `runtimes.ts` updated accordingly).
+  - **Hermes `--version` format**: `hermes-cindy --version` prints `Hermes Agent v0.23.0 ...` (leading words before `v0.23.0`), which `parseRuntimeVersion` rejects; reused `hermes-version.ts`'s token regex in `runtimes.ts`.
+  - **Pi resolution**: Cindy's 12.5 logic resolves `claude`/`codex`/`pi` from `apps/*-bin/<platform>-<arch>/...` first (`which pi` is already `not found` on PATH), so the live missing-Pi proof temporarily moved `apps/pi-bin/darwin-arm64/pi` aside → `.bak-14.2` and restored it (also covered via empty `--repo-root` in `cli.test.ts`).
+- **Live proof** (`0` API spend, `0` model turns):
+  - App closed (`desktop-whoami` `match: false`): `pnpm run doctor` → exit `0` in `1.395 s`, `11 checks · 10 ok · 1 warn · 0 fail · 0 skip`, `WARN runtime.hermes.pin Hermes 0.23.0 installed, pin is 0.22.7`. `pnpm run doctor --json` valid JSON (`exit 0`).
+  - App open (`pnpm restart:desktop:remote --region=global -- --isolated=dev`, `pid=84581`): `pnpm run doctor` → exit `0` in `1.418 s`, `10 ok · 1 warn · 0 fail · 0 skip`; `--user-data .../CindyGlobal-dev2-dev --json` → exit `0`, `10 ok · 1 warn`. App stopped cleanly afterward (`ports 5174 & 9222 free`).
+  - Pi absent (`apps/pi-bin/darwin-arm64/pi` temporarily moved aside): `runtime.pi.present` changed from `OK pi 1.0.2` to `SKIP not used` (`exit 0`); restored back to `OK`.
+- **Gates (Tier 2, Node `v22.23.4`, `unset XDT_ISOLATED NODE_OPTIONS`, staged code+tests+evidence)**:
+  - Doctor suite (`pnpm --dir packages/maker-core exec vitest run src/doctor/__tests__/`): **PASS** (4 files, 34/34 tests).
+  - `pnpm typecheck`: **RC=0** (37 workspace projects).
+  - `pnpm test:runner`: **RC=0** (615 tests / 613 pass / 0 fail / 2 skipped).
+  - `pnpm test:unit:related`: **RC=0** (`apps/desktop unit` 308.7 s clean on first try, `packages/maker-core unit` 50.0 s, all workspace legs PASS).
+  - `pnpm check:test-hygiene`: **RC=0** (`PASS (361 files within baseline)`).
+- **Next**: Phase 14 row **14.3** (Config pack: `packs/config.ts`).
+
+---
+
 ## 2026-11-15 (az) - 14.1 Doctor core (pure): `unit-tested`
 
 - **Row**: 14.1 closed `unit-tested`. No downstream check packs or CLI entrypoint written (14.2 stays open, one task per session).

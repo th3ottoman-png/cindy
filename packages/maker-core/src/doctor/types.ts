@@ -143,6 +143,20 @@ export interface DoctorContext {
   appRunning?: boolean;
   /** Optional host metadata override for deterministic tests. */
   host?: DoctorHostInfo;
+  /** Optional environment variables snapshot (defaults to `process.env` in `createNodeContext`). */
+  env?: Readonly<Record<string, string | undefined>>;
+  /** Pinned Hermes CLI version from `@cindy/maker-hermes-manager` (`HERMES_CLI_PINNED_VERSION`). */
+  hermesPinnedVersion?: string;
+  /** Pinned pnpm version from root `package.json` (`packageManager`). */
+  pnpmPinnedVersion?: string;
+  /** Optional platform override (`process.platform` by default). */
+  platform?: NodeJS.Platform;
+  /** Optional platform architecture override (`process.arch` by default). */
+  arch?: string;
+  /** Free-space statfs seam for `env.disk`. */
+  statfs?: (targetPath: string) => Promise<{ bavail: number; bsize: number }>;
+  /** Native sqlite load check seam for `env.native-sqlite`. */
+  loadNativeSqlite?: () => Promise<void> | void;
 }
 
 export interface RunChecksOptions {
