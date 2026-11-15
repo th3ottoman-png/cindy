@@ -17,6 +17,7 @@ import type { SessionTeammatesView } from '../../../main/maker-ipc/sessionTeamma
 import { applySessionManifestToDraft } from './sessionManifestApply';
 import { collectSessionManifest } from './sessionManifestFacts';
 import { WebBudgetChip } from './WebBudgetChip';
+import { ShellLimitsChip } from './ShellLimitsChip';
 import { takePendingManifestPins } from './sessionManifestPins';
 
 /**
@@ -270,6 +271,8 @@ export function SessionManifestStrip({
         </span>
         {/* ROADMAP 13.5: web-search calls used / cap in this session. */}
         <WebBudgetChip sessionId={sessionId} />
+        {/* ROADMAP 13.10b: the owner's shell limit, written into this session's home. */}
+        <ShellLimitsChip />
         <button
           type="button"
           data-testid="manifest-copy-yaml"

@@ -5978,6 +5978,10 @@ interface ElectronAPI {
     webBudget: {
       get: (sessionId: string) => Promise<import('../main/maker-ipc/webBudget').WebBudgetView>;
     };
+    /** ROADMAP 13.10b: the owner's shell limit (read-only; the daemon writes it into session homes). */
+    shellLimits: {
+      get: () => Promise<import('../main/maker-ipc/shellLimits').ShellLimitsView>;
+    };
     /** ROADMAP 13.8: the owner's managed worker model allowlist in routing.yaml. */
     workers: {
       getConfig: () => Promise<import('../main/maker-ipc/workerAllowlist').WorkerAllowlistConfigView>;

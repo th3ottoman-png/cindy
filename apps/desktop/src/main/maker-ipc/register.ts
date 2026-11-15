@@ -973,6 +973,7 @@ import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
 import { RecapHost, registerRecapHandlers } from './recap.js';
 import { ToolLabelHost, registerToolLabelHandlers } from './toolLabels.js';
 import { registerWebBudgetHandlers } from './webBudget.js';
+import { registerShellLimitsHandlers } from './shellLimits.js';
 import { RetitleHost, registerRetitleHandlers } from './retitle.js';
 import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
 import { registerProjectCreateHandlers } from './projectCreate.js';
@@ -26343,6 +26344,12 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
         (client) => client.request(HERMES_MGR_METHODS.SESSION_WEB_BUDGET, { sessionId: daemonSessionId }, { timeoutMs: 5_000 }),
         { timeoutMs: 5_000 },
       ),
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+  // ── Shell limits (ROADMAP 13.10b) ──────────────────────────────────────
+  // Read-only view of ~/.cindy-harness/shell-limits.yaml; the daemon writes the value into each
+  // session home's config.yaml as `terminal.timeout`.
+  registerShellLimitsHandlers(createElectronIpcHandlerRegistry(), {
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
 

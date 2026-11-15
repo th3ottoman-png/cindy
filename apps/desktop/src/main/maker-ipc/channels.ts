@@ -187,6 +187,8 @@ export const MAKER_INVOKE = {
   TOOL_LABEL_LABEL_GROUPS: 'maker:tool-label:label-groups',
   /** ROADMAP 13.5: the daemon's web-search count for a session (`web N/M`). */
   WEB_BUDGET_GET: 'maker:web-budget:get',
+  /** ROADMAP 13.10b: the owner's shell limit (`shell 300s`), read from shell-limits.yaml. */
+  SHELL_LIMITS_GET: 'maker:shell-limits:get',
   /** ROADMAP 13.8: read the managed `workers:` allowlist in routing.yaml. */
   WORKERS_GET_CONFIG: 'maker:workers:get-config',
   /** ROADMAP 13.8: rewrite only the managed `workers:` allowlist block. */

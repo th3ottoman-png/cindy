@@ -113,6 +113,7 @@ import {
   formatToolResultCompactionBytes,
   parseToolResultCompactionMarker,
 } from '@cindy/maker-shared/tool-result-compaction';
+import { parseShellTimeoutNotice, shellTimeoutLabel } from '@cindy/maker-shared/shell-limit-notice';
 
 /**
  * 点击走「文件类」交互(diff / 文稿 / 图片 lightbox)的工具:CC 大写 + pi 小写
@@ -802,6 +803,9 @@ export function AgentActionRow({
   const { t } = useTranslation();
   const processMedia = useMemo(() => readToolProcessMedia(toolResult), [toolResult]);
   const resultText = readToolProcessText(toolResult);
+  // ROADMAP 13.10b: Hermes prints the limit it hit inside the result; the row says so in one badge
+  // instead of leaving the owner to find the marker in the output.
+  const shellTimeout = parseShellTimeoutNotice(resultText);
   const compactedToolResult = parseToolResultCompactionMarker(resultText);
   const displayedToolResult = compactedToolResult
     ? t('chat.toolResultCompacted', {
@@ -1171,6 +1175,16 @@ export function AgentActionRow({
           </span>
         )}
         {displayCell}
+        {shellTimeout && (
+          <span
+            data-testid="agent-action-shell-limit"
+            data-seconds={shellTimeout.seconds}
+            title={`Stopped by the shell limit in ~/.cindy-harness/shell-limits.yaml after ${shellTimeout.seconds} s`}
+            className="shrink-0 rounded border border-[var(--state-warning,#b8860b)] px-1 text-12 leading-[1.4] text-[var(--state-warning,#d9a441)]"
+          >
+            {shellTimeoutLabel(shellTimeout)}
+          </span>
+        )}
         <span className="flex-1" />
         {stats && (
           <span className="font-mono text-13 font-medium shrink-0 flex gap-1">

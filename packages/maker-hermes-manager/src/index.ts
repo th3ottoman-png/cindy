@@ -19,6 +19,19 @@ export {
   type HermesVersionProbeOptions,
 } from './hermes-version.js';
 export {
+  DEFAULT_SHELL_TIMEOUT_SECONDS,
+  MAX_SHELL_TIMEOUT_SECONDS,
+  SHELL_LIMITS_FILENAME,
+  cachedShellLimitsLoader,
+  defaultShellLimitsConfig,
+  defaultShellLimitsFile,
+  injectTerminalTimeout,
+  loadShellLimitsConfig,
+  parseShellLimitsYaml,
+  type ShellLimitsConfig,
+  type ShellLimitsLoad,
+} from './shell-limits.js';
+export {
   parseHermesDefaultRoute,
   readHermesDefaultRoute,
   writeHermesDefaultRoute,

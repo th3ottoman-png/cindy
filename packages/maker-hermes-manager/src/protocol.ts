@@ -35,8 +35,9 @@ export const PROTOCOL_VERSION = 1 as const;
  *
  * 0.3.0: add config/setLocalContextWindows (1.12b).
  * 0.3.1: add session/webBudget and the per-session web-search budget in the hook (13.5).
+ * 0.3.2: write the owner's shell limit into each session home as `terminal.timeout` (13.10b).
  */
-export const HERMES_MGR_BUNDLE_VERSION = '0.3.1' as const;
+export const HERMES_MGR_BUNDLE_VERSION = '0.3.2' as const;
 
 export type RpcId = number;
 

@@ -26,7 +26,7 @@ function roundtrip(value: unknown): unknown {
 describe('protocol constants', () => {
   it('pins the wire version and bundle version', () => {
     expect(PROTOCOL_VERSION).toBe(1);
-    expect(HERMES_MGR_BUNDLE_VERSION).toBe('0.3.1');
+    expect(HERMES_MGR_BUNDLE_VERSION).toBe('0.3.2');
   });
 
   it('keeps method names namespaced', () => {

@@ -24,6 +24,11 @@ import {
 import { fetchProviderModels, hermesHomeApiKey, parseHermesDotEnv } from './hermes-models.js';
 import { decideToolCallGuard, readActiveGuardConfig } from './guard-hook.js';
 import { WebBudget, cachedWebBudgetLoader, type WebBudgetLoad } from './web-budget.js';
+import {
+  cachedShellLimitsLoader,
+  injectTerminalTimeout,
+  type ShellLimitsLoad,
+} from './shell-limits.js';
 import { decideToolResultGuard, taintedGuardConfig } from './guard-result.js';
 import {
   evaluateToolCallGuardrail,
@@ -152,6 +157,11 @@ export interface HermesManagerOptions {
    * tests never read the owner's real `~/.cindy-harness/web-budget.yaml`.
    */
   webBudgetConfig?: () => Promise<WebBudgetLoad>;
+  /**
+   * ROADMAP 13.10b: the shell-limits file, read per session-home prepare (cached briefly). Injected
+   * so tests never read the owner's real `~/.cindy-harness/shell-limits.yaml`.
+   */
+  shellLimitsConfig?: () => Promise<ShellLimitsLoad>;
   /** Socket the hook calls; defaults to `hermes-review.sock` next to `socketPath`. */
   autoReviewSocketPath?: string;
 }
@@ -219,6 +229,8 @@ export class HermesManager {
   private readonly guardConfig: () => GuardConfig;
   /** ROADMAP 13.5: per-session web-search counter in front of every other hook decision. */
   private readonly webBudget: WebBudget;
+  /** ROADMAP 13.10b: the owner's shell limit, written into each session home as `terminal.timeout`. */
+  private readonly shellLimits: () => Promise<ShellLimitsLoad>;
   /** ROADMAP 11.3: deterministic command guardrails, cached briefly like the injection guard. */
   private guardrailsCache?: { at: number; config: GuardrailsConfig };
   /** Installed CLI version, probed at most once per daemon (ROADMAP 10.3's chat-only guard). */
@@ -240,6 +252,7 @@ export class HermesManager {
   constructor(opts: HermesManagerOptions) {
     this.guardConfig = opts.securityGuardConfig ?? (() => readActiveGuardConfig());
     this.webBudget = new WebBudget({ load: opts.webBudgetConfig ?? cachedWebBudgetLoader() });
+    this.shellLimits = opts.shellLimitsConfig ?? cachedShellLimitsLoader();
     this.hermesHome = opts.hermesHome;
     this.hermesBin = opts.hermesBin ?? 'hermes';
     this.hermesExtraArgs = opts.hermesExtraArgs;
@@ -571,7 +584,12 @@ export class HermesManager {
           visionResolution.kind === 'routed' && sessionRecord?.chatOnly !== true && !chatModelSees
             ? visionResolution.route
             : undefined;
-        const wantsTransform = Boolean((hookWanted && hookCommand) || visionRoute);
+        // ROADMAP 13.10b: the owner's shell limit becomes `terminal.timeout` in THIS home. 0 leaves
+        // the Hermes default (180 s) alone. A per-call `timeout=` in the model's own tool call still
+        // wins, and the Hermes foreground hard cap (600 s) is enforced when the file is read.
+        const configuredTimeout = (await this.shellLimits()).config.timeoutSeconds;
+        const shellTimeout = configuredTimeout > 0 ? configuredTimeout : undefined;
+        const wantsTransform = Boolean((hookWanted && hookCommand) || visionRoute || shellTimeout);
         const options: SessionHomeOptions = {
           ...base,
           ...(expertSkillsDir ? { expertSkillsDir } : {}),
@@ -583,6 +601,7 @@ export class HermesManager {
                   let out = base.transformConfig ? base.transformConfig(text, ctx) : text;
                   if (hookWanted && hookCommand) out = injectAutoReviewHook(out, hookCommand);
                   if (visionRoute) out = injectVisionRoute(out, visionRoute);
+                  if (shellTimeout) out = injectTerminalTimeout(out, shellTimeout);
                   return out;
                 },
               }
