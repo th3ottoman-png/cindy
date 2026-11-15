@@ -185,6 +185,8 @@ export const MAKER_INVOKE = {
   TOOL_LABEL_GET_LABELS: 'maker:tool-label:get-labels',
   /** ROADMAP 13.4: label a just-finished turn's groups that have no cached label yet. */
   TOOL_LABEL_LABEL_GROUPS: 'maker:tool-label:label-groups',
+  /** ROADMAP 13.5: the daemon's web-search count for a session (`web N/M`). */
+  WEB_BUDGET_GET: 'maker:web-budget:get',
   /** ROADMAP 5.4b: get local scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
   SCHEDULED_SESSIONS_GET_CONFIG: 'maker:scheduled-sessions:get-config',
   /** ROADMAP 5.4b: set local scheduled sessions directory path. */

@@ -16,6 +16,7 @@ import type { SessionTeammatesView } from '../../../main/maker-ipc/sessionTeamma
 
 import { applySessionManifestToDraft } from './sessionManifestApply';
 import { collectSessionManifest } from './sessionManifestFacts';
+import { WebBudgetChip } from './WebBudgetChip';
 import { takePendingManifestPins } from './sessionManifestPins';
 
 /**
@@ -267,6 +268,8 @@ export function SessionManifestStrip({
         >
           {manifest.capabilities.length} capabilities
         </span>
+        {/* ROADMAP 13.5: web-search calls used / cap in this session. */}
+        <WebBudgetChip sessionId={sessionId} />
         <button
           type="button"
           data-testid="manifest-copy-yaml"

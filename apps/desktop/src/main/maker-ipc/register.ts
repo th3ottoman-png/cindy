@@ -971,6 +971,7 @@ import { getDesktopTurnAuditHost, registerTurnAuditHandlers } from './turnAudit.
 import { ChatSummaryHost, registerChatSummaryHandlers } from './chatSummary.js';
 import { RecapHost, registerRecapHandlers } from './recap.js';
 import { ToolLabelHost, registerToolLabelHandlers } from './toolLabels.js';
+import { registerWebBudgetHandlers } from './webBudget.js';
 import { RetitleHost, registerRetitleHandlers } from './retitle.js';
 import { nextRun, parseCron } from '@cindy/maker-scheduler/cron';
 import { registerProjectCreateHandlers } from './projectCreate.js';
@@ -26323,6 +26324,16 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   // cached per session in ~/.cindy-harness/tool-labels/ so reopening history never re-bills.
   registerToolLabelHandlers(createElectronIpcHandlerRegistry(), {
     host: new ToolLabelHost({ env: harnessDiscoveryEnv, log }),
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+  // ── Web-search budget (ROADMAP 13.5) ───────────────────────────────────
+  // Read-only: the daemon counts web calls in its pre_tool_call hook; the strip shows N/M.
+  registerWebBudgetHandlers(createElectronIpcHandlerRegistry(), {
+    request: (daemonSessionId) =>
+      withHermesManagerDaemon(
+        (client) => client.request(HERMES_MGR_METHODS.SESSION_WEB_BUDGET, { sessionId: daemonSessionId }, { timeoutMs: 5_000 }),
+        { timeoutMs: 5_000 },
+      ),
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
 

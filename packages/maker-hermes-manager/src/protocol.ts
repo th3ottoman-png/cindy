@@ -34,8 +34,9 @@ export const PROTOCOL_VERSION = 1 as const;
  * unrelated tooling changes must not touch it.
  *
  * 0.3.0: add config/setLocalContextWindows (1.12b).
+ * 0.3.1: add session/webBudget and the per-session web-search budget in the hook (13.5).
  */
-export const HERMES_MGR_BUNDLE_VERSION = '0.3.0' as const;
+export const HERMES_MGR_BUNDLE_VERSION = '0.3.1' as const;
 
 export type RpcId = number;
 
@@ -105,6 +106,8 @@ export const METHODS = {
   SESSION_ATTACH: 'session/attach',
   SESSION_LIST: 'session/list',
   SESSION_KILL: 'session/kill',
+  /** ROADMAP 13.5: web-search budget of one session (`web N/M` in the manifest strip). */
+  SESSION_WEB_BUDGET: 'session/webBudget',
 
   // Config (daemon-level: runtime status, default model route, and MCP servers)
   CONFIG_STATUS: 'config/status',
@@ -317,6 +320,20 @@ export interface SessionListResult {
 
 export interface SessionKillParams {
   sessionId: string;
+}
+
+/** ROADMAP 13.5: `session/webBudget` result. */
+export interface SessionWebBudgetResult {
+  sessionId: string;
+  used: number;
+  /** 0 = unlimited (nothing is counted). */
+  max: number;
+  toolNames: string[];
+  /** Problems in web-budget.yaml; each one fell back to its default. */
+  errors: string[];
+  file: string;
+  /** False where Hermes never runs the hook (Default / safe mode, chat-only, cap 0). */
+  enforced: boolean;
 }
 
 /* ============================== Config / MCP shapes ============================== */

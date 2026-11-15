@@ -23,6 +23,7 @@ import {
 } from './hermes-config.js';
 import { fetchProviderModels, hermesHomeApiKey, parseHermesDotEnv } from './hermes-models.js';
 import { decideToolCallGuard, readActiveGuardConfig } from './guard-hook.js';
+import { WebBudget, cachedWebBudgetLoader, type WebBudgetLoad } from './web-budget.js';
 import { decideToolResultGuard, taintedGuardConfig } from './guard-result.js';
 import {
   evaluateToolCallGuardrail,
@@ -78,6 +79,7 @@ import {
   type HermesQuerySetModelParams,
   type SessionClosedNotification,
   type SessionListResult,
+  type SessionWebBudgetResult,
 } from './protocol.js';
 import { SessionRegistry } from './session-registry.js';
 import {
@@ -145,6 +147,11 @@ export interface HermesManagerOptions {
    * read the owner's real `~/.cindy-harness/security.json`.
    */
   securityGuardConfig?: () => GuardConfig;
+  /**
+   * ROADMAP 13.5: the web-search budget file, read per hook call (cached briefly). Injected so
+   * tests never read the owner's real `~/.cindy-harness/web-budget.yaml`.
+   */
+  webBudgetConfig?: () => Promise<WebBudgetLoad>;
   /** Socket the hook calls; defaults to `hermes-review.sock` next to `socketPath`. */
   autoReviewSocketPath?: string;
 }
@@ -210,6 +217,8 @@ export class HermesManager {
   private readonly reviewHold = new ReviewHold();
   private readonly autoReviewHookCommand?: string;
   private readonly guardConfig: () => GuardConfig;
+  /** ROADMAP 13.5: per-session web-search counter in front of every other hook decision. */
+  private readonly webBudget: WebBudget;
   /** ROADMAP 11.3: deterministic command guardrails, cached briefly like the injection guard. */
   private guardrailsCache?: { at: number; config: GuardrailsConfig };
   /** Installed CLI version, probed at most once per daemon (ROADMAP 10.3's chat-only guard). */
@@ -230,6 +239,7 @@ export class HermesManager {
 
   constructor(opts: HermesManagerOptions) {
     this.guardConfig = opts.securityGuardConfig ?? (() => readActiveGuardConfig());
+    this.webBudget = new WebBudget({ load: opts.webBudgetConfig ?? cachedWebBudgetLoader() });
     this.hermesHome = opts.hermesHome;
     this.hermesBin = opts.hermesBin ?? 'hermes';
     this.hermesExtraArgs = opts.hermesExtraArgs;
@@ -249,7 +259,9 @@ export class HermesManager {
       this.autoReview = new AutoReviewGate({
         socketPath:
           opts.autoReviewSocketPath ?? nodePath.join(nodePath.dirname(opts.socketPath), 'hermes-review.sock'),
-        handler: (sessionId, payload) => this.reviewOrGuard(sessionId, payload),
+        // ROADMAP 13.5: the budget answers first; only a call it lets through reaches the review.
+        handler: (sessionId, payload) =>
+          this.webBudget.review(sessionId, payload, () => this.reviewOrGuard(sessionId, payload)),
       });
     }
     this.wireHandlers();
@@ -386,6 +398,9 @@ export class HermesManager {
     if (autoReview) return this.askClientToReview(sessionId, payload);
     const guardArmed = this.guardConfig().policy !== 'off';
     if (!guardArmed) {
+      // ROADMAP 13.5: the web-search budget installs the hook on its own; it has already
+      // counted this call, and outside Auto there is nothing else to ask.
+      if (await this.webBudget.armed()) return { decision: 'allow' };
       // The hook only exists because this session was in Auto when its home was prepared, and the
       // mode has changed since (ROADMAP 1.13b). Fail closed rather than silently allowing a call
       // that would have been reviewed a second earlier.
@@ -531,7 +546,9 @@ export class HermesManager {
         // when the session is not in Auto-review. `off` installs nothing, so the guard can be
         // disarmed from Settings without a code change.
         const guardArmed = this.guardConfig().policy !== 'off';
-        const hookWanted = autoReview || guardArmed;
+        // ROADMAP 13.5: a non-zero web-search cap needs the hook too (cap 0 installs nothing new).
+        const budgetArmed = await this.webBudget.armed();
+        const hookWanted = autoReview || guardArmed || budgetArmed;
         const expertSkillsDir = sessionRecord?.expertSkillsDir;
         const base = this.sessionHomes!;
         const hookCommand = this.hookCommandFor(sessionId);
@@ -667,6 +684,9 @@ export class HermesManager {
         ...startFields,
         ...(p.resumeHermesSessionId ? { hermesSessionId: p.resumeHermesSessionId } : {}),
       });
+      // ROADMAP 13.5: a brand-new record (new conversation, or the one after /clear closed the
+      // old record) starts with a fresh web-search count; an adopted one keeps its count.
+      if (created) this.webBudget.reset(p.sessionId);
       if (!created) {
         // ROADMAP 1.14: the daemon session id is stable per Cindy conversation, so an app
         // restart re-sends start for a record that already exists. Adopt it — its home holds
@@ -1439,6 +1459,7 @@ export class HermesManager {
         await turn.handle.kill();
       }
       this.registry.remove(p.sessionId!);
+      this.webBudget.reset(p.sessionId!);
       this.attached.delete(p.sessionId!);
       this.turnOwners.delete(p.sessionId!);
       const review = this.autoReviewTurnEnv.get(p.sessionId!);
@@ -1505,6 +1526,24 @@ export class HermesManager {
 
     s.setHandler(METHODS.SESSION_LIST, async () => {
       const result: SessionListResult = { sessions: this.registry.list() };
+      return result;
+    });
+
+    // ROADMAP 13.5: the session manifest strip shows `web N/M`. Read-only; an unknown session
+    // reads 0 used. `enforced` is false where Hermes never runs the hook (Default / safe mode,
+    // chat-only, no per-session homes, no hook command, or cap 0).
+    s.setHandler(METHODS.SESSION_WEB_BUDGET, async (raw) => {
+      const p = raw as { sessionId?: unknown };
+      if (typeof p?.sessionId !== 'string' || !p.sessionId) {
+        throw rpcError('INVALID_PARAMS', 'sessionId is required');
+      }
+      const snapshot = await this.webBudget.snapshot(p.sessionId);
+      const rec = this.registry.get(p.sessionId);
+      const hookMode = rec?.permissionMode === 'auto' || rec?.permissionMode === 'bypassPermissions';
+      const enforced = Boolean(
+        snapshot.max > 0 && this.autoReview && this.sessionHomes && rec && hookMode && rec.chatOnly !== true,
+      );
+      const result: SessionWebBudgetResult = { sessionId: p.sessionId, ...snapshot, enforced };
       return result;
     });
 

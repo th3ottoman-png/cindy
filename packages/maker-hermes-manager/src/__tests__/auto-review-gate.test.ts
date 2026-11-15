@@ -208,7 +208,7 @@ interface Spawn {
   reviewToken: string | null;
 }
 
-async function startDaemon(opts: { hook: boolean; sessionHomes: boolean }) {
+async function startDaemon(opts: { hook: boolean; sessionHomes: boolean; webBudgetMax?: number }) {
   const dir = tmpDir();
   const home = path.join(dir, 'home');
   fs.mkdirSync(home, { recursive: true });
@@ -227,6 +227,13 @@ async function startDaemon(opts: { hook: boolean; sessionHomes: boolean }) {
     // ROADMAP 10.1: the guard is armed by default in production (policy `hold`). These tests are
     // about the Auto-review gate itself, so they run with it off — the guard has its own tests.
     securityGuardConfig: () => ({ threshold: 0.8, policy: 'off' }),
+    // ROADMAP 13.5: never the owner's real web-budget.yaml; 0 (off) unless a test asks for a cap.
+    webBudgetConfig: async () => ({
+      config: { maxSearchesPerSession: opts.webBudgetMax ?? 0, toolNames: ['web_search', 'web_extract'] },
+      errors: [],
+      file: '/test/web-budget.yaml',
+      exists: false,
+    }),
   });
   await manager.start();
   const socket = net.createConnection(socketPath);
@@ -442,5 +449,71 @@ describe('HermesManager auto mode (fake hermes)', () => {
     expect(spawn.argv).toContain('--accept-hooks');
     expect(spawn.reviewToken).toBeNull();
     expect(fs.readFileSync(path.join(spawn.home!, 'config.yaml'), 'utf8')).not.toContain('hooks:');
+  });
+});
+
+describe('HermesManager web-search budget (ROADMAP 13.5, fake hermes)', () => {
+  it('a cap installs the hook with the guard off, blocks the third search with the reason, and reports 2/2', async () => {
+    const d = await startDaemon({ hook: true, sessionHomes: true, webBudgetMax: 2 });
+    await d.client.request(
+      METHODS.QUERY_START,
+      { sessionId: 'w', cwd: d.dir, permissionMode: 'bypassPermissions' },
+      { timeoutMs: 5_000 },
+    );
+    await d.client.request(METHODS.QUERY_SEND, { sessionId: 'w', text: 'hi' }, { timeoutMs: 5_000 });
+    await until(() => d.notes.some((n) => n.method === NOTIFICATIONS.SESSION_CLOSED));
+    const [spawn] = d.spawns();
+    expect(fs.readFileSync(path.join(spawn.home!, 'config.yaml'), 'utf8')).toContain('--auto-review-hook');
+    // Full access: the hook reaches the daemon through the session home's credentials file (1.13d).
+    const hook = (stdin: string) =>
+      runAutoReviewHook({ readStdin: async () => stdin, env: {}, credentialsFile: path.join(spawn.home!, 'auto-review.json') });
+
+    const first = await hook(JSON.stringify(payload('web_search', { query: 'a' })));
+    expect(first.stdout).toBe('{}');
+    // Not a web tool: allowed in Full access, never counted, and not the "left Auto" block.
+    expect((await hook(JSON.stringify(payload('terminal', { command: 'ls' })))).exitCode).toBe(0);
+    expect((await hook(JSON.stringify(payload('web_extract', { urls: ['u'] })))).exitCode).toBe(0);
+    const third = await hook(JSON.stringify(payload('web_search', { query: 'c' })));
+    expect(third.exitCode).toBe(2);
+    expect(JSON.parse(third.stdout).reason).toMatch(/^web-search budget reached \(2\/2\)/);
+
+    const status = await d.client.request<{ used: number; max: number; enforced: boolean; toolNames: string[] }>(
+      METHODS.SESSION_WEB_BUDGET,
+      { sessionId: 'w' },
+      { timeoutMs: 5_000 },
+    );
+    expect(status).toMatchObject({ used: 2, max: 2, enforced: true, toolNames: ['web_search', 'web_extract'] });
+  });
+
+  it('closing the session (what /clear does) starts the next one at 0', async () => {
+    const d = await startDaemon({ hook: true, sessionHomes: true, webBudgetMax: 1 });
+    const start = () =>
+      d.client.request(METHODS.QUERY_START, { sessionId: 'c', cwd: d.dir, permissionMode: 'bypassPermissions' }, { timeoutMs: 5_000 });
+    await start();
+    await d.client.request(METHODS.QUERY_SEND, { sessionId: 'c', text: 'hi' }, { timeoutMs: 5_000 });
+    await until(() => d.notes.some((n) => n.method === NOTIFICATIONS.SESSION_CLOSED));
+    const [spawn] = d.spawns();
+    // Full access: the hook reaches the daemon through the session home's credentials file (1.13d).
+    const hook = (stdin: string) =>
+      runAutoReviewHook({ readStdin: async () => stdin, env: {}, credentialsFile: path.join(spawn.home!, 'auto-review.json') });
+    expect((await hook(JSON.stringify(payload('web_search', { query: 'a' })))).exitCode).toBe(0);
+    expect((await hook(JSON.stringify(payload('web_search', { query: 'b' })))).exitCode).toBe(2);
+    await d.client.request(METHODS.QUERY_CLOSE, { sessionId: 'c' }, { timeoutMs: 5_000 });
+    await start();
+    const status = await d.client.request<{ used: number }>(METHODS.SESSION_WEB_BUDGET, { sessionId: 'c' }, { timeoutMs: 5_000 });
+    expect(status.used).toBe(0);
+  });
+
+  it('a Default (safe-mode) session reports the budget as not enforced, and cap 0 is never enforced', async () => {
+    const capped = await startDaemon({ hook: true, sessionHomes: true, webBudgetMax: 5 });
+    await capped.client.request(METHODS.QUERY_START, { sessionId: 'd', cwd: capped.dir }, { timeoutMs: 5_000 });
+    expect(
+      await capped.client.request(METHODS.SESSION_WEB_BUDGET, { sessionId: 'd' }, { timeoutMs: 5_000 }),
+    ).toMatchObject({ used: 0, max: 5, enforced: false });
+    const off = await startDaemon({ hook: true, sessionHomes: true, webBudgetMax: 0 });
+    await off.client.request(METHODS.QUERY_START, { sessionId: 'f', cwd: off.dir, permissionMode: 'bypassPermissions' }, { timeoutMs: 5_000 });
+    expect(
+      await off.client.request(METHODS.SESSION_WEB_BUDGET, { sessionId: 'f' }, { timeoutMs: 5_000 }),
+    ).toMatchObject({ max: 0, enforced: false });
   });
 });

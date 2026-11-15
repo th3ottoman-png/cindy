@@ -6811,6 +6811,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }): Promise<import('../main/maker-ipc/toolLabels').ToolLabelMap> =>
         ipcRenderer.invoke('maker:tool-label:label-groups', request),
     },
+    /** ROADMAP 13.5: web-search budget of a session (read-only; the daemon counts). */
+    webBudget: {
+      get: (sessionId: string): Promise<import('../main/maker-ipc/webBudget').WebBudgetView> =>
+        ipcRenderer.invoke('maker:web-budget:get', sessionId),
+    },
     scheduledSessions: {
       getConfig: (): Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView> =>
         ipcRenderer.invoke('maker:scheduled-sessions:get-config'),

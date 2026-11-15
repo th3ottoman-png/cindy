@@ -5974,6 +5974,10 @@ interface ElectronAPI {
         groups: Array<{ key: string; calls: Array<{ name: string; input: unknown }> }>;
       }) => Promise<import('../main/maker-ipc/toolLabels').ToolLabelMap>;
     };
+    /** ROADMAP 13.5: web-search budget of a session (read-only; the daemon counts). */
+    webBudget: {
+      get: (sessionId: string) => Promise<import('../main/maker-ipc/webBudget').WebBudgetView>;
+    };
     scheduledSessions: {
       /** ROADMAP 5.4b: get scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
       getConfig: () => Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView>;
