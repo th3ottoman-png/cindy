@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (bk) - `Cindy Doctor.app` macOS double-click launcher: `live-proven`
+
+- **Request**: Owner asked for a double-clickable macOS `.app` launcher for Cindy Doctor (`scripts/cindy-doctor.mjs`) without typing CLI commands in Terminal.
+- **Changed**:
+  - `scripts/install-doctor-app.mjs` — compiles and installs `Cindy Doctor.app` via `/usr/bin/osacompile` + Cindy's `apps/desktop/resources/icon.icns` (`CFBundleName`: `Cindy Doctor`, `CFBundleIdentifier`: `com.cindy.doctor`) to `~/Desktop/Cindy Doctor.app` and `/Applications/Cindy Doctor.app`. Wraps `scripts/cindy-doctor.mjs` behind native macOS dialogs (run fast/all/all+API checks, create redacted incident bundle + copy to clipboard, capture/list/rollback LKG snapshots with preview confirmation, preview/apply reversible fixes, run upgrade canaries) via `Contents/Resources/run-doctor-bridge.sh` (explicit Node 22 + user binary PATH for Finder launches) and `Contents/Resources/doctor-app-bridge.mjs` (atomic report writes under `~/.cindy-harness/doctor/last-app-report.txt`).
+  - `scripts/__tests__/install-doctor-app.test.mjs` — `3/3` unit tests covering destination flags, runner/bridge/AppleScript generation, and temp `.app` bundle compilation + `PlistBuddy` + minimal-`PATH` execution.
+- **Live proof & gates** (Node `v22.23.4`):
+  - Installed both bundles (`~/Desktop/Cindy Doctor.app`, `/Applications/Cindy Doctor.app`), verified `PlistBuddy` metadata, `applet.icns` (`2,862,494` B), `osadecompile` UTF-8 strings, and Finder-minimal `env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin"` execution (`run-fast` → `61 checks: 54 ok · 3 warn · 3 fail · 1 skip (1970 ms)`, `snapshots-list`, `fix-preview fix.config.restore-lkg` → `PREVIEW_OK`, read-only).
+  - Tier 2 (`pnpm typecheck` 0, `pnpm check:test-hygiene` 361 files, `pnpm test:runner` `615` tests / `613` pass / `0` fail / `2` skipped, `pnpm test:unit:related` all PASS incl. `apps/desktop` `406.3s` retried on known V8 teardown SIGSEGV) + `install-doctor-app.test.mjs` (`3/3`).
+
+---
+
 ## 2026-11-15 (bj) - 14.10 Accepted rule: new features ship a doctor check (docs-only): `unit-tested`
 
 - **Row**: `ROADMAP.md` `14.10` closed `unit-tested` (owner accepted in chat and instructed `Go ahead.`). Phase 14 active implementation rows `14.0`–`14.10` are now complete (`14.11` remains `⛔ Parked`).
