@@ -10,6 +10,16 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (ay) - 14.0 ADR 0015 doctor contract: `unit-tested` — owner accepted option 1
+
+- **Row**: 14.0 closed `unit-tested` (docs-only contract row, matching 0.10's docs-contract convention). Owner answered option **1** in chat on 2026-11-15, approving the scoped `AGENTS.md` §3 exception from `docs/phase-14-blueprint.md` §4 & §13. No doctor code written (one row per session).
+- **Changed**: NEW `docs/decisions/0015-cindy-doctor.md` — CLI-first (`pnpm doctor`, Settings → Doctor is a viewer over `@cindy/maker-core/doctor`), read-only by default (`--include-api` required for outbound API probes), fail-closed checks + redaction (`assertNotDailyHermes`, no secrets in snapshots/bundles), no auto-fix at start (`run_on_start: true` async ~20 s after window ready), mandatory fix protocol (`preview` → confirm → `needsAppClosed` → `pre-fix:<fixId>` checkpoint → atomic apply → `recheck` + auto-rollback → `fix-log.jsonl`), LKG snapshot scope/exclusions/retention (`20` / `14` days), **sanctioned `AGENTS.md` §3 exception** (byte-exact restore of `~/.hermes-cindy/config.yaml` via `<file>.pre-rollback-<stamp>` move-aside + atomic rename **only** when the app/daemon is closed; all normal edits remain daemon-RPC-only), local-by-default upgrade canary (`--paid` opt-in with cost + owner confirmation), and explicit exclusions (never prunes storage, installs/updates/re-pins runtimes, edits individual `config.yaml` keys, or uploads data). `ROADMAP.md` 14.0 closed; `HANDOVER.md` untouched (no code, commands, or versions changed yet).
+- **Vault sync**: copied `docs/decisions/0015-cindy-doctor.md` to `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-0015-cindy-doctor.md` and appended the dated line to `/Users/turko/Bishi-memory/memory/Project — Cindy.md`.
+- **Gates**: Tier 0 (`pnpm test:runner` under Node `v22.23.4`, `unset XDT_ISOLATED NODE_OPTIONS`) — **RC=0** (615 tests / 613 pass / 0 fail / 2 skipped, 77.4 s); no code, config, scripts, or `package.json` touched.
+- **Next**: Phase 14 row **14.1** (Doctor core, pure `@cindy/maker-core/doctor`).
+
+---
+
 ## 2026-11-15 (ax) - 13.10c output-cap decision: dropped, with the evidence
 
 - **Row**: 13.10c (created in (aw) as the follow-up the blueprint requires) closed **❌ Dropped**, decision **(a): no Cindy output cap**. No code written.

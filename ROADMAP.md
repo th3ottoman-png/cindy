@@ -4,7 +4,7 @@
 file, this file wins and the other must be corrected.
 
 **Current handover:** `docs/handover-2026-11-15-session-13.md` (Session 13: Phase 13 complete; the only
-open work is Phase 14, and row 14.0 is gated on an owner decision). Older but still useful:
+open work is Phase 14, starting from row 14.1 — row 14.0 / ADR 0015 accepted 2026-11-15). Older but still useful:
 `docs/handover-2026-11-15.md` (Session 12, 13.4/13.5 detail) and `docs/handoff/2026-11-10-*`
 (Phase 10 brief, environment history). Every older file in `docs/handoff/` is historical.
 **Phases 0–13 are complete as recorded below; Phase 14 is open.**
@@ -344,7 +344,7 @@ config copies, and applies only previewed, reversible fixes. **Blueprint: `docs/
 
 | # | Task | Done when | Status |
 |---|---|---|---|
-| 14.0 | **ADR 0015 — doctor contract.** `docs/decisions/0015-cindy-doctor.md`: CLI-first; read-only default; fix protocol (preview → backup → apply → re-check → rollback); LKG scope and the one sanctioned non-RPC write (byte-exact `config.yaml` restore with the app closed); canary local by default, `--paid` opt-in; never prunes, installs, or edits keys. Docs only (blueprint §11 14.0). | Owner accepts the ADR in chat | 🔲 |
+| 14.0 | **ADR 0015 — doctor contract.** `docs/decisions/0015-cindy-doctor.md`: CLI-first; read-only default; fix protocol (preview → backup → apply → re-check → rollback); LKG scope and the one sanctioned non-RPC write (byte-exact `config.yaml` restore with the app closed); canary local by default, `--paid` opt-in; never prunes, installs, or edits keys. Docs only (blueprint §11 14.0). | Owner accepts the ADR in chat | ✅ `unit-tested` (2026-11-15, owner accepted option 1 in chat: `docs/decisions/0015-cindy-doctor.md` locks CLI-first, read-only default, preview→backup→apply→re-check→rollback fix protocol, LKG snapshot scope/exclusions/retention 20+14d, the one sanctioned app-closed byte-exact `config.yaml` restore via move-aside + atomic rename, local-by-default canary with `--paid` opt-in, no auto-fix at start, and explicit exclusions; docs-contract gate `pnpm test:runner` green; STATUS (ay)) |
 | 14.1 | **Doctor core (pure).** `@cindy/maker-core/doctor`: `DoctorCheck` / `DoctorFix` / `CheckResult` / `DoctorReport` types, registry (duplicate-id guard), runner (fixed layer order, per-cost timeouts, throw/timeout → `fail`, `dependsOn` / `needs` → `skip`, never throws), redaction, text/JSON/markdown formatters (blueprint §2, §11 14.1). | 🧪 incl. mutation checks: throw-as-ok and a dropped redaction pattern both fail a test | 🔲 |
 | 14.2 | **`pnpm doctor` CLI + environment & runtimes packs.** `scripts/cindy-doctor.mjs` (loader spike first, no new dependency), `--all/--only/--json`, exit codes 0/1/2, hidden temp-path flags for tests; checks `env.*` (Node 22, pnpm, better-sqlite3 ABI, paths, disk, `hermes-cindy` home) and `runtime.*.present` / `runtime.hermes.pin` (blueprint §3, §7). Works with the app closed. | 🧪 + live: real run with app closed and open shows Hermes 0.23.0 vs pin 0.22.7 as WARN; PATH without `pi` changes `runtime.pi.present` | 🔲 |
 | 14.3 | **Config pack.** `config.*` checks for providers.yaml, routing.yaml (incl. 13.8 `workers:`), experts + `tools.yaml`, guardrails, web-budget, small JSON stores, `~/.hermes-cindy/config.yaml` (read-only): parse, validate with the existing readers, resolve cross-references, plain-English errors with file + line (blueprint §3). | 🧪 + live: a dangling provider in a backed-up `routing.yaml` → FAIL with action; restored → ok | 🔲 |
