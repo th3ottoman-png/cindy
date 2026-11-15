@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import * as fs from 'node:fs/promises';
+import * as http from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -276,5 +277,134 @@ describe('scripts/cindy-doctor.mjs CLI (ROADMAP 14.2)', () => {
       HOME: s.home,
     });
     expect(unknown.code).toBe(2);
+  });
+
+  it('supports canary --runtime claude (baseline + no-change) and usage validation (ROADMAP 14.7)', async () => {
+    const s = await setupCliSandbox({ includePi: true, hermesVersion: '0.23.1' });
+    const claudeBin = path.join(s.binDir, 'claude');
+    await fs.writeFile(
+      claudeBin,
+      [
+        '#!/bin/sh',
+        'if [ "$1" = "--version" ]; then echo "2.1.310 (Claude Code)"; exit 0; fi',
+        'if [ "$1" = "--help" ]; then',
+        '  echo "Usage: claude [options]"',
+        '  echo "Options:"',
+        '  for f in --add-dir --allow-dangerously-skip-permissions --allowedTools --append-system-prompt --debug --debug-file --disallowedTools --effort --fork-session --include-partial-messages --mcp-config --model --permission-mode --plugin-dir --resume --session-id --setting-sources --settings --strict-mcp-config --tools; do',
+        '    echo "  $f"',
+        '  done',
+        '  exit 0',
+        'fi',
+      ].join('\n'),
+      { encoding: 'utf8', mode: 0o755 },
+    );
+
+    const first = await runDoctorCli([...s.baseArgs, 'canary', '--runtime', 'claude'], {
+      PATH: s.binDir,
+      HOME: s.home,
+    });
+    expect(first.code).toBe(0);
+    expect(first.stdout).toContain('status=baseline');
+
+    const second = await runDoctorCli([...s.baseArgs, 'canary', '--runtime', 'claude', '--json'], {
+      PATH: s.binDir,
+      HOME: s.home,
+    });
+    expect(second.code).toBe(0);
+    const parsedSecond = JSON.parse(second.stdout);
+    expect(parsedSecond.status).toBe('no-change');
+    expect(parsedSecond.ok).toBe(true);
+
+    // Missing or bad --runtime exits 2
+    const badRuntime = await runDoctorCli([...s.baseArgs, 'canary'], {
+      PATH: s.binDir,
+      HOME: s.home,
+    });
+    expect(badRuntime.code).toBe(2);
+
+    // --paid on non-hermes exits 2
+    const paidNonHermes = await runDoctorCli([...s.baseArgs, 'canary', '--runtime', 'claude', '--paid'], {
+      PATH: s.binDir,
+      HOME: s.home,
+    });
+    expect(paidNonHermes.code).toBe(2);
+  });
+
+  it('supports canary --runtime hermes end-to-end against local mock endpoint and fake hermes (ROADMAP 14.7)', async () => {
+    const s = await setupCliSandbox({ hermesVersion: '0.23.1' });
+
+    // Start ephemeral mock LM Studio server
+    const server = http.createServer((req, res) => {
+      if (req.url === '/v1/models') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ data: [{ id: 'qwen3-8b' }] }));
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const addr = server.address();
+    const port = typeof addr === 'object' && addr ? addr.port : 0;
+
+    try {
+      await fs.writeFile(
+        path.join(s.harnessDir, 'providers.yaml'),
+        `providers:\n  - id: lmstudio-local\n    kind: lmstudio\n    baseUrl: http://127.0.0.1:${port}\n`,
+        'utf8',
+      );
+      await fs.writeFile(
+        path.join(s.harnessDir, 'routing.yaml'),
+        'routes:\n  local-small: { provider: lmstudio-local, model: qwen3-8b }\nrules:\n  title: local-small\n',
+        'utf8',
+      );
+
+      // Install fake hermes wrapper + node script honoring HERMES_HOME
+      const fakeHermesJs = path.join(s.root, 'fake-hermes-canary.mjs');
+      await fs.writeFile(
+        fakeHermesJs,
+        [
+          "import * as fs from 'node:fs';",
+          "import * as path from 'node:path';",
+          "if (process.argv.includes('--version')) { console.log('Hermes Agent v0.23.1'); process.exit(0); }",
+          "const home = process.env.HERMES_HOME;",
+          "const logsDir = path.join(home, 'logs');",
+          "fs.mkdirSync(logsDir, { recursive: true });",
+          "fs.writeFileSync(path.join(logsDir, 'agent.log'), '2026-11-15 10:00:00,000 INFO [c1] agent.conversation_loop: API call #1: model=qwen3-8b provider=custom in=100 out=4 total=104\\n');",
+          "console.log(JSON.stringify({ type: 'system', subtype: 'init', model: 'qwen3-8b', session_id: '', timestamp: Date.now() }));",
+          "console.log(JSON.stringify({ type: 'text', text: 'CINDY_CANARY_OK', timestamp: Date.now() }));",
+          "console.log(JSON.stringify({ type: 'result', session_id: 'canary-sess-1', exit_code: 0, text: 'CINDY_CANARY_OK', tokens: { input: 100, output: 4, total: 104, cache_read: 0, cache_write: 0 }, duration_ms: 10, timestamp: Date.now() }));",
+        ].join('\n'),
+        'utf8',
+      );
+      await fs.writeFile(
+        path.join(s.binDir, 'hermes'),
+        `#!/bin/sh\nexec "${process.execPath}" "${fakeHermesJs}" "$@"\n`,
+        { encoding: 'utf8', mode: 0o755 },
+      );
+      await fs.writeFile(
+        path.join(s.binDir, 'hermes-cindy'),
+        `#!/bin/sh\nexport HERMES_HOME="${s.hermesHome}"\nexec hermes "$@"\n`,
+        { encoding: 'utf8', mode: 0o755 },
+      );
+
+      const passArgs = [
+        '--home', s.home,
+        '--hermes-home', s.hermesHome,
+        '--harness-dir', s.harnessDir,
+        '--user-data', s.userDataDir,
+        '--repo-root', REPO_ROOT,
+      ];
+      const passRes = await runDoctorCli([...passArgs, 'canary', '--runtime', 'hermes'], {
+        PATH: `${s.binDir}:/bin:/usr/bin`,
+        HOME: s.home,
+      });
+      expect(passRes.code).toBe(0);
+      expect(passRes.stdout).toContain('PASS  event-shapes');
+      expect(passRes.stdout).toContain('Verdict: safe to bump pin');
+      expect(passRes.stdout).toContain('not covered — re-probe per HANDOVER §3');
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });

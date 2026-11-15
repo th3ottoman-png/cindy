@@ -10,6 +10,30 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (bf) - 14.7 Upgrade canary: `live-proven`
+
+- **Row**: 14.7 closed `live-proven`. Evidence at `docs/evidence/14.7-upgrade-canary-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.7-upgrade-canary-live-proof.md`). Settings UI + start-up run (`14.8`) stays open.
+- **Changed**:
+  - NEW `packages/maker-core/src/agents/hermes/event-shapes.ts` (exported via `@cindy/maker-core/hermes-event-shapes` in `packages/maker-core/package.json`) — extracted shared NDJSON parser and `stream-json` shape comparator (`parseNdjsonEvents`, `eventKind`, `extractEventShapes`, `sortedTokenKeys`, `compareEventShapes`, `compareSemverStrings`, `selectNewestRealHermesFixture`); updated `packages/maker-hermes-manager/src/__tests__/fixture-parity.test.ts` to reuse it (**10/10 pass**).
+  - NEW `packages/maker-core/src/doctor/canary/contracts.ts` — evaluates the 5 `HANDOVER.md` §3 contracts (`event-shapes`, `result-session-id`, `agent-log-api-call`, `safe-mode-custom-provider`, `canary-reply-token`), surfaces non-covered probe areas as `"not covered — re-probe per HANDOVER §3"`, and persists `~/.cindy-harness/doctor/canary/hermes-<version>.json`.
+  - NEW `packages/maker-core/src/doctor/canary/hermes-canary.ts` — unwraps `hermes-cindy`'s hardcoded `HERMES_HOME` (`resolveIsolatedHermesBinary`), creates an isolated `$TMPDIR/cindy-doctor-canary-<stamp>/` home (symlinking `installs`/`venv` only, minimal `config.yaml`, zero secrets), runs one fixed local-model turn (`local-small`, or `--paid` with confirmation), evaluates contracts, writes `hermes-<version>.json`, and removes the throwaway directory in `finally`.
+  - NEW `packages/maker-core/src/doctor/canary/cli-help-diff.ts` — static adapter flag table `ADAPTER_CLI_FLAGS` for `claude` (20 flags), `codex` (2 flags), and `pi` (17 flags) derived without altering those adapters; stores `--version` & `--help` in `~/.cindy-harness/doctor/canary/<runtime>-help-<version>.txt` and `fail`s on removed adapter flags.
+  - `packages/maker-core/src/doctor/packs/runtimes.ts` — exported `OPTIONAL_RUNTIME_SPECS`, `probeHermes`, `resolveOptionalRuntimeBinary` and added `runtime.hermes.canary-fresh` + `runtime.{hermes,claude,codex,pi}.changed` (`10` checks total in `runtimesPack`).
+  - `packages/maker-core/src/doctor/index.ts` & `scripts/cindy-doctor.mjs` — exported canary APIs and wired `canary --runtime <hermes|claude|codex|pi> [--model <route>] [--paid] [--json]`.
+  - NEW `packages/maker-core/src/doctor/__tests__/canary-14.7.test.ts` (8 tests) + 2 CLI canary tests in `cli.test.ts` (**9/9 doctor test files, 73/73 tests pass**).
+- **Live proof** (`$0` API spend, Terminal under Node `v22.23.4`):
+  - `~/.hermes-cindy/config.yaml` SHA-256 unchanged before and after: `fda46aa231ff5a204279619be4e1fa653a760a4dae9d2cc5b43c353e5107465c`.
+  - `pnpm run doctor canary --runtime hermes` on real Hermes `v0.23.1` + `local-small` (`lmstudio-local/qwen3-8b`): `5/5` contracts `PASS`, `3` uncovered `NOTE`s, saved `/Users/turko/.cindy-harness/doctor/canary/hermes-0.23.1.json`, `$TMPDIR/cindy-doctor-canary-*` cleaned, `Verdict: safe to bump pin` (`EC_HERMES=0`).
+  - `pnpm run doctor canary --runtime claude` Run 1 -> `v2.1.296 · status=baseline` (`69 flags`, saved `claude-help-2.1.296.txt`); Run 2 -> `status=no-change` (`EC=0`).
+  - `pnpm run doctor --only runtimes` -> `10 checks · 9 ok · 1 warn · 0 fail · 0 skip` (`WARN runtime.hermes.pin Hermes 0.23.1 installed, pin is 0.22.7`, `OK runtime.hermes.canary-fresh`, all 4 `runtime.*.changed` `OK`).
+- **Gates (Tier 2, Node `v22.23.4`, `unset XDT_ISOLATED NODE_OPTIONS`, staged code/tests)**:
+  - `pnpm typecheck`: **RC=0** (37 workspace projects).
+  - `pnpm test:runner`: **RC=0** (615 tests / 613 pass / 0 fail / 2 skipped).
+  - `pnpm test:unit:related`: all non-desktop legs `PASS` in `unit-retry.log` (`apps/cindy-headless` `5.0s`, `apps/mobile` `59.6s`, `packages/maker-core` `51.0s`, `packages/maker-hermes-manager` `11.8s`, all remaining applicable packages `PASS`); unsharded `apps/desktop` hit known V8 teardown SIGSEGV (`ROADMAP.md` §Debt) → verified all 8 desktop shards (`XDT_UNIT_TEST_SHARD=1/8..8/8`) cleanly with 0 retries (`41.7s`–`52.2s`, `DESKTOP_SHARDS_ALL_GREEN=1`).
+  - `pnpm check:test-hygiene`: **RC=0** (`PASS (361 files within baseline)`).
+
+---
+
 ## 2026-11-15 (be) - 14.6 Fix runner + first fixes: `live-proven`
 
 - **Row**: 14.6 closed `live-proven`. Evidence at `docs/evidence/14.6-fix-runner-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.6-fix-runner-live-proof.md`). Upgrade canary (`14.7`) stays open.

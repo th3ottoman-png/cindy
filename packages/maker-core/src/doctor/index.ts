@@ -7,3 +7,6 @@ export * from './context.js';
 export * from './packs/index.js';
 export * from './snapshots.js';
 export * from './fix-runner.js';
+export * from './canary/contracts.js';
+export * from './canary/cli-help-diff.js';
+export * from './canary/hermes-canary.js';

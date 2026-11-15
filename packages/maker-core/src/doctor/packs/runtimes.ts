@@ -27,6 +27,8 @@ import {
   runtimeVersionMatchesPin,
 } from '../../runtimes/runtime-status.js';
 import type { CheckRunOutput, DoctorCheck, DoctorContext, DoctorPack } from '../types.js';
+import { readHermesCanaryRecord } from '../canary/contracts.js';
+import { listLkgSnapshots, type LkgSnapshotVersions } from '../snapshots.js';
 import { parseHermesLauncherHome, resolveCommandOnPath } from './environment.js';
 
 const VERSION_TIMEOUT_MS = 2_800;
@@ -45,7 +47,7 @@ interface OptionalRuntimeSpec {
   installHint: string;
 }
 
-const OPTIONAL_RUNTIME_SPECS: readonly OptionalRuntimeSpec[] = [
+export const OPTIONAL_RUNTIME_SPECS: readonly OptionalRuntimeSpec[] = [
   {
     checkId: 'runtime.claude.present',
     agentKind: 'claude-code',
@@ -94,7 +96,7 @@ function extractHermesVersion(stdout: string, stderr: string): string | null {
   return match ? match[1]! : null;
 }
 
-async function probeHermes(ctx: DoctorContext): Promise<HermesProbeResult> {
+export async function probeHermes(ctx: DoctorContext): Promise<HermesProbeResult> {
     const launcherHome = ctx.env?.HOME ?? ctx.paths.home ?? os.homedir();
     if (isDailyHermesPath(ctx.paths.hermesHome, ctx.paths.home, ctx.platform)) {
       return { version: null, refusedDailyHome: true, error: 'hermesHome resolves to the daily Hermes home' };
@@ -227,7 +229,7 @@ async function isExecutable(ctx: DoctorContext, filePath: string): Promise<boole
   }
 }
 
-async function resolveOptionalRuntimeBinary(
+export async function resolveOptionalRuntimeBinary(
   ctx: DoctorContext,
   spec: OptionalRuntimeSpec,
 ): Promise<string | undefined> {
@@ -402,11 +404,189 @@ function makeOptionalRuntimeCheck(spec: OptionalRuntimeSpec): DoctorCheck {
   };
 }
 
+type RuntimeChangeTarget = 'hermes' | 'claude' | 'codex' | 'pi';
+
+const RUNTIME_LABELS: Readonly<Record<RuntimeChangeTarget, string>> = {
+  hermes: 'Hermes CLI',
+  claude: 'Claude Code',
+  codex: 'Codex CLI',
+  pi: 'Pi CLI',
+};
+
+const hermesCanaryFreshCheck: DoctorCheck = {
+  id: 'runtime.hermes.canary-fresh',
+  layer: 'runtimes',
+  title: 'Hermes upgrade canary',
+  cost: 'fast',
+  dependsOn: ['runtime.hermes.present'],
+  async run(ctx): Promise<CheckRunOutput> {
+    const probe = await probeHermes(ctx);
+    if (!probe.version) {
+      return {
+        severity: 'skip',
+        summary: `skipped: ${probe.error ?? 'Hermes version unavailable'}`,
+      };
+    }
+
+    const res = await readHermesCanaryRecord(ctx, probe.version);
+    if (!res.exists) {
+      return {
+        severity: 'warn',
+        summary: `no canary result for Hermes ${probe.version}`,
+        detail: `Expected canary record at ${path.join(ctx.paths.harnessDir, 'doctor', 'canary', `hermes-${probe.version}.json`)}.`,
+        action: 'pnpm run doctor canary --runtime hermes',
+        evidence: { version: probe.version },
+      };
+    }
+
+    if (!res.valid) {
+      return {
+        severity: 'fail',
+        summary: `corrupt canary record for Hermes ${probe.version}: ${res.error}`,
+        action: 'pnpm run doctor canary --runtime hermes',
+        evidence: { version: probe.version, path: res.filePath },
+      };
+    }
+
+    const failedIds = res.record.contracts.filter((c) => !c.ok).map((c) => c.id);
+    if (!res.record.passed) {
+      return {
+        severity: 'fail',
+        summary: `last canary failed for Hermes ${probe.version}: ${failedIds.join(', ') || 'contract failure'}`,
+        detail: res.record.verdict,
+        action: 'pnpm run doctor canary --runtime hermes',
+        evidence: { version: probe.version, at: res.record.at },
+      };
+    }
+
+    const dateStr = res.record.at.slice(0, 10);
+    return {
+      severity: 'ok',
+      summary: `canary passed for Hermes ${probe.version} (${dateStr})`,
+      evidence: {
+        version: probe.version,
+        at: res.record.at,
+        route: res.record.route?.routeName ?? null,
+      },
+    };
+  },
+};
+
+async function readLatestBaselineVersions(
+  ctx: DoctorContext,
+): Promise<{ dateStr: string; stamp: string; versions: LkgSnapshotVersions } | null> {
+  const snapshots = await listLkgSnapshots(ctx);
+  const baselines = snapshots.filter(
+    (s) => s.valid && s.manifest && !s.manifest.reason.startsWith('pre-fix:'),
+  );
+  if (baselines.length === 0) return null;
+  const latest = baselines[0]!;
+  try {
+    const raw = await ctx.fs.readFile(path.join(latest.dir, 'versions.json'), 'utf8');
+    const versions = JSON.parse(raw) as LkgSnapshotVersions;
+    const capturedAt = typeof versions.capturedAt === 'string' ? versions.capturedAt : latest.stamp;
+    return {
+      stamp: latest.stamp,
+      dateStr: capturedAt.slice(0, 10),
+      versions,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveCurrentRuntimeVersion(
+  ctx: DoctorContext,
+  target: RuntimeChangeTarget,
+): Promise<string | null> {
+  if (target === 'hermes') {
+    const probe = await probeHermes(ctx);
+    return probe.version;
+  }
+  const spec = OPTIONAL_RUNTIME_SPECS.find((s) => s.shortName === target);
+  if (!spec) return null;
+  const bin = await resolveOptionalRuntimeBinary(ctx, spec);
+  if (!bin) return null;
+  const probe = await ctx.exec(bin, ['--version'], { timeoutMs: VERSION_TIMEOUT_MS });
+  return probe.code === 0 ? parseRuntimeVersion(probe.stdout, probe.stderr) : null;
+}
+
+function makeRuntimeChangedCheck(target: RuntimeChangeTarget): DoctorCheck {
+  const label = RUNTIME_LABELS[target];
+  const check: DoctorCheck = {
+    id: `runtime.${target}.changed`,
+    layer: 'runtimes',
+    title: `${label} version drift`,
+    cost: 'fast',
+    async run(ctx): Promise<CheckRunOutput> {
+      const [baseline, currentVersion] = await Promise.all([
+        readLatestBaselineVersions(ctx),
+        resolveCurrentRuntimeVersion(ctx, target),
+      ]);
+
+      if (!baseline) {
+        return {
+          severity: 'skip',
+          summary: 'no LKG snapshot baseline yet',
+        };
+      }
+
+      const oldVersion = baseline.versions[target]?.version ?? null;
+      if (!currentVersion) {
+        if (!oldVersion) {
+          return {
+            severity: 'skip',
+            summary: `${label} not installed`,
+          };
+        }
+        return {
+          severity: 'warn',
+          summary: `${label} unavailable (was ${oldVersion} on ${baseline.dateStr})`,
+          action: `pnpm run doctor canary --runtime ${target}`,
+          evidence: { previous: oldVersion, installed: null, snapshot: baseline.stamp },
+        };
+      }
+
+      if (!oldVersion) {
+        return {
+          severity: 'skip',
+          summary: `no prior ${label} version recorded in LKG snapshot (${baseline.dateStr})`,
+          evidence: { installed: currentVersion, snapshot: baseline.stamp },
+        };
+      }
+
+      if (currentVersion !== oldVersion) {
+        return {
+          severity: 'warn',
+          summary: `${label} changed ${oldVersion} → ${currentVersion} since ${baseline.dateStr}; run the canary`,
+          action: `pnpm run doctor canary --runtime ${target}`,
+          evidence: { previous: oldVersion, installed: currentVersion, snapshot: baseline.stamp },
+        };
+      }
+
+      return {
+        severity: 'ok',
+        summary: `${label} ${currentVersion} unchanged since ${baseline.dateStr}`,
+        evidence: { installed: currentVersion, snapshot: baseline.stamp },
+      };
+    },
+  };
+  if (target === 'hermes') {
+    check.dependsOn = ['runtime.hermes.present'];
+  }
+  return check;
+}
+
 export const runtimesPack: DoctorPack = {
   layer: 'runtimes',
   checks: [
     hermesPresentCheck,
     hermesPinCheck,
+    hermesCanaryFreshCheck,
+    makeRuntimeChangedCheck('hermes'),
     ...OPTIONAL_RUNTIME_SPECS.map(makeOptionalRuntimeCheck),
+    makeRuntimeChangedCheck('claude'),
+    makeRuntimeChangedCheck('codex'),
+    makeRuntimeChangedCheck('pi'),
   ],
 };

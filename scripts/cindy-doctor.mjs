@@ -39,6 +39,8 @@ const {
   previewFix,
   rollbackLkgSnapshot,
   runChecks,
+  runCliHelpCanary,
+  runHermesCanary,
 } = doctorMod;
 const { HERMES_CLI_PINNED_VERSION } = hermesVersionMod;
 
@@ -52,6 +54,8 @@ const VALUE_FLAGS = new Set([
   '--reason',
   '--file',
   '--target',
+  '--runtime',
+  '--model',
 ]);
 
 function printUsage() {
@@ -65,8 +69,13 @@ Commands:
                                  Restore config file(s) from an LKG snapshot
   fix <fixId> [--target <x>] [--yes]
                                  Preview and apply a fix (asks Apply? [y/N] unless --yes)
+  canary --runtime <hermes|claude|codex|pi> [--model <route>] [--paid]
+                                 Run upgrade canary checks against an installed runtime
 
 Options:
+  --runtime <name>               Target runtime for \`canary\`: hermes, claude, codex, or pi
+  --model <route>                Optional routing.yaml route name for Hermes canary (local default)
+  --paid                         Allow an API route for Hermes canary (prompts confirmation first)
   --all                          Include slow checks (default: instant, fast)
   --only <id|layer>[,...]        Run only matching check IDs or layers
   --include-api                  Probe remote/API endpoints too (outbound; default off)
@@ -92,9 +101,12 @@ function parseArgs(argv) {
     help: false,
     only: [],
     positional: [],
+    paid: false,
     reason: undefined,
     fileRel: undefined,
     target: undefined,
+    runtime: undefined,
+    modelRoute: undefined,
     home: undefined,
     hermesHome: undefined,
     harnessDir: undefined,
@@ -118,6 +130,10 @@ function parseArgs(argv) {
     }
     if (arg === '--yes' || arg === '-y') {
       opts.yes = true;
+      continue;
+    }
+    if (arg === '--paid') {
+      opts.paid = true;
       continue;
     }
     if (arg === '-h' || arg === '--help') {
@@ -152,6 +168,10 @@ function parseArgs(argv) {
         opts.fileRel = val;
       } else if (flagName === '--target') {
         opts.target = val;
+      } else if (flagName === '--runtime') {
+        opts.runtime = val;
+      } else if (flagName === '--model') {
+        opts.modelRoute = val;
       } else if (flagName === '--home') {
         opts.home = val;
       } else if (flagName === '--hermes-home') {
@@ -431,6 +451,95 @@ try {
     }
 
     process.exit(outcome.ok ? 0 : 1);
+  }
+
+  if (cmd === 'canary') {
+    if (opts.positional.length > 1) {
+      throw new Error(`unexpected argument for canary: ${opts.positional[1]}`);
+    }
+    const runtime = opts.runtime;
+    if (!runtime || !['hermes', 'claude', 'codex', 'pi'].includes(runtime)) {
+      throw new Error('canary requires --runtime <hermes|claude|codex|pi>');
+    }
+
+    if (runtime === 'hermes') {
+      const result = await runHermesCanary(ctx, {
+        modelRoute: opts.modelRoute,
+        paid: opts.paid,
+        confirmPaid: async ({ expectedCost }) => {
+          if (opts.json || !process.stdin.isTTY) {
+            return false;
+          }
+          console.log(`Paid canary confirmation needed: ${expectedCost}`);
+          const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+          try {
+            const answer = await rl.question('Proceed with paid API call? [y/N] ');
+            const norm = answer.trim().toLowerCase();
+            return norm === 'y' || norm === 'yes';
+          } finally {
+            rl.close();
+          }
+        },
+      });
+
+      if (opts.json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        const routeDesc = result.route
+          ? `${result.route.routeName} (${result.route.providerId}/${result.route.model})`
+          : 'none';
+        console.log(
+          `Hermes canary · v${result.version ?? 'unknown'} · route=${routeDesc} · status=${result.status}`,
+        );
+        console.log('');
+        for (const c of result.contracts) {
+          console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id.padEnd(26)}  ${c.detail}`);
+        }
+        for (const nc of result.notCovered) {
+          console.log(`NOTE  ${nc.area.padEnd(26)}  ${nc.note}`);
+        }
+        if (result.recordPath) {
+          console.log('');
+          console.log(`Saved: ${result.recordPath}`);
+        }
+        console.log(`Verdict: ${result.verdict}`);
+      }
+      if (result.status === 'error') process.exit(2);
+      process.exit(result.ok ? 0 : 1);
+    }
+
+    if (opts.paid || opts.modelRoute) {
+      throw new Error(`--paid / --model are only supported for --runtime hermes (help diff for ${runtime} makes zero model calls)`);
+    }
+
+    const helpRes = await runCliHelpCanary(ctx, runtime);
+    if (opts.json) {
+      console.log(JSON.stringify(helpRes, null, 2));
+    } else {
+      console.log(
+        `${helpRes.runtime} help canary · v${helpRes.version ?? 'unknown'} · status=${helpRes.status}`,
+      );
+      if (helpRes.previousVersion) {
+        console.log(`Compared against: v${helpRes.previousVersion}`);
+      }
+      if (helpRes.added.length > 0) {
+        console.log(`Added flags (${helpRes.added.length}): ${helpRes.added.join(', ')}`);
+      }
+      if (helpRes.removed.length > 0) {
+        console.log(`Removed flags (${helpRes.removed.length}): ${helpRes.removed.join(', ')}`);
+      }
+      if (helpRes.brokenAdapterFlags.length > 0) {
+        for (const item of helpRes.brokenAdapterFlags) {
+          console.log(`FAIL  ${item.flag}  removed flag used by ${item.source}`);
+        }
+      }
+      if (helpRes.snapshotPath) {
+        console.log(`Saved: ${helpRes.snapshotPath}`);
+      }
+      console.log(`Verdict: ${helpRes.verdict}`);
+    }
+    if (helpRes.status === 'missing') process.exit(1);
+    process.exit(helpRes.ok ? 0 : 1);
   }
 
   if (cmd !== undefined) {

@@ -84,6 +84,7 @@
     "./guardrails-yaml": "./src/security/guardrails-yaml.ts",
     "./web-budget-yaml": "./src/agents/hermes/web-budget-yaml.ts",
     "./hermes-config-parsers": "./src/agents/hermes/hermes-config-parsers.ts",
+    "./hermes-event-shapes": "./src/agents/hermes/event-shapes.ts",
     "./doctor": "./src/doctor/index.ts"
   },
   "scripts": {
