@@ -3,9 +3,11 @@
 **Single source of truth for task status.** If `STATUS.md` or `HANDOVER.md` disagree with this
 file, this file wins and the other must be corrected.
 
-**Current handover:** `docs/handoff/2026-11-10-phase10-handover.md` (Phase 10 brief) plus
-`docs/handoff/2026-11-10-latest-handover.md` (environment history, dev-launcher/Tencent fixes, open items). Every older
-file in `docs/handoff/` is historical. Phases 0–9 are complete as recorded below; Phase 10 is open.
+**Current handover:** `docs/handover-2026-11-15-session-13.md` (Session 13: Phase 13 complete; the only
+open work is Phase 14, and row 14.0 is gated on an owner decision). Older but still useful:
+`docs/handover-2026-11-15.md` (Session 12, 13.4/13.5 detail) and `docs/handoff/2026-11-10-*`
+(Phase 10 brief, environment history). Every older file in `docs/handoff/` is historical.
+**Phases 0–13 are complete as recorded below; Phase 14 is open.**
 
 ## Goal
 
