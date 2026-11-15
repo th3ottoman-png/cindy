@@ -10,6 +10,24 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (av) - 13.10a shell-limits probe: `live-proven` (probe only, no feature code)
+
+- **Row**: 13.10a closed `live-proven`. No feature code written; the row's deliverable is the observation set. Evidence: `docs/evidence/13.10a-shell-limits-probe.md`. Facts pinned in HANDOVER §3.
+- **Method**: throwaway `HERMES_HOME` at `/tmp/proofs/13.10a/home`, real `hermes` CLI turns against a real gateway (`gateway run --quiet --idle-exit`, pid 31147), model `qwen3-8b` on the `custom` provider (LM Studio). **No paid turn, no outbound call, no credential on disk, `~/.hermes` never read.** Source reads (`/Users/turko/.hermes/hermes-agent`, tag `v0.23.0`, commit `2bd378ed1b8`) for the parts a model turn cannot show.
+- **F1 settings**: `TERMINAL_CONFIG_ENV_MAP` (`hermes_cli/config.py:2014-2026`) is the authoritative `terminal:` key set (backend, cwd, temp_dir, **timeout**, lifetime_seconds, docker_*, ssh_*, container_*, sandbox_dir, persistent_shell). **No output/character cap key exists** — not in the map, not in `config_defaults.py`, not in `cli-config.yaml.example`.
+- **F2 timeout**: `terminal.timeout`, integer seconds, **default 180** (fresh home `config get terminal.timeout` → 180; code fallback `_parse_env_var("TERMINAL_TIMEOUT","180")` at `tools/terminal_tool.py:854`). Foreground hard cap **600 s** (`FOREGROUND_MAX_TIMEOUT`, `terminal_tool.py:77`); a request above the cap is promoted to a background job, not refused (`:1244-1265`).
+- **F3 what the model sees**: the literal `[Command timed out after Ns]` plus exit **124** (`tools/environments/base.py:770`). Observed verbatim at 5 s (config 5), 8 s (config 8) and 30 s (per-call). No partial output, no truncation notice.
+- **F4 per-call wins**: with the config at 5 s, a call passing `timeout=30` ran 30 s. A session-home limit is a **default, not a ceiling**.
+- **F5 the real cap**: the generic per-result budget — `min(registry max_result_size_chars, default_result_size)` where `default_result_size` is **15 % of the model's context window in chars**, floor 8 000, ceiling 100 000 (`tools/budget_config.py:66-113`); the terminal tool registers 100 000 (`terminal_tool.py:1757`); preview 1 500 chars, turn budget 200 000. The **only** config key that moves any of it is `tool_budget.mcp_result_size_chars`, MCP tools only (`budget_config.py:26-41`).
+- **F6 over the cap**: `maybe_persist_tool_result` replaces the result with a `<persisted-output>` block — ≤1 500-char preview plus `Full output saved to: <path>` — canonical home `$HERMES_HOME/cache/spillover/<id>.txt` (`tools/tool_result_storage.py:1-8`, `:395-424`). Observed: a **59 495-char** result (small-context local model, so the scaled cap sat well under 100 000) spilled to `home/cache/spillover/911991588.txt`; the model read it back and reported **no truncation marker**, because there is none.
+- **F7 no restart needed**: the terminal policy is rebuilt **per routed turn/poll** from the profile's `config.yaml`, signature-cached on the file (`tools/terminal_scope.py:120-190`). Observed: one gateway start for the whole session (`home/gateway-starts.log`, single timestamp `1794733680.637515`; pid 31147 alive ~19 min and four probes later), config 5 → 8, next command `[Command timed out after 8s]`.
+- **Row impact (13.10b re-scoped, still 🔲)**: `timeout_seconds` is real and writable (`terminal.timeout`), with the two caveats above. **`max_output_chars` has nothing to write to** — there is no Hermes 0.23 output-cap setting, so a Cindy cap must be enforced host-side where the tool result is relayed, not by a config key in the session home. ROADMAP 13.10b carries the note; the shape is decided before any code.
+- **Not claimed**: nothing was built, so no `unit-tested` claim. The 600 s cap, the over-cap background promotion and the MCP-only budget key are read from source, not exercised live (each would need a 10-minute or paid turn); they are labelled as source reads in the evidence doc.
+- **Gates**: docs-only change (`ROADMAP.md`, `STATUS.md`, `HANDOVER.md`, new evidence doc) — no source touched, so Tier 1 suites are unaffected; Tier 2 run before the closing commit.
+- **Next**: 13.10b, re-scoped.
+
+---
+
 ## 2026-11-15 (au) - 13.8 worker model allowlist: `live-proven` — unlisted route refused with the allowed list, listed route starts
 
 - **Row**: 13.8 done `live-proven`. Owner instruction: work autonomously through the open rows. Live-proof API spend authorised by the owner ("use deepseek 4.1 flash"); the proof turns actually ran on the session's pinned local `qwen3-8b`, so **no API chat turn was billed**. Evidence: `docs/evidence/13.8-worker-model-allowlist-live-proof.md`.
