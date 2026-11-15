@@ -10,6 +10,18 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (at) - Phase 14 "Cindy Doctor" planned: ROADMAP rows 14.0–14.11 + blueprint (docs only, no code)
+
+- **Rows**: 14.0–14.10 added open (🔲), 14.11 Parked (⛔). No row closed, no verification label claimed. Owner instruction: "add the doctor row , draft it for roadmap, make sure its fully cover full blueprint for another agent to follow."
+- **Changed**: `ROADMAP.md` (new Phase 14 section before §Debt), NEW `docs/phase-14-blueprint.md` (principles, reuse map with file paths, types, runner rules, ~35-check catalogue, LKG snapshots, fix protocol, upgrade canary, CLI spec, Settings section, incident bundle + redaction, guards, per-row files/tests/live proof, order, owner defaults).
+- **Verified**: Tier 0 — `pnpm test:runner` RC=0 under Node v22.23.4 (615 / 613 pass / 0 fail / 2 skipped).
+- **Open owner decision**: ADR 0015 (row 14.0) must record a sanctioned exception to AGENTS.md §3 — byte-exact restore of `~/.hermes-cindy/config.yaml` from a snapshot with the app closed. Defaults for the other decisions are in blueprint §13.
+- **Learned**: `pnpm backup:create`/`backup:restore` (ROADMAP 0.11) already gives full tarball backups with move-aside restore; the doctor's snapshots are a small config-only layer on top, not a replacement. Hermes installed 0.23.0 vs pin 0.22.7 is the first live case the doctor's `runtime.hermes.pin` check will report.
+- **Not touched**: the uncommitted 13.8 worker-allowlist work stays staged in the tree, outside this commit.
+- **Next**: 13.8 as planned; Phase 14 starts at 14.0 when the owner names it.
+
+---
+
 ## 2026-11-15 (as) - 13.5 web-search budget: `live-proven` — cap 2, four parallel searches → two ran, two blocked with the reason, reply still arrived
 
 - **Row**: 13.5 done `live-proven`. Owner instruction: "start 13.5". Spend authorised by the owner before the live turn: "Yes, web + API if needed". Evidence: `docs/evidence/13.5-web-search-budget-live-proof.md`.

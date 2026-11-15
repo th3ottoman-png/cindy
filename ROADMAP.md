@@ -331,6 +331,31 @@ never fall back to the chat model) and §11 (guards) before any row.
 
 ---
 
+## Phase 14 — Cindy Doctor: diagnose, snapshot, repair (owner request, 2026-11-15)
+
+Source: owner brainstorm 2026-11-15 — Cindy + Hermes + the Claude Code / Codex / Pi runtimes have changed a lot, and
+updates will break things. A standalone doctor finds what is broken, explains it in plain words, keeps last-known-good
+config copies, and applies only previewed, reversible fixes. **Blueprint: `docs/phase-14-blueprint.md`** — read §0
+(CLI first, read-only by default, fixes explicit + reversible), §2 (architecture and types), §10 (guards) and the row's
+§11 section before any row. Phase 13 rows may run before or after; these rows do not depend on them.
+
+| # | Task | Done when | Status |
+|---|---|---|---|
+| 14.0 | **ADR 0015 — doctor contract.** `docs/decisions/0015-cindy-doctor.md`: CLI-first; read-only default; fix protocol (preview → backup → apply → re-check → rollback); LKG scope and the one sanctioned non-RPC write (byte-exact `config.yaml` restore with the app closed); canary local by default, `--paid` opt-in; never prunes, installs, or edits keys. Docs only (blueprint §11 14.0). | Owner accepts the ADR in chat | 🔲 |
+| 14.1 | **Doctor core (pure).** `@cindy/maker-core/doctor`: `DoctorCheck` / `DoctorFix` / `CheckResult` / `DoctorReport` types, registry (duplicate-id guard), runner (fixed layer order, per-cost timeouts, throw/timeout → `fail`, `dependsOn` / `needs` → `skip`, never throws), redaction, text/JSON/markdown formatters (blueprint §2, §11 14.1). | 🧪 incl. mutation checks: throw-as-ok and a dropped redaction pattern both fail a test | 🔲 |
+| 14.2 | **`pnpm doctor` CLI + environment & runtimes packs.** `scripts/cindy-doctor.mjs` (loader spike first, no new dependency), `--all/--only/--json`, exit codes 0/1/2, hidden temp-path flags for tests; checks `env.*` (Node 22, pnpm, better-sqlite3 ABI, paths, disk, `hermes-cindy` home) and `runtime.*.present` / `runtime.hermes.pin` (blueprint §3, §7). Works with the app closed. | 🧪 + live: real run with app closed and open shows Hermes 0.23.0 vs pin 0.22.7 as WARN; PATH without `pi` changes `runtime.pi.present` | 🔲 |
+| 14.3 | **Config pack.** `config.*` checks for providers.yaml, routing.yaml (incl. 13.8 `workers:`), experts + `tools.yaml`, guardrails, web-budget, small JSON stores, `~/.hermes-cindy/config.yaml` (read-only): parse, validate with the existing readers, resolve cross-references, plain-English errors with file + line (blueprint §3). | 🧪 + live: a dangling provider in a backed-up `routing.yaml` → FAIL with action; restored → ok | 🔲 |
+| 14.4 | **Endpoints, processes & data packs.** Local endpoint probes (API probes only with `--include-api`), `assessRoute` per rule, daemon socket hello/status (read-only RPCs), orphan processes, ports, MCP command health, SQLite `quick_check` read-only, session-home `state.db`, registry, storage sizes, log fatal patterns (blueprint §3). | 🧪 + live: LM Studio quit → endpoint + blocked routes FAIL; stale socket (temp dir) detected; real DB ok and mtime unchanged | 🔲 |
+| 14.5 | **Last-known-good snapshots + rollback.** `~/.cindy-harness/doctor/lkg/<stamp>/` config-only byte copies + `versions.json` + sha256 manifest, credentials and DBs excluded, retention 20 + 14 days; `snapshot` / `snapshots` / `rollback [--file]` with move-aside + atomic write, `config.yaml` only with the app closed; `config.lkg-diff` check (blueprint §4). | 🧪 + live: snapshot → break routing.yaml → rollback → `config.routing` ok, `.pre-rollback-*` present | 🔲 |
+| 14.6 | **Fix runner + first fixes.** `fix <id>` with preview → confirm → pre-fix snapshot → atomic apply → re-check → automatic rollback, `fix-log.jsonl`; fixes `fix.config.restore-lkg`, `fix.proc.kill-orphans` (pids re-verified at apply time), `fix.proc.stale-socket` (blueprint §5). | 🧪 + live: a planted orphan in a temp home is found, previewed, killed, re-check ok, logged | 🔲 |
+| 14.7 | **Upgrade canary.** `canary --runtime hermes`: one local-model turn in a throwaway home, contracts from HANDOVER §3 (event shapes vs stored fixture, `session_id` on `result`, `agent.log` API-call line, safe-mode custom-provider launch, reply token) → `safe to bump pin` / `do not bump`; `canary --runtime claude|codex|pi`: `--help`/`--version` diff, removed adapter flags FAIL; checks `runtime.hermes.canary-fresh`, `runtime.<name>.changed` (blueprint §6). | 🧪 on both stored fixtures + a mutated one; live: Hermes canary on local `qwen3-8b`, zero spend, real `config.yaml` sha256 unchanged | 🔲 |
+| 14.8 | **Settings → Doctor section + start-up run.** `maker:doctor:*` IPC; grouped results, action text, Fix preview/confirm/outcome, CLI command for app-closed fixes, Run all; fast checks 20 s after start, daily LKG snapshot only on zero fails, dot on Settings on any fail, `run_on_start` toggle (blueprint §8). | 🧪 + live: counts match `pnpm doctor --json`; broken routing.yaml fixed from the UI; first-reply time unchanged | 🔲 |
+| 14.9 | **Incident bundle.** `pnpm doctor bundle` + Copy report: redacted markdown (report, versions, configs with key names only, last 200 log lines, fix log, header for an AI agent), local file only (blueprint §9). | 🧪 + live: real bundle grep finds no secret values, no `sk-`/`Bearer `, no real home path | 🔲 |
+| 14.10 | **Proposed rule: new features ship a doctor check.** STATUS.md "Proposed rule changes" entry (blueprint §11 14.10). Docs only. | Owner accepts or rejects | 🔲 |
+| 14.11 | **Doctor as a read-only MCP tool for agents.** | — | ⛔ Parked — do not build until the owner asks |
+
+---
+
 ## Debt (fix when touched, never let grow)
 
 | Item | Owner note |
