@@ -33,6 +33,12 @@ export interface CreateNodeContextOptions {
   pnpmPinnedVersion?: string;
   signal?: AbortSignal;
   includeApi?: boolean;
+  /** Optional host Node.js version string override (e.g. resolved PATH node inside Electron). */
+  hostNode?: string;
+  /** Optional native sqlite smoke check override (e.g. Electron native binding). */
+  loadNativeSqlite?: DoctorContext['loadNativeSqlite'];
+  /** Optional read-only sqlite PRAGMA quick_check override (e.g. Electron native binding). */
+  sqliteQuickCheck?: DoctorContext['sqliteQuickCheck'];
 }
 
 function defaultRepoRoot(): string {
@@ -231,7 +237,7 @@ export function createNodeContext(options: CreateNodeContextOptions = {}): Docto
     ...(options.appRunning !== undefined ? { appRunning: options.appRunning } : {}),
     ...(options.includeApi !== undefined ? { includeApi: options.includeApi } : {}),
     host: {
-      node: process.versions.node,
+      node: options.hostNode ?? process.versions.node,
       platform: process.platform,
     },
     env,
@@ -243,8 +249,8 @@ export function createNodeContext(options: CreateNodeContextOptions = {}): Docto
       const stats = await fs.statfs(targetPath);
       return { bavail: Number(stats.bavail), bsize: Number(stats.bsize) };
     },
-    loadNativeSqlite: loadSqliteInMemory,
-    sqliteQuickCheck: sqliteQuickCheckReadonly,
+    loadNativeSqlite: options.loadNativeSqlite ?? loadSqliteInMemory,
+    sqliteQuickCheck: options.sqliteQuickCheck ?? sqliteQuickCheckReadonly,
     lstat: fs.lstat,
   };
 }

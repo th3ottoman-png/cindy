@@ -372,7 +372,7 @@ const envHermesHomeCheck: DoctorCheck = {
 };
 
 export const environmentPack: DoctorPack = {
-  layer: 'environment',
+  name: 'environment',
   checks: [
     envNodeCheck,
     envPnpmCheck,

@@ -56,12 +56,20 @@ export interface AttentionDotProps {
   tone?: DotTone;
   /** 定位/偏移等由调用方给(如 absolute right-x top-y)。 */
   className?: string;
+  'data-testid'?: string;
 }
 
-export function AttentionDot({ breathing = false, size = 6, tone = 'done', className }: AttentionDotProps) {
+export function AttentionDot({
+  breathing = false,
+  size = 6,
+  tone = 'done',
+  className,
+  'data-testid': dataTestId,
+}: AttentionDotProps) {
   return (
     <span
       aria-hidden
+      data-testid={dataTestId}
       style={{ width: size, height: size }}
       className={cn(
         'shrink-0 rounded-full',

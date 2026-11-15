@@ -14,7 +14,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { AttentionDot } from '@/components/sidebar/AttentionDot';
 import { Tip } from '@/components/ui/tooltip';
+import { useDoctorStatus } from '@/state/doctorStatusStore';
 import { useSharedTaskTasks } from '@/features/device-link/useSharedTaskTasks';
 import { SharedTaskEndedNotice } from '@/features/device-link/SharedTaskEndedNotice';
 
@@ -23,6 +25,7 @@ export function MenuButton({ onExitFullscreen }: { onExitFullscreen?: () => void
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { hasFailure: doctorHasFailure } = useDoctorStatus();
   useSharedTaskTasks();
 
   return (
@@ -33,7 +36,7 @@ export function MenuButton({ onExitFullscreen }: { onExitFullscreen?: () => void
               与折叠态标题行图标(「…」h-7 / 15)视觉重量一致。 */}
           <button
             className={cn(
-              'flex items-center justify-center',
+              'relative flex items-center justify-center',
               'h-7 w-7 rounded-md',
               'text-titlebar-icon',
               'transition-colors',
@@ -43,6 +46,14 @@ export function MenuButton({ onExitFullscreen }: { onExitFullscreen?: () => void
             aria-label={t('titleBar.menu')}
           >
             <Menu size={15} />
+            {doctorHasFailure ? (
+              <AttentionDot
+                size={6}
+                tone="error"
+                data-testid="titlebar-doctor-dot"
+                className="absolute right-0.5 top-0.5"
+              />
+            ) : null}
           </button>
         </Tip>
       </DropdownMenuTrigger>
@@ -66,8 +77,12 @@ export function MenuButton({ onExitFullscreen }: { onExitFullscreen?: () => void
               navigate('/settings');
             }
           }}
+          className="gap-2.5"
         >
-          {t('titleBar.menuItems.settings')}
+          <span>{t('titleBar.menuItems.settings')}</span>
+          {doctorHasFailure ? (
+            <AttentionDot size={6} tone="error" data-testid="titlebar-settings-doctor-dot" className="ml-auto" />
+          ) : null}
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => {

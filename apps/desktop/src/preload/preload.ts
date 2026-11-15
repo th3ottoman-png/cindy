@@ -812,6 +812,7 @@ const fanOutMakerChatAutosaveFailed = createIpcFanOut('maker:chat-autosave:faile
 const fanOutMakerChatSummaryWritten = createIpcFanOut('maker:chat-summary:written');
 const fanOutMakerChatSummaryFailed = createIpcFanOut('maker:chat-summary:failed');
 const fanOutMakerScheduledSessionsChanged = createIpcFanOut('maker:scheduled-sessions:changed');
+const fanOutMakerDoctorUpdated = createIpcFanOut('maker:doctor:updated');
 const fanOutMakerScreenShareChanged = createIpcFanOut('maker:screen-share:changed');
 const fanOutMakerTurnChangeSetUpdated = createIpcFanOut('maker:turn-change-set:updated');
 const fanOutMakerStatusChanged = createIpcFanOut('maker:status-changed');
@@ -6831,6 +6832,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
         allowedRoutes?: string[];
       }): Promise<import('../main/maker-ipc/workerAllowlist').WorkerAllowlistConfigView> =>
         ipcRenderer.invoke('maker:workers:set-config', patch),
+    },
+    /** ROADMAP 14.8: Cindy Doctor diagnostics, fix preview/apply, LKG snapshots. */
+    doctor: {
+      getState: (): Promise<import('../shared/doctor').DoctorUiState> =>
+        ipcRenderer.invoke('maker:doctor:get-state'),
+      setConfig: (params: import('../shared/doctor').DoctorSetConfigParams): Promise<import('../shared/doctor').DoctorUiState> =>
+        ipcRenderer.invoke('maker:doctor:set-config', params),
+      run: (params?: import('../shared/doctor').DoctorRunParams): Promise<import('../shared/doctor').DoctorReport> =>
+        ipcRenderer.invoke('maker:doctor:run', params ?? {}),
+      fixPreview: (params: import('../shared/doctor').DoctorFixPreviewParams): Promise<import('../shared/doctor').FixPlan> =>
+        ipcRenderer.invoke('maker:doctor:fix-preview', params),
+      fixApply: (params: import('../shared/doctor').DoctorFixApplyParams): Promise<import('../shared/doctor').FixOutcome> =>
+        ipcRenderer.invoke('maker:doctor:fix-apply', params),
+      snapshots: (): Promise<import('../shared/doctor').LkgSnapshotRecord[]> =>
+        ipcRenderer.invoke('maker:doctor:snapshots'),
+      snapshot: (params?: import('../shared/doctor').DoctorSnapshotParams): Promise<import('../shared/doctor').LkgSnapshotManifest> =>
+        ipcRenderer.invoke('maker:doctor:snapshot', params ?? {}),
+      onUpdated: fanOutMakerDoctorUpdated as (cb: (state: import('../shared/doctor').DoctorUiState) => void) => () => void,
     },
     scheduledSessions: {
       getConfig: (): Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView> =>

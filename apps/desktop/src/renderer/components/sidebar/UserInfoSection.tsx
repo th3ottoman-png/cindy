@@ -31,6 +31,8 @@ import { toast } from '@/lib/toast';
 import type { DesktopSavedAccount } from '@/lib/authService';
 import { CURRENT_CINDY_REGION } from '../../../shared/brandRegion';
 import { shouldLabelRegion } from '../../../shared/regionCode';
+import { useDoctorStatus } from '@/state/doctorStatusStore';
+import { AttentionDot } from './AttentionDot';
 import { MobileDownloadDialog } from './MobileDownloadDialog';
 import { SidebarIconButton } from './SidebarIconButton';
 
@@ -94,6 +96,7 @@ export function UserInfoSection({ isCollapsed, onOpenUpdateNotice }: UserInfoSec
   const { status } = useUpdateStatus();
   const { dismissed, restore } = useUpdateBannerDismiss();
   const { state: betaChannelState } = useBetaChannelSettings();
+  const { hasFailure: doctorHasFailure } = useDoctorStatus();
   const hasPendingUpdate = status === 'ready' || status === 'superseding';
   const isFlameReopen = hasPendingUpdate && dismissed;
   const showBetaLabel = !betaChannelState.loading && betaChannelState.enableBeta;
@@ -135,6 +138,9 @@ export function UserInfoSection({ isCollapsed, onOpenUpdateNotice }: UserInfoSec
         <SidebarIconButton
           icon={Settings}
           label={t('sidebar.user.menuSettings')}
+          showDot={doctorHasFailure}
+          dotTone="error"
+          dotTestId="settings-doctor-dot"
           onClick={() => {
             if (location.pathname !== '/settings') navigate('/settings');
           }}
@@ -346,7 +352,10 @@ export function UserInfoSection({ isCollapsed, onOpenUpdateNotice }: UserInfoSec
         ) : null}
         <DropdownMenuItem onSelect={openSettings} className="gap-2.5">
           <Settings className="h-4 w-4" aria-hidden="true" />
-          {t('sidebar.user.menuSettings')}
+          <span>{t('sidebar.user.menuSettings')}</span>
+          {doctorHasFailure ? (
+            <AttentionDot size={6} tone="error" data-testid="settings-doctor-menu-dot" className="ml-auto" />
+          ) : null}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -394,6 +403,14 @@ export function UserInfoSection({ isCollapsed, onOpenUpdateNotice }: UserInfoSec
                 className="flex min-w-0 items-center justify-center text-left"
               >
                 <div className="relative h-9 w-9 shrink-0">
+                  {doctorHasFailure ? (
+                    <AttentionDot
+                      size={6}
+                      tone="error"
+                      data-testid="settings-doctor-dot"
+                      className="absolute -right-0.5 -top-0.5 z-10"
+                    />
+                  ) : null}
                   {user?.avatar && !avatarError ? (
                     <img
                       src={user.avatar}
@@ -467,6 +484,14 @@ export function UserInfoSection({ isCollapsed, onOpenUpdateNotice }: UserInfoSec
               className="relative h-[27px] w-[27px] shrink-0"
               title={isCanary ? t('sidebar.user.canaryBadge') : undefined}
             >
+              {doctorHasFailure ? (
+                <AttentionDot
+                  size={6}
+                  tone="error"
+                  data-testid="settings-doctor-dot"
+                  className="absolute -right-0.5 -top-0.5 z-10"
+                />
+              ) : null}
               {user?.avatar && !avatarError ? (
                 <img
                   src={user.avatar}

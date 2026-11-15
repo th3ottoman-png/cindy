@@ -61,6 +61,7 @@ import { GitSafetySection } from './GitSafetySection';
 import { SessionImportSection } from './SessionImportSection';
 import { AgentResourceSection } from './AgentResourceSection';
 import { HermesSection } from './HermesSection';
+import { DoctorSection } from './DoctorSection';
 import { ExpertsSection } from './ExpertsSection';
 import { PluginsSection } from './PluginsSection';
 import { VaultSection } from './VaultSection';
@@ -509,6 +510,11 @@ export function SettingsView() {
                     {/* Hermes Harness (local autonomous runtime) */}
                     <section id="settings-hermes" className="py-[18px]" aria-label="Hermes Harness">
                       <HermesSection />
+                    </section>
+
+                    {/* Cindy Doctor (ROADMAP 14.8) */}
+                    <section id="settings-doctor" className="py-[18px]" aria-label="Doctor & Diagnostics">
+                      <DoctorSection />
                     </section>
 
                     {/* Experts editor (ROADMAP 3.3) */}

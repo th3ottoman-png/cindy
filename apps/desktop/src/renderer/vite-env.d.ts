@@ -5991,6 +5991,17 @@ interface ElectronAPI {
         allowedRoutes?: string[];
       }) => Promise<import('../main/maker-ipc/workerAllowlist').WorkerAllowlistConfigView>;
     };
+    /** ROADMAP 14.8: Cindy Doctor diagnostics, fix preview/apply, LKG snapshots. */
+    doctor: {
+      getState: () => Promise<import('../shared/doctor').DoctorUiState>;
+      setConfig: (params: import('../shared/doctor').DoctorSetConfigParams) => Promise<import('../shared/doctor').DoctorUiState>;
+      run: (params?: import('../shared/doctor').DoctorRunParams) => Promise<import('../shared/doctor').DoctorReport>;
+      fixPreview: (params: import('../shared/doctor').DoctorFixPreviewParams) => Promise<import('../shared/doctor').FixPlan>;
+      fixApply: (params: import('../shared/doctor').DoctorFixApplyParams) => Promise<import('../shared/doctor').FixOutcome>;
+      snapshots: () => Promise<import('../shared/doctor').LkgSnapshotRecord[]>;
+      snapshot: (params?: import('../shared/doctor').DoctorSnapshotParams) => Promise<import('../shared/doctor').LkgSnapshotManifest>;
+      onUpdated: (cb: (state: import('../shared/doctor').DoctorUiState) => void) => () => void;
+    };
     scheduledSessions: {
       /** ROADMAP 5.4b: get scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
       getConfig: () => Promise<import('../main/maker-ipc/scheduledSessions').ScheduledSessionsConfigView>;

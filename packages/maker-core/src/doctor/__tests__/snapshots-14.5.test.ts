@@ -10,8 +10,10 @@ import {
   createNodeContext,
   createRegistry,
   listLkgSnapshots,
+  loadDoctorSettings,
   pruneLkgSnapshots,
   rollbackLkgSnapshot,
+  saveDoctorSettings,
   runChecks,
   type DoctorContext,
 } from '../index.js';
@@ -359,5 +361,37 @@ describe('14.5 LKG snapshots + rollback', () => {
       severity: 'warn',
     });
     expect(diffSnap.results[0]?.summary).toContain('harness/routing.yaml');
+  });
+
+  it('persists run_on_start via saveDoctorSettings while preserving comments and honors hostNode / sqlite seams', async () => {
+    const sandbox = await makeTempSandbox();
+    const doctorDir = path.join(sandbox.harnessDir, 'doctor');
+    await fs.mkdir(doctorDir, { recursive: true });
+    await fs.writeFile(
+      path.join(doctorDir, 'doctor.yaml'),
+      '# doctor config header\nlkg_keep: 14\nrun_on_start: true\n',
+      'utf8',
+    );
+
+    const ctx = createNodeContext({
+      home: sandbox.home,
+      hermesHome: sandbox.hermesHome,
+      harnessDir: sandbox.harnessDir,
+      userDataDir: sandbox.userDataDir,
+      repoRoot: sandbox.repoRoot,
+      hostNode: '22.23.4',
+      loadNativeSqlite: () => {},
+      sqliteQuickCheck: () => ['ok'],
+    });
+    expect(ctx.host?.node).toBe('22.23.4');
+
+    const saved = await saveDoctorSettings(ctx, { runOnStart: false });
+    expect(saved).toEqual({ lkgKeep: 14, lkgMinDays: 14, runOnStart: false });
+    expect(await loadDoctorSettings(ctx)).toEqual({ lkgKeep: 14, lkgMinDays: 14, runOnStart: false });
+
+    const yamlAfter = await fs.readFile(path.join(doctorDir, 'doctor.yaml'), 'utf8');
+    expect(yamlAfter).toContain('# doctor config header');
+    expect(yamlAfter).toContain('lkg_keep: 14');
+    expect(yamlAfter).toContain('run_on_start: false');
   });
 });

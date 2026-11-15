@@ -36,6 +36,7 @@ export interface SidebarIconButtonProps
   showDot?: boolean;
   /** 状态点语义色,默认 done(绿);有失败未读时传 'error'。 */
   dotTone?: DotTone;
+  dotTestId?: string;
   badge?: ReactNode;
 }
 
@@ -45,6 +46,7 @@ export function SidebarIconButton({
   active = false,
   showDot = false,
   dotTone = 'done',
+  dotTestId,
   badge,
   className,
   disabled,
@@ -58,7 +60,7 @@ export function SidebarIconButton({
       disabled={disabled}
       className={cn(
         BTN_BASE,
-        badge && 'relative',
+        (badge || showDot) && 'relative',
         RAIL_GEOMETRY,
         active ? ACTIVE : IDLE,
         className,
@@ -68,7 +70,14 @@ export function SidebarIconButton({
     >
       <Icon size={18} />
       {badge && <span className="absolute -right-1 -top-1">{badge}</span>}
-      {showDot && <AttentionDot size={6} tone={dotTone} className="absolute right-1.5 top-1.5" />}
+      {showDot && (
+        <AttentionDot
+          size={6}
+          tone={dotTone}
+          data-testid={dotTestId}
+          className="absolute right-1.5 top-1.5"
+        />
+      )}
     </button>
   );
 

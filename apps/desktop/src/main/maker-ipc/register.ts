@@ -940,6 +940,11 @@ import { getDesktopExpertSessionStore, setExpertSessionActiveSessionsProvider } 
 import { getDesktopExpertDraftConfirm } from './expertDraftConfirm.js';
 import { registerProvidersHandlers } from './providersHandlers.js';
 import { readWorkerAllowlistConfig, registerWorkerAllowlistHandlers } from './workerAllowlist.js';
+import {
+  getDesktopDoctorHost,
+  registerDoctorHandlers,
+  resolveDesktopRepoRoot,
+} from './doctor.js';
 import { registerCouncilReviewIpc } from '../git-review/councilIpc.js';
 import { getDesktopVaultNotesHost, registerVaultNotesHandlers } from './vaultNotes.js';
 import { getRuleLearnerHost, registerRuleLearnerHandlers } from './ruleLearner.js';
@@ -26038,6 +26043,20 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
 
   // ── Helper agent model allowlist (ROADMAP 13.8): managed `workers:` block only ──
   registerWorkerAllowlistHandlers(createElectronIpcHandlerRegistry(), {
+    assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
+  });
+
+  // ── Cindy Doctor (ROADMAP 14.8): desktop diagnostics, fix preview/apply, LKG snapshots ──
+  const desktopDoctorHost = getDesktopDoctorHost({
+    userDataDir: () => app.getPath('userData'),
+    repoRoot: resolveDesktopRepoRoot([app.getAppPath(), process.cwd()]),
+    appRunning: true,
+    onStateChanged: (state) => {
+      broadcastToAllWindows(MAKER_PUSH.DOCTOR_UPDATED, state);
+    },
+  });
+  registerDoctorHandlers(createElectronIpcHandlerRegistry(), {
+    host: desktopDoctorHost,
     assertTrusted: (event) => assertTrustedAppRendererEvent(event as Parameters<typeof assertTrustedAppRendererEvent>[0]),
   });
 

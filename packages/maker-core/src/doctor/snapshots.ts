@@ -238,6 +238,79 @@ export async function loadDoctorSettings(ctx: DoctorContext): Promise<DoctorSett
   }
 }
 
+function upsertYamlScalarLine(lines: string[], key: string, value: string): void {
+  const regex = new RegExp(`^(\\s*)${key}\\s*:`);
+  for (let i = 0; i < lines.length; i += 1) {
+    if (regex.test(lines[i]!)) {
+      const indent = lines[i]!.match(regex)?.[1] ?? '';
+      lines[i] = `${indent}${key}: ${value}`;
+      return;
+    }
+  }
+  lines.push(`${key}: ${value}`);
+}
+
+/**
+ * Atomically persist Cindy Doctor settings to `~/.cindy-harness/doctor/doctor.yaml`,
+ * preserving any existing keys and comments.
+ */
+export async function saveDoctorSettings(
+  ctx: DoctorContext,
+  patch: Partial<DoctorSettings>,
+): Promise<DoctorSettings> {
+  assertNotDailyHermes(ctx.paths.hermesHome, ctx.paths.home);
+  const current = await loadDoctorSettings(ctx);
+  const next: DoctorSettings = {
+    lkgKeep:
+      typeof patch.lkgKeep === 'number' && Number.isInteger(patch.lkgKeep) && patch.lkgKeep >= 0
+        ? patch.lkgKeep
+        : current.lkgKeep,
+    lkgMinDays:
+      typeof patch.lkgMinDays === 'number' && Number.isFinite(patch.lkgMinDays) && patch.lkgMinDays >= 0
+        ? patch.lkgMinDays
+        : current.lkgMinDays,
+    runOnStart: typeof patch.runOnStart === 'boolean' ? patch.runOnStart : current.runOnStart,
+  };
+
+  const cfgPath = path.join(ctx.paths.harnessDir, 'doctor', 'doctor.yaml');
+  await fs.mkdir(path.dirname(cfgPath), { recursive: true });
+
+  let raw = '';
+  try {
+    const st = await fs.lstat(cfgPath);
+    if (st.isSymbolicLink()) {
+      throw new Error(`Refusing to overwrite symlinked doctor.yaml: ${cfgPath}`);
+    }
+    if (st.isFile()) {
+      raw = await fs.readFile(cfgPath, 'utf8');
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') throw err;
+  }
+
+  const lines = raw.length > 0 ? raw.replace(/\r?\n$/, '').split(/\r?\n/) : [];
+  if (lines.length === 0 || patch.lkgKeep !== undefined) {
+    upsertYamlScalarLine(lines, 'lkg_keep', String(next.lkgKeep));
+  }
+  if (lines.length === 0 || patch.lkgMinDays !== undefined) {
+    upsertYamlScalarLine(lines, 'lkg_min_days', String(next.lkgMinDays));
+  }
+  upsertYamlScalarLine(lines, 'run_on_start', next.runOnStart ? 'true' : 'false');
+
+  const tmpPath = path.join(
+    path.dirname(cfgPath),
+    `.doctor.yaml.tmp-${process.pid}-${crypto.randomUUID()}`,
+  );
+  await fs.writeFile(tmpPath, `${lines.join('\n')}\n`, { encoding: 'utf8', mode: 0o600 });
+  try {
+    await fs.rename(tmpPath, cfgPath);
+  } catch (err) {
+    await fs.rm(tmpPath, { force: true }).catch(() => {});
+    throw err;
+  }
+  return next;
+}
+
 interface DiscoveredConfigFile {
   rel: string;
   absPath: string;

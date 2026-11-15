@@ -193,6 +193,20 @@ export const MAKER_INVOKE = {
   WORKERS_GET_CONFIG: 'maker:workers:get-config',
   /** ROADMAP 13.8: rewrite only the managed `workers:` allowlist block. */
   WORKERS_SET_CONFIG: 'maker:workers:set-config',
+  /** ROADMAP 14.8: Cindy Doctor current UI state + settings. */
+  DOCTOR_GET_STATE: 'maker:doctor:get-state',
+  /** ROADMAP 14.8: persist `run_on_start` in doctor.yaml. */
+  DOCTOR_SET_CONFIG: 'maker:doctor:set-config',
+  /** ROADMAP 14.8: run diagnostic checks in Main. */
+  DOCTOR_RUN: 'maker:doctor:run',
+  /** ROADMAP 14.8: preview a fix plan without mutating disk state. */
+  DOCTOR_FIX_PREVIEW: 'maker:doctor:fix-preview',
+  /** ROADMAP 14.8: apply a previewed fix plan in Main. */
+  DOCTOR_FIX_APPLY: 'maker:doctor:fix-apply',
+  /** ROADMAP 14.8: list LKG snapshots under ~/.cindy-harness/doctor/lkg/. */
+  DOCTOR_SNAPSHOTS: 'maker:doctor:snapshots',
+  /** ROADMAP 14.8: capture a manual or daily LKG snapshot. */
+  DOCTOR_SNAPSHOT: 'maker:doctor:snapshot',
   /** ROADMAP 5.4b: get local scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
   SCHEDULED_SESSIONS_GET_CONFIG: 'maker:scheduled-sessions:get-config',
   /** ROADMAP 5.4b: set local scheduled sessions directory path. */
@@ -1226,6 +1240,8 @@ export const MAKER_PUSH = {
   LOCAL_SERVICES_CHANGED: 'maker:local-services:changed',
   /** ROADMAP 7.7: screen-share privacy redaction mode changed; payload `{ enabled: boolean }`. */
   SCREEN_SHARE_CHANGED: 'maker:screen-share:changed',
+  /** ROADMAP 14.8: Cindy Doctor state updated (startup check, manual run, fix, or config toggle). */
+  DOCTOR_UPDATED: 'maker:doctor:updated',
   TURN_CHANGE_SET_UPDATED: 'maker:turn-change-set:updated',
   STATUS_CHANGED: 'maker:status-changed',
   /** 用户从独立 Computer Use 授权引导浮窗主动取消。 */

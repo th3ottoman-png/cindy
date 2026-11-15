@@ -10,6 +10,29 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (bg) - 14.8 Settings → Doctor section + start-up run: `live-proven`
+
+- **Row**: 14.8 closed `live-proven`. Evidence at `docs/evidence/14.8-settings-doctor-startup-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.8-settings-doctor-startup-live-proof.md`). Incident bundle (`14.9`) stays open.
+- **Changed**:
+  - `packages/maker-core/src/doctor/context.ts`, `snapshots.ts`, `packs/environment.ts`, `packs/runtimes.ts`, `__tests__/snapshots-14.5.test.ts` — added `hostNode`/`loadNativeSqlite`/`sqliteQuickCheck` seams, atomic `saveDoctorSettings(ctx, patch)` preserving YAML comments, aligned `DoctorPack.name` fields under desktop `tsc`, and added unit test (`5/5` pass; `9/9` doctor test files, `74/74` tests pass).
+  - `apps/desktop/src/shared/doctor.ts` — pure browser-safe types, `DOCTOR_LAYERS` / `DOCTOR_LAYER_LABELS`, and `formatDoctorReportMarkdown`.
+  - `apps/desktop/src/main/maker-ipc/doctor.ts`, `channels.ts`, `register.ts`, `preload/preload.ts`, `renderer/vite-env.d.ts`, `main/bootstrap-electron.ts` — `DesktopDoctorHost` (20 s post-`ready-to-show` timer, `will-quit` cancel, daily LKG snapshot only when `fail === 0`, instant+fast vs full runs, `run_on_start`, fix preview/apply, snapshot list/capture), 7 `maker:doctor:*` invoke channels + `maker:doctor:updated` push event, zero calls in chat-turn execution paths (`doctor.test.ts` `3/3`).
+  - `apps/desktop/src/renderer/state/doctorStatusStore.ts`, `components/settings/DoctorSection.tsx`, `components/settings/SettingsView.tsx` — Settings → General → Doctor UI (`#settings-doctor`), failing layers expanded by default, action hints, `ConfirmDialog` preview/apply for live fixes, CLI copy card for `needsAppClosed` fixes, `Copy report` (with `<textarea>` `execCommand('copy')` fallback), `Run all checks`, `Run health check on startup` toggle, and LKG snapshot controls (`DoctorSection.test.tsx` `4/4`).
+  - `apps/desktop/src/renderer/components/sidebar/AttentionDot.tsx`, `SidebarIconButton.tsx`, `UserInfoSection.tsx`, `components/title-bar/MenuButton.tsx` — red error `AttentionDot` (`settings-doctor-dot`, `titlebar-doctor-dot`) bound to `hasFailure` (`MenuButton.test.tsx` `1/1`, `userInfoSectionUpdateFlame.test.tsx` `3/3`).
+  - `docs/design-rules/design-inventory.md` — regenerated via `pnpm design:inventory` (`55` surfaces, `--check` green).
+- **Live proof** (`$0` API spend, Electron dev build `DESKTOP_DEV_VERDICT=ready`, CDP `127.0.0.1:9222`, backed up `~/.cindy-harness/routing.yaml` → `routing.yaml.bak-2026-11-15-14.8`):
+  - Parity: live UI `window.electronAPI.maker.doctor.getState()` (`55 ok · 2 warn · 3 fail · 1 skip`, `61` checks) matched `pnpm -s run doctor --json` with **0 diffs**.
+  - Start-up run fired on 20 s timer without blocking launch or chat paths; `lastStartupSnapshotAt` stayed `null` while failures existed (`hasFailure: true`).
+  - Took LKG snapshot `2026-11-15T18-14-29.902Z` (`valid`, 26 files); broke `routing.yaml` (`broken-route: missing-provider`) → `FAIL config.routing` + `WARN config.lkg-diff` → clicked **Fix** (`ConfirmDialog` preview showed `Risk: moves-files`, planned step, touched path, `Apply fix`) → applied (`pre-fix` LKG `2026-11-15T18-15-51.582Z`, `fix-log.jsonl` written at `18:15:51.604Z`, `routing.yaml` restored byte-identical to `routing.yaml.bak-2026-11-15-14.8` `cmp -s` 0 / SHA-256 `3f0c88fa...5af8d9`, `config` re-checked `8/8 ok`). Temporary `.pre-rollback-*` sidecar removed after `cmp` verification; `~/.hermes-cindy/config.yaml` untouched (`fda46aa2...465c`).
+  - Verified `run_on_start` switch persistence in `~/.cindy-harness/doctor/doctor.yaml`, **Run all checks** (`2299 ms`), **Copy report** real mouse click copying `136` lines / `8,995` bytes (`# Cindy Doctor Report`) to macOS clipboard, and visible `settings-doctor-dot` & `titlebar-doctor-dot` in main chat view.
+- **Gates (Tier 2, Node `v22.23.4`)**:
+  - `pnpm typecheck`: **RC=0** (`37` workspace projects).
+  - `pnpm test:runner`: **RC=0** (`615` tests: `613` pass, `0` fail, `2` skipped Windows checks).
+  - `pnpm test:unit:related`: **PASS** across all workspaces (`apps/desktop` retried once after known V8 teardown SIGSEGV, `ROADMAP.md` §Debt; `packages/maker-core` + all applicable packages green).
+  - `pnpm check:test-hygiene`: **RC=0** (`PASS (361 files within baseline)`).
+
+---
+
 ## 2026-11-15 (bf) - 14.7 Upgrade canary: `live-proven`
 
 - **Row**: 14.7 closed `live-proven`. Evidence at `docs/evidence/14.7-upgrade-canary-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.7-upgrade-canary-live-proof.md`). Settings UI + start-up run (`14.8`) stays open.

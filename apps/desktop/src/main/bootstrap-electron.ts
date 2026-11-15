@@ -1,4 +1,5 @@
 import { flushPluginUsageLifecycle } from './plugin-usage/current.js';
+import { getDesktopDoctorHost, resolveDesktopRepoRoot } from './maker-ipc/doctor.js';
 import { registerAccessibilitySupportIpc } from './accessibility-support-ipc.js';
 import { mcpAppSchemePrivilege, registerMcpAppProtocol } from './mcp-apps/sandboxProtocol.js';
 import { prepareImportedAutomation, finishImportedAutomation } from './bot-import/automationRuntime.js';
@@ -1583,6 +1584,7 @@ function rebindChatEmbeddingSettingsWatcher(): void {
 }
 
 app.once('will-quit', () => chatEmbeddingSettingsWatcher.dispose());
+app.once('will-quit', () => getDesktopDoctorHost().cancelStartupRun());
 
 /**
  * 「聊天嵌入」关闭时的收尾: 总是让 chat 的 enqueue 守卫立即失效; 但只有在没有插件
@@ -4172,6 +4174,12 @@ const createWindow = () => {
     // 日志上报的启动补传:采集 + 脱敏是同步的重活,必须让主窗口先出来(内部再延迟 15s,
     // 避开首帧的 IO 争用)。没有待补传标记时是零成本 no-op。
     scheduleStartupBackfill();
+    // ROADMAP 14.8: non-blocking post-startup Doctor check 20s after main window is ready.
+    getDesktopDoctorHost({
+      userDataDir: () => app.getPath('userData'),
+      repoRoot: resolveDesktopRepoRoot([app.getAppPath(), process.cwd()]),
+      appRunning: true,
+    }).scheduleStartupRun();
     // `open` may successfully start the updated process while macOS refuses
     // frontmost activation at the lock/login window. Presentation is not an
     // installation-health signal; retain a one-shot focus grant for unlock.

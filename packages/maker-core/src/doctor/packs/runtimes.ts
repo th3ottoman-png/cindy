@@ -578,7 +578,7 @@ function makeRuntimeChangedCheck(target: RuntimeChangeTarget): DoctorCheck {
 }
 
 export const runtimesPack: DoctorPack = {
-  layer: 'runtimes',
+  name: 'runtimes',
   checks: [
     hermesPresentCheck,
     hermesPinCheck,
