@@ -35,11 +35,11 @@ function defaultHostInfo(): DoctorHostInfo {
   };
 }
 
-function selectChecks(registry: DoctorRegistry, options: RunChecksOptions): DoctorCheck[] {
+function selectChecks(checks: readonly DoctorCheck[], options: RunChecksOptions): DoctorCheck[] {
   const onlySet = options.only && options.only.length > 0 ? new Set(options.only) : null;
   const costSet = options.cost ? new Set(options.cost) : null;
 
-  const indexed = registry.checks
+  const indexed = checks
     .map((check, index) => ({ check, index }))
     .filter(({ check }) => {
       if (onlySet && !onlySet.has(check.id) && !onlySet.has(check.layer)) return false;
@@ -173,7 +173,10 @@ export async function runChecks(
   options: RunChecksOptions = {},
 ): Promise<DoctorReport> {
   const runStarted = ctx.now();
-  const ordered = selectChecks(registry, options);
+  const availableChecks = registry.resolveChecks
+    ? await registry.resolveChecks(ctx)
+    : registry.checks;
+  const ordered = selectChecks(availableChecks, options);
   const selectedIds = new Set(ordered.map((c) => c.id));
   const timeouts: Record<CheckCost, number> = {
     ...CHECK_TIMEOUT_MS,

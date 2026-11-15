@@ -6,13 +6,19 @@
 
 import type { DoctorPack } from '../types.js';
 import { configPack } from './config.js';
+import { dataPack } from './data.js';
+import { endpointsPack } from './endpoints.js';
 import { environmentPack } from './environment.js';
+import { processesPack } from './processes.js';
 import { runtimesPack } from './runtimes.js';
 
-export { configPack, environmentPack, runtimesPack };
+export { configPack, dataPack, endpointsPack, environmentPack, processesPack, runtimesPack };
 
 export const ALL_PACKS: readonly DoctorPack[] = [
   environmentPack,
   runtimesPack,
   configPack,
+  endpointsPack,
+  processesPack,
+  dataPack,
 ];

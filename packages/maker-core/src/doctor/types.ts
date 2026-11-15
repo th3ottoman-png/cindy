@@ -88,6 +88,8 @@ export interface DoctorPack {
   name?: string;
   checks: readonly DoctorCheck[];
   fixes?: readonly DoctorFix[];
+  /** Optional dynamic check discovery (e.g., per-provider or per-MCP checks). */
+  discoverChecks?(ctx: DoctorContext): Promise<readonly DoctorCheck[]> | readonly DoctorCheck[];
 }
 
 export interface DoctorRegistry {
@@ -95,6 +97,8 @@ export interface DoctorRegistry {
   readonly fixes: readonly DoctorFix[];
   getCheck(id: string): DoctorCheck | undefined;
   getFix(id: string): DoctorFix | undefined;
+  /** Returns static checks plus any pack-discovered checks for `ctx`. */
+  resolveChecks?(ctx: DoctorContext): Promise<readonly DoctorCheck[]>;
 }
 
 export interface DoctorHostInfo {
@@ -157,6 +161,14 @@ export interface DoctorContext {
   statfs?: (targetPath: string) => Promise<{ bavail: number; bsize: number }>;
   /** Native sqlite load check seam for `env.native-sqlite`. */
   loadNativeSqlite?: () => Promise<void> | void;
+  /** Probe non-local API endpoints when true (`--include-api`, default false). */
+  includeApi?: boolean;
+  /** Optional fetch implementation passed into `probe` (defaults to global `fetch`). */
+  fetchImpl?: typeof fetch;
+  /** Read-only SQLite `PRAGMA quick_check` seam for `data.sqlite` and `data.hermes-state`. */
+  sqliteQuickCheck?: (dbPath: string) => Promise<string[]> | string[];
+  /** Symlink-safe lstat seam for `data.storage` (defaults to `node:fs/promises` `lstat`). */
+  lstat?: typeof import('node:fs/promises')['lstat'];
 }
 
 export interface RunChecksOptions {

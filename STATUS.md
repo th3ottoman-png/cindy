@@ -10,6 +10,33 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (bc) - 14.4 Endpoints, processes & data packs (`endpoints`, `processes`, `data`): `live-proven`
+
+- **Row**: 14.4 closed `live-proven`. Evidence at `docs/evidence/14.4-endpoints-processes-data-packs-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.4-endpoints-processes-data-packs-live-proof.md`). LKG snapshots (`14.5`) stays open.
+- **Changed**:
+  - `packages/maker-core/src/doctor/{types,registry,runner}.ts` — added `DoctorPack.discoverChecks(ctx)` and `DoctorRegistry.resolveChecks(ctx)` with duplicate-ID/layer validation; added `includeApi`, `fetchImpl`, `sqliteQuickCheck`, `lstat` context seams.
+  - `packages/maker-core/src/doctor/context.ts` — bumped `createExecAdapter` `maxBuffer` to 64 MiB (matching `desktop-whoami.mjs` so full macOS `ps` output fits), wired `includeApi`, `lstat`, and read-only `sqliteQuickCheckReadonly` (`better-sqlite3` `{ readonly: true, fileMustExist: true }`, `PRAGMA quick_check`).
+  - `packages/maker-core/src/doctor/packs/config.ts` — exported `KNOWN_BUILTIN_MCP_IDS` and extracted `loadDoctorMcpCatalog` so `config.experts` and `proc.mcp.*` share one catalog builder.
+  - NEW `packages/maker-core/src/doctor/packs/endpoints.ts` (`endpointsPack`: dynamic `endpoint.<providerId>` + `endpoint.routes` via `resolveTaskRoute` + `assessRoute`; non-local API endpoints skip unless `--include-api`).
+  - NEW `packages/maker-core/src/doctor/packs/processes.ts` (`processesPack`: `proc.app`, `proc.daemon` Unix socket `protocol/hello` + `config/status`, `proc.orphans`, `proc.ports` with `lsof` `\xXX` truncated command unescaping, dynamic `proc.mcp.<serverId>`).
+  - NEW `packages/maker-core/src/doctor/packs/data.ts` (`dataPack`: read-only `data.sqlite`, `data.hermes-state` 20 newest session homes, `data.registry`, `data.storage` via `planHousekeeping`, `data.logs` 200-line redacted tail scan).
+  - `packages/maker-core/src/doctor/packs/index.ts` & `scripts/cindy-doctor.mjs` — registered all 3 packs in `ALL_PACKS`; added `--include-api` CLI flag.
+  - NEW `packages/maker-core/src/doctor/__tests__/packs-14.4.test.ts` (6 tests covering local HTTP servers, `--include-api`, Unix socket stub + stale socket, orphans/ports/`LM\x20Stu`/MCPs, read-only SQLite `mtime` + corrupted DBs, 20-home cap, registry, storage, log redaction) and added `--include-api` test to `cli.test.ts` (51/51 doctor tests pass).
+- **Finding caught live**: macOS `lsof` truncates `"LM Studio"` on port 1234 and escapes the space as `LM\x20Stu`, causing a false `warn` on the first host run; fixed `parsePortListeners` to unescape `\xXX` sequences and match `^lm\s*stu`, plus unit test. Real host also surfaced `WARN data.registry` (9 missing session homes) and `FAIL endpoint.ollama-local` / `endpoint.routes` (`chat.default: ollama-offline`).
+- **Live proof** (`0` API spend, `0` model turns, Terminal real `/bin/ps` & `lsof`):
+  - `cindy-local-v1.db` `stat -f '%m %Sm %z'` unchanged (`1794079952 Nov  7 19:32:32 2026 1314816` before and after).
+  - Stale Unix socket in temp `--user-data` dir → `FAIL proc.daemon` (`ECONNREFUSED`, `exit 1`).
+  - `lms server stop` → `pnpm run doctor --only endpoints --json` exited `1` with `endpoint.lmstudio-local` `fail` and 5 blocked routes in `endpoint.routes`; `lms server start` → `endpoint.lmstudio-local` back `OK` (`11 model(s), 22 ms`, `gemma-4` loaded).
+  - Post-edit full `pnpm run doctor`: `55 checks · 49 ok · 2 warn (runtime.hermes.pin 0.23.1 vs 0.22.7, data.registry 9 missing homes) · 2 fail (offline ollama-local / blocked chat.default) · 2 skip (endpoint.tokenhub, proc.daemon)`.
+- **Gates (Tier 2, Node `v22.23.4`, `unset XDT_ISOLATED NODE_OPTIONS`, staged files)**:
+  - `pnpm typecheck`: **RC=0** (37 workspace projects).
+  - `pnpm test:runner`: **RC=0** (615 tests / 613 pass / 0 fail / 2 skipped, `76.6s`).
+  - `pnpm test:unit:related`: **RC=0** (`apps/desktop unit` `419.8s` PASS after 1 automatic V8 teardown SIGSEGV retry; `apps/mobile unit` `56.4s`; `packages/maker-core unit` `50.4s`; `packages/maker-hermes-manager unit` `11.2s`; all other legs `PASS`).
+  - `pnpm check:test-hygiene`: **RC=0** (`PASS (361 files within baseline)`).
+- **Next**: Phase 14 row **14.5** (Last-known-good snapshots + rollback).
+
+---
+
 ## 2026-11-15 (bb) - 14.3 Config pack (`config.*` checks): `live-proven`
 
 - **Row**: 14.3 closed `live-proven`. Evidence at `docs/evidence/14.3-config-pack-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.3-config-pack-live-proof.md`). Endpoints/processes/data packs (`14.4`) stay open.

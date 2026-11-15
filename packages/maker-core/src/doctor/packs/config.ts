@@ -18,7 +18,7 @@ import { parseHermesDotEnv } from '../../agents/hermes/hermes-provider-env.js';
 import { parseWebBudgetYaml } from '../../agents/hermes/web-budget-yaml.js';
 import { parseExpertMarkdown } from '../../experts/expert-loader.js';
 import { parseExpertToolsYaml } from '../../experts/expert-tools.js';
-import { buildMcpCatalog, type McpCatalogSource } from '../../mcp/mcp-catalog.js';
+import { buildMcpCatalog, type McpCatalogEntry, type McpCatalogSource, type McpServerConfig } from '../../mcp/mcp-catalog.js';
 import { parseProvidersYaml } from '../../providers/providers-file.js';
 import { parseRoutingYaml } from '../../providers/routing-file.js';
 import {
@@ -70,7 +70,7 @@ const KNOWN_HERMES_TOOLSETS = new Set<string>([
 ]);
 
 /** Known Cindy built-in MCP server IDs (matches desktop builtin plugins & bridge servers). */
-const KNOWN_BUILTIN_MCP_IDS: readonly string[] = [
+export const KNOWN_BUILTIN_MCP_IDS: readonly string[] = [
   'cindy_android',
   'cindy_browser',
   'cindy_computer',
@@ -602,19 +602,8 @@ async function runConfigExperts(ctx: DoctorContext): Promise<CheckRunOutput> {
   }
 
   // Build MCP catalog from known Cindy built-ins + Hermes config.yaml bridges/servers.
-  const builtinServers: Record<string, { command: string }> = {};
-  for (const id of KNOWN_BUILTIN_MCP_IDS) {
-    builtinServers[id] = { command: 'builtin' };
-  }
-  const catalogSources: McpCatalogSource[] = [{ source: 'lizi', servers: builtinServers }];
-  if (!isDailyHermesPath(ctx.paths.hermesHome, ctx.paths.home, ctx.platform)) {
-    const hermesCfg = await readOptionalFile(ctx, path.join(ctx.paths.hermesHome, 'config.yaml'));
-    if (hermesCfg.exists && !('readError' in hermesCfg)) {
-      const mcpServers = parseHermesMcpServers(hermesCfg.text);
-      catalogSources.push({ source: 'hermes', servers: mcpServers });
-    }
-  }
-  const knownMcpIds = new Set(buildMcpCatalog(catalogSources).map((entry) => entry.name));
+  const { entries: mcpEntries } = await loadDoctorMcpCatalog(ctx);
+  const knownMcpIds = new Set(mcpEntries.map((entry) => entry.name));
 
   const errors: string[] = [];
   for (const slug of slugs) {
@@ -1131,6 +1120,40 @@ const checks: readonly DoctorCheck[] = [
     run: runConfigHermes,
   },
 ];
+
+export async function loadDoctorMcpCatalog(ctx: DoctorContext): Promise<{
+  entries: McpCatalogEntry[];
+  configs: Record<string, McpServerConfig>;
+  hermesConfigError?: string;
+}> {
+  const builtinServers: Record<string, McpServerConfig> = {};
+  for (const id of KNOWN_BUILTIN_MCP_IDS) {
+    builtinServers[id] = { inProcess: true };
+  }
+  const catalogSources: McpCatalogSource[] = [{ source: 'lizi', servers: builtinServers }];
+  let hermesConfigError: string | undefined;
+
+  if (!isDailyHermesPath(ctx.paths.hermesHome, ctx.paths.home, ctx.platform)) {
+    const hermesCfg = await readOptionalFile(ctx, path.join(ctx.paths.hermesHome, 'config.yaml'));
+    if (hermesCfg.exists) {
+      if ('readError' in hermesCfg) {
+        hermesConfigError = hermesCfg.readError;
+      } else {
+        const mcpServers = parseHermesMcpServers(hermesCfg.text);
+        catalogSources.push({ source: 'hermes', servers: mcpServers });
+      }
+    }
+  }
+
+  const entries = buildMcpCatalog(catalogSources);
+  const configs: Record<string, McpServerConfig> = {};
+  for (const source of catalogSources) {
+    for (const [name, cfg] of Object.entries(source.servers)) {
+      configs[`${source.source}/${name}`] = cfg;
+    }
+  }
+  return { entries, configs, ...(hermesConfigError ? { hermesConfigError } : {}) };
+}
 
 export const configPack: DoctorPack = {
   name: 'config',

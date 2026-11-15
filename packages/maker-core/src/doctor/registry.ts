@@ -2,7 +2,7 @@
  * Plugin-boundary registry for Cindy Doctor checks and fixes (ROADMAP 14.1, AGENTS.md §6.2).
  */
 
-import { DOCTOR_LAYERS, type DoctorCheck, type DoctorFix, type DoctorPack, type DoctorRegistry } from './types.js';
+import { DOCTOR_LAYERS, type DoctorCheck, type DoctorContext, type DoctorFix, type DoctorPack, type DoctorRegistry } from './types.js';
 
 const VALID_LAYERS = new Set<string>(DOCTOR_LAYERS);
 
@@ -43,6 +43,7 @@ export function createRegistry(packs: readonly DoctorPack[]): DoctorRegistry {
 
   const frozenChecks = Object.freeze([...checks]);
   const frozenFixes = Object.freeze([...fixes]);
+  const registeredPacks = [...packs];
 
   return {
     checks: frozenChecks,
@@ -52,6 +53,26 @@ export function createRegistry(packs: readonly DoctorPack[]): DoctorRegistry {
     },
     getFix(id: string) {
       return fixMap.get(id);
+    },
+    async resolveChecks(ctx: DoctorContext): Promise<readonly DoctorCheck[]> {
+      const seenIds = new Set(checkMap.keys());
+      const discovered: DoctorCheck[] = [];
+      for (const pack of registeredPacks) {
+        if (!pack.discoverChecks) continue;
+        const dynamicChecks = await pack.discoverChecks(ctx);
+        for (const check of dynamicChecks) {
+          assertNonEmptyId(check.id, 'check');
+          if (!VALID_LAYERS.has(check.layer)) {
+            throw new Error(`Unknown doctor check layer "${String(check.layer)}" for check "${check.id}"`);
+          }
+          if (seenIds.has(check.id)) {
+            throw new Error(`Duplicate doctor check id: ${check.id}`);
+          }
+          seenIds.add(check.id);
+          discovered.push(check);
+        }
+      }
+      return [...frozenChecks, ...discovered];
     },
   };
 }

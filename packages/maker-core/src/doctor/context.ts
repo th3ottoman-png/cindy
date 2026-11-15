@@ -32,6 +32,7 @@ export interface CreateNodeContextOptions {
   hermesPinnedVersion?: string;
   pnpmPinnedVersion?: string;
   signal?: AbortSignal;
+  includeApi?: boolean;
 }
 
 function defaultRepoRoot(): string {
@@ -153,7 +154,7 @@ function createExecAdapter(env: Readonly<Record<string, string | undefined>>, si
           {
             encoding: 'utf8',
             timeout: Math.max(1, opts.timeoutMs),
-            maxBuffer: 1024 * 1024,
+            maxBuffer: 64 * 1024 * 1024,
             windowsHide: true,
             env: env as NodeJS.ProcessEnv,
             signal,
@@ -192,6 +193,24 @@ function loadSqliteInMemory(): void {
   db.close();
 }
 
+function sqliteQuickCheckReadonly(dbPath: string): string[] {
+  const req = createRequire(import.meta.url);
+  const Database = req('better-sqlite3') as new (
+    file: string,
+    opts?: { readonly?: boolean; fileMustExist?: boolean },
+  ) => {
+    prepare(sql: string): { all(): Array<Record<string, unknown>> };
+    close(): void;
+  };
+  const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+  try {
+    const rows = db.prepare('PRAGMA quick_check').all();
+    return rows.map((row) => String(Object.values(row)[0] ?? 'unknown'));
+  } finally {
+    db.close();
+  }
+}
+
 export function createNodeContext(options: CreateNodeContextOptions = {}): DoctorContext {
   const env = options.env ?? process.env;
   const paths = resolveDefaultPaths({ ...options, env });
@@ -210,6 +229,7 @@ export function createNodeContext(options: CreateNodeContextOptions = {}): Docto
     now: () => new Date(),
     signal,
     ...(options.appRunning !== undefined ? { appRunning: options.appRunning } : {}),
+    ...(options.includeApi !== undefined ? { includeApi: options.includeApi } : {}),
     host: {
       node: process.versions.node,
       platform: process.platform,
@@ -224,5 +244,7 @@ export function createNodeContext(options: CreateNodeContextOptions = {}): Docto
       return { bavail: Number(stats.bavail), bsize: Number(stats.bsize) };
     },
     loadNativeSqlite: loadSqliteInMemory,
+    sqliteQuickCheck: sqliteQuickCheckReadonly,
+    lstat: fs.lstat,
   };
 }

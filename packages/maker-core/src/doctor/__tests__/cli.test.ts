@@ -164,4 +164,17 @@ describe('scripts/cindy-doctor.mjs CLI (ROADMAP 14.2)', () => {
     expect(badArgRes.code).toBe(2);
     expect(badArgRes.stderr).toContain('--not-a-real-flag');
   });
+
+  it('documents and accepts --include-api', async () => {
+    const helpRes = await runDoctorCli(['--help']);
+    expect(helpRes.code).toBe(0);
+    expect(helpRes.stdout).toContain('--include-api');
+
+    const s = await setupCliSandbox({ includePi: true, hermesVersion: '0.23.0' });
+    const flagRes = await runDoctorCli([...s.baseArgs, '--include-api', '--only', 'env.node', '--json'], {
+      PATH: s.binDir,
+      HOME: s.home,
+    });
+    expect(flagRes.code).toBe(0);
+  });
 });

@@ -50,6 +50,7 @@ function printUsage() {
 Options:
   --all                    Include slow checks (default: instant, fast)
   --only <id|layer>[,...]  Run only matching check IDs or layers
+  --include-api            Probe remote/API endpoints too (outbound; default off)
   --json                   Print DoctorReport as JSON
   -h, --help               Show this help
 
@@ -62,6 +63,7 @@ Exit codes:
 function parseArgs(argv) {
   const opts = {
     all: false,
+    includeApi: false,
     json: false,
     help: false,
     only: [],
@@ -76,6 +78,10 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === '--all') {
       opts.all = true;
+      continue;
+    }
+    if (arg === '--include-api') {
+      opts.includeApi = true;
       continue;
     }
     if (arg === '--json') {
@@ -142,6 +148,7 @@ try {
     userDataDir: opts.userDataDir,
     repoRoot: opts.repoRoot ?? CINDY_ROOT,
     hermesPinnedVersion: HERMES_CLI_PINNED_VERSION,
+    includeApi: opts.includeApi,
   });
 
   assertNotDailyHermes(ctx.paths.hermesHome, ctx.paths.home);
