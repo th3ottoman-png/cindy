@@ -10,6 +10,17 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (ax) - 13.10c output-cap decision: dropped, with the evidence
+
+- **Row**: 13.10c (created in (aw) as the follow-up the blueprint requires) closed **❌ Dropped**, decision **(a): no Cindy output cap**. No code written.
+- **Why**: (1) the cost the blueprint named is already bounded by Hermes — an oversize tool result is persisted to `$HERMES_HOME/cache/spillover/<id>.txt` and replaced by a **1,500-char preview** before the model sees it (13.10a, proved live on 0.23.0); (2) Cindy already compacts oversized tool results in its own DB, but only when a task is **archived** (`compactSessionToolResultsBestEffort` is called from `orcaTeamStore.ts` archive paths; the SQL only touches `status IN ('archived','deleted')`), so it is storage housekeeping, not a live limit; (3) a live host-side cap would rewrite what Cindy stores and shows — duplicating Hermes's spillover, hiding data the owner asked for, and contradicting blueprint §12's own instruction not to rewrite tool results in the stream.
+- **What stays**: `shell-limits.yaml` reports `max_output_chars` as ignored **with the reason** (13.10b), so an owner who writes the key gets an explanation instead of silence.
+- **Reopen trigger, written down**: a huge result Hermes does **not** spill. `read_file` is the real case — `PINNED_THRESHOLDS = { read_file: Infinity }` in `tools/budget_config.py` keeps it out of spillover to avoid persist→read loops, so a giant file read reaches the model in full and costs money on an API model. If that bites, 13.10c reopens with a concrete case rather than a guess.
+- **Gates**: docs only (`ROADMAP.md`, `STATUS.md`); Tier 0 `test:runner` green in this session (615/613/0/2) and no source touched since the Tier 2 run recorded in (aw).
+- **Next**: Phase 13 has no open rows left. Phase 14 "Cindy Doctor" starts at 14.0 (owner-named; needs the ADR 0015 decision).
+
+---
+
 ## 2026-11-15 (aw) - 13.10b shell limits: `live-proven` — `sleep 30` stopped at 5 s and marked in its tool row
 
 - **Row**: 13.10b done `live-proven`, **narrowed to the timeout** exactly as `docs/phase-13-blueprint.md` §12 requires ("if Hermes has no output-cap setting, do not rewrite tool results in the stream; narrow the row to the timeout and record the output cap as a follow-up"). `max_output_chars` is therefore not built; the file reports it as ignored with the reason, and **13.10c** (new, open) carries the decide-then-build follow-up. Evidence: `docs/evidence/13.10b-shell-limits-live-proof.md`.
