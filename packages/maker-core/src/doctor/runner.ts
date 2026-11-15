@@ -167,109 +167,149 @@ async function runSingleCheck(
   }
 }
 
+const activeRunTokenByCtx = new WeakMap<DoctorContext, object>();
+
+export function getActiveRunToken(ctx: DoctorContext): object {
+  return activeRunTokenByCtx.get(ctx) ?? ctx;
+}
+
 export async function runChecks(
   registry: DoctorRegistry,
   ctx: DoctorContext,
   options: RunChecksOptions = {},
 ): Promise<DoctorReport> {
-  const runStarted = ctx.now();
-  const availableChecks = registry.resolveChecks
-    ? await registry.resolveChecks(ctx)
-    : registry.checks;
-  const ordered = selectChecks(availableChecks, options);
-  const selectedIds = new Set(ordered.map((c) => c.id));
-  const timeouts: Record<CheckCost, number> = {
-    ...CHECK_TIMEOUT_MS,
-    ...(options.timeouts ?? {}),
-  };
-  const concurrency = Math.max(1, Math.floor(options.concurrency ?? DEFAULT_CONCURRENCY));
-  const explicitAppRunning = options.appRunning ?? ctx.appRunning;
-
-  const resultsById = new Map<string, CheckResult>();
-  const remaining = [...ordered];
-  const inFlight = new Set<Promise<void>>();
-
-  while (remaining.length > 0 || inFlight.size > 0) {
-    let settledSkip = false;
-
-    for (let i = remaining.length - 1; i >= 0; i -= 1) {
-      const check = remaining[i];
-      const deps = (check.dependsOn ?? []).filter((depId) => selectedIds.has(depId));
-      const failedDep = deps.find((depId) => {
-        const depResult = resultsById.get(depId);
-        return depResult && (depResult.severity === 'fail' || depResult.severity === 'skip');
-      });
-
-      if (failedDep) {
-        const depResult = resultsById.get(failedDep)!;
-        const reason = depResult.severity === 'fail' ? 'failed' : 'skipped';
-        resultsById.set(check.id, {
-          id: check.id,
-          layer: check.layer,
-          title: check.title,
-          severity: 'skip',
-          summary: `skipped: ${failedDep} ${reason}`,
-          ...(depResult.detail ? { detail: depResult.detail } : {}),
-          durationMs: 0,
-        });
-        remaining.splice(i, 1);
-        settledSkip = true;
+  const runToken = {};
+  activeRunTokenByCtx.set(ctx, runToken);
+  try {
+    const runStarted = ctx.now();
+    let availableChecks: readonly DoctorCheck[];
+    if (registry.resolveChecks) {
+      try {
+        availableChecks = await registry.resolveChecks(ctx);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const fallbackLayer = registry.checks[0]?.layer ?? 'env';
+        const seen = new Set(registry.checks.map((c) => c.id));
+        let failId = 'doctor.discover';
+        let suffix = 1;
+        while (seen.has(failId)) {
+          failId = `doctor.discover-${suffix}`;
+          suffix += 1;
+        }
+        const syntheticCheck: DoctorCheck = {
+          id: failId,
+          layer: fallbackLayer,
+          title: 'Dynamic check discovery',
+          cost: 'instant',
+          run: async () => ({
+            severity: 'fail',
+            summary: `check discovery crashed: ${message}`,
+          }),
+        };
+        availableChecks = [...registry.checks, syntheticCheck];
       }
+    } else {
+      availableChecks = registry.checks;
     }
+    const ordered = selectChecks(availableChecks, options);
+    const selectedIds = new Set(ordered.map((c) => c.id));
+    const timeouts: Record<CheckCost, number> = {
+      ...CHECK_TIMEOUT_MS,
+      ...(options.timeouts ?? {}),
+    };
+    const concurrency = Math.max(1, Math.floor(options.concurrency ?? DEFAULT_CONCURRENCY));
+    const explicitAppRunning = options.appRunning ?? ctx.appRunning;
 
-    if (settledSkip) continue;
+    const resultsById = new Map<string, CheckResult>();
+    const remaining = [...ordered];
+    const inFlight = new Set<Promise<void>>();
 
-    while (inFlight.size < concurrency) {
-      const nextIndex = remaining.findIndex((check) => {
+    while (remaining.length > 0 || inFlight.size > 0) {
+      let settledSkip = false;
+
+      for (let i = remaining.length - 1; i >= 0; i -= 1) {
+        const check = remaining[i];
         const deps = (check.dependsOn ?? []).filter((depId) => selectedIds.has(depId));
-        return deps.every((depId) => resultsById.has(depId));
-      });
-      if (nextIndex === -1) break;
-
-      const [check] = remaining.splice(nextIndex, 1);
-      const appRunning = resolveAppRunning(explicitAppRunning, resultsById);
-      const task = runSingleCheck(check, ctx, timeouts[check.cost], appRunning).then((res) => {
-        resultsById.set(check.id, res);
-      });
-      const wrapped = task.finally(() => {
-        inFlight.delete(wrapped);
-      });
-      inFlight.add(wrapped);
-    }
-
-    if (inFlight.size > 0) {
-      await Promise.race(inFlight);
-      continue;
-    }
-
-    if (remaining.length > 0) {
-      // Cyclic or unresolvable dependency: fail closed and exit loop.
-      for (const stuck of remaining.splice(0, remaining.length)) {
-        resultsById.set(stuck.id, {
-          id: stuck.id,
-          layer: stuck.layer,
-          title: stuck.title,
-          severity: 'fail',
-          summary: 'check crashed: cyclic dependsOn',
-          durationMs: 0,
+        const failedDep = deps.find((depId) => {
+          const depResult = resultsById.get(depId);
+          return depResult && (depResult.severity === 'fail' || depResult.severity === 'skip');
         });
+
+        if (failedDep) {
+          const depResult = resultsById.get(failedDep)!;
+          const reason = depResult.severity === 'fail' ? 'failed' : 'skipped';
+          resultsById.set(check.id, {
+            id: check.id,
+            layer: check.layer,
+            title: check.title,
+            severity: 'skip',
+            summary: `skipped: ${failedDep} ${reason}`,
+            ...(depResult.detail ? { detail: depResult.detail } : {}),
+            durationMs: 0,
+          });
+          remaining.splice(i, 1);
+          settledSkip = true;
+        }
+      }
+
+      if (settledSkip) continue;
+
+      while (inFlight.size < concurrency) {
+        const nextIndex = remaining.findIndex((check) => {
+          const deps = (check.dependsOn ?? []).filter((depId) => selectedIds.has(depId));
+          return deps.every((depId) => resultsById.has(depId));
+        });
+        if (nextIndex === -1) break;
+
+        const [check] = remaining.splice(nextIndex, 1);
+        const appRunning = resolveAppRunning(explicitAppRunning, resultsById);
+        const task = runSingleCheck(check, ctx, timeouts[check.cost], appRunning).then((res) => {
+          resultsById.set(check.id, res);
+        });
+        const wrapped = task.finally(() => {
+          inFlight.delete(wrapped);
+        });
+        inFlight.add(wrapped);
+      }
+
+      if (inFlight.size > 0) {
+        await Promise.race(inFlight);
+        continue;
+      }
+
+      if (remaining.length > 0) {
+        // Cyclic or unresolvable dependency: fail closed and exit loop.
+        for (const stuck of remaining.splice(0, remaining.length)) {
+          resultsById.set(stuck.id, {
+            id: stuck.id,
+            layer: stuck.layer,
+            title: stuck.title,
+            severity: 'fail',
+            summary: 'check crashed: cyclic dependsOn',
+            durationMs: 0,
+          });
+        }
       }
     }
+
+    const results = ordered.map((check) => resultsById.get(check.id)!);
+    const counts: Record<Severity, number> = { ok: 0, warn: 0, fail: 0, skip: 0 };
+    for (const result of results) {
+      counts[result.severity] += 1;
+    }
+
+    const durationMs = Math.max(0, ctx.now().getTime() - runStarted.getTime());
+
+    return {
+      startedAt: runStarted.toISOString(),
+      durationMs,
+      host: ctx.host ?? defaultHostInfo(),
+      counts,
+      results,
+    };
+  } finally {
+    if (activeRunTokenByCtx.get(ctx) === runToken) {
+      activeRunTokenByCtx.delete(ctx);
+    }
   }
-
-  const results = ordered.map((check) => resultsById.get(check.id)!);
-  const counts: Record<Severity, number> = { ok: 0, warn: 0, fail: 0, skip: 0 };
-  for (const result of results) {
-    counts[result.severity] += 1;
-  }
-
-  const durationMs = Math.max(0, ctx.now().getTime() - runStarted.getTime());
-
-  return {
-    startedAt: runStarted.toISOString(),
-    durationMs,
-    host: ctx.host ?? defaultHostInfo(),
-    counts,
-    results,
-  };
 }

@@ -89,12 +89,101 @@ function inferFenceLang(relPath: string): string {
   return 'text';
 }
 
+const YAML_BLOCK_SCALAR_HEADER = /^[|>](?:[+-]|[1-9][+-]?|[+-][1-9])?(?:\s+#.*)?$/;
+
+function stripSurroundingQuotes(raw: string): string {
+  const trimmed = raw.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2)
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
 function addSecretIfSensitive(bucket: Set<string>, rawValue: string, forceInclude: boolean): void {
-  const trimmed = rawValue.trim();
+  const trimmed = stripSurroundingQuotes(rawValue);
   if (trimmed.length < 4) return;
   if (TRIVIAL_LITERAL_VALUES.has(trimmed.toLowerCase())) return;
   if (!forceInclude && trimmed.length < 6) return;
   bucket.add(trimmed);
+}
+
+function harvestJsonObjectSecrets(value: unknown, bucket: Set<string>, underSecretKey = false): void {
+  if (typeof value === 'string') {
+    if (underSecretKey) addSecretIfSensitive(bucket, value, true);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      harvestJsonObjectSecrets(item, bucket, underSecretKey);
+    }
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      harvestJsonObjectSecrets(v, bucket, underSecretKey || SECRET_CONFIG_KEY_PATTERN.test(k));
+    }
+  }
+}
+
+function harvestConfigSecretValues(rawText: string, bucket: Set<string>): void {
+  try {
+    const parsed = JSON.parse(rawText) as unknown;
+    harvestJsonObjectSecrets(parsed, bucket, false);
+  } catch {
+    // Not pure JSON; continue with line-based YAML/JSON harvesting below.
+  }
+
+  let secretBlockIndent: number | null = null;
+  for (const line of rawText.split(/\r?\n/)) {
+    if (/^\s*$/.test(line) || /^\s*#/.test(line)) continue;
+    const indentMatch = line.match(/^(\s*)/);
+    const indentWidth = indentMatch ? indentMatch[1]!.length : 0;
+    const trimmed = line.trim();
+
+    if (secretBlockIndent !== null) {
+      const stillInBlock =
+        indentWidth > secretBlockIndent ||
+        (indentWidth === secretBlockIndent && trimmed.startsWith('-'));
+      if (!stillInBlock) {
+        secretBlockIndent = null;
+      } else {
+        const kv = trimmed.match(/^(?:-\s+)?['"]?[A-Za-z0-9_.-]+['"]?\s*:\s*(.+)$/);
+        if (kv) {
+          const val = kv[1]!.replace(/,\s*$/, '').trim();
+          if (val && !YAML_BLOCK_SCALAR_HEADER.test(val) && val !== '{' && val !== '[') {
+            addSecretIfSensitive(bucket, val, true);
+          }
+        } else if (trimmed.startsWith('-')) {
+          addSecretIfSensitive(bucket, trimmed.replace(/^-\s*/, ''), true);
+        } else {
+          addSecretIfSensitive(bucket, trimmed, true);
+        }
+        continue;
+      }
+    }
+
+    const kvMatch = line.match(/^(\s*(?:-\s+)?)(['"]?)([A-Za-z0-9_.-]+)\2\s*:\s*(.*)$/);
+    if (kvMatch) {
+      const [, indent, , key, rawRest] = kvMatch;
+      const cleanRest = rawRest.replace(/,\s*$/, '').trim();
+      const isBlockHeader =
+        cleanRest.length === 0 ||
+        cleanRest.startsWith('#') ||
+        YAML_BLOCK_SCALAR_HEADER.test(cleanRest) ||
+        cleanRest === '{' ||
+        cleanRest === '[';
+      if (SECRET_CONFIG_KEY_PATTERN.test(key!)) {
+        if (isBlockHeader) {
+          secretBlockIndent = indent!.length;
+        } else if (cleanRest !== '{}' && cleanRest !== '[]') {
+          addSecretIfSensitive(bucket, cleanRest, true);
+        }
+      }
+    }
+  }
 }
 
 async function collectRedactionSecretsAndEnvKeys(ctx: DoctorContext): Promise<{
@@ -150,6 +239,23 @@ async function collectRedactionSecretsAndEnvKeys(ctx: DoctorContext): Promise<{
       displayPath,
       keys: [...keySet].sort((a, b) => a.localeCompare(b)),
     });
+  }
+
+  // Also harvest secret-keyed scalar values from §3 config files so config-only secrets never leak in logs.
+  try {
+    const configCandidates = await collectConfigSnapshotCandidates(ctx);
+    for (const item of configCandidates) {
+      try {
+        const st = await fs.lstat(item.absPath);
+        if (st.isSymbolicLink() || !st.isFile()) continue;
+        const rawConfig = await ctx.fs.readFile(item.absPath, 'utf8');
+        harvestConfigSecretValues(rawConfig, knownSecrets);
+      } catch {
+        // Ignore unreadable config files during secret harvesting
+      }
+    }
+  } catch {
+    // Ignore candidate enumeration errors
   }
 
   return {

@@ -247,7 +247,9 @@ export async function runCliHelpCanary(
   let existingFiles: string[] = [];
   try {
     const entries = await fs.readdir(canaryDir);
-    existingFiles = entries.filter((name) => name.startsWith(prefix) && name.endsWith(suffix));
+    existingFiles = entries.filter(
+      (name) => name.startsWith(prefix) && name.endsWith(suffix) && !name.endsWith('.failed.txt'),
+    );
   } catch {
     existingFiles = [];
   }
@@ -282,9 +284,9 @@ export async function runCliHelpCanary(
     rawHelp.trimEnd(),
     '',
   ].join('\n');
-  await atomicWriteFile(snapshotPath, snapshotBody);
 
   if (previousText === null) {
+    await atomicWriteFile(snapshotPath, snapshotBody);
     return {
       runtime,
       ok: true,
@@ -304,6 +306,8 @@ export async function runCliHelpCanary(
   const prevFlags = parseHelpFlags(previousText);
   const diff = diffHelpFlags(prevFlags, currentFlags, runtime);
   if (diff.brokenAdapterFlags.length > 0) {
+    const failedSnapshotPath = path.join(canaryDir, `${prefix}${version}.failed.txt`);
+    await atomicWriteFile(failedSnapshotPath, snapshotBody);
     const list = diff.brokenAdapterFlags.map((e) => `${e.flag} (${e.source})`).join(', ');
     return {
       runtime,
@@ -311,7 +315,7 @@ export async function runCliHelpCanary(
       status: 'failed',
       version,
       binaryPath,
-      snapshotPath,
+      snapshotPath: failedSnapshotPath,
       previousVersion,
       added: diff.added,
       removed: diff.removed,
@@ -320,6 +324,8 @@ export async function runCliHelpCanary(
       verdict: `do not bump: removed adapter flag(s): ${list}`,
     };
   }
+
+  await atomicWriteFile(snapshotPath, snapshotBody);
 
   if (diff.added.length === 0 && diff.removed.length === 0) {
     return {

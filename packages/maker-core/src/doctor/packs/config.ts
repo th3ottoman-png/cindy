@@ -1342,27 +1342,12 @@ function buildReadOnlyOverlayFs(
           ? path.resolve(targetPath instanceof URL ? targetPath.pathname : targetPath)
           : null;
 
-      if (key === expertsRoot && expertSlugs.size > 0 && options && typeof options === 'object' && 'withFileTypes' in options && options.withFileTypes) {
-        let existing: Dirent<string>[] = [];
-        try {
-          existing = (await baseFs.readdir(targetPath, options as { withFileTypes: true })) as Dirent<string>[];
-        } catch {
-          existing = [];
-        }
-        const seen = new Set(existing.map((d) => d.name));
-        const merged = [...existing];
-        for (const slug of expertSlugs) {
-          if (!seen.has(slug)) {
-            merged.push(makeSyntheticDirent(slug, true));
-          }
-        }
-        return merged;
-      }
+      const wantsFileTypes = Boolean(
+        options && typeof options === 'object' && 'withFileTypes' in options && options.withFileTypes,
+      );
 
-      if (key && key.startsWith(`${expertsRoot}${path.sep}`)) {
-        const slug = key.slice(expertsRoot.length + 1);
-        const extraFiles = expertFiles.get(slug);
-        if (extraFiles && extraFiles.size > 0 && options && typeof options === 'object' && 'withFileTypes' in options && options.withFileTypes) {
+      if (key === expertsRoot && expertSlugs.size > 0) {
+        if (wantsFileTypes) {
           let existing: Dirent<string>[] = [];
           try {
             existing = (await baseFs.readdir(targetPath, options as { withFileTypes: true })) as Dirent<string>[];
@@ -1371,9 +1356,60 @@ function buildReadOnlyOverlayFs(
           }
           const seen = new Set(existing.map((d) => d.name));
           const merged = [...existing];
+          for (const slug of expertSlugs) {
+            if (!seen.has(slug)) {
+              merged.push(makeSyntheticDirent(slug, true));
+            }
+          }
+          return merged;
+        }
+        let existingNames: string[] = [];
+        try {
+          existingNames = (await baseFs.readdir(targetPath)) as string[];
+        } catch {
+          existingNames = [];
+        }
+        const seen = new Set(existingNames);
+        const merged = [...existingNames];
+        for (const slug of expertSlugs) {
+          if (!seen.has(slug)) {
+            merged.push(slug);
+          }
+        }
+        return merged;
+      }
+
+      if (key && key.startsWith(`${expertsRoot}${path.sep}`)) {
+        const slug = key.slice(expertsRoot.length + 1);
+        const extraFiles = expertFiles.get(slug);
+        if (extraFiles && extraFiles.size > 0) {
+          if (wantsFileTypes) {
+            let existing: Dirent<string>[] = [];
+            try {
+              existing = (await baseFs.readdir(targetPath, options as { withFileTypes: true })) as Dirent<string>[];
+            } catch {
+              existing = [];
+            }
+            const seen = new Set(existing.map((d) => d.name));
+            const merged = [...existing];
+            for (const fname of extraFiles) {
+              if (!seen.has(fname)) {
+                merged.push(makeSyntheticDirent(fname, false));
+              }
+            }
+            return merged;
+          }
+          let existingNames: string[] = [];
+          try {
+            existingNames = (await baseFs.readdir(targetPath)) as string[];
+          } catch {
+            existingNames = [];
+          }
+          const seen = new Set(existingNames);
+          const merged = [...existingNames];
           for (const fname of extraFiles) {
             if (!seen.has(fname)) {
-              merged.push(makeSyntheticDirent(fname, false));
+              merged.push(fname);
             }
           }
           return merged;
@@ -1504,6 +1540,7 @@ const fixConfigRestoreLkg: DoctorFix = {
         meta: {
           stamp: snap.stamp,
           rels: selected.map((item) => item.rel),
+          ...(normalizedTarget !== undefined ? { recheckOnly: checkOnly } : {}),
         },
       };
     }

@@ -99,7 +99,7 @@ async function makeBundleFixture() {
   for (let i = 1; i <= 210; i += 1) {
     if (i === 15) {
       newestMainLines.push(
-        `line-${i} Authorization: Bearer bearer-secret-main-log-99999 sk-proj-mainlogsecret1234567890 ghp_mainloggithubtoken123456 owner.test@example.com home=${home}/app fixture-env-secret-alpha-9988`,
+        `line-${i} Authorization: Bearer bearer-secret-main-log-99999 sk-proj-mainlogsecret1234567890 ghp_mainloggithubtoken123456 owner.test@example.com home=${home}/app fixture-env-secret-alpha-9988 config_echo=vault-secret-json-11223344`,
       );
     } else {
       newestMainLines.push(`main-log-line-${String(i).padStart(3, '0')}`);

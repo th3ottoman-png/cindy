@@ -162,9 +162,9 @@ function probeDaemonSocket(socketPath: string): Promise<DaemonProbeResult> {
         const trimmed = line.trim();
         if (!trimmed) continue;
 
-        let msg: Record<string, unknown>;
+        let parsed: unknown;
         try {
-          msg = JSON.parse(trimmed) as Record<string, unknown>;
+          parsed = JSON.parse(trimmed);
         } catch {
           finish({
             connected: true,
@@ -172,6 +172,15 @@ function probeDaemonSocket(socketPath: string): Promise<DaemonProbeResult> {
           });
           return;
         }
+
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          finish({
+            connected: true,
+            errorMessage: 'Malformed JSON line received from daemon socket',
+          });
+          return;
+        }
+        const msg = parsed as Record<string, unknown>;
 
         if (msg.type !== 'response') continue;
 
@@ -739,6 +748,7 @@ const fixProcKillOrphans: DoctorFix = {
     const graceMs = ctx.orphanGraceMs ?? DEFAULT_ORPHAN_GRACE_MS;
 
     const termSent: number[] = [];
+    const termTargets = new Map<number, { command: string; cwd: string }>();
     const errors: string[] = [];
 
     for (const orphan of verified) {
@@ -746,6 +756,7 @@ const fixProcKillOrphans: DoctorFix = {
       try {
         sendSignal(orphan.pid, 'SIGTERM');
         termSent.push(orphan.pid);
+        termTargets.set(orphan.pid, { command: orphan.command, cwd: orphan.cwd });
       } catch (err) {
         const code = (err as NodeJS.ErrnoException)?.code;
         if (code !== 'ESRCH') {
@@ -764,9 +775,25 @@ const fixProcKillOrphans: DoctorFix = {
       }
     }
 
+    const aliveAfterGrace = termSent.filter((pid) => isPidAlive(pid, sendSignal));
+    const reVerifiedOrphans = new Map<number, { command: string; cwd: string }>();
+    if (aliveAfterGrace.length > 0) {
+      const postGrace = await detectOrphanProcesses(ctx);
+      if (postGrace.ok) {
+        for (const o of postGrace.orphans) {
+          reVerifiedOrphans.set(o.pid, { command: o.command, cwd: o.cwd });
+        }
+      }
+    }
+
     const sigkilled: number[] = [];
-    for (const pid of termSent) {
+    for (const pid of aliveAfterGrace) {
       if (!isPidAlive(pid, sendSignal)) continue;
+      const original = termTargets.get(pid);
+      const current = reVerifiedOrphans.get(pid);
+      if (!original || !current || current.command !== original.command || current.cwd !== original.cwd) {
+        continue;
+      }
       try {
         sendSignal(pid, 'SIGKILL');
         sigkilled.push(pid);

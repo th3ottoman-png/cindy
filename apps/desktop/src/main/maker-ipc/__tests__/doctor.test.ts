@@ -275,5 +275,13 @@ describe('DesktopDoctorHost & IPC handlers (ROADMAP 14.8)', () => {
     await host.runStartupOnce();
     snaps = await host.listSnapshots();
     expect(snaps).toHaveLength(1);
+
+    // 4. Default host.run({}) clears inFlightRun on completion so subsequent calls re-run checks
+    state.broken = true;
+    const defaultRun1 = await host.run({});
+    expect(defaultRun1.counts.fail).toBe(1);
+    state.broken = false;
+    const defaultRun2 = await host.run({});
+    expect(defaultRun2.counts.fail).toBe(0);
   });
 });

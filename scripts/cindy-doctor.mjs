@@ -13,16 +13,18 @@
 
 import path from 'node:path';
 import readline from 'node:readline/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { register } from 'tsx/esm/api';
 
 register();
 
 const CINDY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-const doctorMod = await import(path.join(CINDY_ROOT, 'packages/maker-core/src/doctor/index.ts'));
+const doctorMod = await import(
+  pathToFileURL(path.join(CINDY_ROOT, 'packages/maker-core/src/doctor/index.ts')).href
+);
 const hermesVersionMod = await import(
-  path.join(CINDY_ROOT, 'packages/maker-hermes-manager/src/hermes-version.ts')
+  pathToFileURL(path.join(CINDY_ROOT, 'packages/maker-hermes-manager/src/hermes-version.ts')).href
 );
 
 const {
@@ -418,7 +420,7 @@ try {
     const needsAppClosedNow = fix.needsAppClosed || Boolean(plan.requiresAppClosed);
     if (needsAppClosedNow) {
       const { detectAppRunningState } = await import(
-        path.join(CINDY_ROOT, 'packages/maker-core/src/doctor/packs/processes.ts')
+        pathToFileURL(path.join(CINDY_ROOT, 'packages/maker-core/src/doctor/packs/processes.ts')).href
       );
       const running = ctx.appRunning ?? (await detectAppRunningState(ctx)).running;
       if (running) {

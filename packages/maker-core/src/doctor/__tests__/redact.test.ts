@@ -128,6 +128,12 @@ describe('redactConfig (ROADMAP 14.1)', () => {
       '  nested:',
       '    id: nested-child-value',
       '"api_key": "quoted-key-secret-value"',
+      '"api_key": |',
+      '  opaque-quoted-block-credential-123',
+      'client_secret: |+',
+      '  opaque-chomped-block-credential-456',
+      'access_token: |2',
+      '  opaque-indented-block-credential-789',
       'CUSTOM_TOKEN=raw-dotenv-token-value',
       'safe_setting: keep-this-value',
     ].join('\n');
@@ -138,6 +144,9 @@ describe('redactConfig (ROADMAP 14.1)', () => {
     expect(redacted).not.toContain('super-secret-nested-refresh');
     expect(redacted).not.toContain('nested-child-value');
     expect(redacted).not.toContain('quoted-key-secret-value');
+    expect(redacted).not.toContain('opaque-quoted-block-credential-123');
+    expect(redacted).not.toContain('opaque-chomped-block-credential-456');
+    expect(redacted).not.toContain('opaque-indented-block-credential-789');
     expect(redacted).not.toContain('raw-dotenv-token-value');
     expect(redacted).toContain('safe_setting: keep-this-value');
     expect(redacted).toContain('CUSTOM_TOKEN=«redacted»');

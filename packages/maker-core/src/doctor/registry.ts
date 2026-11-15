@@ -57,19 +57,43 @@ export function createRegistry(packs: readonly DoctorPack[]): DoctorRegistry {
     async resolveChecks(ctx: DoctorContext): Promise<readonly DoctorCheck[]> {
       const seenIds = new Set(checkMap.keys());
       const discovered: DoctorCheck[] = [];
-      for (const pack of registeredPacks) {
+      for (let idx = 0; idx < registeredPacks.length; idx += 1) {
+        const pack = registeredPacks[idx]!;
         if (!pack.discoverChecks) continue;
-        const dynamicChecks = await pack.discoverChecks(ctx);
-        for (const check of dynamicChecks) {
-          assertNonEmptyId(check.id, 'check');
-          if (!VALID_LAYERS.has(check.layer)) {
-            throw new Error(`Unknown doctor check layer "${String(check.layer)}" for check "${check.id}"`);
+        try {
+          const dynamicChecks = await pack.discoverChecks(ctx);
+          for (const check of dynamicChecks) {
+            assertNonEmptyId(check.id, 'check');
+            if (!VALID_LAYERS.has(check.layer)) {
+              throw new Error(`Unknown doctor check layer "${String(check.layer)}" for check "${check.id}"`);
+            }
+            if (seenIds.has(check.id)) {
+              throw new Error(`Duplicate doctor check id: ${check.id}`);
+            }
+            seenIds.add(check.id);
+            discovered.push(check);
           }
-          if (seenIds.has(check.id)) {
-            throw new Error(`Duplicate doctor check id: ${check.id}`);
+        } catch (err) {
+          const fallbackLayer = pack.checks[0]?.layer ?? 'env';
+          const baseId = `${pack.name ?? `pack-${idx}`}.discover`;
+          let failId = baseId;
+          let suffix = 1;
+          while (seenIds.has(failId)) {
+            failId = `${baseId}-${suffix}`;
+            suffix += 1;
           }
-          seenIds.add(check.id);
-          discovered.push(check);
+          seenIds.add(failId);
+          const message = err instanceof Error ? err.message : String(err);
+          discovered.push({
+            id: failId,
+            layer: fallbackLayer,
+            title: `${pack.name ?? 'Pack'} dynamic check discovery`,
+            cost: 'instant',
+            run: async () => ({
+              severity: 'fail',
+              summary: `check discovery crashed: ${message}`,
+            }),
+          });
         }
       }
       return [...frozenChecks, ...discovered];

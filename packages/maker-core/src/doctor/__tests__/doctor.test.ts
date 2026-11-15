@@ -232,6 +232,26 @@ describe('runChecks fail-closed error, timeout, dependsOn, needs and counts', ()
     expect(report.counts).toEqual({ ok: 0, warn: 0, fail: 2, skip: 0 });
   });
 
+  it('converts discoverChecks failures into diagnostic fail results while still running static checks', async () => {
+    const registry = createRegistry([
+      {
+        name: 'broken-discovery',
+        checks: [makeCheck('env.static-ok', 'environment', async () => ({ severity: 'ok', summary: 'static ran' }))],
+        discoverChecks: async () => {
+          throw new Error('discovery exploded');
+        },
+      },
+    ]);
+
+    const report = await runChecks(registry, makeContext());
+
+    expect(report.results.map((r) => [r.id, r.severity, r.summary])).toEqual([
+      ['env.static-ok', 'ok', 'static ran'],
+      ['broken-discovery.discover', 'fail', 'check discovery crashed: discovery exploded'],
+    ]);
+    expect(report.counts).toEqual({ ok: 1, warn: 0, fail: 1, skip: 0 });
+  });
+
   it('times out checks according to cost tier (500ms / 3000ms / 30000ms)', async () => {
     vi.useFakeTimers();
 

@@ -26,6 +26,7 @@ import {
   type RoutingParseResult,
 } from '../../providers/routing-file.js';
 import { redactText } from '../redact.js';
+import { getActiveRunToken } from '../runner.js';
 import type {
   CheckRunOutput,
   DoctorCheck,
@@ -36,10 +37,11 @@ import type {
 const ENDPOINT_PROBE_TIMEOUT_MS = 1_500;
 
 /**
- * Per-context memoization of endpoint probes within a single `runChecks` invocation so
- * `endpoint.<id>` and `endpoint.routes` do not hit the same local endpoint twice.
+ * Per-run memoization of endpoint probes within a single `runChecks` invocation so
+ * `endpoint.<id>` and `endpoint.routes` do not hit the same local endpoint twice,
+ * while later `runChecks` calls on a reused `DoctorContext` re-probe fresh state.
  */
-const probeCacheByCtx = new WeakMap<DoctorContext, Map<string, Promise<EndpointProbe>>>();
+const probeCacheByRun = new WeakMap<object, Map<string, Promise<EndpointProbe>>>();
 
 async function readOptionalUtf8(
   ctx: DoctorContext,
@@ -100,12 +102,14 @@ function getRulesUsingProvider(
 }
 
 function probeProviderCached(ctx: DoctorContext, entry: ProviderFileEntry): Promise<EndpointProbe> {
-  let cache = probeCacheByCtx.get(ctx);
+  const runKey = getActiveRunToken(ctx);
+  let cache = probeCacheByRun.get(runKey);
   if (!cache) {
     cache = new Map();
-    probeCacheByCtx.set(ctx, cache);
+    probeCacheByRun.set(runKey, cache);
   }
-  const existing = cache.get(entry.id);
+  const cacheKey = `${entry.id}\0${entry.kind}\0${entry.baseUrl}\0${Boolean(ctx.includeApi)}`;
+  const existing = cache.get(cacheKey);
   if (existing) return existing;
 
   const pending = ctx.probe(entry, {
@@ -113,7 +117,7 @@ function probeProviderCached(ctx: DoctorContext, entry: ProviderFileEntry): Prom
     env: ctx.env,
     ...(ctx.fetchImpl ? { fetchImpl: ctx.fetchImpl } : {}),
   });
-  cache.set(entry.id, pending);
+  cache.set(cacheKey, pending);
   return pending;
 }
 

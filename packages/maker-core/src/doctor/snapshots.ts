@@ -673,7 +673,9 @@ export async function createLkgSnapshot(
     throw err;
   }
 
-  const pruned = await pruneLkgSnapshots(ctx);
+  const pruned = manifest.reason.startsWith('pre-fix:')
+    ? { kept: [] as string[], removed: [] as string[] }
+    : await pruneLkgSnapshots(ctx);
   return {
     stamp,
     dir: finalDir,
@@ -1044,21 +1046,45 @@ export async function rollbackLkgSnapshot(
       };
     }
 
-    if (item.wouldMoveAside) {
+    let currentMovedAsideTo: string | null = null;
+    try {
+      const destDir = path.dirname(item.destPath);
+      await fs.mkdir(destDir, { recursive: true });
+      const stageTmpPath = path.join(
+        destDir,
+        `.${path.basename(item.destPath)}.stage-${process.pid}-${crypto.randomUUID()}`,
+      );
       try {
-        await fs.lstat(item.destPath);
-        const asidePath = `${item.destPath}.pre-rollback-${rollbackStamp}`;
-        await fs.rename(item.destPath, asidePath);
-        movedAside.push(asidePath);
+        await fs.writeFile(stageTmpPath, buf);
+        await fs.rm(stageTmpPath, { force: true });
       } catch (err) {
-        if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
-          throw err;
+        await fs.rm(stageTmpPath, { force: true }).catch(() => {});
+        throw err;
+      }
+
+      if (item.wouldMoveAside) {
+        try {
+          await fs.lstat(item.destPath);
+          const asidePath = `${item.destPath}.pre-rollback-${rollbackStamp}`;
+          await fs.rename(item.destPath, asidePath);
+          currentMovedAsideTo = asidePath;
+          movedAside.push(asidePath);
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+            throw err;
+          }
         }
       }
-    }
 
-    await writeFileAtomically(item.destPath, buf);
-    restored.push(item.destPath);
+      await writeFileAtomically(item.destPath, buf);
+      restored.push(item.destPath);
+    } catch (err) {
+      if (currentMovedAsideTo) {
+        await fs.rename(currentMovedAsideTo, item.destPath).catch(() => {});
+        movedAside.pop();
+      }
+      throw err;
+    }
   }
 
   if (options.skipRecheck) {

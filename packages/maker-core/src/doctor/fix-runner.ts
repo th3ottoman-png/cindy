@@ -114,6 +114,8 @@ async function captureTouchFileBackups(touches: readonly string[]): Promise<Touc
           existed: false,
           bytes: null,
         });
+      } else {
+        throw err;
       }
     }
   }
@@ -146,6 +148,7 @@ async function restoreTouchFileBackups(
   movedAsideSocket?: { from: string; to: string } | null,
 ): Promise<boolean> {
   let restoredAny = false;
+  let allSucceeded = true;
 
   if (movedAsideSocket) {
     try {
@@ -153,7 +156,7 @@ async function restoreTouchFileBackups(
       await fs.rename(movedAsideSocket.to, movedAsideSocket.from);
       restoredAny = true;
     } catch {
-      // Best-effort restore of moved-aside socket
+      allSucceeded = false;
     }
   }
 
@@ -163,19 +166,27 @@ async function restoreTouchFileBackups(
         await fs.lstat(backup.path);
         await fs.rm(backup.path, { force: true });
         restoredAny = true;
-      } catch {
-        // Already absent
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+          allSucceeded = false;
+        }
       }
       continue;
     }
 
     if (backup.bytes !== null) {
-      await writeFileAtomically(backup.path, backup.bytes);
-      restoredAny = true;
+      try {
+        await writeFileAtomically(backup.path, backup.bytes);
+        restoredAny = true;
+      } catch {
+        allSucceeded = false;
+      }
+    } else {
+      allSucceeded = false;
     }
   }
 
-  return restoredAny;
+  return restoredAny && allSucceeded;
 }
 
 export function resolveFixLogPath(ctx: DoctorContext): string {
@@ -268,12 +279,12 @@ export async function applyFix(
   let touchBackups: TouchFileBackup[] = [];
 
   if (fix.risk === 'moves-files') {
+    touchBackups = await captureTouchFileBackups(plan.touches);
     const snap = await createLkgSnapshot(ctx, {
       reason: `pre-fix:${fix.id}`,
       packs: options.packs,
     });
     preFixSnapshotStamp = snap.stamp;
-    touchBackups = await captureTouchFileBackups(plan.touches);
   }
 
   // Step 5: execute fix.apply() atomically
@@ -293,17 +304,41 @@ export async function applyFix(
     };
   }
 
-  // Step 6: re-run fix.recheck checks
-  const recheckResults =
-    fix.recheck.length > 0
-      ? (
-          await runChecks(
-            registry,
-            { ...ctx, includeApi: false },
-            { only: fix.recheck },
-          )
-        ).results
-      : [];
+  // Step 6: re-run fix.recheck checks (or plan.meta.recheckOnly for targeted single-file repairs)
+  const effectiveRecheck =
+    Array.isArray(plan.meta?.recheckOnly) &&
+    plan.meta.recheckOnly.every((id): id is string => typeof id === 'string' && id.length > 0) &&
+    plan.meta.recheckOnly.length > 0
+      ? plan.meta.recheckOnly
+      : fix.recheck;
+
+  let recheckResults: CheckResult[] = [];
+  if (effectiveRecheck.length > 0) {
+    try {
+      recheckResults = (
+        await runChecks(
+          registry,
+          { ...ctx, includeApi: false },
+          { only: effectiveRecheck },
+        )
+      ).results;
+    } catch (recheckErr) {
+      const errMsg = redactText(
+        recheckErr instanceof Error ? recheckErr.message : String(recheckErr),
+        { homeDir: ctx.paths.home },
+      );
+      recheckResults = [
+        {
+          id: `${fix.id}.recheck`,
+          layer: 'config',
+          title: 'Post-fix verification recheck',
+          severity: 'fail',
+          summary: `recheck crashed: ${errMsg}`,
+          durationMs: 0,
+        },
+      ];
+    }
+  }
   const recheckCounts = countCheckResults(recheckResults);
 
   let rolledBack = false;
@@ -322,7 +357,10 @@ export async function applyFix(
         ? { from: plan.meta.movedAsideSocketFrom, to: plan.meta.movedAsideSocketTo }
         : null;
     const restored = await restoreTouchFileBackups(touchBackups, movedAsideMeta);
-    rolledBack = restored || Boolean(preFixSnapshotStamp);
+    rolledBack =
+      touchBackups.length > 0 || movedAsideMeta !== null
+        ? restored
+        : Boolean(preFixSnapshotStamp);
     finalOk = false;
     finalMessage =
       recheckCounts.fail > 0

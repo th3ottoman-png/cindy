@@ -90,6 +90,8 @@ function redactAllLeaves(value: unknown): unknown {
   return REDACTED_VALUE;
 }
 
+const YAML_BLOCK_SCALAR_HEADER = /^[|>](?:[+-]|[1-9][+-]?|[+-][1-9])?(?:\s+#.*)?$/;
+
 function leadingIndentWidth(line: string): number {
   const match = line.match(/^(\s*)/);
   return match ? match[1]!.length : 0;
@@ -105,10 +107,7 @@ function redactSecretYamlLeaf(line: string): string {
       trimmed === '[' ||
       trimmed === '{}' ||
       trimmed === '[]' ||
-      trimmed === '|' ||
-      trimmed === '>' ||
-      trimmed === '|-' ||
-      trimmed === '>-'
+      YAML_BLOCK_SCALAR_HEADER.test(trimmed)
     ) {
       return line;
     }
@@ -154,9 +153,9 @@ function redactConfigTextLine(
     return redactText(line, options);
   }
 
-  // JSON-style `"key": value`
+  // JSON-style `"key": value` (skip YAML block-scalar headers like `"api_key": |` so yamlMatch tracks indent)
   const jsonMatch = line.match(/^(\s*"([^"]+)"\s*:\s*)(.+?)(,?\s*)$/);
-  if (jsonMatch) {
+  if (jsonMatch && !YAML_BLOCK_SCALAR_HEADER.test(jsonMatch[3]!.trim())) {
     const [, prefix, key, rawVal, suffix] = jsonMatch;
     if (SECRET_CONFIG_KEY_PATTERN.test(key) && rawVal !== '{' && rawVal !== '[' && rawVal !== 'null') {
       const replacement = rawVal.startsWith('"') ? `"${REDACTED_VALUE}"` : REDACTED_VALUE;
@@ -173,10 +172,7 @@ function redactConfigTextLine(
     const isEmptyOrBlockHeader =
       trimmedRest.length === 0 ||
       trimmedRest.startsWith('#') ||
-      trimmedRest === '|' ||
-      trimmedRest === '>' ||
-      trimmedRest === '|-' ||
-      trimmedRest === '>-';
+      YAML_BLOCK_SCALAR_HEADER.test(trimmedRest);
     const isContainer =
       trimmedRest === '{' || trimmedRest === '[' || trimmedRest === '{}' || trimmedRest === '[]';
 

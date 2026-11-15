@@ -463,7 +463,10 @@ describe('Cindy Doctor fix runner and initial fixes (ROADMAP 14.6)', () => {
     const registry = createRegistry(ALL_PACKS);
 
     // Bind a live unix socket first -> fix must refuse
+    const openSockets = new Set<net.Socket>();
     const server = net.createServer((conn) => {
+      openSockets.add(conn);
+      conn.on('close', () => openSockets.delete(conn));
       conn.on('data', (chunk) => {
         for (const line of chunk.toString('utf8').split('\n').filter(Boolean)) {
           const req = JSON.parse(line) as { id?: string; method?: string };
@@ -484,7 +487,9 @@ describe('Cindy Doctor fix runner and initial fixes (ROADMAP 14.6)', () => {
       expect(liveOutcome.ok).toBe(false);
       await expect(fs.lstat(sockPath)).resolves.toBeDefined();
     } finally {
-      server.closeAllConnections?.();
+      for (const sock of openSockets) {
+        sock.destroy();
+      }
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
 

@@ -322,11 +322,12 @@ export class DesktopDoctorHost {
 
     const promise = execute();
     if (!params.only || params.only.length === 0) {
-      this.inFlightRun = promise.finally(() => {
-        if (this.inFlightRun === promise) {
+      const tracked = promise.finally(() => {
+        if (this.inFlightRun === tracked) {
           this.inFlightRun = null;
         }
       });
+      this.inFlightRun = tracked;
     }
     return promise;
   }

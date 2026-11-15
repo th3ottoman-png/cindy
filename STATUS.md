@@ -10,6 +10,28 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (bl) - CodeRabbit deep review of Phase 14 (`c6bed5b5e0..55fb1b3a25`) & hardening fixes: `unit-tested`
+
+- **Review**: Ran `coderabbit review --agent --committed --base-commit c6bed5b5e0 --deep` across all 76 Phase 14 + `Cindy Doctor.app` files (`18` `major` findings, `0` `critical`/`minor`/`trivial`/`info`). Applied all 17 directly actionable fixes (left synchronous `PRAGMA quick_check` on `DoctorContext.sqliteQuickCheck` unchanged as a documented `slow`-tier callback).
+- **Changed**:
+  - `packages/maker-core/src/doctor/redact.ts` — recognize all YAML 1.2 block-scalar headers (`|+`, `>+`, `|2`, etc.) and let quoted YAML block headers (`"api_key": |`) set `secretBlockIndent` before the JSON scalar branch runs.
+  - `packages/maker-core/src/doctor/incident-bundle.ts` — harvest secret-keyed scalar values from §3 config files into `knownSecrets` before redacting log tails.
+  - `apps/desktop/src/main/maker-ipc/doctor.ts` — compare `this.inFlightRun` against the stored `.finally()` wrapper promise so `inFlightRun` clears on completion and subsequent default `run({})` calls execute checks again.
+  - `packages/maker-core/src/doctor/registry.ts` & `packages/maker-core/src/doctor/runner.ts` — isolate `discoverChecks` / `resolveChecks` failures into synthetic `fail` diagnostic results so `runChecks` never rejects and still runs static checks; scope `getActiveRunToken(ctx)` per `runChecks` call.
+  - `packages/maker-core/src/doctor/packs/endpoints.ts` — scope endpoint probe memoization to the active `runChecks` invocation and key by `(id, kind, baseUrl, includeApi)`.
+  - `packages/maker-core/src/doctor/fix-runner.ts` — capture `touchBackups` before creating the `pre-fix:` snapshot, propagate non-`ENOENT` backup read failures before mutation, catch recheck infrastructure errors into rollback + `fix-log.jsonl`, honor `plan.meta.recheckOnly` for targeted single-file repairs, and report `rolledBack` from actual restoration.
+  - `packages/maker-core/src/doctor/snapshots.ts` — skip pruning during `pre-fix:` snapshot creation so selected restore snapshots are preserved; stage replacement bytes before moving current files aside in `rollbackLkgSnapshot` and restore moved-aside files if atomic publication fails.
+  - `packages/maker-core/src/doctor/packs/config.ts` — support string-form `readdir()` in `buildReadOnlyOverlayFs` for `experts/` and attach `recheckOnly` metadata for targeted `--target` restores.
+  - `packages/maker-core/src/doctor/packs/processes.ts` — validate `JSON.parse` output is a non-null object in `probeDaemonSocket` and re-verify orphan `(pid, command, cwd)` identity after the grace wait before escalating `SIGKILL`.
+  - `packages/maker-core/src/doctor/canary/cli-help-diff.ts` — write failed upgrade help captures to `<runtime>-help-<version>.failed.txt` so accepted baseline snapshots are not overwritten by failing upgrades.
+  - `scripts/cindy-doctor.mjs` — wrap dynamic `import()` paths with `pathToFileURL(...).href`.
+  - Regression tests updated in `packages/maker-core/src/doctor/__tests__/redact.test.ts`, `doctor.test.ts`, `canary-14.7.test.ts`, `fix-runner-14.6.test.ts`, `incident-bundle-14.9.test.ts`, and `apps/desktop/src/main/maker-ipc/__tests__/doctor.test.ts`.
+- **Verification** (Node `v22.23.4`):
+  - `pnpm --dir packages/maker-core exec vitest run src/doctor/__tests__` (`10` files, `79/79` tests pass) and `pnpm --dir apps/desktop exec vitest run src/main/maker-ipc/__tests__/doctor.test.ts` (`3/3` pass).
+  - Tier 2 gates: `pnpm typecheck` (`0`), `pnpm check:test-hygiene` (`361` files within baseline), `pnpm test:runner` (`615` tests: `613` pass, `0` fail, `2` skipped), `pnpm test:unit:related` + `node scripts/test-workspaces.mjs --tier unit --workspace apps/desktop` (all 26 runnable workspaces PASS; `apps/desktop` `424.4s` `[retried after a worker SIGSEGV]`, 7 `notApplicable` workspaces skipped).
+
+---
+
 ## 2026-11-15 (bk) - `Cindy Doctor.app` macOS double-click launcher: `live-proven`
 
 - **Request**: Owner asked for a double-clickable macOS `.app` launcher for Cindy Doctor (`scripts/cindy-doctor.mjs`) without typing CLI commands in Terminal.

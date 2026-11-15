@@ -464,6 +464,14 @@ describe('CLI help-diff canary for claude/codex/pi (ROADMAP 14.7)', () => {
       { flag: '--settings', source: 'packages/maker-core/src/agents/claude-code/flag-settings.ts' },
     ]);
     expect(r3.verdict).toContain('do not bump');
+
+    // 4. Re-running on the same broken version still fails against the last accepted baseline
+    const r4 = await runCliHelpCanary(ctx, 'claude');
+    expect(r4.ok).toBe(false);
+    expect(r4.status).toBe('failed');
+    expect(r4.brokenAdapterFlags).toEqual([
+      { flag: '--settings', source: 'packages/maker-core/src/agents/claude-code/flag-settings.ts' },
+    ]);
   });
 });
 
