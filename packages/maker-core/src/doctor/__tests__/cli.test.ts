@@ -226,4 +226,55 @@ describe('scripts/cindy-doctor.mjs CLI (ROADMAP 14.2)', () => {
     expect(await fs.readFile(routingPath, 'utf8')).toBe(originalRouting);
     expect(rolled.movedAside.some((p: string) => path.basename(p).startsWith('routing.yaml.pre-rollback-'))).toBe(true);
   });
+
+  it('supports fix <fixId> [--target] [--yes] with confirm gating and fix-log.jsonl', async () => {
+    const s = await setupCliSandbox({ includePi: true, hermesVersion: '0.23.0' });
+    await fs.writeFile(
+      path.join(s.harnessDir, 'providers.yaml'),
+      'providers:\n  - id: lmstudio\n    kind: lmstudio\n    baseUrl: http://127.0.0.1:1234\n',
+      'utf8',
+    );
+    const routingPath = path.join(s.harnessDir, 'routing.yaml');
+    const originalRouting = 'routes:\n  local-small:\n    provider: lmstudio\n    model: qwen\nrules:\n  title: local-small\n';
+    await fs.writeFile(routingPath, originalRouting, 'utf8');
+
+    const snapRes = await runDoctorCli(
+      [...s.baseArgs, 'snapshot', '--reason', 'cli-fix-test', '--json'],
+      { PATH: s.binDir, HOME: s.home },
+    );
+    expect(snapRes.code).toBe(0);
+
+    // Break routing.yaml; fix without --yes in non-TTY must refuse without touching disk
+    await fs.writeFile(routingPath, 'routes: [broken\n', 'utf8');
+    const declined = await runDoctorCli(
+      [...s.baseArgs, 'fix', 'fix.config.restore-lkg', '--target', 'harness/routing.yaml'],
+      { PATH: s.binDir, HOME: s.home },
+    );
+    expect(declined.code).toBe(1);
+    expect(await fs.readFile(routingPath, 'utf8')).toBe('routes: [broken\n');
+
+    // Apply with --yes restores cleanly and writes fix-log.jsonl
+    const applied = await runDoctorCli(
+      [...s.baseArgs, 'fix', 'fix.config.restore-lkg', '--target', 'harness/routing.yaml', '--yes', '--json'],
+      { PATH: s.binDir, HOME: s.home },
+    );
+    expect(applied.code).toBe(0);
+    const parsed = JSON.parse(applied.stdout);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.rolledBack).toBe(false);
+    expect(await fs.readFile(routingPath, 'utf8')).toBe(originalRouting);
+
+    const logLines = (await fs.readFile(path.join(s.harnessDir, 'doctor', 'fix-log.jsonl'), 'utf8'))
+      .trim()
+      .split('\n');
+    expect(logLines).toHaveLength(1);
+    expect(JSON.parse(logLines[0]!).fixId).toBe('fix.config.restore-lkg');
+
+    // Unknown fix exits 2
+    const unknown = await runDoctorCli([...s.baseArgs, 'fix', 'fix.not.real'], {
+      PATH: s.binDir,
+      HOME: s.home,
+    });
+    expect(unknown.code).toBe(2);
+  });
 });

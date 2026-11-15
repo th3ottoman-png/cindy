@@ -5,6 +5,8 @@
  * and `~/.hermes-cindy/` using the existing readers. All checks are strictly read-only.
  */
 
+import * as crypto from 'node:crypto';
+import type { Dirent, Stats } from 'node:fs';
 import * as path from 'node:path';
 import matter from 'gray-matter';
 
@@ -26,8 +28,26 @@ import {
   type GuardrailCategory,
 } from '../../security/guardrails-yaml.js';
 import { isDailyHermesPath } from '../context.js';
-import { diffAgainstLatestLkg, FIXED_SMALL_JSON_FILES } from '../snapshots.js';
-import type { CheckRunOutput, DoctorCheck, DoctorContext, DoctorPack } from '../types.js';
+import { redactText } from '../redact.js';
+import { createRegistry } from '../registry.js';
+import { runChecks } from '../runner.js';
+import {
+  diffAgainstLatestLkg,
+  FIXED_SMALL_JSON_FILES,
+  listLkgSnapshots,
+  resolveRestoreDestination,
+  rollbackLkgSnapshot,
+} from '../snapshots.js';
+import type {
+  CheckRunOutput,
+  DoctorCheck,
+  DoctorContext,
+  DoctorFix,
+  DoctorFs,
+  DoctorPack,
+  FixOutcome,
+  FixPlan,
+} from '../types.js';
 
 const LOCAL_PROVIDER_KINDS = new Set(['lmstudio', 'ollama']);
 
@@ -1116,64 +1136,446 @@ async function runConfigLkgDiff(ctx: DoctorContext): Promise<CheckRunOutput> {
   };
 }
 
-const checks: readonly DoctorCheck[] = [
+function withLkgFixSuggestion(
+  runner: (ctx: DoctorContext) => Promise<CheckRunOutput>,
+  attachOnWarn = false,
+): (ctx: DoctorContext) => Promise<CheckRunOutput> {
+  return async (ctx) => {
+    const out = await runner(ctx);
+    const shouldAttach =
+      out.severity === 'fail' || (attachOnWarn && out.severity === 'warn');
+    if (!shouldAttach || (out.fixIds && out.fixIds.includes('fix.config.restore-lkg'))) {
+      return out;
+    }
+    return {
+      ...out,
+      fixIds: [...(out.fixIds ?? []), 'fix.config.restore-lkg'],
+    };
+  };
+}
+
+const validationChecks: readonly DoctorCheck[] = [
   {
     id: 'config.providers',
     layer: 'config',
     title: 'Providers config (~/.cindy-harness/providers.yaml)',
     cost: 'fast',
-    run: runConfigProviders,
+    run: withLkgFixSuggestion(runConfigProviders),
   },
   {
     id: 'config.routing',
     layer: 'config',
     title: 'Routing config (~/.cindy-harness/routing.yaml)',
     cost: 'fast',
-    run: runConfigRouting,
+    run: withLkgFixSuggestion(runConfigRouting),
   },
   {
     id: 'config.experts',
     layer: 'config',
     title: 'Experts configs (~/.cindy-harness/experts/*)',
     cost: 'fast',
-    run: runConfigExperts,
+    run: withLkgFixSuggestion(runConfigExperts),
   },
   {
     id: 'config.guardrails',
     layer: 'config',
     title: 'Guardrails config (~/.cindy-harness/guardrails.yaml)',
     cost: 'fast',
-    run: runConfigGuardrails,
+    run: withLkgFixSuggestion(runConfigGuardrails),
   },
   {
     id: 'config.web-budget',
     layer: 'config',
     title: 'Web budget config (~/.cindy-harness/web-budget.yaml)',
     cost: 'fast',
-    run: runConfigWebBudget,
+    run: withLkgFixSuggestion(runConfigWebBudget),
   },
   {
     id: 'config.small-json',
     layer: 'config',
     title: 'Small JSON stores (~/.cindy-harness/*.json)',
     cost: 'fast',
-    run: runConfigSmallJson,
+    run: withLkgFixSuggestion(runConfigSmallJson),
   },
   {
     id: 'config.hermes',
     layer: 'config',
     title: 'Hermes config (~/.hermes-cindy/config.yaml)',
     cost: 'fast',
-    run: runConfigHermes,
+    run: withLkgFixSuggestion(runConfigHermes),
   },
+];
+
+const checks: readonly DoctorCheck[] = [
+  ...validationChecks,
   {
     id: 'config.lkg-diff',
     layer: 'config',
     title: 'Config vs latest LKG snapshot',
     cost: 'fast',
-    run: runConfigLkgDiff,
+    run: withLkgFixSuggestion(runConfigLkgDiff, true),
   },
 ];
+
+interface SnapshotFileOverlay {
+  rel: string;
+  destPath: string;
+  snapFilePath: string;
+  bytes: Buffer;
+}
+
+function sha256Hex(buf: Buffer): string {
+  return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+function checkIdsForConfigRel(rel: string): string[] {
+  if (rel === 'harness/providers.yaml') return ['config.providers'];
+  if (rel === 'harness/routing.yaml') return ['config.routing'];
+  if (rel.startsWith('harness/experts/')) return ['config.experts'];
+  if (rel === 'harness/guardrails.yaml') return ['config.guardrails'];
+  if (rel === 'harness/web-budget.yaml') return ['config.web-budget'];
+  if (rel === 'hermes/config.yaml') return ['config.hermes'];
+  if (rel.startsWith('harness/') && rel.endsWith('.json')) return ['config.small-json'];
+  return validationChecks.map((c) => c.id);
+}
+
+function buildReadOnlyOverlayFs(
+  baseFs: DoctorFs,
+  ctx: DoctorContext,
+  overlays: readonly SnapshotFileOverlay[],
+): DoctorFs {
+  const byDest = new Map<string, SnapshotFileOverlay>();
+  const expertSlugs = new Set<string>();
+  const expertFiles = new Map<string, Set<string>>();
+
+  for (const item of overlays) {
+    byDest.set(path.resolve(item.destPath), item);
+    if (item.rel.startsWith('harness/experts/')) {
+      const parts = item.rel.split('/');
+      if (parts.length === 4 && parts[2] && parts[3]) {
+        expertSlugs.add(parts[2]);
+        let set = expertFiles.get(parts[2]);
+        if (!set) {
+          set = new Set<string>();
+          expertFiles.set(parts[2], set);
+        }
+        set.add(parts[3]);
+      }
+    }
+  }
+
+  const expertsRoot = path.resolve(path.join(ctx.paths.harnessDir, 'experts'));
+  const makeSyntheticDirent = (name: string, isDir: boolean): Dirent<string> =>
+    ({
+      name,
+      parentPath: '',
+      path: '',
+      isFile: () => !isDir,
+      isDirectory: () => isDir,
+      isBlockDevice: () => false,
+      isCharacterDevice: () => false,
+      isSymbolicLink: () => false,
+      isFIFO: () => false,
+      isSocket: () => false,
+    }) as Dirent<string>;
+
+  return {
+    readFile: ((targetPath: Parameters<DoctorFs['readFile']>[0], options?: Parameters<DoctorFs['readFile']>[1]) => {
+      if (typeof targetPath === 'string' || targetPath instanceof URL) {
+        const key = path.resolve(targetPath instanceof URL ? targetPath.pathname : targetPath);
+        const hit = byDest.get(key);
+        if (hit) {
+          if (typeof options === 'string') {
+            return Promise.resolve(hit.bytes.toString(options)) as ReturnType<DoctorFs['readFile']>;
+          }
+          if (options && typeof options === 'object' && options.encoding) {
+            return Promise.resolve(hit.bytes.toString(options.encoding)) as ReturnType<DoctorFs['readFile']>;
+          }
+          return Promise.resolve(Buffer.from(hit.bytes)) as ReturnType<DoctorFs['readFile']>;
+        }
+      }
+      return baseFs.readFile(targetPath, options as never) as ReturnType<DoctorFs['readFile']>;
+    }) as DoctorFs['readFile'],
+
+    stat: (async (targetPath: Parameters<DoctorFs['stat']>[0]) => {
+      if (typeof targetPath === 'string' || targetPath instanceof URL) {
+        const key = path.resolve(targetPath instanceof URL ? targetPath.pathname : targetPath);
+        const hit = byDest.get(key);
+        if (hit) {
+          return baseFs.stat(hit.snapFilePath);
+        }
+        if (key === expertsRoot && expertSlugs.size > 0) {
+          try {
+            return await baseFs.stat(key);
+          } catch {
+            return { isDirectory: () => true, isFile: () => false, size: 0 } as Stats;
+          }
+        }
+        if (key.startsWith(`${expertsRoot}${path.sep}`)) {
+          const sub = key.slice(expertsRoot.length + 1);
+          if (!sub.includes(path.sep) && expertSlugs.has(sub)) {
+            try {
+              return await baseFs.stat(key);
+            } catch {
+              return { isDirectory: () => true, isFile: () => false, size: 0 } as Stats;
+            }
+          }
+        }
+      }
+      return baseFs.stat(targetPath);
+    }) as DoctorFs['stat'],
+
+    access: (async (targetPath: Parameters<DoctorFs['access']>[0], mode?: number) => {
+      if (typeof targetPath === 'string' || targetPath instanceof URL) {
+        const key = path.resolve(targetPath instanceof URL ? targetPath.pathname : targetPath);
+        const hit = byDest.get(key);
+        if (hit) {
+          return baseFs.access(hit.snapFilePath, mode);
+        }
+      }
+      return baseFs.access(targetPath, mode);
+    }) as DoctorFs['access'],
+
+    readdir: (async (targetPath: Parameters<DoctorFs['readdir']>[0], options?: Parameters<DoctorFs['readdir']>[1]) => {
+      const key =
+        typeof targetPath === 'string' || targetPath instanceof URL
+          ? path.resolve(targetPath instanceof URL ? targetPath.pathname : targetPath)
+          : null;
+
+      if (key === expertsRoot && expertSlugs.size > 0 && options && typeof options === 'object' && 'withFileTypes' in options && options.withFileTypes) {
+        let existing: Dirent<string>[] = [];
+        try {
+          existing = (await baseFs.readdir(targetPath, options as { withFileTypes: true })) as Dirent<string>[];
+        } catch {
+          existing = [];
+        }
+        const seen = new Set(existing.map((d) => d.name));
+        const merged = [...existing];
+        for (const slug of expertSlugs) {
+          if (!seen.has(slug)) {
+            merged.push(makeSyntheticDirent(slug, true));
+          }
+        }
+        return merged;
+      }
+
+      if (key && key.startsWith(`${expertsRoot}${path.sep}`)) {
+        const slug = key.slice(expertsRoot.length + 1);
+        const extraFiles = expertFiles.get(slug);
+        if (extraFiles && extraFiles.size > 0 && options && typeof options === 'object' && 'withFileTypes' in options && options.withFileTypes) {
+          let existing: Dirent<string>[] = [];
+          try {
+            existing = (await baseFs.readdir(targetPath, options as { withFileTypes: true })) as Dirent<string>[];
+          } catch {
+            existing = [];
+          }
+          const seen = new Set(existing.map((d) => d.name));
+          const merged = [...existing];
+          for (const fname of extraFiles) {
+            if (!seen.has(fname)) {
+              merged.push(makeSyntheticDirent(fname, false));
+            }
+          }
+          return merged;
+        }
+      }
+
+      return baseFs.readdir(targetPath, options as never);
+    }) as DoctorFs['readdir'],
+  };
+}
+
+const configValidationRegistry = createRegistry([
+  { name: 'config-validation', checks: validationChecks },
+]);
+
+const fixConfigRestoreLkg: DoctorFix = {
+  id: 'fix.config.restore-lkg',
+  title: 'Restore config file(s) from newest valid LKG snapshot',
+  risk: 'moves-files',
+  needsAppClosed: false,
+  recheck: ['config'],
+
+  async preview(ctx: DoctorContext, target?: string): Promise<FixPlan> {
+    const normalizedTarget = target?.replace(/\\/g, '/').trim();
+    if (normalizedTarget !== undefined && normalizedTarget.length === 0) {
+      return {
+        fixId: 'fix.config.restore-lkg',
+        steps: ['Invalid empty --target value.'],
+        touches: [],
+        meta: { refusalReason: 'Invalid empty --target value.' },
+      };
+    }
+
+    if (normalizedTarget !== undefined && !resolveRestoreDestination(ctx, normalizedTarget)) {
+      const msg = `Unsupported or excluded config restore target: ${normalizedTarget}`;
+      return {
+        fixId: 'fix.config.restore-lkg',
+        target: normalizedTarget,
+        steps: [msg],
+        touches: [],
+        meta: { refusalReason: msg },
+      };
+    }
+
+    const snapshots = await listLkgSnapshots(ctx);
+    const homeRedact = { homeDir: ctx.paths.home };
+
+    for (const snap of snapshots) {
+      if (!snap.valid || !snap.manifest) continue;
+      if (snap.manifest.reason.startsWith('pre-fix:')) continue;
+
+      const entries =
+        normalizedTarget !== undefined
+          ? snap.manifest.files.filter((f) => f.rel === normalizedTarget)
+          : snap.manifest.files;
+
+      if (entries.length === 0) continue;
+
+      const overlays: SnapshotFileOverlay[] = [];
+      let integrityOk = true;
+      for (const entry of entries) {
+        const destPath = resolveRestoreDestination(ctx, entry.rel);
+        if (!destPath) {
+          integrityOk = false;
+          break;
+        }
+        const snapFilePath = path.join(snap.dir, 'files', entry.rel);
+        try {
+          const bytes = Buffer.from(await ctx.fs.readFile(snapFilePath));
+          if (bytes.byteLength !== entry.bytes || sha256Hex(bytes) !== entry.sha256) {
+            integrityOk = false;
+            break;
+          }
+          overlays.push({ rel: entry.rel, destPath, snapFilePath, bytes });
+        } catch {
+          integrityOk = false;
+          break;
+        }
+      }
+
+      if (!integrityOk || overlays.length === 0) continue;
+
+      const overlayFs = buildReadOnlyOverlayFs(ctx.fs, ctx, overlays);
+      const checkOnly =
+        normalizedTarget !== undefined
+          ? checkIdsForConfigRel(normalizedTarget)
+          : validationChecks.map((c) => c.id);
+
+      const validationReport = await runChecks(
+        configValidationRegistry,
+        { ...ctx, fs: overlayFs, includeApi: false },
+        { only: checkOnly },
+      );
+      if (validationReport.counts.fail > 0) {
+        continue;
+      }
+
+      // Select only missing/differing files when no explicit single target was requested
+      const selected: SnapshotFileOverlay[] = [];
+      if (normalizedTarget !== undefined) {
+        selected.push(...overlays);
+      } else {
+        for (const item of overlays) {
+          try {
+            const liveBytes = Buffer.from(await ctx.fs.readFile(item.destPath));
+            if (!liveBytes.equals(item.bytes)) {
+              selected.push(item);
+            }
+          } catch {
+            selected.push(item);
+          }
+        }
+      }
+
+      const requiresAppClosed = selected.some((item) => item.rel === 'hermes/config.yaml');
+      return {
+        fixId: 'fix.config.restore-lkg',
+        ...(normalizedTarget ? { target: normalizedTarget } : {}),
+        steps:
+          selected.length > 0
+            ? selected.map(
+                (item) =>
+                  `Restore ${item.rel} from valid LKG snapshot ${snap.stamp} to ${redactText(item.destPath, homeRedact)} (moving current copy to .pre-rollback-<stamp>)`,
+              )
+            : [`All config files already match valid LKG snapshot ${snap.stamp}.`],
+        touches: selected.map((item) => item.destPath),
+        requiresAppClosed,
+        meta: {
+          stamp: snap.stamp,
+          rels: selected.map((item) => item.rel),
+        },
+      };
+    }
+
+    const refusalReason = normalizedTarget
+      ? `No valid LKG snapshot contains a passing copy of ${normalizedTarget}.`
+      : 'No valid LKG snapshot passing config validation was found.';
+    return {
+      fixId: 'fix.config.restore-lkg',
+      ...(normalizedTarget ? { target: normalizedTarget } : {}),
+      steps: [refusalReason],
+      touches: [],
+      meta: { refusalReason },
+    };
+  },
+
+  async apply(ctx: DoctorContext, plan: FixPlan): Promise<FixOutcome> {
+    const meta = (plan.meta ?? {}) as { stamp?: unknown; rels?: unknown; refusalReason?: unknown };
+    if (typeof meta.refusalReason === 'string' && meta.refusalReason.length > 0) {
+      return {
+        ok: false,
+        rolledBack: false,
+        message: meta.refusalReason,
+        recheck: [],
+      };
+    }
+    const stamp = typeof meta.stamp === 'string' ? meta.stamp : '';
+    const rels = Array.isArray(meta.rels)
+      ? meta.rels.filter((r): r is string => typeof r === 'string')
+      : [];
+
+    if (!stamp) {
+      return {
+        ok: false,
+        rolledBack: false,
+        message: 'Invalid fix plan: missing LKG snapshot stamp.',
+        recheck: [],
+      };
+    }
+
+    if (rels.length === 0) {
+      return {
+        ok: true,
+        rolledBack: false,
+        message: `Config already matches LKG snapshot ${stamp}.`,
+        recheck: [],
+      };
+    }
+
+    const result = await rollbackLkgSnapshot(ctx, {
+      stamp,
+      fileRels: rels,
+      skipRecheck: true,
+    });
+
+    if (!result.ok) {
+      return {
+        ok: false,
+        rolledBack: false,
+        message: result.error ?? `Failed to restore from LKG snapshot ${stamp}`,
+        recheck: [],
+      };
+    }
+
+    return {
+      ok: true,
+      rolledBack: false,
+      message: `Restored ${result.restored.length} file(s) from LKG snapshot ${stamp}`,
+      recheck: [],
+    };
+  },
+};
 
 export async function loadDoctorMcpCatalog(ctx: DoctorContext): Promise<{
   entries: McpCatalogEntry[];
@@ -1212,4 +1614,5 @@ export async function loadDoctorMcpCatalog(ctx: DoctorContext): Promise<{
 export const configPack: DoctorPack = {
   name: 'config',
   checks,
+  fixes: [fixConfigRestoreLkg],
 };

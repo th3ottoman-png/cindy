@@ -10,6 +10,31 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (be) - 14.6 Fix runner + first fixes: `live-proven`
+
+- **Row**: 14.6 closed `live-proven`. Evidence at `docs/evidence/14.6-fix-runner-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.6-fix-runner-live-proof.md`). Upgrade canary (`14.7`) stays open.
+- **Changed**:
+  - NEW `packages/maker-core/src/doctor/fix-runner.ts` (exported via `packages/maker-core/src/doctor/index.ts`) — enforces the 7-step blueprint §5 fix protocol (`previewFix`, `applyFix`, `runFix`): read-only preview, caller confirm, app-closed refusal guard, `pre-fix:<fixId>` LKG snapshot + pre-fix regular-file state capture for `moves-files`, atomic `apply()`, `fix.recheck` re-run with automatic rollback (`rolledBack: true`) on failure, and redacted JSONL append to `~/.cindy-harness/doctor/fix-log.jsonl`.
+  - `packages/maker-core/src/doctor/packs/config.ts` & `packages/maker-core/src/doctor/snapshots.ts` — registered `fix.config.restore-lkg` (in-memory overlay `DoctorFs` validation during preview with zero disk side effects, skips newer broken snapshots, subsets changed files when `--target` is omitted so UI harness fixes work while running, refuses `hermes/config.yaml` while Cindy is running); attached `fixIds: ['fix.config.restore-lkg']` on failing config checks and `config.lkg-diff` warnings; filtered `pre-fix:*` snapshots out of `diffAgainstLatestLkg` baseline and generalized `rollbackLkgSnapshot` (`fileRels`, `skipRecheck`).
+  - `packages/maker-core/src/doctor/packs/processes.ts` — extracted `detectOrphanProcesses` (normalizes macOS `/private/tmp` & `/private/var` `session-homes/` realpaths and inspects non-system `ppid === 1` processes), fixed `probeDaemonSocket` to preserve `socketConnected = true` on post-connect RPC timeout, and registered `fix.proc.kill-orphans` (re-verifies orphaned PIDs at apply time, `SIGTERM` → `3 s` poll → `SIGKILL`) and `fix.proc.stale-socket` (`needsAppClosed: true`, refuses live/symlink sockets, renames stale socket aside).
+  - `packages/maker-core/src/doctor/types.ts` — added optional `sendSignal`, `sleep`, `orphanGraceMs` seams and optional JSON-serializable `FixPlan`/`FixOutcome` metadata fields.
+  - `scripts/cindy-doctor.mjs` — added `fix <fixId> [--target <x>] [--yes]` with interactive `Apply? [y/N]` confirmation, app-closed guard, and `--json` support.
+  - NEW `packages/maker-core/src/doctor/__tests__/fix-runner-14.6.test.ts` (6 tests) + CLI `fix` test in `cli.test.ts` (**8/8 doctor test files, 63/63 tests pass**).
+- **Live proof** (`0` API spend, `0` model turns, Terminal under Node `v22.23.4`):
+  - Spawned detached harmless orphan `/bin/sleep 600` (`pid 71640`, `ppid 1`, `cwd /private/tmp/proofs/14.6/temp-hermes-fix/session-homes/live-orphan-test`) under temp Hermes home `/tmp/proofs/14.6/temp-hermes-fix`.
+  - `pnpm run doctor --hermes-home /tmp/proofs/14.6/temp-hermes-fix` reported `WARN proc.orphans Found 1 orphaned process(es) (pid 71640)`.
+  - Interactive PTY `pnpm run doctor fix fix.proc.kill-orphans --hermes-home /tmp/proofs/14.6/temp-hermes-fix` printed the plan, prompted `Apply? [y/N]`, accepted `y`, reported `Applied: Terminated 1 orphan(s) [71640]` and `[OK] proc.orphans: No orphaned Hermes/MCP processes detected` (`FIX_RC=0`).
+  - Confirmed `ORPHAN_GONE=1`, post-fix `proc.orphans` `OK` (`POST_ORPHANS_RC=0`), `~/.cindy-harness/doctor/fix-log.jsonl` recorded `{ at: "2026-11-15T15:38:59.470Z", fixId: "fix.proc.kill-orphans", target: null, ok: true, rolledBack: false, recheckCounts: { ok: 1, warn: 0, fail: 0, skip: 0 } }`, and `~/.hermes-cindy/config.yaml` SHA-256 unchanged (`23986d7771cfcedc353b59a6b1d94e7b0730fd7520ee2e22cdcbb8877b630a54`).
+  - Noted: Hermes on host is now `0.23.1` vs pin `0.22.7`.
+- **Gates (Tier 2, Node `v22.23.4`, `unset XDT_ISOLATED NODE_OPTIONS`, staged code/tests)**:
+  - `pnpm typecheck`: **RC=0** (37 workspace projects).
+  - `pnpm test:runner`: **RC=0** (615 tests / 613 pass / 0 fail / 2 skipped).
+  - `pnpm test:unit:related`: **RC=0** (`apps/cindy-headless` `4.8s`, `apps/desktop` `414.8s` retried once after known post-pass worker SIGSEGV, `apps/mobile` `57.5s`, `packages/maker-core` `49.9s`, `packages/maker-hermes-manager` `11.5s`, all remaining applicable legs `PASS`).
+  - `pnpm check:test-hygiene`: **RC=0** (`PASS (361 files within baseline)`).
+- **Next**: Phase 14 row **14.7** (Upgrade canary).
+
+---
+
 ## 2026-11-15 (bd) - 14.5 Last-known-good snapshots + rollback: `live-proven`
 
 - **Row**: 14.5 closed `live-proven`. Evidence at `docs/evidence/14.5-lkg-snapshots-rollback-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.5-lkg-snapshots-rollback-live-proof.md`). Fix runner (`14.6`) stays open.

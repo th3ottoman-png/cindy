@@ -140,7 +140,9 @@ export interface LkgRollbackPlan {
 export interface RollbackLkgOptions {
   stamp: string;
   fileRel?: string;
+  fileRels?: string[];
   packs?: readonly DoctorPack[];
+  skipRecheck?: boolean;
 }
 
 export interface RollbackLkgResult {
@@ -607,7 +609,10 @@ export async function createLkgSnapshot(
 }
 
 export async function diffAgainstLatestLkg(ctx: DoctorContext): Promise<LkgDiffResult> {
-  const snapshots = await listLkgSnapshots(ctx);
+  const allSnapshots = await listLkgSnapshots(ctx);
+  const snapshots = allSnapshots.filter(
+    (snap) => !snap.valid || !snap.manifest || !snap.manifest.reason.startsWith('pre-fix:'),
+  );
   if (snapshots.length === 0) {
     return {
       hasSnapshot: false,
@@ -716,7 +721,7 @@ export async function diffAgainstLatestLkg(ctx: DoctorContext): Promise<LkgDiffR
   };
 }
 
-function resolveRestoreDestination(ctx: DoctorContext, rel: string): string | null {
+export function resolveRestoreDestination(ctx: DoctorContext, rel: string): string | null {
   if (isExcludedSnapshotRelPath(rel)) return null;
   if (rel === 'hermes/config.yaml') {
     return path.join(ctx.paths.hermesHome, 'config.yaml');
@@ -802,16 +807,24 @@ export async function planLkgRollback(
   }
 
   const normalizedFilter = options.fileRel?.replace(/\\/g, '/').trim();
-  if (normalizedFilter !== undefined) {
-    if (isExcludedSnapshotRelPath(normalizedFilter) || !resolveRestoreDestination(ctx, normalizedFilter)) {
-      return failPlan('invalid-path', `Unsupported or excluded restore target: ${normalizedFilter}`);
+  const normalizedFilters = options.fileRels
+    ? options.fileRels.map((rel) => rel.replace(/\\/g, '/').trim())
+    : normalizedFilter !== undefined
+      ? [normalizedFilter]
+      : null;
+
+  if (normalizedFilters !== null) {
+    for (const rel of normalizedFilters) {
+      if (isExcludedSnapshotRelPath(rel) || !resolveRestoreDestination(ctx, rel)) {
+        return failPlan('invalid-path', `Unsupported or excluded restore target: ${rel}`);
+      }
     }
   }
 
-  const selectedEntries =
-    normalizedFilter !== undefined
-      ? manifest.files.filter((f) => f.rel === normalizedFilter)
-      : manifest.files;
+  const filterSet = normalizedFilters ? new Set(normalizedFilters) : null;
+  const selectedEntries = filterSet
+    ? manifest.files.filter((f) => filterSet.has(f.rel))
+    : manifest.files;
 
   if (selectedEntries.length === 0) {
     return failPlan(
@@ -971,6 +984,15 @@ export async function rollbackLkgSnapshot(
 
     await writeFileAtomically(item.destPath, buf);
     restored.push(item.destPath);
+  }
+
+  if (options.skipRecheck) {
+    return {
+      ok: true,
+      stamp: options.stamp,
+      restored,
+      movedAside,
+    };
   }
 
   const packs = options.packs ?? [(await import('./packs/index.js')).configPack];

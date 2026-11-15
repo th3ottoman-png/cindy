@@ -27,6 +27,7 @@ const hermesVersionMod = await import(
 
 const {
   ALL_PACKS,
+  applyFix,
   assertNotDailyHermes,
   createLkgSnapshot,
   createNodeContext,
@@ -35,6 +36,7 @@ const {
   formatReportText,
   listLkgSnapshots,
   planLkgRollback,
+  previewFix,
   rollbackLkgSnapshot,
   runChecks,
 } = doctorMod;
@@ -49,6 +51,7 @@ const VALUE_FLAGS = new Set([
   '--repo-root',
   '--reason',
   '--file',
+  '--target',
 ]);
 
 function printUsage() {
@@ -60,6 +63,8 @@ Commands:
   snapshots                      List stored LKG config snapshots
   rollback <stamp> [--file <rel>] [--yes]
                                  Restore config file(s) from an LKG snapshot
+  fix <fixId> [--target <x>] [--yes]
+                                 Preview and apply a fix (asks Apply? [y/N] unless --yes)
 
 Options:
   --all                          Include slow checks (default: instant, fast)
@@ -67,7 +72,8 @@ Options:
   --include-api                  Probe remote/API endpoints too (outbound; default off)
   --reason <text>                Reason tag for \`snapshot\`
   --file <rel>                   Single relative path (e.g. harness/routing.yaml) for \`rollback\`
-  --yes                          Skip interactive confirmation prompt for \`rollback\`
+  --target <value>               Optional target for \`fix\` (e.g. harness/routing.yaml)
+  --yes                          Skip interactive confirmation prompt for \`rollback\` / \`fix\`
   --json                         Print JSON output
   -h, --help                     Show this help
 
@@ -88,6 +94,7 @@ function parseArgs(argv) {
     positional: [],
     reason: undefined,
     fileRel: undefined,
+    target: undefined,
     home: undefined,
     hermesHome: undefined,
     harnessDir: undefined,
@@ -143,6 +150,8 @@ function parseArgs(argv) {
         opts.reason = val;
       } else if (flagName === '--file') {
         opts.fileRel = val;
+      } else if (flagName === '--target') {
+        opts.target = val;
       } else if (flagName === '--home') {
         opts.home = val;
       } else if (flagName === '--hermes-home') {
@@ -312,6 +321,116 @@ try {
       process.exit(1);
     }
     process.exit((result.configReport?.counts.fail ?? 0) > 0 ? 1 : 0);
+  }
+
+  if (cmd === 'fix') {
+    const fixId = opts.positional[1];
+    if (!fixId) {
+      throw new Error('fix requires <fixId> (e.g. fix.config.restore-lkg, fix.proc.kill-orphans, fix.proc.stale-socket)');
+    }
+    if (opts.positional.length > 2) {
+      throw new Error(`unexpected argument for fix: ${opts.positional[2]}`);
+    }
+
+    const registry = createRegistry(ALL_PACKS);
+    const preview = await previewFix(registry, ctx, fixId, { target: opts.target });
+    if (!preview.ok) {
+      if (preview.unknownFix) {
+        throw new Error(preview.error);
+      }
+      if (opts.json) {
+        console.log(JSON.stringify(preview, null, 2));
+      } else {
+        console.error(`cindy-doctor fix: ${preview.error}`);
+      }
+      process.exit(1);
+    }
+
+    const { fix, plan } = preview;
+    if (!opts.json) {
+      console.log(`Fix plan for ${fix.id}:`);
+      for (const step of plan.steps) {
+        console.log(`  - ${step}`);
+      }
+      if (plan.touches.length > 0) {
+        console.log(`Touches (${plan.touches.length}): ${plan.touches.join(', ')}`);
+      }
+    }
+
+    const needsAppClosedNow = fix.needsAppClosed || Boolean(plan.requiresAppClosed);
+    if (needsAppClosedNow) {
+      const { detectAppRunningState } = await import(
+        path.join(CINDY_ROOT, 'packages/maker-core/src/doctor/packs/processes.ts')
+      );
+      const running = ctx.appRunning ?? (await detectAppRunningState(ctx)).running;
+      if (running) {
+        const msg = `Refused: fix "${fix.id}" requires Cindy desktop app to be closed.`;
+        if (opts.json) {
+          console.log(JSON.stringify({ ok: false, rolledBack: false, message: msg, plan, recheck: [] }, null, 2));
+        } else {
+          console.error(`cindy-doctor fix: ${msg}`);
+        }
+        process.exit(1);
+      }
+    }
+
+    if (plan.meta && typeof plan.meta.refusalReason === 'string' && plan.meta.refusalReason.length > 0) {
+      if (opts.json) {
+        console.log(JSON.stringify({ ok: false, rolledBack: false, message: plan.meta.refusalReason, plan, recheck: [] }, null, 2));
+      } else {
+        console.error(`cindy-doctor fix: ${plan.meta.refusalReason}`);
+      }
+      process.exit(1);
+    }
+
+    if (!opts.yes) {
+      const confirmed = opts.json ? false : await promptConfirmRollback();
+      if (!confirmed) {
+        if (opts.json) {
+          console.log(
+            JSON.stringify(
+              {
+                ok: false,
+                rolledBack: false,
+                fixId: fix.id,
+                plan,
+                message: 'Confirmation required: re-run with --yes',
+                recheck: [],
+              },
+              null,
+              2,
+            ),
+          );
+        } else {
+          console.error('Fix cancelled (pass --yes to apply without interactive prompt).');
+        }
+        process.exit(1);
+      }
+    }
+
+    const outcome = await applyFix(registry, ctx, plan);
+    if (opts.json) {
+      console.log(JSON.stringify({ ...outcome, plan }, null, 2));
+    } else {
+      console.log(`${outcome.ok ? 'Applied' : 'Failed'}: ${outcome.message}`);
+      if (outcome.rolledBack) {
+        console.log('Rolled back automatically to pre-fix snapshot.');
+      }
+      if (outcome.preFixSnapshotStamp) {
+        console.log(`Pre-fix snapshot: ${outcome.preFixSnapshotStamp}`);
+      }
+      if (outcome.fixLogPath) {
+        console.log(`Fix log: ${outcome.fixLogPath}`);
+      }
+      if (outcome.recheck.length > 0) {
+        console.log('');
+        for (const item of outcome.recheck) {
+          console.log(`  [${item.severity.toUpperCase()}] ${item.id}: ${item.summary}`);
+        }
+      }
+    }
+
+    process.exit(outcome.ok ? 0 : 1);
   }
 
   if (cmd !== undefined) {

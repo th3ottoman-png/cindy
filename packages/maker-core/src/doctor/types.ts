@@ -65,6 +65,8 @@ export interface FixPlan {
   target?: string;
   steps: string[];
   touches: string[];
+  requiresAppClosed?: boolean;
+  meta?: Record<string, unknown>;
 }
 
 export interface FixOutcome {
@@ -72,6 +74,8 @@ export interface FixOutcome {
   rolledBack: boolean;
   message: string;
   recheck: CheckResult[];
+  preFixSnapshotStamp?: string;
+  fixLogPath?: string;
 }
 
 export interface DoctorFix {
@@ -169,6 +173,12 @@ export interface DoctorContext {
   sqliteQuickCheck?: (dbPath: string) => Promise<string[]> | string[];
   /** Symlink-safe lstat seam for `data.storage` (defaults to `node:fs/promises` `lstat`). */
   lstat?: typeof import('node:fs/promises')['lstat'];
+  /** Process signaling seam for `fix.proc.kill-orphans` (defaults to `process.kill`). */
+  sendSignal?: (pid: number, signal: NodeJS.Signals | 0) => void;
+  /** Sleep seam for `fix.proc.kill-orphans` grace wait. */
+  sleep?: (ms: number) => Promise<void>;
+  /** Override for the 3000 ms SIGTERM -> SIGKILL grace period in tests. */
+  orphanGraceMs?: number;
 }
 
 export interface RunChecksOptions {
