@@ -81,6 +81,9 @@
     "./capability-budget": "./src/capabilities/capability-budget.ts",
     "./injection-guard": "./src/security/injection-guard.ts",
     "./guard-config": "./src/security/guard-config.ts",
+    "./guardrails-yaml": "./src/security/guardrails-yaml.ts",
+    "./web-budget-yaml": "./src/agents/hermes/web-budget-yaml.ts",
+    "./hermes-config-parsers": "./src/agents/hermes/hermes-config-parsers.ts",
     "./doctor": "./src/doctor/index.ts"
   },
   "scripts": {

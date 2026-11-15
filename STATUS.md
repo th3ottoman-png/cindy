@@ -10,6 +10,35 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (bb) - 14.3 Config pack (`config.*` checks): `live-proven`
+
+- **Row**: 14.3 closed `live-proven`. Evidence at `docs/evidence/14.3-config-pack-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.3-config-pack-live-proof.md`). Endpoints/processes/data packs (`14.4`) stay open.
+- **Changed**:
+  - `packages/maker-core/package.json` — added exports `./guardrails-yaml`, `./web-budget-yaml`, `./hermes-config-parsers`.
+  - NEW pure shared parser modules in `@cindy/maker-core`:
+    - `packages/maker-core/src/security/guardrails-yaml.ts` (`parseGuardrailsYaml`, `DEFAULT_GUARDRAILS_CONFIG`, types).
+    - `packages/maker-core/src/agents/hermes/web-budget-yaml.ts` (`parseWebBudgetYaml`, `defaultWebBudgetConfig`, constants/types).
+    - `packages/maker-core/src/agents/hermes/hermes-config-parsers.ts` (`parseHermesDefaultRoute`, `parseHermesFallbackModel`, `parseHermesMcpServers`, `parseHermesCustomProviders`, `parseHermesCustomProviderBaseUrls`).
+  - `packages/maker-core/src/agents/hermes/hermes-provider-env.ts` — added `parseHermesDotEnv`.
+  - `packages/maker-core/src/experts/expert-loader.ts` — extracted pure `parseExpertMarkdown(raw, meta)` so `loadExpert` and doctor share one validator.
+  - `packages/maker-hermes-manager/src/{hermes-models.ts,guardrails.ts,web-budget.ts,hermes-config.ts}` — re-exported the shared pure parsers from `@cindy/maker-core`; rebuilt `hermes-mgr.mjs` and copied to `apps/desktop/resources/hermes-manager/hermes-mgr.mjs` (`HERMES_MGR_BUNDLE_VERSION` unchanged at `0.3.2`).
+  - NEW `packages/maker-core/src/doctor/packs/config.ts` — `configPack` with all 7 checks in registration order: `config.providers` (keyEnv names only in `env` or `hermesHome/.env`), `config.routing` (incl. 13.8 `workers.allowed_routes` & `council:` refs), `config.experts` (`expert.md`, `tools.yaml`, route refs, MCP catalog via `buildMcpCatalog`, 25 Hermes toolsets), `config.guardrails`, `config.web-budget`, `config.small-json` (fixed stores + `*-sessions.json` with strict JSON scanner exact byte offsets), `config.hermes` (read-only + `isDailyHermesPath` guard + `custom_providers` local-route check).
+  - `packages/maker-core/src/doctor/packs/index.ts` — registered `configPack` in `ALL_PACKS`.
+  - NEW `packages/maker-core/src/doctor/__tests__/packs-14.3.test.ts` (10 tests).
+- **Live proof** (`0` API spend, `0` model turns; backup `~/.cindy-harness/routing.yaml.bak-2026-11-15-14.3`):
+  - Baseline `pnpm run doctor --only config`: `7 ok / 0 warn / 0 fail / 0 skip` (`exit 0`; 3 providers, 4 routes / 6 rules, 14 experts, guardrails, 8 JSON stores, 2 custom providers).
+  - Temporary dangling provider route injected (`nonexistent-provider-14-3` at line 4): `FAIL config.routing routing.yaml (line 4): routes.doctor-dangling-proof: unknown provider "nonexistent-provider-14-3" (not in providers.yaml)` with `→` action (`exit 1`).
+  - Atomically restored from backup, verified byte-exact (`cmp` exit `0`), re-ran `pnpm run doctor --only config` (`7 ok`, `exit 0`), and verified full `node scripts/cindy-doctor.mjs --json` (`17 ok · 1 warn (runtime.hermes.pin 0.23.1 vs 0.22.7) · 0 fail · 0 skip`, `exit 0`).
+- **Gates (Tier 2, Node `v22.23.4`, `unset XDT_ISOLATED NODE_OPTIONS`, staged code+tests+evidence)**:
+  - Doctor suite (`src/doctor/__tests__/`): **PASS** (5 files, 44/44 tests); `src/experts/`: **PASS** (11 files, 194/194 tests); `packages/maker-hermes-manager`: **PASS** (30 files, 454/454 tests).
+  - `pnpm typecheck`: **RC=0** (37 workspace projects).
+  - `pnpm test:runner`: **RC=0** (615 tests / 613 pass / 0 fail / 2 skipped, `77.4s`).
+  - `pnpm test:unit:related`: **RC=0** (all workspace legs PASS; `apps/desktop unit` `411.6s` on automatic V8 teardown SIGSEGV retry, `packages/maker-core unit` `50.1s`, `packages/maker-hermes-manager unit` `11.6s`).
+  - `pnpm check:test-hygiene`: **RC=0** (`PASS (361 files within baseline)`).
+- **Next**: Phase 14 row **14.4** (Endpoints, processes & data packs).
+
+---
+
 ## 2026-11-15 (ba) - 14.2 `pnpm run doctor` CLI + environment & runtimes packs: `live-proven`
 
 - **Row**: 14.2 closed `live-proven`. Evidence at `docs/evidence/14.2-doctor-cli-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.2-doctor-cli-live-proof.md`). Config pack (`14.3`) stays open.

@@ -46,3 +46,21 @@ export function collectHermesProviderEnv(provider?: string): Record<string, stri
   }
   return out;
 }
+
+/** Read `KEY=value` pairs from a Hermes home `.env` body (no shell semantics). */
+export function parseHermesDotEnv(body: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const rawLine of body.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (key && value) out[key] = value;
+  }
+  return out;
+}

@@ -111,6 +111,84 @@ function listSkillFiles(dir: string): string[] {
 }
 
 /** Load one expert directory. Never throws: failures come back as `error`. */
+/**
+ * Validate and parse one `expert.md` body without performing filesystem I/O.
+ * Shared by {@link loadExpert} and the doctor config pack.
+ */
+export function parseExpertMarkdown(
+  raw: string,
+  meta: {
+    slug: string;
+    dir: string;
+    skillFiles?: string[];
+    toolsFile?: string;
+    toolsPolicy?: ExpertToolsPolicy;
+    knowledgeDir?: string;
+  },
+): Expert {
+  // gray-matter caches by input string; pass an empty options object to skip the cache
+  // so a re-read after an edit is never stale.
+  const parsed = matter(raw, {});
+  const data = parsed.data as Record<string, unknown>;
+
+  const name = typeof data.name === 'string' ? data.name.trim() : '';
+  if (!name) throw new Error('frontmatter "name" is required');
+
+  const agentRaw = data.agent === undefined ? 'hermes' : data.agent;
+  if (typeof agentRaw !== 'string' || !(EXPERT_AGENTS as readonly string[]).includes(agentRaw)) {
+    throw new Error(`"agent" must be one of ${EXPERT_AGENTS.join(', ')}`);
+  }
+
+  if (data.description !== undefined && typeof data.description !== 'string') {
+    throw new Error('"description" must be a string');
+  }
+  if (data.model !== undefined && (typeof data.model !== 'string' || !data.model.trim())) {
+    throw new Error('"model" must be a non-empty string (a route name)');
+  }
+  if (
+    data.max_concurrent !== undefined &&
+    (typeof data.max_concurrent !== 'number' || !Number.isInteger(data.max_concurrent) || data.max_concurrent < 1)
+  ) {
+    throw new Error('"max_concurrent" must be an integer of at least 1');
+  }
+  let temperature: number | undefined;
+  if (data.temperature !== undefined) {
+    if (typeof data.temperature !== 'number' || data.temperature < 0 || data.temperature > 2) {
+      throw new Error('"temperature" must be a number between 0 and 2');
+    }
+    temperature = data.temperature;
+  }
+  if (data.memory !== undefined && typeof data.memory !== 'boolean') {
+    throw new Error('"memory" must be true or false');
+  }
+
+  const toolsets = optionalToolsets(data);
+
+  const prompt = parsed.content.trim();
+  if (!prompt) throw new Error('expert.md has no system prompt body');
+
+  return {
+    slug: meta.slug,
+    dir: meta.dir,
+    name,
+    description: typeof data.description === 'string' ? data.description.trim() : '',
+    agent: agentRaw as ExpertAgent,
+    ...(typeof data.model === 'string' ? { model: data.model.trim() } : {}),
+    ...(typeof data.max_concurrent === 'number' ? { maxConcurrent: data.max_concurrent } : {}),
+    ...(temperature !== undefined ? { temperature } : {}),
+    tools: optionalStringList(data, 'tools'),
+    ...(toolsets ? { toolsets } : {}),
+    skills: optionalStringList(data, 'skills'),
+    memory: data.memory === true,
+    tags: optionalStringList(data, 'tags'),
+    prompt,
+    skillFiles: meta.skillFiles ?? [],
+    ...(meta.toolsFile ? { toolsFile: meta.toolsFile } : {}),
+    ...(meta.toolsPolicy ? { toolsPolicy: meta.toolsPolicy } : {}),
+    ...(meta.knowledgeDir ? { knowledgeDir: meta.knowledgeDir } : {}),
+  };
+}
+
 export function loadExpert(dir: string): ExpertEntry {
   const slug = path.basename(dir);
   const entry: ExpertEntry = { slug, dir };
@@ -122,76 +200,27 @@ export function loadExpert(dir: string): ExpertEntry {
     } catch {
       throw new Error('expert.md is missing');
     }
-    // gray-matter caches by input string; pass an empty options object to skip the cache
-    // so a re-read after an edit is never stale.
-    const parsed = matter(raw, {});
-    const data = parsed.data as Record<string, unknown>;
-
-    const name = typeof data.name === 'string' ? data.name.trim() : '';
-    if (!name) throw new Error('frontmatter "name" is required');
-
-    const agentRaw = data.agent === undefined ? 'hermes' : data.agent;
-    if (typeof agentRaw !== 'string' || !(EXPERT_AGENTS as readonly string[]).includes(agentRaw)) {
-      throw new Error(`"agent" must be one of ${EXPERT_AGENTS.join(', ')}`);
-    }
-
-    if (data.description !== undefined && typeof data.description !== 'string') {
-      throw new Error('"description" must be a string');
-    }
-    if (data.model !== undefined && (typeof data.model !== 'string' || !data.model.trim())) {
-      throw new Error('"model" must be a non-empty string (a route name)');
-    }
-    if (data.max_concurrent !== undefined &&
-      (typeof data.max_concurrent !== 'number' || !Number.isInteger(data.max_concurrent) || data.max_concurrent < 1)) {
-      throw new Error('"max_concurrent" must be an integer of at least 1');
-    }
-    let temperature: number | undefined;
-    if (data.temperature !== undefined) {
-      if (typeof data.temperature !== 'number' || data.temperature < 0 || data.temperature > 2) {
-        throw new Error('"temperature" must be a number between 0 and 2');
-      }
-      temperature = data.temperature;
-    }
-    if (data.memory !== undefined && typeof data.memory !== 'boolean') {
-      throw new Error('"memory" must be true or false');
-    }
-
-    const toolsets = optionalToolsets(data);
-
-    const prompt = parsed.content.trim();
-    if (!prompt) throw new Error('expert.md has no system prompt body');
 
     const toolsFile = path.join(dir, 'tools.yaml');
     let toolsPolicy: ExpertToolsPolicy | undefined;
-    if (exists(toolsFile)) {
-      const parsed = loadExpertToolsFile(toolsFile);
-      if (parsed.issues.length > 0) {
-        throw new Error(`tools.yaml: ${parsed.issues.map((i) => `${i.where}: ${i.message}`).join('; ')}`);
+    const hasToolsFile = exists(toolsFile);
+    if (hasToolsFile) {
+      const parsedTools = loadExpertToolsFile(toolsFile);
+      if (parsedTools.issues.length > 0) {
+        throw new Error(`tools.yaml: ${parsedTools.issues.map((i) => `${i.where}: ${i.message}`).join('; ')}`);
       }
-      toolsPolicy = parsed.policy;
+      toolsPolicy = parsedTools.policy;
     }
 
     const knowledgeDir = path.join(dir, 'knowledge');
-    entry.expert = {
+    entry.expert = parseExpertMarkdown(raw, {
       slug,
       dir,
-      name,
-      description: typeof data.description === 'string' ? data.description.trim() : '',
-      agent: agentRaw as ExpertAgent,
-      ...(typeof data.model === 'string' ? { model: data.model.trim() } : {}),
-      ...(typeof data.max_concurrent === 'number' ? { maxConcurrent: data.max_concurrent } : {}),
-      ...(temperature !== undefined ? { temperature } : {}),
-      tools: optionalStringList(data, 'tools'),
-      ...(toolsets ? { toolsets } : {}),
-      skills: optionalStringList(data, 'skills'),
-      memory: data.memory === true,
-      tags: optionalStringList(data, 'tags'),
-      prompt,
       skillFiles: listSkillFiles(dir),
-      ...(exists(toolsFile) ? { toolsFile } : {}),
+      ...(hasToolsFile ? { toolsFile } : {}),
       ...(toolsPolicy ? { toolsPolicy } : {}),
       ...(exists(knowledgeDir) ? { knowledgeDir } : {}),
-    };
+    });
   } catch (error) {
     entry.error = error instanceof Error ? error.message : String(error);
   }

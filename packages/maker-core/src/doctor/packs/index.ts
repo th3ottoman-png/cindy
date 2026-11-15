@@ -5,12 +5,14 @@
  */
 
 import type { DoctorPack } from '../types.js';
+import { configPack } from './config.js';
 import { environmentPack } from './environment.js';
 import { runtimesPack } from './runtimes.js';
 
-export { environmentPack, runtimesPack };
+export { configPack, environmentPack, runtimesPack };
 
 export const ALL_PACKS: readonly DoctorPack[] = [
   environmentPack,
   runtimesPack,
+  configPack,
 ];

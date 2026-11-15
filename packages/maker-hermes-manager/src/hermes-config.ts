@@ -27,13 +27,26 @@
 import { randomBytes } from 'node:crypto';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
+import {
+  parseHermesCustomProviderBaseUrls,
+  parseHermesCustomProviders,
+  parseHermesDefaultRoute,
+  parseHermesFallbackModel,
+  parseHermesMcpServers,
+  type HermesDefaultRoute,
+  type HermesFallbackModel,
+} from '@cindy/maker-core/hermes-config-parsers';
 import type { HermesLocalContextWindowEntry, HermesMcpServerConfig } from './protocol.js';
 
-export interface HermesDefaultRoute {
-  model?: string;
-  provider?: string;
-  baseUrl?: string;
-}
+export {
+  parseHermesCustomProviderBaseUrls,
+  parseHermesCustomProviders,
+  parseHermesDefaultRoute,
+  parseHermesFallbackModel,
+  parseHermesMcpServers,
+  type HermesDefaultRoute,
+  type HermesFallbackModel,
+};
 
 function unquote(value: string): string {
   const v = value.trim();
@@ -51,40 +64,6 @@ function yamlScalar(value: string): string {
   // Plain scalars stay plain (matches the hand-written config style); anything
   // with YAML-special characters goes double-quoted.
   return /^[A-Za-z0-9._/:~-]+$/.test(value) ? value : JSON.stringify(value);
-}
-
-/** Parse only the top-level `model:` block of a Hermes config.yaml body. */
-export function parseHermesDefaultRoute(configYaml: string): HermesDefaultRoute {
-  const lines = configYaml.split(/\r?\n/);
-  const route: HermesDefaultRoute = {};
-  let inModelBlock = false;
-  let blockIndent: number | null = null;
-
-  for (const rawLine of lines) {
-    if (inModelBlock) {
-      if (!rawLine.trim() || rawLine.trimStart().startsWith('#')) continue;
-      const indent = rawLine.length - rawLine.trimStart().length;
-      if (blockIndent === null) blockIndent = indent;
-      // A dedented line ends the block.
-      if (indent < blockIndent) break;
-      const match = /^([A-Za-z0-9_]+)\s*:\s*(.*)$/.exec(rawLine.trim());
-      if (!match) continue;
-      const [, key, value] = match;
-      const parsed = unquote(value);
-      if (!parsed) continue;
-      if (key === 'default') route.model = parsed;
-      else if (key === 'provider') route.provider = parsed;
-      else if (key === 'base_url') route.baseUrl = parsed;
-      continue;
-    }
-    // Top-level `model:` only — a nested `model:` under another block must not
-    // hijack the route (the writer relies on the same rule).
-    if (/^model\s*:(\s|#|$)/.test(rawLine)) {
-      inModelBlock = true;
-      blockIndent = null;
-    }
-  }
-  return route;
 }
 
 /** Read the home's default route; never throws. */
@@ -206,45 +185,12 @@ function escapeRegex(str: string): string {
  * connection failures. Same surgical rules as the `model:` block: read and
  * rewrite only that top-level block, keep every other byte of the file.
  */
-export interface HermesFallbackModel {
-  provider?: string;
-  model?: string;
-  baseUrl?: string;
-  /** NAME of the environment variable holding the key (custom endpoints). */
-  keyEnv?: string;
-}
-
 const FALLBACK_FIELDS: ReadonlyArray<readonly [keyof HermesFallbackModel, string]> = [
   ['provider', 'provider'],
   ['model', 'model'],
   ['baseUrl', 'base_url'],
   ['keyEnv', 'key_env'],
 ];
-
-/** Parse only the top-level `fallback_model:` block; null when absent. */
-export function parseHermesFallbackModel(configYaml: string): HermesFallbackModel | null {
-  const lines = configYaml.split(/\r?\n/);
-  const start = lines.findIndex((line) => /^fallback_model\s*:(\s|#|$)/.test(line));
-  if (start === -1) return null;
-  const fallback: HermesFallbackModel = {};
-  let blockIndent: number | null = null;
-  for (let index = start + 1; index < lines.length; index += 1) {
-    const rawLine = lines[index]!;
-    if (!rawLine.trim() || rawLine.trimStart().startsWith('#')) continue;
-    const indent = rawLine.length - rawLine.trimStart().length;
-    if (blockIndent === null) blockIndent = indent;
-    if (indent < blockIndent) break;
-    const match = /^([A-Za-z0-9_]+)\s*:\s*(.*)$/.exec(rawLine.trim());
-    if (!match) continue;
-    const parsed = unquote(match[2]!);
-    if (!parsed) continue;
-    if (match[1] === 'provider') fallback.provider = parsed;
-    else if (match[1] === 'model') fallback.model = parsed;
-    else if (match[1] === 'base_url') fallback.baseUrl = parsed;
-    else if (match[1] === 'key_env') fallback.keyEnv = parsed;
-  }
-  return fallback;
-}
 
 /** Read the home's fallback model; never throws. */
 export async function readHermesFallbackModel(hermesHome: string): Promise<HermesFallbackModel | null> {
@@ -310,136 +256,6 @@ export async function writeHermesFallbackModel(
   const next = lines.length > 0 ? lines.join(newline) + newline : '';
   await writeFileAtomic(configPath, next);
   return parseHermesFallbackModel(next);
-}
-
-/**
- * Parse only the top-level `mcp_servers:` block of a Hermes config.yaml body.
- * Tolerates comments, blank lines, and nested structures (args, headers, env).
- */
-export function parseHermesMcpServers(
-  configYaml: string,
-): Record<string, HermesMcpServerConfig> {
-  const lines = configYaml.split(/\r?\n/);
-  const servers: Record<string, HermesMcpServerConfig> = {};
-  let inMcpBlock = false;
-  let currentServer: HermesMcpServerConfig | null = null;
-  let serverIndent: number | null = null;
-  let currentSubKey: 'args' | 'headers' | 'env' | null = null;
-  let subKeyIndent: number | null = null;
-
-  for (const rawLine of lines) {
-    const trimmed = rawLine.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const indent = rawLine.length - rawLine.trimStart().length;
-
-    if (!inMcpBlock) {
-      if (/^mcp_servers\s*:(\s|#|$)/.test(rawLine)) {
-        inMcpBlock = true;
-      }
-      continue;
-    }
-
-    // Dedented to column 0: top-level section ended
-    if (indent === 0) {
-      break;
-    }
-
-    if (serverIndent === null) {
-      serverIndent = indent;
-    }
-
-    // A new server header at serverIndent
-    if (indent === serverIndent) {
-      const match = /^([A-Za-z0-9_.-]+)\s*:\s*(.*)$/.exec(trimmed);
-      if (match) {
-        const currentServerName = match[1]!;
-        currentServer = {};
-        servers[currentServerName] = currentServer;
-        currentSubKey = null;
-        subKeyIndent = null;
-        continue;
-      }
-    }
-
-    // Server properties (nested under currentServer)
-    if (currentServer && indent > serverIndent) {
-      // Sub-block handling (headers, env, or args list items)
-      if (subKeyIndent !== null && indent > subKeyIndent) {
-        if (currentSubKey === 'args') {
-          if (trimmed.startsWith('- ') || trimmed === '-') {
-            const item = unquote(trimmed.replace(/^-\s*/, ''));
-            if (item) {
-              currentServer.args = currentServer.args ?? [];
-              currentServer.args.push(item);
-            }
-          }
-          continue;
-        }
-
-        const match = /^([A-Za-z0-9_.-]+)\s*:\s*(.*)$/.exec(trimmed);
-        if (match) {
-          const [, subK, subV] = match;
-          const parsed = unquote(subV);
-          if (currentSubKey === 'headers') {
-            currentServer.headers = currentServer.headers ?? {};
-            currentServer.headers[subK!] = parsed;
-          } else if (currentSubKey === 'env') {
-            currentServer.env = currentServer.env ?? {};
-            currentServer.env[subK!] = parsed;
-          }
-          continue;
-        }
-      }
-
-      // If we got here, we're not inside a deeper sub-block
-      subKeyIndent = null;
-      currentSubKey = null;
-
-      const match = /^([A-Za-z0-9_.-]+)\s*:\s*(.*)$/.exec(trimmed);
-      if (!match) continue;
-      const [, key, rest] = match;
-      const val = unquote(rest);
-
-      if (key === 'command') {
-        currentServer.command = val;
-      } else if (key === 'url') {
-        currentServer.url = val;
-      } else if (key === 'cwd') {
-        currentServer.cwd = val;
-      } else if (key === 'auth') {
-        currentServer.auth = val;
-      } else if (key === 'disabled') {
-        currentServer.disabled = val.toLowerCase() === 'true';
-      } else if (key === 'args') {
-        currentSubKey = 'args';
-        subKeyIndent = indent;
-        if (val.startsWith('[') && val.endsWith(']')) {
-          try {
-            const parsed = JSON.parse(val);
-            if (Array.isArray(parsed)) {
-              currentServer.args = parsed.map(String);
-            }
-          } catch {
-            currentServer.args = val
-              .slice(1, -1)
-              .split(',')
-              .map((s) => unquote(s))
-              .filter(Boolean);
-          }
-        }
-      } else if (key === 'headers') {
-        currentSubKey = 'headers';
-        subKeyIndent = indent;
-        currentServer.headers = currentServer.headers ?? {};
-      } else if (key === 'env') {
-        currentSubKey = 'env';
-        subKeyIndent = indent;
-        currentServer.env = currentServer.env ?? {};
-      }
-    }
-  }
-
-  return servers;
 }
 
 /** Read configured MCP servers from $HERMES_HOME/config.yaml; never throws. */
@@ -833,130 +649,6 @@ function findCustomProvidersBlock(lines: string[]): CustomProvidersBlock {
     }
   }
   return { start, end };
-}
-
-/**
- * Parse the top-level `custom_providers:` list of a Hermes config.yaml body.
- * Only complete entries (base_url + integer context_length) are returned;
- * entry-level keys deeper than the item's own indent (e.g. a `models:`
- * override block) are ignored.
- */
-export function parseHermesCustomProviders(
-  configYaml: string,
-): HermesLocalContextWindowEntry[] {
-  const lines = configYaml.split(/\r?\n/);
-  const { start, end } = findCustomProvidersBlock(lines);
-  if (start === -1) return [];
-
-  const entries: HermesLocalContextWindowEntry[] = [];
-  let current: { name: string; baseUrl: string; contextLength: number | null } | null = null;
-  let itemIndent: number | null = null;
-
-  const flush = (): void => {
-    if (current && current.baseUrl && current.contextLength !== null) {
-      entries.push({
-        name: current.name,
-        baseUrl: current.baseUrl,
-        contextLength: current.contextLength,
-      });
-    }
-    current = null;
-  };
-
-  const readKey = (content: string): void => {
-    if (!current) return;
-    const match = /^([A-Za-z0-9_]+)\s*:\s*(.*)$/.exec(content);
-    if (!match) return;
-    const [, key, rawValue] = match;
-    const value = unquote(rawValue!);
-    if (key === 'name') current.name = value;
-    else if (key === 'base_url') current.baseUrl = value;
-    else if (key === 'context_length') {
-      const n = Number(value);
-      if (Number.isInteger(n) && n > 0) current.contextLength = n;
-    }
-  };
-
-  for (let i = start + 1; i < end; i++) {
-    const line = lines[i]!;
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const indent = line.length - line.trimStart().length;
-    const itemMatch = /^(\s*)-\s*(.*)$/.exec(line);
-    if (itemMatch && (itemIndent === null || indent <= itemIndent)) {
-      flush();
-      itemIndent = itemMatch[1]!.length;
-      current = { name: '', baseUrl: '', contextLength: null };
-      readKey(itemMatch[2]!);
-      continue;
-    }
-    // Continuation line: entry-level keys sit at itemIndent + 2; anything
-    // deeper belongs to a nested block (e.g. per-model overrides).
-    if (current && itemIndent !== null && indent <= itemIndent + 2) {
-      readKey(trimmed);
-    }
-  }
-  flush();
-  return entries;
-}
-
-/**
- * `name → base_url` for the home's `custom_providers:` (and `providers:`) list entries.
- *
- * `--safe-mode` implies `--ignore-user-config`, so a `--provider <name>` that only exists in
- * that config cannot resolve and Hermes exits with `Unknown provider '<name>'` before any model
- * call (ROADMAP §Debt). The built-in `custom` provider plus `--base-url` is the same endpoint
- * without needing the config, so the daemon hands this map to the argv builder.
- *
- * Only list-shaped entries (`- name: …` + `base_url:`) are read; an entry without a usable
- * base_url is omitted, and any other block shape yields nothing, so the caller leaves the
- * route untouched rather than guessing. Comments and the entries' other keys are ignored.
- */
-export function parseHermesCustomProviderBaseUrls(configYaml: string): Map<string, string> {
-  const out = new Map<string, string>();
-  const lines = configYaml.split(/\r?\n/);
-  let inBlock = false;
-  let itemIndent: number | null = null;
-  let current: { name: string; baseUrl: string } | null = null;
-
-  const flush = (): void => {
-    if (current && current.name && current.baseUrl) out.set(current.name, current.baseUrl);
-    current = null;
-  };
-  const readKey = (content: string): void => {
-    if (!current) return;
-    const match = /^([A-Za-z0-9_]+)\s*:\s*(.*)$/.exec(content);
-    if (!match) return;
-    const value = unquote(match[2]!);
-    if (match[1] === 'name') current.name = value;
-    else if (match[1] === 'base_url' || match[1] === 'baseUrl') current.baseUrl = value;
-  };
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const indent = line.length - line.trimStart().length;
-    if (indent === 0) {
-      flush();
-      itemIndent = null;
-      const header = /^([A-Za-z0-9_]+)\s*:(\s|#|$)/.exec(line)?.[1];
-      inBlock = header === 'custom_providers' || header === 'providers';
-      continue;
-    }
-    if (!inBlock) continue;
-    const item = /^(\s*)-\s*(.*)$/.exec(line);
-    if (item && (itemIndent === null || item[1]!.length <= itemIndent)) {
-      flush();
-      itemIndent = item[1]!.length;
-      current = { name: '', baseUrl: '' };
-      readKey(item[2]!);
-      continue;
-    }
-    // Continuation keys sit one level under the item; anything deeper is a nested block.
-    if (current && itemIndent !== null && indent <= itemIndent + 2) readKey(trimmed);
-  }
-  flush();
-  return out;
 }
 
 /** Read {@link parseHermesCustomProviderBaseUrls} from a home; missing/unreadable → empty. */
