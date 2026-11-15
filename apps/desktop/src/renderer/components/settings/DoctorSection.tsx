@@ -18,6 +18,7 @@ import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import {
   applyDoctorFix,
+  createDoctorBundle,
   listDoctorSnapshots,
   previewDoctorFix,
   refreshDoctorState,
@@ -114,6 +115,7 @@ export function DoctorSection() {
   const lastReportKeyRef = useRef<string | null>(null);
 
   const [copiedReport, setCopiedReport] = useState(false);
+  const [copyingReport, setCopyingReport] = useState(false);
   const [copiedCliKey, setCopiedCliKey] = useState<string | null>(null);
 
   const [previewLoadingFixId, setPreviewLoadingFixId] = useState<string | null>(null);
@@ -195,15 +197,31 @@ export function DoctorSection() {
   };
 
   const handleCopyReport = async () => {
-    if (!report) return;
-    const markdown = formatDoctorReportMarkdown(report);
-    const ok = await copyTextToClipboard(markdown);
-    if (ok) {
-      setCopiedReport(true);
-      toast.success('Copied diagnostic report');
-      setTimeout(() => setCopiedReport(false), 1800);
-    } else {
-      toast.error('Clipboard unavailable');
+    if (!report || copyingReport) return;
+    try {
+      setCopyingReport(true);
+      const bundle = await createDoctorBundle();
+      const markdown = bundle ? bundle.markdown : formatDoctorReportMarkdown(report);
+      const ok = await copyTextToClipboard(markdown);
+      if (ok) {
+        setCopiedReport(true);
+        toast.success(
+          bundle
+            ? `Copied incident bundle (${bundle.displayPath})`
+            : 'Copied diagnostic report',
+        );
+        setTimeout(() => setCopiedReport(false), 1800);
+      } else {
+        toast.error(
+          bundle
+            ? `Saved bundle to ${bundle.displayPath}, but clipboard is unavailable`
+            : 'Clipboard unavailable',
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create incident bundle');
+    } finally {
+      setCopyingReport(false);
     }
   };
 
@@ -422,13 +440,18 @@ export function DoctorSection() {
               type="button"
               size="sm"
               variant="secondary"
-              disabled={!report}
+              disabled={!report || copyingReport}
               onClick={() => void handleCopyReport()}
             >
               {copiedReport ? (
                 <>
                   <Check className="mr-1.5 h-3.5 w-3.5" />
                   Copied
+                </>
+              ) : copyingReport ? (
+                <>
+                  <Spinner className="mr-1.5 h-3.5 w-3.5" />
+                  Preparing...
                 </>
               ) : (
                 <>

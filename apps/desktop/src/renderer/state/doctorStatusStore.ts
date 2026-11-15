@@ -9,6 +9,7 @@ import type {
   DoctorUiState,
   FixOutcome,
   FixPlan,
+  IncidentBundleResult,
   LkgSnapshotManifest,
   LkgSnapshotRecord,
 } from '../../shared/doctor';
@@ -183,6 +184,14 @@ export async function takeDoctorSnapshot(reason = 'manual'): Promise<LkgSnapshot
     throw new Error('Doctor IPC API is unavailable');
   }
   return api.snapshot({ reason });
+}
+
+export async function createDoctorBundle(): Promise<IncidentBundleResult | null> {
+  const api = getDoctorApi();
+  if (!api || typeof api.bundle !== 'function') {
+    return null;
+  }
+  return api.bundle();
 }
 
 export function useDoctorStatus() {

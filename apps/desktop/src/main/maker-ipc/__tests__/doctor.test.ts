@@ -182,6 +182,25 @@ describe('DesktopDoctorHost & IPC handlers (ROADMAP 14.8)', () => {
       manifest: { reason: string } | null;
     }>;
     expect(snapshots.some((s) => s.manifest?.reason === 'manual-test')).toBe(true);
+
+    await fs.writeFile(
+      path.join(env.hermesHome, '.env'),
+      'TOKENHUB_API_KEY=ipc-bundle-secret-xyz-123456\n',
+      'utf8',
+    );
+    const bundle = (await harness.invoke(MAKER_INVOKE.DOCTOR_BUNDLE)) as {
+      stamp: string;
+      path: string;
+      displayPath: string;
+      markdown: string;
+    };
+    expect(bundle.displayPath).toBe(`~/.cindy-harness/doctor/bundles/${bundle.stamp}.md`);
+    expect(bundle.markdown).toContain('# Cindy Doctor Incident Bundle');
+    expect(bundle.markdown).toContain('`TOKENHUB_API_KEY`');
+    expect(bundle.markdown).not.toContain('ipc-bundle-secret-xyz-123456');
+    expect(bundle.markdown).not.toContain(env.home);
+    const written = await fs.readFile(bundle.path, 'utf8');
+    expect(written).toBe(bundle.markdown);
   });
 
   it('persists run_on_start in doctor.yaml and skips startup run when disabled', async () => {

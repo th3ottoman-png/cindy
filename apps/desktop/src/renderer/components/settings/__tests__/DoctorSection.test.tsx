@@ -171,6 +171,17 @@ describe('DoctorSection UI (ROADMAP 14.8)', () => {
         reportCounts: { ok: 54, warn: 3, fail: 0, skip: 1 },
         files: [],
       })),
+      bundle: vi.fn(async () => ({
+        stamp: '2026-11-15T12-07-00.000Z',
+        path: '/tmp/.cindy-harness/doctor/bundles/2026-11-15T12-07-00.000Z.md',
+        displayPath: '~/.cindy-harness/doctor/bundles/2026-11-15T12-07-00.000Z.md',
+        createdAt: '2026-11-15T12:07:00.000Z',
+        markdown: '# Cindy Doctor Incident Bundle\n\n## Diagnostic Report (--all)\n\n- `config.routing`\n',
+        bytes: 84,
+        reportCounts: { ok: 1, warn: 1, fail: 2, skip: 0 },
+        configCount: 2,
+        envKeyCount: 1,
+      })),
       onUpdated: vi.fn((cb: (state: DoctorUiState) => void) => {
         listeners.push(cb);
         return () => {
@@ -263,10 +274,11 @@ describe('DoctorSection UI (ROADMAP 14.8)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy report' }));
     await waitFor(() => {
+      expect(api.bundle).toHaveBeenCalledTimes(1);
       expect(navigator.clipboard.writeText).toHaveBeenCalledTimes(1);
     });
     const copied = vi.mocked(navigator.clipboard.writeText).mock.calls[0]?.[0] ?? '';
-    expect(copied).toContain('# Cindy Doctor Report');
+    expect(copied).toContain('# Cindy Doctor Incident Bundle');
     expect(copied).toContain('config.routing');
 
     const toggle = screen.getByRole('switch', { name: 'Run startup health check' });

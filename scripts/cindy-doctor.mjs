@@ -29,6 +29,7 @@ const {
   ALL_PACKS,
   applyFix,
   assertNotDailyHermes,
+  createIncidentBundle,
   createLkgSnapshot,
   createNodeContext,
   createRegistry,
@@ -63,6 +64,7 @@ function printUsage() {
 
 Commands:
   (default)                      Run diagnostic checks
+  bundle                         Write a redacted local incident bundle (~/.cindy-harness/doctor/bundles/<stamp>.md)
   snapshot [--reason <text>]     Capture a last-known-good (LKG) config snapshot
   snapshots                      List stored LKG config snapshots
   rollback <stamp> [--file <rel>] [--yes]
@@ -231,6 +233,42 @@ try {
   assertNotDailyHermes(ctx.paths.hermesHome, ctx.paths.home);
 
   const cmd = opts.positional[0];
+  if (cmd === 'bundle') {
+    if (opts.positional.length > 1) {
+      throw new Error(`unexpected argument for bundle: ${opts.positional[1]}`);
+    }
+    const created = await createIncidentBundle(ctx, {
+      includeApi: opts.includeApi,
+    });
+    if (opts.json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            stamp: created.stamp,
+            path: created.path,
+            displayPath: created.displayPath,
+            createdAt: created.createdAt,
+            bytes: created.bytes,
+            reportCounts: created.reportCounts,
+            configCount: created.configCount,
+            envKeyCount: created.envKeyCount,
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      const c = created.reportCounts;
+      console.log(
+        `Created incident bundle ${created.stamp} (${created.bytes} bytes; ${c.ok} ok, ${c.warn} warn, ${c.fail} fail, ${c.skip} skip)`,
+      );
+      console.log(`Location: ${created.path}`);
+      console.log('Stored locally only (no upload).');
+    }
+    process.exit(0);
+  }
+
   if (cmd === 'snapshot') {
     if (opts.positional.length > 1) {
       throw new Error(`unexpected argument for snapshot: ${opts.positional[1]}`);

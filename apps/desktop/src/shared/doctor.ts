@@ -24,6 +24,7 @@ export type {
   DoctorSettings,
   FixOutcome,
   FixPlan,
+  IncidentBundleResult,
   LkgSnapshotManifest,
   LkgSnapshotRecord,
   Severity,

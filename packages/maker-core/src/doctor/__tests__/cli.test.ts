@@ -407,4 +407,48 @@ describe('scripts/cindy-doctor.mjs CLI (ROADMAP 14.2)', () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
+
+  it('supports `bundle` command writing a redacted local markdown bundle with zero secret leakage', async () => {
+    const s = await setupCliSandbox({ includePi: true });
+    await fs.mkdir(path.join(s.hermesHome, 'logs'), { recursive: true });
+    await fs.writeFile(
+      path.join(s.hermesHome, '.env'),
+      'DEEPSEEK_API_KEY=sk-cli-bundle-secret-value-99112233\n',
+      'utf8',
+    );
+    await fs.writeFile(
+      path.join(s.hermesHome, 'logs', 'agent.log'),
+      `2026-11-15T10:00:00Z INFO home=${s.home} auth=Bearer cli-bundle-bearer-778899 token=sk-cli-bundle-secret-value-99112233\n`,
+      'utf8',
+    );
+    await fs.writeFile(
+      path.join(s.harnessDir, 'routing.yaml'),
+      'routes:\n  local-small:\n    provider: lmstudio\n    model: qwen3-8b\n',
+      'utf8',
+    );
+
+    const res = await runDoctorCli([...s.baseArgs, 'bundle', '--json'], {
+      PATH: `${s.binDir}:/bin:/usr/bin`,
+      HOME: s.home,
+    });
+    expect(res.code).toBe(0);
+    const parsed = JSON.parse(res.stdout) as {
+      ok: boolean;
+      stamp: string;
+      path: string;
+      displayPath: string;
+      envKeyCount: number;
+    };
+    expect(parsed.ok).toBe(true);
+    expect(parsed.envKeyCount).toBe(1);
+    expect(parsed.path.startsWith(path.join(s.harnessDir, 'doctor', 'bundles'))).toBe(true);
+
+    const md = await fs.readFile(parsed.path, 'utf8');
+    expect(md).toContain('# Cindy Doctor Incident Bundle');
+    expect(md).toContain('AGENTS.md');
+    expect(md).toContain('`DEEPSEEK_API_KEY`');
+    expect(md).not.toContain('sk-cli-bundle-secret-value-99112233');
+    expect(md).not.toContain('cli-bundle-bearer-778899');
+    expect(md).not.toContain(s.home);
+  });
 });

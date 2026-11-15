@@ -6000,6 +6000,7 @@ interface ElectronAPI {
       fixApply: (params: import('../shared/doctor').DoctorFixApplyParams) => Promise<import('../shared/doctor').FixOutcome>;
       snapshots: () => Promise<import('../shared/doctor').LkgSnapshotRecord[]>;
       snapshot: (params?: import('../shared/doctor').DoctorSnapshotParams) => Promise<import('../shared/doctor').LkgSnapshotManifest>;
+      bundle: () => Promise<import('../shared/doctor').IncidentBundleResult>;
       onUpdated: (cb: (state: import('../shared/doctor').DoctorUiState) => void) => () => void;
     };
     scheduledSessions: {

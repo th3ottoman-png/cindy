@@ -311,7 +311,7 @@ export async function saveDoctorSettings(
   return next;
 }
 
-interface DiscoveredConfigFile {
+export interface DiscoveredConfigFile {
   rel: string;
   absPath: string;
 }
@@ -325,7 +325,9 @@ async function isRegularNonSymlinkFile(filePath: string): Promise<boolean> {
   }
 }
 
-async function collectConfigSnapshotCandidates(ctx: DoctorContext): Promise<DiscoveredConfigFile[]> {
+export async function collectConfigSnapshotCandidates(
+  ctx: DoctorContext,
+): Promise<DiscoveredConfigFile[]> {
   assertNotDailyHermes(ctx.paths.hermesHome, ctx.paths.home);
 
   const candidates = new Map<string, string>();
@@ -415,7 +417,7 @@ async function readCurrentConfigFilesWithHashes(ctx: DoctorContext): Promise<
   return out;
 }
 
-function buildVersionsFromResults(
+export function buildVersionsFromResults(
   ctx: DoctorContext,
   capturedAt: string,
   results: readonly CheckResult[],

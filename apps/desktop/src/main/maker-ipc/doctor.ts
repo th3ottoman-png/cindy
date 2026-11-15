@@ -14,6 +14,7 @@ import Database from 'better-sqlite3';
 import {
   ALL_PACKS,
   applyFix,
+  createIncidentBundle,
   createLkgSnapshot,
   createNodeContext,
   createRegistry,
@@ -30,6 +31,7 @@ import {
   type DoctorReport,
   type FixOutcome,
   type FixPlan,
+  type IncidentBundleResult,
   type LkgSnapshotManifest,
   type LkgSnapshotRecord,
   type Severity,
@@ -393,6 +395,11 @@ export class DesktopDoctorHost {
     return result.manifest;
   }
 
+  async createBundle(): Promise<IncidentBundleResult> {
+    const ctx = await this.createContext();
+    return createIncidentBundle(ctx, { packs: this.packs });
+  }
+
   /**
    * Schedule one post-startup diagnostic pass (blueprint §8: 20 s after main window is
    * ready, `instant,fast` checks, zero fail -> daily 24h LKG snapshot, any fail -> dot).
@@ -502,6 +509,10 @@ export function registerDoctorHandlers(
     deps.assertTrusted(event);
     const params = (raw && typeof raw === 'object' ? raw : {}) as DoctorSnapshotParams;
     return deps.host.createSnapshot(params);
+  });
+  registry.handle(MAKER_INVOKE.DOCTOR_BUNDLE, async (event: unknown) => {
+    deps.assertTrusted(event);
+    return deps.host.createBundle();
   });
 }
 

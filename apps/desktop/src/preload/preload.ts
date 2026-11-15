@@ -6849,6 +6849,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('maker:doctor:snapshots'),
       snapshot: (params?: import('../shared/doctor').DoctorSnapshotParams): Promise<import('../shared/doctor').LkgSnapshotManifest> =>
         ipcRenderer.invoke('maker:doctor:snapshot', params ?? {}),
+      bundle: (): Promise<import('../shared/doctor').IncidentBundleResult> =>
+        ipcRenderer.invoke('maker:doctor:bundle'),
       onUpdated: fanOutMakerDoctorUpdated as (cb: (state: import('../shared/doctor').DoctorUiState) => void) => () => void,
     },
     scheduledSessions: {

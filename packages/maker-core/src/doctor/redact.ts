@@ -12,7 +12,7 @@ export const REDACTED_VALUE = '«redacted»';
 
 export const SECRET_CONFIG_KEY_PATTERN = /key|token|secret|password|auth|bearer|cookie/i;
 
-const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]{6,}/gi;
+const BEARER_PATTERN = /\b(?:Bearer\s+)+[A-Za-z0-9._~+/=-]{6,}/gi;
 const OPENAI_STYLE_KEY_PATTERN = /\bsk-[A-Za-z0-9_-]{12,}\b/g;
 const GITHUB_TOKEN_PATTERN = /\b(?:gh[pousr]_[A-Za-z0-9_]{12,}|github_pat_[A-Za-z0-9_]{16,})\b/g;
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g;
@@ -90,7 +90,66 @@ function redactAllLeaves(value: unknown): unknown {
   return REDACTED_VALUE;
 }
 
-function redactConfigTextLine(line: string, options: RedactOptions): string {
+function leadingIndentWidth(line: string): number {
+  const match = line.match(/^(\s*)/);
+  return match ? match[1]!.length : 0;
+}
+
+function redactSecretYamlLeaf(line: string): string {
+  const kv = line.match(/^(\s*(?:-\s+)?['"]?[A-Za-z0-9_.-]+['"]?\s*:\s*)(.+?)(\s*)$/);
+  if (kv) {
+    const [, prefix, val, trailing] = kv;
+    const trimmed = val.trim();
+    if (
+      trimmed === '{' ||
+      trimmed === '[' ||
+      trimmed === '{}' ||
+      trimmed === '[]' ||
+      trimmed === '|' ||
+      trimmed === '>' ||
+      trimmed === '|-' ||
+      trimmed === '>-'
+    ) {
+      return line;
+    }
+    return `${prefix}${REDACTED_VALUE}${trailing}`;
+  }
+  const listItem = line.match(/^(\s*-\s+)(.+?)(\s*)$/);
+  if (listItem) {
+    return `${listItem[1]}${REDACTED_VALUE}${listItem[3]}`;
+  }
+  const scalarLine = line.match(/^(\s*)(.+?)(\s*)$/);
+  if (scalarLine && scalarLine[2].length > 0) {
+    return `${scalarLine[1]}${REDACTED_VALUE}${scalarLine[3]}`;
+  }
+  return line;
+}
+
+function redactConfigTextLine(
+  line: string,
+  options: RedactOptions,
+  state: { secretBlockIndent: number | null },
+): string {
+  if (/^\s*$/.test(line)) {
+    return line;
+  }
+
+  const indentWidth = leadingIndentWidth(line);
+  if (state.secretBlockIndent !== null) {
+    const trimmed = line.trimStart();
+    // List items anchored at the parent key's indentation (e.g. `auth:\n- token`) stay in block.
+    const stillInBlock =
+      indentWidth > state.secretBlockIndent ||
+      (indentWidth === state.secretBlockIndent && trimmed.startsWith('-'));
+    if (!stillInBlock) {
+      state.secretBlockIndent = null;
+    } else if (/^\s*#/.test(line)) {
+      return redactText(line, options);
+    } else {
+      return redactSecretYamlLeaf(line);
+    }
+  }
+
   if (/^\s*#/.test(line)) {
     return redactText(line, options);
   }
@@ -106,15 +165,45 @@ function redactConfigTextLine(line: string, options: RedactOptions): string {
     return `${prefix}${redactText(rawVal, options)}${suffix}`;
   }
 
-  // YAML-style `key: value` (including list items `- key: value`)
-  const yamlMatch = line.match(/^(\s*(?:-\s+)?)([A-Za-z0-9_.-]+)(\s*:\s+)(.+?)(\s*)$/);
+  // YAML-style `key: value` or `key:` block header (including quoted keys and `- key: value`)
+  const yamlMatch = line.match(/^(\s*(?:-\s+)?)(['"]?)([A-Za-z0-9_.-]+)\2(\s*:\s*)(.*)$/);
   if (yamlMatch) {
-    const [, indent, key, sep, rawVal, trailing] = yamlMatch;
-    const isContainerOrEmpty = rawVal === '{' || rawVal === '[' || rawVal === '{}' || rawVal === '[]' || rawVal === '|' || rawVal === '>';
-    if (SECRET_CONFIG_KEY_PATTERN.test(key) && !isContainerOrEmpty) {
-      return `${indent}${key}${sep}${REDACTED_VALUE}${trailing}`;
+    const [, indent, quote, key, sep, rawRest] = yamlMatch;
+    const trimmedRest = rawRest.trim();
+    const isEmptyOrBlockHeader =
+      trimmedRest.length === 0 ||
+      trimmedRest.startsWith('#') ||
+      trimmedRest === '|' ||
+      trimmedRest === '>' ||
+      trimmedRest === '|-' ||
+      trimmedRest === '>-';
+    const isContainer =
+      trimmedRest === '{' || trimmedRest === '[' || trimmedRest === '{}' || trimmedRest === '[]';
+
+    if (SECRET_CONFIG_KEY_PATTERN.test(key)) {
+      if (isEmptyOrBlockHeader || trimmedRest === '{' || trimmedRest === '[') {
+        state.secretBlockIndent = indent.length;
+        return redactText(line, options);
+      }
+      if (!isContainer) {
+        return `${indent}${quote}${key}${quote}${sep}${REDACTED_VALUE}`;
+      }
     }
-    return `${indent}${key}${sep}${redactText(rawVal, options)}${trailing}`;
+
+    if (isEmptyOrBlockHeader || isContainer) {
+      return redactText(line, options);
+    }
+    return `${indent}${quote}${key}${quote}${sep}${redactText(rawRest, options)}`;
+  }
+
+  // dotenv-style `KEY=VALUE`
+  const envMatch = line.match(/^(\s*(?:export\s+)?)([A-Za-z_][A-Za-z0-9_]*)(=)(.+)$/);
+  if (envMatch) {
+    const [, prefix, key, eq, rawVal] = envMatch;
+    if (SECRET_CONFIG_KEY_PATTERN.test(key)) {
+      return `${prefix}${key}${eq}${REDACTED_VALUE}`;
+    }
+    return `${prefix}${key}${eq}${redactText(rawVal, options)}`;
   }
 
   return redactText(line, options);
@@ -144,9 +233,10 @@ function redactConfigValue(value: unknown, options: RedactOptions): unknown {
 
 export function redactConfig<T = unknown>(input: T, options: RedactOptions = {}): T {
   if (typeof input === 'string') {
+    const state = { secretBlockIndent: null as number | null };
     return input
       .split('\n')
-      .map((line) => redactConfigTextLine(line, options))
+      .map((line) => redactConfigTextLine(line, options, state))
       .join('\n') as T;
   }
   return redactConfigValue(input, options) as T;

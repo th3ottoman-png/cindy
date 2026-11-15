@@ -119,4 +119,27 @@ describe('redactConfig (ROADMAP 14.1)', () => {
     expect(redacted).toContain('api_key: «redacted»');
     expect(redacted).toContain('path: ~/.hermes-cindy/config.yaml');
   });
+
+  it('redacts nested YAML secret blocks, quoted keys, and dotenv lines', () => {
+    const nested = [
+      'oauth_tokens:',
+      '  access: super-secret-nested-access',
+      '  refresh: super-secret-nested-refresh',
+      '  nested:',
+      '    id: nested-child-value',
+      '"api_key": "quoted-key-secret-value"',
+      'CUSTOM_TOKEN=raw-dotenv-token-value',
+      'safe_setting: keep-this-value',
+    ].join('\n');
+
+    const redacted = redactConfig(nested);
+
+    expect(redacted).not.toContain('super-secret-nested-access');
+    expect(redacted).not.toContain('super-secret-nested-refresh');
+    expect(redacted).not.toContain('nested-child-value');
+    expect(redacted).not.toContain('quoted-key-secret-value');
+    expect(redacted).not.toContain('raw-dotenv-token-value');
+    expect(redacted).toContain('safe_setting: keep-this-value');
+    expect(redacted).toContain('CUSTOM_TOKEN=«redacted»');
+  });
 });

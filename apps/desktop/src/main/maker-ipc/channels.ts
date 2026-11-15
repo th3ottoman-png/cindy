@@ -207,6 +207,8 @@ export const MAKER_INVOKE = {
   DOCTOR_SNAPSHOTS: 'maker:doctor:snapshots',
   /** ROADMAP 14.8: capture a manual or daily LKG snapshot. */
   DOCTOR_SNAPSHOT: 'maker:doctor:snapshot',
+  /** ROADMAP 14.9: write a redacted local incident bundle under ~/.cindy-harness/doctor/bundles/. */
+  DOCTOR_BUNDLE: 'maker:doctor:bundle',
   /** ROADMAP 5.4b: get local scheduled sessions configuration (~/.cindy-harness/schedules-config.json). */
   SCHEDULED_SESSIONS_GET_CONFIG: 'maker:scheduled-sessions:get-config',
   /** ROADMAP 5.4b: set local scheduled sessions directory path. */
