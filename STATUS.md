@@ -10,6 +10,17 @@ was weaker, the weaker label is used and the roadmap row reflects it.
 
 ---
 
+## 2026-11-15 (bi) - 14.10 Proposed rule: new features ship a doctor check (docs-only): `proposed`
+
+- **Row**: `ROADMAP.md` `14.10` (blueprint §11 14.10). Docs only — **awaiting owner acceptance or rejection** (`AGENTS.md` left untouched per `AGENTS.md` §5).
+- **Proposed rule changes** (for owner review):
+  > **"From Phase 15 on, a ROADMAP row that adds a config file, a runtime dependency, a process, or a stored file also adds a doctor check (and, if safe, a fix) in the matching pack."**
+  - **Scope**: Applies from Phase 15 onward whenever a `ROADMAP.md` row introduces a new config file, runtime dependency, background/helper process, or persisted storage file/store.
+  - **Acceptance**: Owner decides in chat whether to accept or reject. If accepted, the owner edits `AGENTS.md` (not agents); if rejected, close `14.10` as rejected.
+- **Gates (Tier 0, docs-only, Node `v22.23.4`)**: `pnpm test:runner` **RC=0** (`615` tests: `613` pass, `0` fail, `2` skipped).
+
+---
+
 ## 2026-11-15 (bh) - 14.9 Incident bundle: `live-proven`
 
 - **Row**: 14.9 closed `live-proven`. Evidence at `docs/evidence/14.9-incident-bundle-live-proof.md` (vault copy at `/Users/turko/Bishi-memory/raw/cindy/2026-11-15-14.9-incident-bundle-live-proof.md`). Next open row: `14.10` (docs-only "Proposed rule changes" proposal).
