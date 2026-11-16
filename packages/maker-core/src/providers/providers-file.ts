@@ -15,7 +15,10 @@ export type { ProviderFileEntry, ProviderFileIssue, ProviderFileResult } from '@
 export function parseProvidersYaml(text: string): ProviderFileResult {
   let doc: unknown;
   try {
-    doc = matter(`---\n${text}\n---\n`, {}).data;
+    const clean = text
+      .replace(/^\uFEFF?---[ \t]*\r?\n/, '')
+      .replace(/\r?\n(?:---|\.\.\.)[ \t]*\s*$/, '');
+    doc = matter(`---\n${clean}\n---\n`, {}).data;
   } catch (error) {
     return { providers: [], issues: [{ entry: '(file)', message: `invalid YAML: ${error instanceof Error ? error.message : String(error)}` }] };
   }

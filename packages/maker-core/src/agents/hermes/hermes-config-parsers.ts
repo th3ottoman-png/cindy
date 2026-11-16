@@ -39,13 +39,15 @@ export interface HermesLocalContextWindowEntry {
 
 function unquote(value: string): string {
   const v = value.trim();
-  if (
-    (v.startsWith('"') && v.endsWith('"') && v.length >= 2) ||
-    (v.startsWith("'") && v.endsWith("'") && v.length >= 2)
-  ) {
-    return v.slice(1, -1);
+  if (v.startsWith('"')) {
+    const endQuote = v.indexOf('"', 1);
+    if (endQuote > 0) return v.slice(1, endQuote);
   }
-  return v;
+  if (v.startsWith("'")) {
+    const endQuote = v.indexOf("'", 1);
+    if (endQuote > 0) return v.slice(1, endQuote);
+  }
+  return v.replace(/\s+#.*$/, '').trim();
 }
 
 /** Parse only the top-level `model:` block of a Hermes config.yaml body. */
@@ -59,6 +61,7 @@ export function parseHermesDefaultRoute(configYaml: string): HermesDefaultRoute 
     if (inModelBlock) {
       if (!rawLine.trim() || rawLine.trimStart().startsWith('#')) continue;
       const indent = rawLine.length - rawLine.trimStart().length;
+      if (indent === 0) break;
       if (blockIndent === null) blockIndent = indent;
       if (indent < blockIndent) break;
       const match = /^([A-Za-z0-9_]+)\s*:\s*(.*)$/.exec(rawLine.trim());
@@ -90,6 +93,7 @@ export function parseHermesFallbackModel(configYaml: string): HermesFallbackMode
     const rawLine = lines[index]!;
     if (!rawLine.trim() || rawLine.trimStart().startsWith('#')) continue;
     const indent = rawLine.length - rawLine.trimStart().length;
+    if (indent === 0) break;
     if (blockIndent === null) blockIndent = indent;
     if (indent < blockIndent) break;
     const match = /^([A-Za-z0-9_]+)\s*:\s*(.*)$/.exec(rawLine.trim());
@@ -152,7 +156,13 @@ export function parseHermesMcpServers(
     }
 
     if (currentServer && indent > serverIndent) {
-      if (subKeyIndent !== null && indent > subKeyIndent) {
+      if (
+        subKeyIndent !== null &&
+        (indent > subKeyIndent ||
+          (indent === subKeyIndent &&
+            currentSubKey === 'args' &&
+            (trimmed.startsWith('- ') || trimmed === '-')))
+      ) {
         if (currentSubKey === 'args') {
           if (trimmed.startsWith('- ') || trimmed === '-') {
             const item = unquote(trimmed.replace(/^-\s*/, ''));
@@ -241,7 +251,7 @@ function findCustomProvidersBlock(lines: string[]): CustomProvidersBlock {
   for (let i = start + 1; i < lines.length; i++) {
     const line = lines[i]!;
     if (!line.trim() || line.trimStart().startsWith('#')) continue;
-    if (line.length - line.trimStart().length === 0) {
+    if (line.length - line.trimStart().length === 0 && !line.startsWith('-')) {
       end = i;
       break;
     }
@@ -339,7 +349,7 @@ export function parseHermesCustomProviderBaseUrls(configYaml: string): Map<strin
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
     const indent = line.length - line.trimStart().length;
-    if (indent === 0) {
+    if (indent === 0 && !line.startsWith('-')) {
       flush();
       itemIndent = null;
       const header = /^([A-Za-z0-9_]+)\s*:(\s|#|$)/.exec(line)?.[1];

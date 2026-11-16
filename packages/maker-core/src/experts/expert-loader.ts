@@ -127,7 +127,10 @@ export function parseExpertMarkdown(
   },
 ): Expert {
   // gray-matter caches by input string; pass an empty options object to skip the cache
-  // so a re-read after an edit is never stale.
+  // so a re-read after an edit is never stale. Reject ---js / ---javascript frontmatter first.
+  if (/^\uFEFF?---(?:js|javascript)\b/i.test(raw)) {
+    throw new Error('JavaScript frontmatter is not allowed');
+  }
   const parsed = matter(raw, {});
   const data = parsed.data as Record<string, unknown>;
 
@@ -281,7 +284,13 @@ export function watchExperts(
     poll = undefined;
     try {
       if (exists(root)) {
-        watcher = fs.watch(root, { recursive: true }, fire);
+        watcher = fs.watch(root, { recursive: true }, () => {
+          if (!exists(root)) {
+            arm();
+            return;
+          }
+          fire();
+        });
       } else {
         const parent = path.dirname(root);
         const rootAppeared = (): void => {

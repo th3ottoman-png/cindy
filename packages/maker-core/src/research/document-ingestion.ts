@@ -8,6 +8,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as zlib from 'node:zlib';
 
 export type DocumentType = 'pdf' | 'spreadsheet' | 'markdown' | 'text' | 'unknown';
 export type DocumentClassification = 'academic_paper' | 'technical_spec' | 'data_sheet' | 'general_document';
@@ -153,10 +154,18 @@ export function ingestDocument(
       }
     }
 
-    if (options.maxChars && fullText.length > options.maxChars) {
-      fullText = fullText.slice(0, options.maxChars);
-    } else if (fullText.length > MAX_FILE_CHARS) {
-      fullText = fullText.slice(0, MAX_FILE_CHARS);
+    const charLimit = options.maxChars && options.maxChars > 0 ? Math.min(options.maxChars, MAX_FILE_CHARS) : MAX_FILE_CHARS;
+    if (fullText.length > charLimit) {
+      fullText = fullText.slice(0, charLimit);
+      let remaining = charLimit;
+      const cappedSections: DocumentSection[] = [];
+      for (const sec of sections) {
+        if (remaining <= 0) break;
+        const sliced = sec.content.slice(0, remaining);
+        cappedSections.push({ ...sec, content: sliced });
+        remaining -= sliced.length;
+      }
+      sections = cappedSections;
     }
 
     const wordCount = fullText.trim() ? fullText.trim().split(/\s+/).length : 0;
@@ -205,11 +214,21 @@ function extractPdfContent(buffer: Buffer, maxPages?: number): {
 } {
   const raw = buffer.toString('binary');
 
-  // Count pages via /Type /Page
-  const pageMatches = raw.match(/\/Type\s*\/Page\b/g);
-  let pageCount = pageMatches ? pageMatches.length : 1;
-  if (maxPages && pageCount > maxPages) {
+  // Count pages via /Type /Page and bound extraction to maxPages when specified
+  const pageRegex = /\/Type\s*\/Page\b/g;
+  const pageIndices: number[] = [];
+  let pm: RegExpExecArray | null;
+  while ((pm = pageRegex.exec(raw)) !== null) {
+    pageIndices.push(pm.index);
+  }
+  let pageCount = pageIndices.length > 0 ? pageIndices.length : 1;
+  let extractionSource = raw;
+  if (maxPages && maxPages > 0 && pageCount > maxPages) {
     pageCount = maxPages;
+    const cutoffIdx = pageIndices[maxPages];
+    if (cutoffIdx !== undefined) {
+      extractionSource = raw.slice(0, cutoffIdx);
+    }
   }
 
   // Extract PDF Metadata if present
@@ -221,35 +240,48 @@ function extractPdfContent(buffer: Buffer, maxPages?: number): {
   const authorMatch = raw.match(/\/Author\s*\(([^)]+)\)/i);
   if (authorMatch?.[1]) author = authorMatch[1].trim();
 
-  // Extract text from text blocks (BT ... ET)
-  const textChunks: string[] = [];
-  const btRegex = /BT[\s\S]*?ET/g;
-  let match: RegExpExecArray | null;
-
-  while ((match = btRegex.exec(raw)) !== null) {
-    const block = match[0];
-
-    // Match (string) Tj or ' or "
-    const tjRegex = /\(([^)]+)\)\s*(?:Tj|'|")/g;
-    let tjMatch: RegExpExecArray | null;
-    let line = '';
-    while ((tjMatch = tjRegex.exec(block)) !== null) {
-      line += tjMatch[1] + ' ';
-    }
-
-    // Match [(array) ... (of) ... (strings)] TJ
-    const arrayTjRegex = /\[([\s\S]*?)\]\s*TJ/g;
-    let arrMatch: RegExpExecArray | null;
-    while ((arrMatch = arrayTjRegex.exec(block)) !== null) {
-      const inner = arrMatch[1];
-      const strParts = inner.match(/\(([^)]+)\)/g);
-      if (strParts) {
-        line += strParts.map((s) => s.slice(1, -1)).join('') + ' ';
+  // Extract text from text blocks (BT ... ET) preserving Tj / TJ operator order
+  const extractBtEtFromText = (src: string, outChunks: string[]): void => {
+    const btRegex = /BT[\s\S]*?ET/g;
+    let match: RegExpExecArray | null;
+    while ((match = btRegex.exec(src)) !== null) {
+      const block = match[0];
+      const opRegex = /(?:\(([^)]+)\)\s*(?:Tj|'|")|\[([\s\S]*?)\]\s*TJ)/g;
+      let opMatch: RegExpExecArray | null;
+      let line = '';
+      while ((opMatch = opRegex.exec(block)) !== null) {
+        if (opMatch[1] !== undefined) {
+          line += opMatch[1] + ' ';
+        } else if (opMatch[2] !== undefined) {
+          const strParts = opMatch[2].match(/\(([^)]+)\)/g);
+          if (strParts) {
+            line += strParts.map((s) => s.slice(1, -1)).join('') + ' ';
+          }
+        }
+      }
+      if (line.trim()) {
+        outChunks.push(line.trim());
       }
     }
+  };
 
-    if (line.trim()) {
-      textChunks.push(line.trim());
+  const textChunks: string[] = [];
+  extractBtEtFromText(extractionSource, textChunks);
+
+  if (textChunks.length === 0) {
+    const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+    let sm: RegExpExecArray | null;
+    while ((sm = streamRegex.exec(extractionSource)) !== null) {
+      const streamBytes = Buffer.from(sm[1]!, 'binary');
+      for (const inflate of [zlib.inflateSync, zlib.inflateRawSync]) {
+        try {
+          const decoded = inflate(streamBytes).toString('latin1');
+          extractBtEtFromText(decoded, textChunks);
+          break;
+        } catch {
+          // Not a valid deflate stream; ignore
+        }
+      }
     }
   }
 
@@ -274,20 +306,20 @@ function extractPdfContent(buffer: Buffer, maxPages?: number): {
   const lines = fullText.split(/\r?\n/);
   let currentSection: DocumentSection = { title: 'Overview', level: 1, content: '' };
 
-  const sectionHeaderPattern = /^(?:[0-9]+\.?\s+)?(Abstract|Introduction|Background|Methodology|Methods|Implementation|Results|Evaluation|Discussion|Conclusion|References)\b/i;
+  const sectionHeaderPattern = /^(?:[0-9]+\.?\s+)?(Abstract|Introduction|Background|Methodology|Methods|Implementation|Results|Evaluation|Discussion|Conclusion|References)\b(?:\s*[:.—-]\s*(.*))?$/i;
 
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     const headerMatch = trimmed.match(sectionHeaderPattern);
-    if (headerMatch && trimmed.length < 80) {
+    if (headerMatch && (trimmed.length < 80 || headerMatch[2])) {
       if (currentSection.content.trim()) {
         sections.push(currentSection);
       }
       currentSection = {
         title: headerMatch[1],
         level: 2,
-        content: '',
+        content: headerMatch[2] ? headerMatch[2].trim() : '',
       };
     } else {
       currentSection.content += (currentSection.content ? '\n' : '') + trimmed;
@@ -320,41 +352,51 @@ function parseSpreadsheetContent(content: string, filePath: string): {
   fullText: string;
   table: IngestedTable;
 } {
-  const isTsv = filePath.endsWith('.tsv');
+  const isTsv = filePath.toLowerCase().endsWith('.tsv');
   const delimiter = isTsv ? '\t' : ',';
 
-  const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lines.length === 0) {
+  const parsedRows: string[][] = [];
+  let currentField = '';
+  let currentRow: string[] = [];
+  let inQuotes = false;
+  for (let i = 0; i < content.length; i += 1) {
+    const ch = content[i]!;
+    if (ch === '"') {
+      if (inQuotes && content[i + 1] === '"') {
+        currentField += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === delimiter && !inQuotes) {
+      currentRow.push(currentField.trim());
+      currentField = '';
+    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      if (ch === '\r' && content[i + 1] === '\n') i += 1;
+      currentRow.push(currentField.trim());
+      currentField = '';
+      if (currentRow.some((cell) => cell.length > 0)) {
+        parsedRows.push(currentRow);
+      }
+      currentRow = [];
+    } else {
+      currentField += ch;
+    }
+  }
+  if (currentField.trim().length > 0 || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    if (currentRow.some((cell) => cell.length > 0)) {
+      parsedRows.push(currentRow);
+    }
+  }
+
+  if (parsedRows.length === 0) {
     const emptyTable: IngestedTable = { headers: [], rows: [], rowCount: 0, columnCount: 0, markdown: '' };
     return { fullText: 'Empty spreadsheet', table: emptyTable };
   }
 
-  const parseRow = (line: string): string[] => {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (ch === delimiter && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += ch;
-      }
-    }
-    result.push(current.trim());
-    return result;
-  };
-
-  const headers = parseRow(lines[0]);
-  const rows = lines.slice(1).map(parseRow);
+  const headers = parsedRows[0]!;
+  const rows = parsedRows.slice(1);
 
   // Build markdown table
   let md = '| ' + headers.join(' | ') + ' |\n';
@@ -481,8 +523,11 @@ function deriveDocumentTags(text: string, classification: DocumentClassification
 function chunkDocument(
   fullText: string,
   sections: DocumentSection[],
-  chunkSize: number,
+  rawChunkSize: number,
 ): DocumentChunk[] {
+  const chunkSize = Number.isFinite(rawChunkSize) && rawChunkSize > 0
+    ? Math.max(1, Math.floor(rawChunkSize))
+    : DEFAULT_CHUNK_SIZE;
   const chunks: DocumentChunk[] = [];
   let chunkIndex = 1;
 
@@ -503,7 +548,7 @@ function chunkDocument(
         const paras = content.split(/\n\s*\n/);
         let currentChunk = '';
         for (const p of paras) {
-          if ((currentChunk + '\n\n' + p).length <= chunkSize) {
+          if ((currentChunk ? currentChunk.length + 2 + p.length : p.length) <= chunkSize) {
             currentChunk += (currentChunk ? '\n\n' : '') + p;
           } else {
             if (currentChunk.trim()) {
@@ -513,8 +558,23 @@ function chunkDocument(
                 section: sec.title,
                 charCount: currentChunk.trim().length,
               });
+              currentChunk = '';
             }
-            currentChunk = p;
+            if (p.length > chunkSize) {
+              for (let offset = 0; offset < p.length; offset += chunkSize) {
+                const slice = p.slice(offset, offset + chunkSize).trim();
+                if (slice) {
+                  chunks.push({
+                    index: chunkIndex++,
+                    text: slice,
+                    section: sec.title,
+                    charCount: slice.length,
+                  });
+                }
+              }
+            } else {
+              currentChunk = p;
+            }
           }
         }
         if (currentChunk.trim()) {

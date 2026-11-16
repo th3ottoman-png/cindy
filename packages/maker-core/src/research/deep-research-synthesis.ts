@@ -123,19 +123,21 @@ export function assembleLiteratureNote(
   };
 
   // Build Frontmatter
+  const yamlStr = (val: string): string => JSON.stringify(val.replace(/\r?\n/g, ' '));
+  const fmtTag = (t: string): string => (/^[A-Za-z0-9_-]+$/.test(t) ? t : yamlStr(t));
   const tags = Array.from(new Set(['research', 'literature', ...(synthesis.tags || [])])).sort();
   let md = '---\n';
-  md += `title: "${synthesis.title.replace(/"/g, '\\"')}"\n`;
+  md += `title: ${yamlStr(synthesis.title)}\n`;
   md += `type: literature-note\n`;
   md += `created_at: ${now}\n`;
-  if (synthesis.sessionId) md += `session_id: "${synthesis.sessionId}"\n`;
-  md += `tags: [${tags.join(', ')}]\n`;
+  if (synthesis.sessionId) md += `session_id: ${yamlStr(synthesis.sessionId)}\n`;
+  md += `tags: [${tags.map(fmtTag).join(', ')}]\n`;
   md += 'sources:\n';
   for (const s of synthesis.sources) {
     const st = s.sourceType || classifySource(s);
-    md += `  - title: "${s.title.replace(/"/g, '\\"')}"\n`;
-    if (s.url) md += `    url: "${s.url}"\n`;
-    if (s.filePath) md += `    file_path: "${s.filePath}"\n`;
+    md += `  - title: ${yamlStr(s.title)}\n`;
+    if (s.url) md += `    url: ${yamlStr(s.url)}\n`;
+    if (s.filePath) md += `    file_path: ${yamlStr(s.filePath)}\n`;
     md += `    type: ${st}\n`;
   }
   md += '---\n\n';
@@ -234,7 +236,7 @@ export function saveLiteratureNote(
     return { ok: false, reason: 'no-vault', message: 'vault folder does not exist' };
   }
 
-  const fullPath = path.join(root, check.rel);
+  let fullPath = path.join(root, check.rel);
   if (!inside(root, fullPath)) {
     return { ok: false, reason: 'outside-vault', message: 'path leaves the vault' };
   }
@@ -244,13 +246,41 @@ export function saveLiteratureNote(
 
   const targetDir = path.dirname(fullPath);
   try {
-    fs.mkdirSync(targetDir, { recursive: true });
+    const missing: string[] = [];
+    for (let d = targetDir; !fs.existsSync(d); d = path.dirname(d)) {
+      missing.unshift(d);
+    }
+    for (const d of missing) {
+      fs.mkdirSync(d);
+      if (!inside(root, fs.realpathSync(d))) {
+        fs.rmdirSync(d);
+        return { ok: false, reason: 'outside-vault', message: 'path leaves the vault' };
+      }
+    }
+    if (!inside(root, fs.realpathSync(targetDir))) {
+      return { ok: false, reason: 'outside-vault', message: 'path leaves the vault' };
+    }
   } catch (err) {
     return {
       ok: false,
       reason: 'bad-path',
       message: `failed to create directory ${targetDir}: ${err instanceof Error ? err.message : String(err)}`,
     };
+  }
+
+  let finalRelPath = check.rel;
+  if (!options.fileName && fs.existsSync(fullPath)) {
+    const ext = path.extname(fileName) || '.md';
+    const stem = fileName.slice(0, fileName.length - ext.length);
+    for (let suffix = 2; suffix < 1000; suffix += 1) {
+      const candidateRel = path.posix.join(folder.replace(/\\/g, '/'), `${stem}-${suffix}${ext}`);
+      const candidateFull = path.join(root, candidateRel);
+      if (!fs.existsSync(candidateFull)) {
+        finalRelPath = candidateRel;
+        fullPath = candidateFull;
+        break;
+      }
+    }
   }
 
   // Atomic write via temp file + rename
@@ -271,7 +301,7 @@ export function saveLiteratureNote(
 
   return {
     ok: true,
-    relPath: check.rel,
+    relPath: finalRelPath,
     fullPath,
     bytesWritten: Buffer.byteLength(sanitizedMarkdown, 'utf8'),
     citationCount,

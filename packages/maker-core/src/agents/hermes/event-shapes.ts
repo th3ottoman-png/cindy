@@ -106,16 +106,19 @@ export function compareEventShapes(
     mismatches.push('missing required result event');
   }
 
-  for (const [kind, candShape] of candShapes) {
+  for (const e of candidate) {
+    const kind = eventKind(e);
     const refShape = refShapes.get(kind);
     if (!refShape) {
-      mismatches.push(`unexpected event kind "${kind}" not present in reference fixture`);
+      const msg = `unexpected event kind "${kind}" not present in reference fixture`;
+      if (!mismatches.includes(msg)) mismatches.push(msg);
       continue;
     }
+    const candShape: Record<string, string> = {};
+    for (const k of Object.keys(e).sort()) candShape[k] = typeof e[k];
     if (!shapesEqual(candShape, refShape)) {
-      mismatches.push(
-        `shape mismatch for "${kind}": expected ${JSON.stringify(refShape)}, got ${JSON.stringify(candShape)}`,
-      );
+      const msg = `shape mismatch for "${kind}": expected ${JSON.stringify(refShape)}, got ${JSON.stringify(candShape)}`;
+      if (!mismatches.includes(msg)) mismatches.push(msg);
     }
   }
 
@@ -149,7 +152,28 @@ export function compareSemverStrings(a: string, b: string): number {
   for (let i = 0; i < 3; i += 1) {
     if (ta[i] !== tb[i]) return ta[i]! - tb[i]!;
   }
-  return a.localeCompare(b);
+  const preA = a.match(/\d+\.\d+\.\d+-([0-9A-Za-z.-]+)/)?.[1];
+  const preB = b.match(/\d+\.\d+\.\d+-([0-9A-Za-z.-]+)/)?.[1];
+  if (!preA && !preB) return 0;
+  if (!preA && preB) return 1;
+  if (preA && !preB) return -1;
+  const partsA = preA!.split('.');
+  const partsB = preB!.split('.');
+  const len = Math.max(partsA.length, partsB.length);
+  for (let i = 0; i < len; i += 1) {
+    const pa = partsA[i];
+    const pb = partsB[i];
+    if (pa === undefined) return -1;
+    if (pb === undefined) return 1;
+    if (pa === pb) continue;
+    const na = /^\d+$/.test(pa) ? Number(pa) : NaN;
+    const nb = /^\d+$/.test(pb) ? Number(pb) : NaN;
+    if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+    if (!Number.isNaN(na)) return -1;
+    if (!Number.isNaN(nb)) return 1;
+    return pa < pb ? -1 : 1;
+  }
+  return 0;
 }
 
 /**

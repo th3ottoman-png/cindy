@@ -11,28 +11,41 @@
  */
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const mod = await import(path.join(root, 'apps/desktop/src/main/backup/localBackup.ts'));
+const mod = await import(
+  pathToFileURL(path.join(root, 'apps/desktop/src/main/backup/localBackup.ts')).href
+);
 
+const KNOWN_FLAGS = new Set(['out', 'user-data', 'hermes-home', 'experts']);
 const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {};
 const positional = [];
-for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) flags[argv[i].slice(2)] = argv[++i];
-  else positional.push(argv[i]);
-}
-
-const defaults = mod.defaultBackupPaths();
-const paths = {
-  userDataDir: flags['user-data'] ?? defaults.userDataDir,
-  hermesHome: flags['hermes-home'] ?? defaults.hermesHome,
-  expertsDir: flags.experts ?? defaults.expertsDir,
-};
 
 try {
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i].startsWith('--')) {
+      const name = argv[i].slice(2);
+      const val = argv[i + 1];
+      if (!KNOWN_FLAGS.has(name) || !val || val.startsWith('--')) {
+        throw new Error(`invalid or incomplete option: ${argv[i]}`);
+      }
+      flags[name] = val;
+      i += 1;
+    } else {
+      positional.push(argv[i]);
+    }
+  }
+
+  const defaults = mod.defaultBackupPaths();
+  const paths = {
+    userDataDir: flags['user-data'] ?? defaults.userDataDir,
+    hermesHome: flags['hermes-home'] ?? defaults.hermesHome,
+    expertsDir: flags.experts ?? defaults.expertsDir,
+  };
+
   if (cmd === 'create') {
     const outDir = flags.out ?? path.join(os.homedir(), '.cindy-harness', 'backups');
     const { archivePath, manifest } = mod.createBackup({ paths, outDir });

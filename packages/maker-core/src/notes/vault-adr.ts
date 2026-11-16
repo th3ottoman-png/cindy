@@ -110,14 +110,11 @@ function ensureDirInside(root: string, rel: string): string | undefined {
  */
 function writeNewFileAtomic(target: string, content: string): boolean {
   if (fs.existsSync(target)) return false;
-  const dir = path.dirname(target);
-  const tmp = path.join(dir, `.${path.basename(target)}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`);
   try {
-    fs.writeFileSync(tmp, content, 'utf8');
-    fs.renameSync(tmp, target);
+    fs.writeFileSync(target, content, { encoding: 'utf8', flag: 'wx' });
     return true;
   } catch (err) {
-    fs.rmSync(tmp, { force: true });
+    if ((err as NodeJS.ErrnoException)?.code === 'EEXIST') return false;
     throw err;
   }
 }
@@ -307,9 +304,11 @@ function loadAdrs(root: string | undefined, rel: string, source: 'vault' | 'repo
 
 function loadAllAdrs(vaultDir: string | null | undefined, repoDir?: string | null): LoadedAdr[] {
   const repo = loadAdrs(repoDir ?? undefined, ADR_REPO_DIR, 'repo');
-  const repoTitles = new Set(repo.map((adr) => adr.title.toLowerCase()));
-  // record_adr writes both copies; show the repo one (it carries the number) and drop its twin.
-  const vault = loadAdrs(vaultDir ?? undefined, ADR_VAULT_DIR, 'vault').filter((adr) => !repoTitles.has(adr.title.toLowerCase()));
+  const repoTwins = new Set(repo.map((adr) => `${adr.title.toLowerCase()}\0${adr.decision}`));
+  // record_adr writes both copies; show the repo one (it carries the number) and drop its identical twin.
+  const vault = loadAdrs(vaultDir ?? undefined, ADR_VAULT_DIR, 'vault').filter(
+    (adr) => !repoTwins.has(`${adr.title.toLowerCase()}\0${adr.decision}`),
+  );
   return [...repo, ...vault];
 }
 
@@ -411,9 +410,13 @@ export function matchAdrsForPrompt(
 export function buildRelevantAdrsPreamble(adrs: AdrSummary[]): string {
   if (adrs.length === 0) return '';
   const rows = adrs.map((adr) => `- ${adr.title}${adr.status ? ` (${adr.status})` : ''} — ${adr.path}`);
+  const hasNonAccepted = adrs.some((adr) => adr.status && adr.status !== 'Accepted');
+  const guidance = hasNonAccepted
+    ? 'Accepted decisions are already settled: follow them and cite the ADR title when it applies; treat Proposed, Rejected, or Superseded records according to their status and do not re-open an Accepted decision unless the owner asks.'
+    : 'These decisions are already settled. Follow them and cite the ADR title when it applies; do not re-open one unless the owner asks.';
   return [
     '[Relevant past decisions (ADRs)]',
-    'These decisions are already settled. Follow them and cite the ADR title when it applies; do not re-open one unless the owner asks.',
+    guidance,
     ...rows,
     '[/Relevant past decisions (ADRs)]',
   ].join('\n');

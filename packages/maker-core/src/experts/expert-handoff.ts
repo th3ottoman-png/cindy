@@ -41,11 +41,20 @@ function clip(text: string, max: number): { text: string; cut: boolean } {
 }
 
 function renderMessage(m: ExportSession['messages'][number], maxMessageChars: number): { text: string; cut: boolean } {
-  const body = clip(redactSecrets((m.text ?? '').trim()), maxMessageChars);
+  const rawBody = redactSecrets((m.text ?? '').trim());
   const tools = (m.toolCalls ?? []).map((c) => c.name.replace(/\s+/g, ' ')).filter(Boolean);
-  const toolLine = tools.length > 0 ? `\n(tools used: ${tools.join(', ')})` : '';
-  if (!body.text && !toolLine) return { text: '', cut: false };
-  return { text: `${ROLE_LABEL[m.role]}: ${body.text}${toolLine}`, cut: body.cut };
+  const rawToolLine = tools.length > 0 ? `\n(tools used: ${tools.join(', ')})` : '';
+  if (!rawBody && !rawToolLine) return { text: '', cut: false };
+  const toolPart = rawToolLine ? clip(rawToolLine, Math.max(0, maxMessageChars - Math.min(rawBody.length, maxMessageChars))) : { text: '', cut: false };
+  const bodyBudget = Math.max(0, maxMessageChars - rawToolLine.length);
+  const body = rawToolLine.length <= maxMessageChars
+    ? clip(rawBody, bodyBudget > 0 || !rawBody ? bodyBudget : Math.max(0, maxMessageChars))
+    : clip(rawBody, maxMessageChars);
+  const combined = rawToolLine.length <= maxMessageChars && bodyBudget > 0
+    ? `${body.text}${rawToolLine}`
+    : clip(`${rawBody}${rawToolLine}`, maxMessageChars).text;
+  const wasCut = body.cut || toolPart.cut || `${rawBody}${rawToolLine}`.length > maxMessageChars;
+  return { text: `${ROLE_LABEL[m.role]}: ${combined}`, cut: wasCut };
 }
 
 interface Excerpt {

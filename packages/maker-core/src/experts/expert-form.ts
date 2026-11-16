@@ -22,6 +22,10 @@ export interface ExpertFormFields {
   model?: string;
   /** Absent = the default cap of 1. */
   maxConcurrent?: number;
+  /** Optional memory flag preserved when creating from a validated draft. */
+  memory?: boolean;
+  /** Optional tags preserved when creating from a validated draft. */
+  tags?: string[];
   /** The raw markdown body, untrimmed, so a parse/render round-trip is byte-identical. */
   prompt: string;
 }
@@ -65,8 +69,17 @@ export function expertFormToMarkdown(fields: ExpertFormFields, baseMarkdown?: st
   else delete data.model;
   if (fields.maxConcurrent !== undefined && fields.maxConcurrent > 1) data.max_concurrent = fields.maxConcurrent;
   else delete data.max_concurrent;
+  if (fields.memory !== undefined) data.memory = fields.memory;
+  if (fields.tags !== undefined) {
+    if (fields.tags.length > 0) data.tags = fields.tags;
+    else delete data.tags;
+  }
   // lineWidth -1: one line per field, so the owner can hand-edit it (no folded blocks).
-  const text = matter.stringify(fields.prompt, data, { lineWidth: -1 } as Parameters<typeof matter.stringify>[2]);
+  const text = matter.stringify(
+    { content: fields.prompt } as unknown as string,
+    data,
+    { lineWidth: -1 } as Parameters<typeof matter.stringify>[2],
+  );
   // gray-matter appends a trailing newline; keep the body byte-identical when it had none.
   return fields.prompt.endsWith('\n') ? text : text.replace(/\n$/, '');
 }

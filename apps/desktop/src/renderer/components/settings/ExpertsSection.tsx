@@ -275,13 +275,16 @@ export function ExpertsSection() {
   const [saving, setSaving] = useState(false);
   const editingRef = useRef<Editing | null>(null);
   editingRef.current = editing;
+  const editReadSeqRef = useRef(0);
 
   const api = window.electronAPI?.maker?.experts;
 
   const openEdit = useCallback(
     async (slug: string) => {
       if (!api) return;
+      const seq = ++editReadSeqRef.current;
       const res = await api.read(slug);
+      if (seq !== editReadSeqRef.current) return;
       setError(null);
       if (!res.ok) {
         setError(res.message);
@@ -437,7 +440,12 @@ export function ExpertsSection() {
       }
       toast.success(`Saved ${res.file}`);
       if (editing.kind === 'create') await openEdit(res.slug);
-      else setEditing({ ...editing, baseHash: res.hash, dirty: false, stale: false });
+      else
+        setEditing((prev) =>
+          prev && prev.kind === 'edit' && prev.slug === editing.slug
+            ? { ...prev, baseHash: res.hash, dirty: false, stale: false }
+            : prev,
+        );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

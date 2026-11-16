@@ -14,7 +14,18 @@ export interface WorktreeCouncilFile {
   patch: string;
 }
 
-const DIFF_HEADER = /^diff --git a\/(.+?) b\/(.+)$/;
+const DIFF_HEADER = /^diff --git (?:"a\/((?:[^"\\]|\\.)+)"|a\/(.+?)) (?:"b\/((?:[^"\\]|\\.)+)"|b\/(.+))$/;
+
+function decodeGitPath(raw: string): string {
+  return raw.replace(/\\([\\"\t\n\r]|[0-7]{3})/g, (_m, seq: string) => {
+    if (seq === '\\') return '\\';
+    if (seq === '"') return '"';
+    if (seq === 't') return '\t';
+    if (seq === 'n') return '\n';
+    if (seq === 'r') return '\r';
+    return String.fromCharCode(parseInt(seq, 8));
+  });
+}
 
 /**
  * Split `git diff` output into one patch per file. Binary files carry no reviewable text and are
@@ -22,13 +33,23 @@ const DIFF_HEADER = /^diff --git a\/(.+?) b\/(.+)$/;
  */
 export function splitUnifiedDiff(diff: string): WorktreeCouncilFile[] {
   const files: WorktreeCouncilFile[] = [];
-  let current: { path: string; lines: string[] } | null = null;
+  let current: { path: string; aPath: string; lines: string[] } | null = null;
   const flush = () => {
     if (!current) return;
     const binary = current.lines.some(
       (line) => line.startsWith("Binary files ") || line === "GIT binary patch",
     );
-    if (!binary && current.lines.some((line) => line.startsWith("@@"))) {
+    const hasReviewableChange = current.lines.some(
+      (line) =>
+        line.startsWith("@@") ||
+        line.startsWith("old mode ") ||
+        line.startsWith("new mode ") ||
+        line.startsWith("new file mode ") ||
+        line.startsWith("deleted file mode ") ||
+        line.startsWith("rename from ") ||
+        line.startsWith("rename to "),
+    );
+    if (!binary && hasReviewableChange) {
       const body = current.lines.join("\n").replace(/\n+$/, "");
       files.push({ path: current.path, patch: `${body}\n` });
     }
@@ -38,14 +59,15 @@ export function splitUnifiedDiff(diff: string): WorktreeCouncilFile[] {
     const header = DIFF_HEADER.exec(line);
     if (header) {
       flush();
-      current = { path: header[2], lines: [line] };
+      const aPath = header[1] !== undefined ? decodeGitPath(header[1]) : header[2]!;
+      const bPath = header[3] !== undefined ? decodeGitPath(header[3]) : header[4]!;
+      current = { path: bPath, aPath, lines: [line] };
       continue;
     }
     if (!current) continue;
     if (line === "+++ /dev/null") {
       // Deleted file: the new side is empty, keep the path it had.
-      const minus = current.lines.find((l) => l.startsWith("--- a/"));
-      if (minus) current.path = minus.slice("--- a/".length);
+      current.path = current.aPath;
     }
     current.lines.push(line);
   }

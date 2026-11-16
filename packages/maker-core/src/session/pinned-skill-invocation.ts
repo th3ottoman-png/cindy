@@ -134,11 +134,20 @@ export function applyPinnedSkills(
   let cursor = 0;
   for (const token of tokens) {
     if (token.start < cursor) continue;
-    output += text.slice(cursor, token.start);
-    cursor = token.end;
+    let before = text.slice(cursor, token.start);
+    let nextCursor = token.end;
+    if (/[ \t]$/.test(before) && /^[ \t]/.test(text.slice(nextCursor))) {
+      nextCursor += 1;
+    } else if ((before === '' || before.endsWith('\n')) && /^[ \t]+/.test(text.slice(nextCursor))) {
+      nextCursor += /^[ \t]+/.exec(text.slice(nextCursor))![0].length;
+    } else if (/[ \t]+$/.test(before) && (nextCursor >= text.length || /^[,.;:!?\n]/.test(text.slice(nextCursor)))) {
+      before = before.replace(/[ \t]+$/, '');
+    }
+    output += before;
+    cursor = nextCursor;
   }
   output += text.slice(cursor);
-  const body = tidy(output);
+  const body = output.replace(/^\n+|\n+$/g, '').trim();
   if (!body) return preamble;
   if (body.startsWith('/')) {
     const lineEnd = body.indexOf('\n');

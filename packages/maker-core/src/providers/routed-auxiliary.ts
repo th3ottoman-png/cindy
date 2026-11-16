@@ -208,9 +208,17 @@ export async function requestRoutedTaskText(
 
   const resolution = resolveTaskRoute(routing, args.taskClass);
   if (!resolution.ok) {
-    // A rule the owner wrote for THIS task but that failed validation (unknown route, bad
-    // value) is an explicit broken routing decision: fail closed, do not fall through.
-    const ruleIssues = routing.issues.filter((i) => i.where === `rules.${args.taskClass}`);
+    // A rule the owner wrote for THIS task (or its group default / file-level error) that
+    // failed validation is an explicit broken routing decision: fail closed, do not fall through.
+    const group = args.taskClass.includes('.')
+      ? args.taskClass.slice(0, args.taskClass.indexOf('.'))
+      : undefined;
+    const ruleIssues = routing.issues.filter(
+      (i) =>
+        i.where === `rules.${args.taskClass}` ||
+        (group !== undefined && i.where === `rules.${group}.default`) ||
+        i.where === '(file)',
+    );
     if (ruleIssues.length > 0) {
       return {
         kind: 'blocked',

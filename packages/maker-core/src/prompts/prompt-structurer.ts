@@ -23,7 +23,7 @@ const CONTEXT_PATTERNS = [
 
 const DONE_PATTERNS = [
   /^(?:done when|done means|needs to|should pass|verify that|must pass|ensure tests?)\b/i,
-  /\b(?:all tests pass|unit tests? pass|live proof|passes?)\b/i,
+  /\b(?:all tests pass|unit tests? pass|tests? pass(?:es)?|live proof|gate passes?)\b/i,
 ];
 
 const GOAL_PATTERNS = [
@@ -80,7 +80,9 @@ export function structureBrainDumpPrompt(rawText: string): StructuredPromptResul
   const guardrailThoughts: string[] = [];
   const doneThoughts: string[] = [];
 
-  for (const thought of expandedThoughts) {
+  for (const rawThought of expandedThoughts) {
+    const thought = rawThought.replace(/^[-*•\s]+/, '').trim();
+    if (!thought) continue;
     let matched = false;
 
     // Check guardrails
@@ -137,7 +139,7 @@ export function structureBrainDumpPrompt(rawText: string): StructuredPromptResul
     goal = expandedThoughts[0];
   }
   // Strip conversational filler prefixes like "hey so basically i want to" or "please"
-  goal = goal.replace(/^(?:(?:hey|so|basically|well|look|ok|um|uh|please)[,!\s]+)+/i, '');
+  goal = goal.replace(/^(?:(?:hey|so|basically|well|ok|um|uh|please)[,!\s]+|look[,!]\s+)+/i, '');
   if (/^i want to\s+/i.test(goal)) {
     goal = goal.replace(/^i want to\s+/i, '');
   }

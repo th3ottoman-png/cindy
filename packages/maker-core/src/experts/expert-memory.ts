@@ -62,8 +62,12 @@ export function appendExpertMemory(expert: MemoryTarget, note: string, opts: { n
   let existing = '';
   try {
     existing = fs.readFileSync(file, 'utf8');
-  } catch {
-    existing = '';
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      existing = '';
+    } else {
+      throw err;
+    }
   }
   const stamp = (opts.now ?? new Date()).toISOString();
   const entry = `## ${stamp}\n\n${neutraliseHeadings(body)}\n`;

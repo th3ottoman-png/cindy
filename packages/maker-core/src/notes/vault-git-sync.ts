@@ -137,7 +137,7 @@ export function parseGitStatusShort(output: string): {
  * Normalizes project name for loose matching (lowercase, strip dashes, underscores, spaces).
  */
 function normalizeName(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 }
 
 /**
@@ -175,18 +175,21 @@ export function matchVaultProjectNote(vaultNotePaths: string[], projectName: str
   }
 
   // 5: Heuristic scan in memory/ or root: slug inclusion or matching
-  for (const p of vaultNotePaths) {
-    const base = path.posix.basename(p, '.md');
-    const normBase = normalizeName(base);
-    if (
-      normBase.includes(normalizedCandidate) ||
-      (normalizedCandidate.length >= 4 && normalizedCandidate.includes(normBase))
-    ) {
-      return {
-        notePath: p,
-        noteTitle: base,
-        matchType: 'heuristic',
-      };
+  if (normalizedCandidate) {
+    for (const p of vaultNotePaths) {
+      const base = path.posix.basename(p, '.md');
+      const normBase = normalizeName(base);
+      if (!normBase) continue;
+      if (
+        normBase.includes(normalizedCandidate) ||
+        (normalizedCandidate.length >= 4 && normalizedCandidate.includes(normBase))
+      ) {
+        return {
+          notePath: p,
+          noteTitle: base,
+          matchType: 'heuristic',
+        };
+      }
     }
   }
 

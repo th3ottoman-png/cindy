@@ -29,6 +29,7 @@ describe('parseRoutingFile', () => {
     ['a bad route name', { routes: { 'Bad Name': { provider: 'deepseek', model: 'm' } } }, 'route names are'],
     ['a rule naming an unknown route', { routes: DOC.routes, rules: { title: 'ghost' } }, 'unknown route "ghost"'],
     ['a non-string rule', { routes: DOC.routes, rules: { title: 5 } }, 'must be a route name'],
+    ['an inherited Object.prototype route name', { routes: DOC.routes, rules: { title: 'constructor' } }, 'unknown route "constructor"'],
     ['a list at the top level', ['x'], 'top level must be a mapping'],
   ])('reports %s and keeps what is valid', (_label, doc, fragment) => {
     const parsed = parseRoutingFile(doc, PROVIDERS);
@@ -58,9 +59,15 @@ describe('resolveTaskRoute', () => {
     });
   });
 
-  it('falls back from "chat.code" to "chat.default", and only that', () => {
+  it('falls back from "chat.code" to "chat.default", and only when no explicit "chat.code" rule was invalid', () => {
     expect(resolveTaskRoute(cfg, 'chat.code')).toMatchObject({ ok: true, routeName: 'flash' });
     expect(resolveTaskRoute(cfg, 'summary')).toMatchObject({ ok: false });
+
+    const brokenExact = parseRoutingFile(
+      { routes: DOC.routes, rules: { 'chat.default': 'flash', 'chat.code': 'ghost' } },
+      PROVIDERS,
+    );
+    expect(resolveTaskRoute(brokenExact, 'chat.code')).toMatchObject({ ok: false });
   });
 
   it('fails closed with a clear error when no rule exists, even though other routes exist', () => {

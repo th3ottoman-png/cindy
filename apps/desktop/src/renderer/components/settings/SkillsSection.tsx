@@ -306,17 +306,26 @@ export function SkillsSection({
   useEffect(() => {
     if (!expertsApi) return;
     let cancelled = false;
-    void expertsApi.list().then((list) => {
-      if (cancelled) return;
-      const hermes = list
-        .filter((e) => e.expert?.agent === 'hermes')
-        .map((e) => ({ slug: e.slug, name: e.expert!.name }));
-      setExpertOptions(hermes);
-    });
+    const refreshExperts = () => {
+      void expertsApi.list().then((list) => {
+        if (cancelled) return;
+        const hermes = list
+          .filter((e) => e.expert?.agent === 'hermes')
+          .map((e) => ({ slug: e.slug, name: e.expert!.name }));
+        setExpertOptions(hermes);
+      });
+    };
+    refreshExperts();
+    const off = expertsApi.onChanged?.(() => refreshExperts());
     return () => {
       cancelled = true;
+      off?.();
     };
   }, [expertsApi]);
+
+  useEffect(() => {
+    setScan(null);
+  }, [mode, localPath, gitUrl, gitSubdir]);
 
   useEffect(() => {
     if (!status) return undefined;

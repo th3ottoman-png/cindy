@@ -185,8 +185,12 @@ export function appendNote(vaultDir: string, rel: string, text: string, opts: { 
     if (!inside(root, fs.realpathSync(target))) return { ok: false, reason: 'outside-vault', message: 'path leaves the vault' };
     existing = fs.readFileSync(target, 'utf8');
     created = false;
-  } catch {
-    existing = '';
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      existing = '';
+    } else {
+      throw err;
+    }
   }
   const stamp = (opts.now ?? new Date()).toISOString();
   const entry = `## ${stamp}\n\n${body.replace(/^(#{1,2})(\s)/gm, '\\$1$2')}\n`;

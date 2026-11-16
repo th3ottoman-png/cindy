@@ -194,7 +194,7 @@ describe('HermesAgent auto mode', () => {
   it('judges a command against the owner words and the task folder, and shows a block in the chat', async () => {
     const seen: AutoReviewRequest[] = [];
     const { events } = await startAuto(reviewerReturning('block', seen, 'deletes outside the project'));
-    await handle!.send({ role: 'user', content: 'tidy up the build folder' });
+    await handle!.send({ type: 'user', content: 'tidy up the build folder' });
     const answer = await daemon!.askApproval({ requestId: 'c2', toolName: 'terminal', input: { command: 'rm -rf ~/Documents' } });
     expect(answer.result).toEqual({ kind: 'permission', behavior: 'deny', reason: 'deletes outside the project' });
     expect(seen[0]).toMatchObject({

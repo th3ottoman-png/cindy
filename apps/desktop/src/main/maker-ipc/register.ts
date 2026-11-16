@@ -26375,6 +26375,7 @@ export function registerMakerIpc(maker: Maker, options: RegisterMakerIpcOptions)
   // ── Scheduled sessions (ROADMAP 5.4b) ───────────────────────────
   const scheduledSessionsHost = getDesktopScheduledSessionsHost({
     maker: () => getMaker(),
+    ensureHermesDaemon: async () => (await ensureHermesManagerDaemon()).ok,
     expertSessionStore: getDesktopExpertSessionStore(),
     cron: { parseCron, nextRun },
     showOpenDialog: (options) => dialog.showOpenDialog(options),

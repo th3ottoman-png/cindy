@@ -148,7 +148,26 @@ export class HermesTransport {
 
   /** protocol/hello with the mirrored version gate. */
   async hello(): Promise<HermesHelloResult> {
-    await this.ready;
+    let connectTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        this.ready,
+        new Promise<never>((_, reject) => {
+          connectTimer = setTimeout(() => {
+            const timeoutErr = new HermesDaemonUnreachableError(
+              this.socketPath,
+              new Error(`connect timed out after ${this.requestTimeoutMs}ms`),
+            );
+            this.connectError = timeoutErr;
+            this.socket.destroy();
+            this.fireClose(timeoutErr.message);
+            reject(timeoutErr);
+          }, this.requestTimeoutMs);
+        }),
+      ]);
+    } finally {
+      if (connectTimer !== undefined) clearTimeout(connectTimer);
+    }
     let result: HermesHelloResult;
     try {
       result = await this.request<HermesHelloResult>(

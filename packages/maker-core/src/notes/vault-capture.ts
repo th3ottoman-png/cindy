@@ -148,7 +148,7 @@ export function quickCaptureNote(vaultDir: string, input: QuickCaptureInput): Qu
   }
 
   const sanitizedBody = redactSecrets(input.content.trim());
-  const entryText = `${entryHeader}\n${metadataBlock}${tagsBlock}\n${sanitizedBody}\n`;
+  const entryText = redactSecrets(`${entryHeader}\n${metadataBlock}${tagsBlock}\n${sanitizedBody}\n`);
 
   let finalContent: string;
   let created = false;
@@ -186,7 +186,14 @@ export function loadPinnedNotes(filePath: string): PinnedNotesConfig {
     }
     const raw = fs.readFileSync(filePath, 'utf8');
     const parsed = JSON.parse(raw);
-    const sessions = typeof parsed?.sessions === 'object' && parsed.sessions !== null ? parsed.sessions : {};
+    const rawSessions =
+      typeof parsed?.sessions === 'object' && parsed.sessions !== null && !Array.isArray(parsed.sessions)
+        ? (parsed.sessions as Record<string, unknown>)
+        : {};
+    const sessions: Record<string, string[]> = {};
+    for (const [sid, list] of Object.entries(rawSessions)) {
+      sessions[sid] = Array.isArray(list) ? list.filter((p): p is string => typeof p === 'string') : [];
+    }
     const globalPins = Array.isArray(parsed?.globalPins) ? parsed.globalPins.filter((p: unknown): p is string => typeof p === 'string') : [];
     return { sessions, globalPins };
   } catch {
@@ -290,7 +297,12 @@ export function buildPinnedNotesPreamble(
 
   const sections: string[] = [];
   for (const rel of notePaths) {
-    const res = readNote(vaultDir, rel, { maxChars: maxCharsPerNote });
+    let res: ReturnType<typeof readNote>;
+    try {
+      res = readNote(vaultDir, rel, { maxChars: maxCharsPerNote });
+    } catch {
+      continue;
+    }
     if (res.ok && res.text.trim()) {
       const truncatedNotice = res.truncated ? '\n[...truncated to character budget...]' : '';
       sections.push(

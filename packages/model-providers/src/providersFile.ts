@@ -85,6 +85,10 @@ function parseEntry(raw: unknown, position: number, seen: Set<string>): Provider
     }
     keyEnv = raw.keyEnv;
   }
+  const isLoopback = LOOPBACK.has(url.hostname.toLowerCase()) || /^127(?:\.\d{1,3}){3}$/.test(url.hostname);
+  if (keyEnv && url.protocol === 'http:' && !isLoopback) {
+    return fail('"baseUrl" with "keyEnv" must use https unless the host is loopback');
+  }
   for (const forbidden of ['apiKey', 'api_key', 'key', 'token', 'secret']) {
     if (forbidden in raw) return fail(`"${forbidden}" is not allowed: keep secrets in the environment and reference them with "keyEnv"`);
   }

@@ -50,7 +50,7 @@ export function resolveVisionRoute(deps: VisionRouteDeps = {}): VisionRouteResol
 
   const resolution = resolveTaskRoute(routing, 'vision');
   if (!resolution.ok) {
-    const ruleIssues = routing.issues.filter((i) => i.where === 'rules.vision');
+    const ruleIssues = routing.issues.filter((i) => i.where === 'rules.vision' || i.where === '(file)');
     if (ruleIssues.length > 0) {
       return { kind: 'blocked', message: ruleIssues.map((i) => i.message).join('; ') };
     }

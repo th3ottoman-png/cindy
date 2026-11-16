@@ -21,7 +21,7 @@ frozen="${FROZEN_SHA:-$(sed -n 's/.*Frozen upstream SHA:\*\* `\([0-9a-f]\{40\}\)
 
 if [ "${UPSTREAM_SCAN_NO_FETCH:-0}" != "1" ]; then
   echo "fetching $remote/$branch (read-only fetch; nothing is applied)..."
-  git fetch --quiet "$remote" "$branch"
+  git fetch --quiet "$remote" "+refs/heads/$branch:refs/remotes/$remote/$branch"
 fi
 ref="$remote/$branch"
 git rev-parse --verify --quiet "$ref^{commit}" >/dev/null || { echo "upstream-security-scan: $ref not found" >&2; exit 2; }
@@ -38,12 +38,12 @@ path_re='(^|/)(preload|ipc|sandbox)[^/]*(/|$)|(^|/)[^/]*(preload|sandbox)[^/]*\.
 cand=0
 for sha in $(git rev-list --reverse "$frozen..$ref"); do
   reasons=""
-  if git log -1 --format='%s%n%b' "$sha" | grep -qiE "$msg_re"; then reasons="$reasons message"; fi
-  if git diff-tree --no-commit-id --name-only -r "$sha" | grep -qiE "$path_re"; then reasons="$reasons path"; fi
-  if git diff-tree --no-commit-id --name-only -r "$sha" | grep -qE '(^|/)package\.json$'; then
+  if git log -1 --format='%s%n%b' "$sha" | grep -iE "$msg_re" >/dev/null; then reasons="$reasons message"; fi
+  if git diff-tree --no-commit-id --name-only -r "$sha" | grep -iE "$path_re" >/dev/null; then reasons="$reasons path"; fi
+  if git diff-tree --no-commit-id --name-only -r "$sha" | grep -E '(^|/)package\.json$' >/dev/null; then
     if git show --format= -U0 "$sha" -- '*package.json' \
-      | grep -E '^[+-][[:space:]]*"[^"]+":[[:space:]]*"[~^<>=]*[0-9]' \
-      | grep -vE '"(version|engines|node)"' | grep -q .; then
+      | grep -E '^[+-][[:space:]]*"[^"]+":[[:space:]]*"([~^<>=]*[0-9]|npm:|workspace:|github:|git\+|file:)' \
+      | grep -vE '"(version|engines|node|private|name|license|type|main)"' | grep . >/dev/null; then
       reasons="$reasons deps"
     fi
   fi

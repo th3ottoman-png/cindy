@@ -92,6 +92,19 @@ describe('providersFile projection (ROADMAP 2.1b)', () => {
     });
     expect(parsed.issues).toEqual([]);
 
+    const insecureRemote = parseProvidersFile({
+      providers: [
+        {
+          id: 'plain-remote',
+          kind: 'openai-compatible',
+          baseUrl: 'http://api.example.com/v1',
+          keyEnv: 'REMOTE_API_KEY',
+        },
+      ],
+    });
+    expect(insecureRemote.providers).toEqual([]);
+    expect(insecureRemote.issues[0]?.message).toContain('https unless the host is loopback');
+
     const projected = projectProviderFileEndpoints(parsed.providers, [
       {
         id: 'lmstudio-local',

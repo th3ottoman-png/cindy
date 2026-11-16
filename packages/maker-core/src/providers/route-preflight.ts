@@ -41,7 +41,10 @@ export async function preflightModelRoute(
       message: `${where} replied with an error (${probe.error ?? 'unknown'}). Check it, or pick another model.`,
     };
   }
-  if (!probe.models.includes(route.model)) {
+  const hasModel =
+    probe.models.includes(route.model) ||
+    (!route.model.includes(':') && probe.models.includes(`${route.model}:latest`));
+  if (!hasModel) {
     const loaded = probe.models.length > 0
       ? `Loaded: ${probe.models.slice(0, 5).join(', ')}${probe.models.length > 5 ? ', …' : ''}.`
       : 'No models are loaded.';

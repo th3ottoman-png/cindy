@@ -79,7 +79,7 @@ export function parseImportedAgentId(id: unknown): { source: ImportedAgentSource
   const match = IMPORTED_ID.exec(id);
   if (!match) return null;
   const relPath = match[2];
-  if (relPath.startsWith('/') || relPath.includes('\\')) return null;
+  if (relPath.startsWith('/') || relPath.includes('\\') || /^[A-Za-z]:/.test(relPath)) return null;
   const segments = relPath.split('/');
   if (segments.some((seg) => seg === '' || seg === '.' || seg === '..')) return null;
   return { source: match[1] as ImportedAgentSource, relPath };
@@ -89,15 +89,24 @@ export function isImportedAgentId(id: unknown): id is string {
   return parseImportedAgentId(id) !== null;
 }
 
+function safeNonStringToolToken(item: unknown): string {
+  try {
+    return typeof item === 'object' && item !== null ? JSON.stringify(item) : String(item);
+  } catch {
+    return '[invalid-tool]';
+  }
+}
+
 function readDeclaredTools(value: unknown): string[] {
+  if (value === undefined || value === null) return [];
   if (typeof value === 'string') {
     return value.split(',').map((t) => t.trim()).filter(Boolean);
   }
   if (Array.isArray(value)) {
     // Non-string entries are kept as raw text so they block Hermes instead of vanishing.
-    return value.map((t) => (typeof t === 'string' ? t.trim() : String(t))).filter(Boolean);
+    return value.map((t) => (typeof t === 'string' ? t.trim() : safeNonStringToolToken(t))).filter(Boolean);
   }
-  return [];
+  return [safeNonStringToolToken(value)];
 }
 
 function runsOnFor(declaredTools: readonly string[]): { runsOn: ExpertAgent[]; blockedTools?: string[] } {
@@ -117,6 +126,9 @@ export function parseImportedAgent(raw: string, meta: ImportedAgentMeta): Import
     absolutePath: meta.absolutePath,
     relPath,
   };
+  if (/^\uFEFF?---(?:js|javascript)\b/i.test(raw)) {
+    return { ...base, name: stem, description: '', declaredTools: [], prompt: '', runsOn: [], error: 'frontmatter: JavaScript frontmatter is not allowed' };
+  }
   const parsed = parseFrontmatter(raw);
   if (parsed.parseError) {
     return { ...base, name: stem, description: '', declaredTools: [], prompt: '', runsOn: [], error: `frontmatter: ${parsed.parseError}` };

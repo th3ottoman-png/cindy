@@ -94,7 +94,9 @@ describe('vault-capture', () => {
         targetFile: '../escaped.md',
       });
       expect(res.ok).toBe(false);
-      expect(res.reason).toBe('outside-vault');
+      if (!res.ok) {
+        expect(res.reason).toBe('outside-vault');
+      }
     });
   });
 

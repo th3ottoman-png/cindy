@@ -61,7 +61,7 @@ export function readRecapConfig(file: string): { config: RecapConfig; issue?: st
     awayMinutes: normalizeAwayMinutes(r.awayMinutes),
   };
   const issue = r.awayMinutes !== undefined && normalizeAwayMinutes(r.awayMinutes) !== r.awayMinutes
-    ? `awayMinutes ${String(r.awayMinutes)} is outside ${MIN_RECAP_AWAY_MINUTES}-${MAX_RECAP_AWAY_MINUTES}; clamped`
+    ? `awayMinutes ${JSON.stringify(r.awayMinutes)} is outside ${MIN_RECAP_AWAY_MINUTES}-${MAX_RECAP_AWAY_MINUTES}; clamped`
     : undefined;
   return issue ? { config, issue } : { config };
 }
@@ -129,6 +129,13 @@ export interface RecapTurn {
  * so when the transcript is too long the oldest turns are dropped, never the newest.
  */
 export function buildRecapPrompt(turns: readonly RecapTurn[], openGoal?: string | null): string {
+  const goal = openGoal?.trim();
+  const maxGoalChars = Math.floor(RECAP_PROMPT_CHAR_BUDGET / 2);
+  const boundedGoal = goal && goal.length > maxGoalChars ? goal.slice(0, maxGoalChars) : goal;
+  const header = boundedGoal ? `Open goal: ${boundedGoal}\n\n` : '';
+  const prefix = `${header}Recent conversation:\n`;
+  const transcriptBudget = Math.max(0, RECAP_PROMPT_CHAR_BUDGET - prefix.length);
+
   const kept: string[] = [];
   let used = 0;
   for (let i = turns.length - 1; i >= 0; i -= 1) {
@@ -136,19 +143,17 @@ export function buildRecapPrompt(turns: readonly RecapTurn[], openGoal?: string 
     const text = turn.text.trim();
     if (!text) continue;
     const line = `${turn.role === 'user' ? 'Owner' : 'Assistant'}: ${text}`;
-    if (used + line.length + 1 > RECAP_PROMPT_CHAR_BUDGET) {
+    if (used + line.length + (kept.length > 0 ? 1 : 0) > transcriptBudget) {
       // A single turn larger than the whole budget is truncated, not skipped: it is the
       // most recent thing that happened and dropping it would misreport the state.
-      if (kept.length === 0) kept.push(line.slice(0, RECAP_PROMPT_CHAR_BUDGET));
+      if (kept.length === 0 && transcriptBudget > 0) kept.push(line.slice(0, transcriptBudget));
       break;
     }
+    used += line.length + (kept.length > 0 ? 1 : 0);
     kept.push(line);
-    used += line.length + 1;
   }
   kept.reverse();
-  const goal = openGoal?.trim();
-  const header = goal ? `Open goal: ${goal}\n\n` : '';
-  return `${header}Recent conversation:\n${kept.join('\n')}`;
+  return `${prefix}${kept.join('\n')}`;
 }
 
 /** New prompt text for a new feature only; no existing agent's prompt is edited (AGENTS.md §3). */

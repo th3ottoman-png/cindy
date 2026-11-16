@@ -347,6 +347,7 @@ function handleSnapshot(reason) {
     '',
     \`Location: \${data.dir}\`,
   ];
+  writeAtomicPrivate(reportFilePath, lines.join('\\n') + '\\n');
   emitResponse('Cindy Doctor — Snapshot Saved', reportFilePath, lines);
 }
 

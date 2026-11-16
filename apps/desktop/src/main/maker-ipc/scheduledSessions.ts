@@ -63,6 +63,7 @@ export interface ScheduledSessionsConfigView {
 
 export interface ScheduledSessionsHostDeps {
   maker?: Maker | (() => Maker | null | undefined);
+  ensureHermesDaemon?: () => Promise<boolean>;
   expertSessionStore: ExpertSessionStore;
   cron: CronApi;
   configFile?: string;
@@ -76,6 +77,7 @@ export interface ScheduledSessionsHostDeps {
 
 export class ScheduledSessionsHost {
   private readonly maker?: Maker | (() => Maker | null | undefined);
+  private readonly ensureHermesDaemon?: () => Promise<boolean>;
   private readonly expertSessionStore: ExpertSessionStore;
   private readonly cron: CronApi;
   private readonly configFile: string;
@@ -91,6 +93,7 @@ export class ScheduledSessionsHost {
 
   constructor(deps: ScheduledSessionsHostDeps) {
     this.maker = deps.maker;
+    this.ensureHermesDaemon = deps.ensureHermesDaemon;
     this.expertSessionStore = deps.expertSessionStore;
     this.cron = deps.cron;
     this.configFile = deps.configFile ?? defaultSchedulesConfigFile();
@@ -312,6 +315,9 @@ export class ScheduledSessionsHost {
       const sessionId = randomUUID();
       let session: Session;
       try {
+        if (this.ensureHermesDaemon && !(await this.ensureHermesDaemon())) {
+          throw new Error('Hermes daemon is not ready');
+        }
         session = await maker.createSession({
           id: sessionId,
           title: `Scheduled: ${schedule.id}${isDryRun ? ' (dry-run)' : ''}`,

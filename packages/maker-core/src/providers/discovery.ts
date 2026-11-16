@@ -32,7 +32,7 @@ export interface DiscoveryOptions {
 export function modelsUrl(entry: Pick<ProviderFileEntry, 'kind' | 'baseUrl'>): string {
   const base = entry.baseUrl.replace(/\/+$/, '');
   if (entry.kind === 'ollama') return `${base}/api/tags`;
-  return /\/v1$/.test(base) ? `${base}/models` : `${base}/v1/models`;
+  return /\/v\d+(?:beta\d*)?(?:\/openai)?$/i.test(base) ? `${base}/models` : `${base}/v1/models`;
 }
 
 function extractModelIds(body: unknown): string[] | null {
@@ -94,17 +94,20 @@ export async function probeEndpoint(entry: ProviderFileEntry, options: Discovery
 }
 
 let latestDiscoveredEndpointModels = new Map<string, string[]>();
+let discoveryGeneration = 0;
 
 export function getLatestDiscoveredModels(): Map<string, string[]> {
   return latestDiscoveredEndpointModels;
 }
 
 export function setLatestDiscoveredModels(models: Map<string, string[]>): void {
+  discoveryGeneration += 1;
   latestDiscoveredEndpointModels = models;
 }
 
 /** Probe all entries in parallel; result order follows `entries`. */
 export async function discoverEndpoints(entries: ProviderFileEntry[], options: DiscoveryOptions = {}): Promise<EndpointProbe[]> {
+  const gen = ++discoveryGeneration;
   const probes = await Promise.all(entries.map((e) => probeEndpoint(e, options)));
   const map = new Map<string, string[]>();
   for (const probe of probes) {
@@ -112,6 +115,8 @@ export async function discoverEndpoints(entries: ProviderFileEntry[], options: D
       map.set(probe.id, probe.models);
     }
   }
-  latestDiscoveredEndpointModels = map;
+  if (gen === discoveryGeneration) {
+    latestDiscoveredEndpointModels = map;
+  }
   return probes;
 }

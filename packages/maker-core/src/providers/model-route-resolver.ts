@@ -117,8 +117,8 @@ export function resolveModelRoute(
     }
   }
 
-  // 5. A model discovered earlier keeps its endpoint while that endpoint is offline/unloaded,
-  // so the turn fails on the right endpoint (preflight) instead of moving to another provider.
+  // 5. When no online endpoint currently advertises the model, fall back to the endpoint where
+  // it was last discovered so preflight reports that endpoint as offline/unloaded.
   if (!targetProviderId) {
     const remembered = rememberedEndpointByModel.get(trimmed);
     if (remembered && providerMap.has(remembered)) {

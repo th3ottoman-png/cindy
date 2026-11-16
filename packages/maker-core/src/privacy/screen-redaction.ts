@@ -28,13 +28,13 @@ const REDACTION_RULES: PatternRule[] = [
   // API Keys: sk-..., ghp_..., gho_..., Google AIza...
   {
     category: 'api-key',
-    regex: /\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]-[A-Za-z0-9_]{16,}|xox[baprs]-[A-Za-z0-9_-]{10,}|AIza[0-9A-Za-z-_]{35})\b/g,
+    regex: /\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{16,}|gh[pousr]-[A-Za-z0-9_]{16,}|xox[baprs]-[A-Za-z0-9_-]{10,}|AIza[0-9A-Za-z-_]{35})\b/g,
     getReplacement: () => '[REDACTED:API_KEY]',
   },
   // Key / secret assignments: api_key = "...", secret: '...'
   {
     category: 'api-key',
-    regex: /\b(api[_-]?key|secret_key|private_key)\s*[:=]\s*["']?([A-Za-z0-9._~+/=-]{8,})["']?/gi,
+    regex: /(?:["']|\b)(api[_-]?key|secret_key|private_key)["']?\s*[:=]\s*["']?([A-Za-z0-9._~+/=-]{8,})["']?/gi,
     getReplacement: (_match, p1) => `${p1}: [REDACTED:KEY]`,
   },
   // Tokens: Bearer ..., token: "..."
@@ -45,13 +45,13 @@ const REDACTION_RULES: PatternRule[] = [
   },
   {
     category: 'token',
-    regex: /\b(access_token|refresh_token|auth_token)\s*[:=]\s*["']?([A-Za-z0-9._~+/=-]{8,})["']?/gi,
+    regex: /(?:["']|\b)(access_token|refresh_token|auth_token)["']?\s*[:=]\s*["']?([A-Za-z0-9._~+/=-]{8,})["']?/gi,
     getReplacement: (_match, p1) => `${p1}: [REDACTED:TOKEN]`,
   },
   // Passwords: password = "..."
   {
     category: 'password',
-    regex: /\b(password|passwd|pwd)\s*[:=]\s*["']?([^\s"',}]{4,})["']?/gi,
+    regex: /(?:["']|\b)(password|passwd|pwd)["']?\s*[:=]\s*(?:"([^"\r\n]{4,})"|'([^'\r\n]{4,})'|([^\s"',}]{4,}))/gi,
     getReplacement: (_match, p1) => `${p1}: [REDACTED:PASSWORD]`,
   },
   // Email addresses
@@ -115,7 +115,12 @@ export function findRedactionSpans(text: string): RedactionSpan[] {
 
   for (const span of rawSpans) {
     if (span.start >= lastEnd) {
-      result.push(span);
+      result.push({ ...span });
+      lastEnd = span.end;
+    } else if (span.end > lastEnd && result.length > 0) {
+      const prev = result[result.length - 1]!;
+      prev.end = span.end;
+      prev.matchedText = text.slice(prev.start, prev.end);
       lastEnd = span.end;
     }
   }

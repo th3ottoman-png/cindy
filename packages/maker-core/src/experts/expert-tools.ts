@@ -161,7 +161,10 @@ export function parseExpertToolsYaml(text: string): ExpertToolsParseResult {
   }
   let doc: unknown;
   try {
-    doc = matter(`---\n${text}\n---\n`, {}).data;
+    const clean = text
+      .replace(/^\uFEFF?---[ \t]*\r?\n/, '')
+      .replace(/\r?\n(?:---|\.\.\.)[ \t]*\s*$/, '');
+    doc = matter(`---\n${clean}\n---\n`, {}).data;
   } catch (error) {
     return {
       policy: {},
@@ -201,36 +204,38 @@ export function loadExpertToolsFile(file: string): ExpertToolsParseResult {
 /** Format an ExpertToolsPolicy back to clean YAML. */
 export function serializeExpertToolsPolicy(policy: ExpertToolsPolicy): string {
   const lines: string[] = [];
+  const fmtItem = (s: string): string =>
+    /^[A-Za-z0-9_./-]+$/.test(s) && !/^(?:true|false|null|yes|no|on|off|~|\d+(?:\.\d+)?)$/i.test(s)
+      ? s
+      : JSON.stringify(s);
+  const pushList = (key: 'allow' | 'deny', items: readonly string[]): void => {
+    if (items.length === 0) {
+      lines.push(`  ${key}: []`);
+      return;
+    }
+    lines.push(`  ${key}:`);
+    for (const item of items) {
+      lines.push(`    - ${fmtItem(item)}`);
+    }
+  };
 
   if (policy.tools) {
     lines.push('tools:');
     if (policy.tools.allow !== undefined) {
-      lines.push('  allow:');
-      for (const item of policy.tools.allow) {
-        lines.push(`    - ${item}`);
-      }
+      pushList('allow', policy.tools.allow);
     }
     if (policy.tools.deny !== undefined) {
-      lines.push('  deny:');
-      for (const item of policy.tools.deny) {
-        lines.push(`    - ${item}`);
-      }
+      pushList('deny', policy.tools.deny);
     }
   }
 
   if (policy.mcpServers) {
     lines.push('mcp_servers:');
     if (policy.mcpServers.allow !== undefined) {
-      lines.push('  allow:');
-      for (const item of policy.mcpServers.allow) {
-        lines.push(`    - ${item}`);
-      }
+      pushList('allow', policy.mcpServers.allow);
     }
     if (policy.mcpServers.deny !== undefined) {
-      lines.push('  deny:');
-      for (const item of policy.mcpServers.deny) {
-        lines.push(`    - ${item}`);
-      }
+      pushList('deny', policy.mcpServers.deny);
     }
   }
 

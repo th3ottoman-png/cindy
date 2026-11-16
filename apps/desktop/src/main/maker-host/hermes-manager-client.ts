@@ -941,9 +941,16 @@ function waitForReady(
       if (!result.ok) stderr.off('data', onData);
       resolve(result);
     };
+    let readyScanBuf = '';
     const onData = (chunk: Buffer | string): void => {
-      stderrTail.text = (stderrTail.text + chunk.toString()).slice(-STDERR_TAIL_CHARS);
-      if (!settled && stderrTail.text.includes(READY_MARKER)) finish({ ok: true });
+      const str = chunk.toString();
+      stderrTail.text = (stderrTail.text + str).slice(-STDERR_TAIL_CHARS);
+      if (!settled) {
+        readyScanBuf = (readyScanBuf + str).slice(-(READY_MARKER.length * 2 + 256));
+        if (readyScanBuf.includes(READY_MARKER) || str.includes(READY_MARKER)) {
+          finish({ ok: true });
+        }
+      }
     };
     const onExit = (code: number): void => {
       finish({ ok: false, message: `daemon exited before READY (code=${code})` });

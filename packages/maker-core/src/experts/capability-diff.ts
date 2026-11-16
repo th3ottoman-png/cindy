@@ -94,7 +94,7 @@ export interface CapabilityDiff {
 }
 
 function keyOf(descriptor: CapabilityDescriptor): string {
-  return `${descriptor.kind}:${descriptor.id}`;
+  return JSON.stringify([descriptor.kind, descriptor.id]);
 }
 
 function uniqueByKey(

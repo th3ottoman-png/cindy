@@ -297,16 +297,26 @@ export function stripTurnAttachmentTokens(text: string, preserveKinds: readonly 
   const tokens = parseTurnAttachmentTokens(text);
   if (tokens.length === 0) return text;
   const preserve = new Set(preserveKinds);
+  const toRemove = tokens.filter((t) => !preserve.has(t.kind));
+  if (toRemove.length === 0) return text;
 
   let output = '';
   let cursor = 0;
-  for (const token of tokens) {
-    if (preserve.has(token.kind)) continue;
-    output += text.slice(cursor, token.start);
-    cursor = token.end;
+  for (const token of toRemove) {
+    let before = text.slice(cursor, token.start);
+    let nextCursor = token.end;
+    if (/[ \t]$/.test(before) && /^[ \t]/.test(text.slice(nextCursor))) {
+      nextCursor += 1;
+    } else if ((before === '' || before.endsWith('\n')) && /^[ \t]+/.test(text.slice(nextCursor))) {
+      nextCursor += /^[ \t]+/.exec(text.slice(nextCursor))![0].length;
+    } else if (/[ \t]+$/.test(before) && (nextCursor >= text.length || /^[,.;:!?\n]/.test(text.slice(nextCursor)))) {
+      before = before.replace(/[ \t]+$/, '');
+    }
+    output += before;
+    cursor = nextCursor;
   }
   output += text.slice(cursor);
-  return tidyAttachmentWhitespace(output);
+  return output.replace(/^[ \t]+|[ \t]+$/g, '').replace(/^\n+|\n+$/g, '');
 }
 
 function dedupeAttachments(items: readonly TurnAttachment[]): TurnAttachment[] {

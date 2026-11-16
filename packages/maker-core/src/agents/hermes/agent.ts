@@ -558,6 +558,8 @@ export class HermesAgent extends BaseAgent {
     let sendEpoch = 0;
     let activeEpoch: number | null = null;
     let awaitingCloseEpoch: number | null = null;
+    let sendPrepGeneration = 0;
+    let abortedPrepGeneration = 0;
     // The epoch of the turn the user asked to stop (handle.abort). Real Hermes
     // answers SIGINT with a failing terminal `result` (exit code 130 = 128 +
     // SIGINT) before the daemon's killed close arrives, so the result handler
@@ -820,6 +822,8 @@ export class HermesAgent extends BaseAgent {
           // --yolo and --safe-mode sessions apart). Surface it as its own
           // durable one-liner so the transcript explains the missing history
           // instead of silently continuing without it.
+          expertPreamblePending = Boolean(resolveExpertPreamble);
+          lastSentOrcaPreamble = null;
           queue.push({
             type: 'text',
             data: {
@@ -1085,6 +1089,7 @@ export class HermesAgent extends BaseAgent {
             'hermes daemon connection lost; start a new session to reconnect',
           );
         }
+        const prepGen = ++sendPrepGeneration;
         // Fail fast when the session's local/API endpoint is down or lacks the model,
         // instead of letting the Hermes CLI retry for minutes (ROADMAP 2.4c). Never
         // switches model: the owner decides what to use instead.
@@ -1102,6 +1107,9 @@ export class HermesAgent extends BaseAgent {
             ...(input.workingDir ? { workingDir: input.workingDir } : {}),
           })
           : null;
+        if (closedByUser || abortedPrepGeneration >= prepGen) {
+          throw new Error('Hermes send cancelled before dispatch');
+        }
         const orcaPreamble = orcaPreambleFor();
         const orcaPreambleToSend = orcaPreamble && orcaPreamble !== lastSentOrcaPreamble ? orcaPreamble : null;
         // ROADMAP 11.10: the audit instruction rides after the owner's text, which stays intact.
@@ -1166,6 +1174,7 @@ export class HermesAgent extends BaseAgent {
         });
       },
       async abort(): Promise<void> {
+        abortedPrepGeneration = sendPrepGeneration;
         if (closedByUser || transport.isClosed()) return;
         // Mark the intent before the RPC: the failing terminal result of a
         // SIGINTed run can arrive while the interrupt request is still in

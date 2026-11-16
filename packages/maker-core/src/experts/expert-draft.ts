@@ -131,7 +131,11 @@ export function renderExpertMarkdown(draft: ExpertDraft): string {
     ...(draft.tags.length > 0 ? { tags: draft.tags } : {}),
   };
   // lineWidth -1: one line per field, so the owner can hand-edit it (no folded `>-` blocks).
-  const text = matter.stringify(`${draft.prompt}\n`, data, { lineWidth: -1 } as Parameters<typeof matter.stringify>[2]);
+  const text = matter.stringify(
+    { content: `${draft.prompt}\n` } as unknown as string,
+    data,
+    { lineWidth: -1 } as Parameters<typeof matter.stringify>[2],
+  );
   return text.endsWith('\n') ? text : `${text}\n`;
 }
 
@@ -241,6 +245,8 @@ export function writeExpertFromForm(rootDir: string, input: unknown, opts: { now
     agent: agent as ExpertAgent,
     ...(draft.model ? { model: draft.model } : {}),
     ...(maxConcurrent !== undefined ? { maxConcurrent } : {}),
+    memory: draft.memory,
+    ...(draft.tags.length > 0 ? { tags: draft.tags } : {}),
     prompt: draft.prompt,
   });
   return commitNewExpertFolder(
@@ -380,7 +386,11 @@ function renderEditedMarkdown(current: string, fields: ExpertEditFields): string
   data.memory = fields.memory;
   if (fields.tags.length > 0) data.tags = fields.tags;
   else delete data.tags;
-  const text = matter.stringify(`${fields.prompt}\n`, data, { lineWidth: -1 } as Parameters<typeof matter.stringify>[2]);
+  const text = matter.stringify(
+    { content: `${fields.prompt}\n` } as unknown as string,
+    data,
+    { lineWidth: -1 } as Parameters<typeof matter.stringify>[2],
+  );
   return text.endsWith('\n') ? text : `${text}\n`;
 }
 
@@ -498,8 +508,14 @@ export function deleteExpert(rootDir: string, slug: string): ExpertSaveResult {
   if (!resolvedExpertDir.startsWith(resolvedRoot + path.sep)) {
     return { ok: false, reason: 'invalid', message: `expert folder outside root: "${slug}"` };
   }
-  if (!fs.existsSync(resolvedExpertDir)) {
+  let st: fs.Stats;
+  try {
+    st = fs.lstatSync(resolvedExpertDir);
+  } catch {
     return { ok: false, reason: 'missing', message: `no expert "${slug}"` };
+  }
+  if (!st.isDirectory()) {
+    return { ok: false, reason: 'invalid', message: `"${slug}" is not an expert directory` };
   }
   try {
     fs.rmSync(resolvedExpertDir, { recursive: true, force: true });

@@ -82,7 +82,7 @@ export function parseRoutingFile(doc: unknown, knownProviderIds: Iterable<string
       const where = `rules.${taskClass}`;
       if (typeof route !== 'string' || !route.trim()) {
         result.issues.push({ where, message: 'must be a route name' });
-      } else if (!(route.trim() in result.routes)) {
+      } else if (!Object.prototype.hasOwnProperty.call(result.routes, route.trim())) {
         result.issues.push({ where, message: `unknown route "${route.trim()}"` });
       } else {
         result.rules[taskClass] = route.trim();
@@ -177,11 +177,13 @@ export function parseWorkersBlock(doc: unknown, knownRouteNames: Iterable<string
 
 /** Render the managed block. Text-level, so the owner's comments survive. */
 export function renderWorkersBlock(config: WorkersConfig): string {
+  const formatRouteScalar = (r: string): string =>
+    /^(?:\d+(?:\.\d+)?|true|false|null|yes|no|on|off|~)$/i.test(r) ? JSON.stringify(r) : r;
   return [
     WORKERS_BLOCK_BEGIN,
     'workers:',
     `  allow_model_choice: ${config.allowModelChoice}`,
-    `  allowed_routes: [${config.allowedRoutes.join(', ')}]`,
+    `  allowed_routes: [${config.allowedRoutes.map(formatRouteScalar).join(', ')}]`,
     WORKERS_BLOCK_END,
   ].join('\n');
 }
@@ -248,14 +250,26 @@ export function decideWorkerModel(input: {
   };
 }
 
-export function resolveTaskRoute(config: RoutingFile, taskClass: string): RouteResolution {
+export function resolveTaskRoute(
+  config: RoutingFile & { issues?: readonly RoutingIssue[] },
+  taskClass: string,
+): RouteResolution {
+  const hasOwn = (obj: object, k: string): boolean => Object.prototype.hasOwnProperty.call(obj, k);
+  if (!hasOwn(config.rules, taskClass) && config.issues) {
+    const exactIssue = config.issues.find((i) => i.where === `rules.${taskClass}`);
+    if (exactIssue) {
+      return { ok: false, taskClass, error: `rule "${taskClass}" is invalid: ${exactIssue.message}` };
+    }
+  }
   const group = taskClass.includes('.') ? taskClass.slice(0, taskClass.indexOf('.')) : undefined;
-  const key = [taskClass, group ? `${group}.default` : undefined].find((k) => k !== undefined && k in config.rules);
+  const key = [taskClass, group ? `${group}.default` : undefined].find(
+    (k) => k !== undefined && hasOwn(config.rules, k),
+  );
   if (key === undefined) {
     return { ok: false, taskClass, error: `no routing rule for "${taskClass}"; add one to routing.yaml (nothing is chosen for you)` };
   }
   const routeName = config.rules[key];
-  const target = config.routes[routeName];
+  const target = hasOwn(config.routes, routeName) ? config.routes[routeName] : undefined;
   if (!target) return { ok: false, taskClass, error: `rule "${key}" names unknown route "${routeName}"` };
   return { ok: true, taskClass, routeName, target };
 }

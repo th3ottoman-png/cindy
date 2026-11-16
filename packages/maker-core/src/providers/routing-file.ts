@@ -10,7 +10,10 @@ export { resolveTaskRoute } from '@cindy/model-providers/routing-file';
 
 export function parseRoutingYaml(text: string, knownProviderIds: Iterable<string>): RoutingParseResult {
   try {
-    return parseRoutingFile(matter(`---\n${text}\n---\n`, {}).data, knownProviderIds);
+    const clean = text
+      .replace(/^\uFEFF?---[ \t]*\r?\n/, '')
+      .replace(/\r?\n(?:---|\.\.\.)[ \t]*\s*$/, '');
+    return parseRoutingFile(matter(`---\n${clean}\n---\n`, {}).data, knownProviderIds);
   } catch (error) {
     return { routes: {}, rules: {}, issues: [{ where: '(file)', message: `invalid YAML: ${error instanceof Error ? error.message : String(error)}` }] };
   }

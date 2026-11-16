@@ -221,10 +221,12 @@ export function collectSessionSummaries(
   for (const name of summaryFiles) {
     const full = path.join(realDir, name);
     try {
-      const stat = fs.statSync(full);
+      const realFile = fs.realpathSync(full);
+      if (!inside(root, realFile)) continue;
+      const stat = fs.statSync(realFile);
       if (!stat.isFile()) continue;
 
-      const raw = fs.readFileSync(full, 'utf8');
+      const raw = fs.readFileSync(realFile, 'utf8');
       const parsed = parseSummaryNote(raw);
 
       const relPath = path.join(path.dirname(checkProbe.rel), name).replace(/\\/g, '/');

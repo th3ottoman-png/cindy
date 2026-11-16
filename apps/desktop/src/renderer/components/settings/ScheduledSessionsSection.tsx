@@ -73,12 +73,12 @@ export function ScheduledSessionsView({
       {!config.vaultConfigured && (
         <div
           role="alert"
-          className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-12 text-amber-200"
+          className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-12 text-amber-800 dark:text-amber-200"
           data-testid="vault-warning"
         >
-          <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-400" aria-hidden="true" />
+          <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
           <div className="flex flex-col gap-0.5">
-            <span className="font-medium text-amber-300">Notes Vault Not Configured</span>
+            <span className="font-medium text-amber-900 dark:text-amber-300">Notes Vault Not Configured</span>
             <span>
               Scheduled sessions require a Notes Vault folder to save output notes. Please set a Notes Vault in the section above before running schedules.
             </span>
@@ -89,9 +89,9 @@ export function ScheduledSessionsView({
       {config.issue && (
         <div
           role="alert"
-          className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-12 text-amber-200"
+          className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-12 text-amber-800 dark:text-amber-200"
         >
-          <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-400" aria-hidden="true" />
+          <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
           <div className="flex flex-col gap-0.5">
             <span className="font-medium text-amber-300">Configuration Issue</span>
             <span>{config.issue}</span>
@@ -343,7 +343,7 @@ export function ScheduledSessionsSection() {
       } catch (err) {
         toast.error(`Run failed: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
-        setRunningId(null);
+        setRunningId((prev) => (prev === id ? null : prev));
       }
     },
     [api, loadData],

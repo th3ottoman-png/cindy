@@ -1126,6 +1126,7 @@ export function AddProviderWizard({
             const reuseDetection = detected?.catalog?.ok && agent === detected.agent
               && apiKey === detected.apiKey && source.baseUrl === detected.preset.runtimes[agent]?.baseUrl
               && !source.route && !source.modelsUrl?.includes('client_version=');
+            const skippedHermesDiscovery = !reuseDetection && agent === 'hermes';
             const r = reuseDetection ? detected!.catalog! : agent === 'hermes'
               ? { ok: true as const, models: [] } // hermes v1 无 BYOM 目录探测
               : await window.electronAPI.maker.fetchProviderModels({
@@ -1141,7 +1142,8 @@ export function AddProviderWizard({
             return {
               agent,
               modelsUrl: source.modelsUrl,
-              completeInventory: /^https:\/\/openrouter\.ai\/api(?:\/v1)?\/?$/.test(source.baseUrl)
+              completeInventory: !skippedHermesDiscovery
+                && /^https:\/\/openrouter\.ai\/api(?:\/v1)?\/?$/.test(source.baseUrl)
                 && (!source.modelsUrl || isOpenRouterModelsUrl(source.modelsUrl)),
               route: source.route,
               ok: !!(r.ok && r.models),

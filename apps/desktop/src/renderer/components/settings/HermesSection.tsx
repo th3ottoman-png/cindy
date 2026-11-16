@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Check,
@@ -68,14 +68,16 @@ export function HermesSection() {
   const [newServerTarget, setNewServerTarget] = useState('');
   const [addingServer, setAddingServer] = useState(false);
   const [togglingPlugin, setTogglingPlugin] = useState<string | null>(null);
+  const modelInitializedRef = useRef(false);
 
   const loadStatus = useCallback(async () => {
     try {
       setLoading(true);
       const data = await window.electronAPI.maker.hermesConfig.getStatus();
       setStatus(data);
-      if (data.route?.model) {
+      if (data.route?.model && !modelInitializedRef.current) {
         setSelectedModel(data.route.model);
+        modelInitializedRef.current = true;
       }
     } catch {
       toast.error('Failed to load Hermes status');
@@ -142,7 +144,7 @@ export function HermesSection() {
     if (!name || !target) return;
     try {
       setAddingServer(true);
-      const parts = target.split(/\s+/).filter(Boolean);
+      const parts = Array.from(target.matchAll(/(?:"([^"]*)"|'([^']*)'|(\S+))/g), (m) => m[1] ?? m[2] ?? m[3] ?? '').filter(Boolean);
       const serverConfig: HermesMcpServerItem =
         newServerType === 'http'
           ? { url: target }
